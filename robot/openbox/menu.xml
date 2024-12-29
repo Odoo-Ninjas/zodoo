@@ -6,7 +6,14 @@
     <menu id="root-menu" label="Openbox Menu">
         <item label="Terminal">
             <action name="Execute">
-                <command>xterm -e "cat /etc/welcome.txt; cd $CUSTOMS_DIR; bash"</command>
+                <command>
+                    xterm -e "cat /etc/welcome.txt; 
+                    cd $CUSTOMS_DIR; WINDOW_ID=$(xdotool search --name "xterm" | head -n 1); 
+                    xdotool windowmove $WINDOW_ID $BROWSER_WIDTH 0; 
+                    TERMINAL_WIDTH=$((DISPLAY_WIDTH - BROWSER_WIDTH));
+                    xdotool windowsize $WINDOW_ID $TERMINAL_WIDTH $BROWSER_HEIGHT;
+                    bash;
+                    "</command>
             </action>
         </item>
         <item label="Web Browser">

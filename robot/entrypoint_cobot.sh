@@ -91,7 +91,7 @@ sudo chown robot /opt/robot/.config /opt/robot/.vscode -R
 # [[ -e "$DEBUG_SOCKET" ]] && rm "$DEBUG_SOCKET"
 # socat UNIX-LISTEN:${DEBUG_SOCKET},fork TCP:localhost:5678 &
 
-gosu $USERNAME conky &
+DISPLAY="$DISPLAY" gosu $USERNAME conky &
 
 # loop forever
 sleep infinity

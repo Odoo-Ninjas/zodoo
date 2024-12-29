@@ -19,6 +19,12 @@ services:
             ODOO_CMD: /opt/robot/.local/pipx/venvs/wodoo/bin/odoo
             BROWSER_WIDTH: 1024
             BROWSER_HEIGHT: 768
+            ROBO_ODOO_HOST: http://proxy:80
+            ROBO_UPLOAD_FILES_DIR_LOCAL: /tmp
+            ROBO_UPLOAD_FILES_DIR_BROWSER_DRIVER: /tmp
+            ROBO_WEBDRIVER_BROWSER: firefox
+            ROBO_WEBDRIVER_HOST: 127.0.0.1:4444
+            ROBO_FORCE_HEADLESS: 1
         profiles:
             - auto
         extra_hosts:
@@ -87,6 +93,8 @@ services:
             DEBUG_SOCKET: /tmp/debug_socket/socket
             BROWSER_WIDTH: 1024
             BROWSER_HEIGHT: 768
+            ROBO_ODOO_HOST: http://odoo
+            ROBO_PORT: 80
         profiles:
             - manual
         extra_hosts:
