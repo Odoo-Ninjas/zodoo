@@ -16,6 +16,7 @@ services:
       WATCHPATH: /opt/toprint
       PRINTED_PATH: /opt/printed
       CONF_ROOT: /opt/printer_setup
+    restart: 'unless-stopped'
   odoo_base:
     volumes:
       - cupsdatatoprint:/opt/toprint 
