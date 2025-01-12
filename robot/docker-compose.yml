@@ -46,7 +46,7 @@ services:
         build:
           context: $ODOO_IMAGES/novnc
           args:
-            relpathname: vnccobot
+            relpathname: wscobot
         restart: "unless-stopped"
         profiles:
           - manual
@@ -113,11 +113,7 @@ services:
             - /var/run/docker.sock:/var/run/docker.sock
             - /var/lib/docker:/var/lib/docker
             # TODO
-            - /home/parallels/projects/wodoo:/home/parallels/projects/wodoo
-
-
-
-
+            # - /home/parallels/projects/wodoo:/home/parallels/projects/wodoo
 
     robot_file_browser:
         build: $ODOO_IMAGES/static_file_browser

@@ -15,7 +15,7 @@ services:
         - proxy
     restart: "unless-stopped"
     profiles:
-      - manual
+      - auto
     environment:
       - PROJECT_NAME=${PROJECT_NAME}
     volumes:

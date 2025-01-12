@@ -9,7 +9,7 @@ MAINTAINER marc@itewimmer.de
 ADD etc/apt/apt.conf.d/99fixbadproxy /etc/apt/apt.conf.d/99fixbadproxy
 
 #RUN [[ -z "$CUSTOMS_REQUIREMENTS" && exit -1 ]]
-ENV LANG C.UTF-8
+ENV LANG=C.UTF-8
 RUN apt update --fix-missing && \
 apt-get install \
         -y \

@@ -28,7 +28,6 @@ RUN pip install pip --upgrade
 COPY webssh /root/webssh
 RUN pip install -e /root/webssh
 
-
 RUN docker --version
 
 ADD launch.sh /root

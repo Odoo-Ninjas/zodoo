@@ -35,7 +35,7 @@ services:
         build:
           context: $ODOO_IMAGES/novnc
           args:
-            relpathname: vscode
+            relpathname: wscode
         restart: "unless-stopped"
         profiles:
           - manual

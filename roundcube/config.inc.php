@@ -5,6 +5,8 @@ $config['db_dsnw'] = 'sqlite:////rc/roundcubemail.sqlite?mode=0640';
 $config['imap_host'] = '__MAIL_SERVER__';
 $config['assets_path'] = '/mailer';
 $config['use_secure_urls'] = false;
+$config['reverse_proxy'] = true;
+$config['request_path'] = '/mailer/';
 
 // required to ignore SSL cert. verification
 // see: https://bbs.archlinux.org/viewtopic.php?id=187063

@@ -1,6 +1,7 @@
-FROM node:22-alpine
-COPY app/ /usr/src/app/
-WORKDIR /usr/src/app
-RUN npm install
-RUN apk update; apt upgrade; apk add git
-CMD [ "npm", "start" ]
+FROM openresty/openresty:alpine
+COPY nginx.conf /usr/local/openresty/nginx/conf/nginx.conf
+
+EXPOSE 80
+COPY run.sh /run.sh
+
+CMD ["/bin/sh", "/run.sh"]

@@ -1,12 +1,12 @@
 server {
         root /usr/share/nginx/www;
         index index.php index.html index.htm;
-        port_in_redirect off;
+        # port_in_redirect off;
 
         server_name localhost;
 
         location /mailer {
-            return 301 $scheme://$http_host/mailer/index.php;
+            return 301 /mailer/;
         }
 
         location /mailer/  {

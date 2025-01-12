@@ -16,8 +16,8 @@ services:
 
   roundcube:
     build: $ODOO_IMAGES/roundcube
-    #ports:
-    #    - "127.0.0.1:8282:80"
+    # ports:
+    #    - "8282:80"
     profiles:
       - auto
     environment:
