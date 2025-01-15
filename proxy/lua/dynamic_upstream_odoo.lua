@@ -1,11 +1,15 @@
 local myngx = require("myngx")
 local projectname = os.getenv("PROJECT_NAME")
-local hostname = projectname .. "_odoo"
+local hostname = "odoo"
+if projectname then
+    hostname = projectname .. "_" .. "odoo"
+end
 local varname = "target_odoo"
 local port1 = "8069"
 local port2 = "8072"
 
 local ip = myngx.get_ip(hostname)
+ngx.log(ngx.INFO, "Checking upstream odoo: " .. hostname .. " - " .. tostring(ip))
 
 if ip then
     local backend = "http://" .. ip .. ":" .. port1

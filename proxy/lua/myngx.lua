@@ -2,6 +2,7 @@ local myngx = {}
 local resolver = require "resty.dns.resolver"
 
 function myngx.get_ip(hostname)
+	ngx.log(ngx.INFO, "Resolving ip address for " .. hostname)
 	local ip
 	local r, err = resolver:new({
 		nameservers = {"127.0.0.11"}, -- Docker's DNS resolver
