@@ -6,6 +6,7 @@ services:
       context: $ODOO_IMAGES/cronjobs
       args:
         WODOO_VERSION: $WODOO_VERSION
+        POSTGRES_VERSION: $POSTGRES_VERSION
         # Dont do: if images used, then not compatible
         # OWNER_UID: $OWNER_UID
     profiles:

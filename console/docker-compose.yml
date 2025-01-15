@@ -6,6 +6,7 @@ services:
         WODOO_VERSION: $WODOO_VERSION
         OWNER_UID: $OWNER_UID
         DOCKER_GID: $DOCKER_GID
+        POSTGRES_VERSION: $POSTGRES_VERSION
         project_name: $project_name
         # Dont do: if images used, then not compatible
         # OWNER_UID: $OWNER_UID

@@ -337,9 +337,12 @@ def _get_exclude_table_param(filepath, exclude_tables):
 
 
 def _get_cmd(args):
+    pgrestore_version = subprocess.check_output(["pg_restore", "--version"], encoding="utf8")
+    click.secho(f"PG Client Tools Version: {pgrestore_version}")
     PGRESTORE = [
         "pg_restore",
         "--no-owner",
+        "--no-comments",
         "--no-privileges",
         "--no-acl",
     ] + args
