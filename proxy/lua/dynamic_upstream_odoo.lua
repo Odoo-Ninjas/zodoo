@@ -1,5 +1,6 @@
 local myngx = require("myngx")
-local hostname = "odoo"
+local projectname = os.getenv("PROJECT_NAME")
+local hostname = projectname .. "_odoo"
 local varname = "target_odoo"
 local port1 = "8069"
 local port2 = "8072"
