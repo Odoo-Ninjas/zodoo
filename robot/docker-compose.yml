@@ -19,6 +19,7 @@ services:
             ODOO_CMD: /opt/robot/.local/pipx/venvs/wodoo/bin/odoo
             BROWSER_WIDTH: 1920
             BROWSER_HEIGHT: 1080
+            ROBO_NO_UI_HIGHLIGHTING: 0
             ROBO_ODOO_HOST: http://proxy:80
             ROBO_UPLOAD_FILES_DIR_LOCAL: /tmp
             ROBO_UPLOAD_FILES_DIR_BROWSER_DRIVER: /tmp
