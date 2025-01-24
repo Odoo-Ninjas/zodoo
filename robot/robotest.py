@@ -1,4 +1,6 @@
 # pylint: disable=import-outside-toplevel
+import click
+import sys
 import uuid
 import selenium
 import base64
@@ -249,13 +251,13 @@ def smoketestselenium():
 *** Settings ***
 Library    BuiltIn
 Library    SeleniumLibrary
-Library    ./addons_robot/robot_utils/library/browser.py
+Library    /opt/src/addons_robot/robot_utils/library/browser.py
 
 *** Test Cases ***
 Smoke Test Robot
     Log    Hello, World!
-    ${driver}=  Get Driver For Browser  firefox  ${CURDIR}${/}..${/}tests/download    headless=${FALSE}
-    Open Browser  https:/www.mut.de  firefox
+    ${driver}=  Get Driver For Browser  download_path=${CURDIR}${/}..${/}tests/download    headless=${TRUE}  try_reuse_session=${FALSE}
+    Open Browser  https://www.mut.de
     Go To       https://www.heise.de
     """
 
@@ -263,13 +265,15 @@ Smoke Test Robot
     temp_file = Path(f"{uuid.uuid4()}.robot")
     try:
         temp_file.write_text(robot_code)
-        os.environ['BROWSER_WIDTH'] = "800"
-        os.environ['BROWSER_HEIGHT'] = "600"
+        os.environ["BROWSER_WIDTH"] = "800"
+        os.environ["BROWSER_HEIGHT"] = "600"
         result = run(temp_file)
+        # returns exit code 0 is good
         if result:
             raise Exception("Smoke test not passed.")
-    except:
+    finally:
         temp_file.unlink()
+    return True
 
 
 def _clean_dir(path):
@@ -287,10 +291,10 @@ if __name__ == "__main__":
     del archive
 
     os.environ["ROBOT_REMOTE_DEBUGGING"] = "1" if params.get("debug") else "0"
-    # if params.get("headless"):
-    # if not headless - user sees everything - then this nerves
-    # os.environ["MOZ_HEADLESS"] = "1"
-    smoketestselenium()
-
+    if params["params"].get("headless"):
+        os.environ["MOZ_HEADLESS"] = "1"
+    if not smoketestselenium():
+        print("\n\n\nSmoketest failed.\n\n")
+        sys.exit(-1)
     run_tests(**params)
     logger.info("Finished calling robotest.py")
