@@ -265,14 +265,18 @@ Smoke Test Robot
     temp_file = Path(f"{uuid.uuid4()}.robot")
     try:
         temp_file.write_text(robot_code)
+        old_width, old_height = os.environ.get("BROWSER_WIDTH"), os.environ.get("BROWSER_HEIGHT")
         os.environ["BROWSER_WIDTH"] = "800"
         os.environ["BROWSER_HEIGHT"] = "600"
         result = run(temp_file)
         # returns exit code 0 is good
         if result:
             raise Exception("Smoke test not passed.")
+        
     finally:
         temp_file.unlink()
+        os.environ["BROWSER_WIDTH"] = old_width
+        os.environ["BROWSER_HEIGHT"] = old_height
     return True
 
 
