@@ -259,6 +259,7 @@ Smoke Test Robot
     ${driver}=  Get Driver For Browser  download_path=${CURDIR}${/}..${/}tests/download    headless=${TRUE}  try_reuse_session=${FALSE}
     Open Browser  https://www.mut.de
     Go To       https://www.heise.de
+    Call Method    ${driver}    quit
     """
 
     # Create a temporary file
@@ -272,6 +273,7 @@ Smoke Test Robot
         # returns exit code 0 is good
         if result:
             raise Exception("Smoke test not passed.")
+        logger.info("Smoke test passed.")
         
     finally:
         temp_file.unlink()

@@ -189,3 +189,8 @@ ENTRYPOINT ["/opt/robot/entrypoint.sh"]
 ADD openbox/welcome.txt /etc/welcome.txt
 
 ADD conky.txt /opt/robot/.conkyrc
+RUN apt update && apt install -y \
+    wget \
+    unzip \
+    curl \
+    gnupg 

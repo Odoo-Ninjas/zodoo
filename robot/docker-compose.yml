@@ -1,5 +1,19 @@
 # manage-order 1000
+volumes:
+    robo_upload_files:
+  
 services:
+    seleniumdriver:
+        image: selenium/standalone-chromium
+        shm_size: 4gb
+        # vnc possible at: http://localhost:7900/?autoconnect=1&resize=scale&password=secret⁠.
+        # ports:
+        #   - 7900:7900
+        expose:
+            - 4444
+        volumes:
+            - robo_upload_files:/tmp/robo_upload_files
+
     robot:
         build:
             context: $ODOO_IMAGES/robot
@@ -7,6 +21,8 @@ services:
                 WODOO_VERSION: $WODOO_VERSION
                 OWNER_UID: ${OWNER_UID}
                 DOCKER_GID: ${DOCKER_GID}
+        links:
+            - seleniumdriver
         cap_add:
           # required by vscode
           - SYS_ADMIN
@@ -21,11 +37,12 @@ services:
             BROWSER_HEIGHT: 1080
             ROBO_NO_UI_HIGHLIGHTING: 0
             ROBO_ODOO_HOST: http://proxy:80
-            ROBO_UPLOAD_FILES_DIR_LOCAL: /tmp
-            ROBO_UPLOAD_FILES_DIR_BROWSER_DRIVER: /tmp
-            ROBO_WEBDRIVER_BROWSER: firefox
-            ROBO_WEBDRIVER_HOST: 127.0.0.1:4444
-            ROBO_FORCE_HEADLESS: 1
+            ROBO_UPLOAD_FILES_DIR_LOCAL: /tmp/robo_upload_files
+            ROBO_UPLOAD_FILES_DIR_BROWSER_DRIVER: /tmp/robo_upload_files
+            ROBO_WEBDRIVER_BROWSER: chrome
+            #ROBO_WEBDRIVER_HOST: 127.0.0.1:4444
+            ROBO_WEBDRIVER_HOST: seleniumdriver:4444
+            ROBO_FORCE_HEADLESS: 0
         profiles:
             - auto
         extra_hosts:
@@ -42,6 +59,7 @@ services:
             - "${ODOO_IMAGES}:$ODOO_IMAGES"
             - /var/run/docker.sock:/var/run/docker.sock
             - /var/lib/docker:/var/lib/docker
+            - robo_upload_files:/tmp/robo_upload_files
 
     novnc_cobot:
         build:
