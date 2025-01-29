@@ -233,6 +233,10 @@ def run_tests(params, test_files, token, results_file, debug):
     src_dir = Path("/opt/src")
     params["TOKEN"] = token
 
+    if os.getenv("ROBO_PARAMS_FILE"):
+        path_robot_params = Path(os.getenv("ROBO_PARAMS_FILE"))
+        path_robot_params.write_text(json.dumps(params))
+
     test_results = []
     test_results += _run_tests(
         params,
