@@ -6,7 +6,7 @@ services:
     seleniumdriver:
         image: selenium/standalone-chromium
         shm_size: 4gb
-        # vnc possible at: http://localhost:7900/?autoconnect=1&resize=scale&password=secret⁠.
+        # vnc possible at: http://localhost:7900/?autoconnect=1&password=secret⁠.
         # ports:
         #   - 7900:7900
         expose:
