@@ -77,8 +77,6 @@ ln -s /usr/bin/tmux /home/odoo/bin/tmux && \
 ln -s /usr/bin/docker /home/odoo/bin/docker && \
 ln -s /home/odoo/.local/bin/odoo /home/odoo/bin/odoo
 
-ADD entrypoint.sh /entrypoint.sh
-RUN chmod a+x /entrypoint.sh
 ADD welcome.txt /usr/share/welcome.txt
 RUN ln -s /opt/src /home/odoo/$project_name
 RUN chmod -x /etc/update-motd.d/* && rm /etc/update-motd.d -Rf 
@@ -86,5 +84,7 @@ RUN truncate -s 0 /etc/legal /etc/bash.bashrc
 RUN usermod -aG docker odoo
 ADD profile.d /home/odoo/.profile
 RUN chown odoo:odoo /home/odoo/.profile && chmod a+x /home/odoo/.profile
+ADD entrypoint.sh /entrypoint.sh
+RUN chmod a+x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
 

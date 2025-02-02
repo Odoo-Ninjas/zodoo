@@ -8,4 +8,3 @@ services:
         ROUNDCUBE_HOST: ${project_name}_roundcube
         THEIA_HOST: ${project_name}_theia_rewriter
         LOGS_HOST: ${project_name}_logs
-        # WEBSSH_HOST: ${project_name}_webssh
