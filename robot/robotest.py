@@ -109,7 +109,8 @@ def _run_test(
         cmd = _get_cmd(dryrun=False)
 
         try:
-            subprocess.run(cmd, check=True, encoding="utf8", cwd=test_file.parent)
+            CUSTOMS_DIR = os.environ['CUSTOMS_DIR']
+            subprocess.run(cmd, check=True, encoding="utf8", cwd=CUSTOMS_DIR)
         except subprocess.CalledProcessError:
             success = False
         else:
