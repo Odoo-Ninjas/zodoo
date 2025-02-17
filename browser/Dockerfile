@@ -3,9 +3,10 @@
 #
 # https://github.com/dockerfile/chrome
 #
+TOTAL BROKEN
 
 # Pull base image.
-FROM ubuntu:18.04
+FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -13,15 +14,22 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN \
   apt-get update -y && \
   apt-get install -y apt-utils wget openssh-server \
-  gconf-service libnspr4 libnss3 fonts-liberation \
-  libappindicator1 libcurl3 fonts-wqy-microhei tightvncserver 
-RUN apt install -y gnupg2
-RUN \
-  wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - && \
-  echo "deb http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google.list
-RUN \
-  apt-get update -y && \
-  apt-get install -y google-chrome-stable 
+  libnspr4 libnss3 fonts-liberation \
+  fonts-wqy-microhei tightvncserver 
+RUN apt-get update && apt-get install -y curl gnupg ca-certificates
+
+# Add Google's official GPG key securely
+RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | \
+    gpg --dearmor -o /usr/share/keyrings/google-chrome-keyring.gpg
+
+# Add Google Chrome repository
+RUN echo "deb [signed-by=/usr/share/keyrings/google-chrome-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | \
+    tee /etc/apt/sources.list.d/google-chrome.list > /dev/null
+
+# Update package lists and install Google Chrome
+RUN apt-get update && apt-get install -y google-chrome-stable
+
+
 
 RUN \
   groupadd -g 1000 user1 && \
