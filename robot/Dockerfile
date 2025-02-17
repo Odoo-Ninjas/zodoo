@@ -51,7 +51,7 @@ ARG DOCKER_GID
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt update -q && \
 apt install -y wget unzip python3 \
-python3-pip python3-magic libmagickwand-dev xvfb \
+python3-pip python3-magic libmagickwand-dev xvfb curl \
 sudo curl software-properties-common pipx 
 
 COPY ./requirements.txt /tmp/requirements.txt
