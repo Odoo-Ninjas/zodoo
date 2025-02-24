@@ -1,11 +1,12 @@
 # manage-order 1000
 volumes:
     robo_upload_files:
-  
+
 services:
     seleniumdriver:
         image: selenium/standalone-chromium
         shm_size: 4gb
+        platform: linux/arm64
         # vnc possible at: http://localhost:7900/?autoconnect=1&password=secret⁠.
         # ports:
         #   - 7900:7900

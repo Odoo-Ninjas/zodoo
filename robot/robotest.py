@@ -262,7 +262,7 @@ Library    /opt/src/addons_robot/robot_utils/library/browser.py
 Smoke Test Robot
     Log    Hello, World!
     ${driver}=  Get Driver For Browser  download_path=${CURDIR}${/}..${/}tests/download    headless=${TRUE}  try_reuse_session=${FALSE}
-    Open Browser  https://www.mut.de
+    Open Browser  https://www.heise.de
     Go To       https://www.heise.de
     Call Method    ${driver}    quit
     """
