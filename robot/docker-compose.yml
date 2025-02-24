@@ -4,9 +4,8 @@ volumes:
 
 services:
     seleniumdriver:
-        image: selenium/standalone-chromium
+        image: selenium/standalone-chromium:132.0-chromedriver-132.0-grid-4.28.1-20250202
         shm_size: 4gb
-        platform: linux/arm64
         # vnc possible at: http://localhost:7900/?autoconnect=1&password=secret⁠.
         # ports:
         #   - 7900:7900

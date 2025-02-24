@@ -1,48 +1,4 @@
-FROM ubuntu:24.04 AS build_gecko
-ARG WODOO_VERSION
-LABEL authors=Mozilla,jamesmortensen
-
-#========= tags
-# local/geckodriver-arm-builder
-#=========
-
-ENV GECKODRIVER_VERSION=0.35.0
-USER root
-
-
-#===========
-# Install dependencies and clone geckodriver source
-#===========
-WORKDIR /opt
-RUN RUSTUP_INIT_SKIP_PATH_CHECK=1 curl https://sh.rustup.rs -sSf | bash -s -- -y
-RUN apt update \
-	&& apt install gcc build-essential git cargo ca-certificates curl --no-install-recommends -y 
-RUN apt update && apt install -y x11-utils xorg
-
-RUN git clone https://github.com/mozilla/geckodriver.git && cd geckodriver \
-	&& git checkout v$GECKODRIVER_VERSION \
-	&& apt-get autoremove -y && apt-get clean -y \
-	&& rm -rf /var/lib/apt/lists/* /var/cache/apt/*
-
-WORKDIR /opt/geckodriver
-RUN \
-cargo install --locked cargo-feature && \
-cargo build --release && \
-mv ./target/release/geckodriver /usr/local/bin/
-
-
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# ----------------------------------------------------------------------------------------
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 ARG TARGETARCH
 ARG OWNER_UID
 ARG WODOO_VERSION
@@ -55,10 +11,10 @@ python3-pip python3-magic libmagickwand-dev xvfb curl \
 sudo curl software-properties-common pipx 
 
 COPY ./requirements.txt /tmp/requirements.txt
-RUN python3 -mpip install pip -U && \
-python3 -mpip install setuptools && \
-python3 -mpip install --no-cache-dir -r /tmp/requirements.txt && \
-rm -rf /tmp/requirements.txt
+RUN python3 -mpip install setuptools --break-system-packages
+RUN python3 -mpip install --no-cache-dir -r /tmp/requirements.txt --break-system-packages
+RUN rm -rf /tmp/requirements.txt
+
 
 # Download and install Firefox
 RUN add-apt-repository ppa:mozillateam/ppa && \
@@ -68,11 +24,6 @@ RUN \
 apt remove firefox && \
 apt update && \
 apt install -y firefox
-
-#ADD install_geckodriver.sh .
-#RUN /bin/bash install_geckodriver.sh
-COPY --from=build_gecko /usr/local/bin/geckodriver /usr/local/bin
-
 
 ENV WORKDIR=/opt/robot
 ENV ROBOT_THREADS=1
@@ -89,7 +40,7 @@ RUN \
 	firefox-esr xvfb x11-utils x11-xserver-utils mesa-utils libgl1-mesa-dri \
 	fonts-dejavu-core fonts-dejavu-core fonts-liberation \ 
 	libpci3 curl pipx gosu openbox ca-certificates curl gnupg lsb-release \
-	ssh conky
+	ssh 
 
 RUN mkdir -p /opt/robot/.ssh && \
 chmod 500 /opt/robot/.ssh  && \
@@ -131,7 +82,7 @@ ENV WODOO_VERSION=$WODOO_VERSION
 RUN \
 mkdir /opt/robot/.local/pipx -p && \
 pipx install wodoo==$WODOO_VERSION --force
-RUN pip install debugpy pudb
+RUN pip install debugpy pudb --break-system-packages
 ENV PATH="$PATH:/opt/robot/.local/bin"
 USER root
 
@@ -152,7 +103,7 @@ downloadlink = Path("/tmp/downloadlink")
 # link = ("https://code.visualstudio.com/sha/download?build=stable&os=linux-deb-")
 link = "https://artefacts.zebroo.de/simplicissimus_agatha_christie/code-"
 if os.getenv("TARGETARCH") == "amd64": 
-   link += "x64"
+    link += "x64"
 else:
     link += os.getenv("TARGETARCH")
 downloadlink.write_text(link)
