@@ -34,6 +34,24 @@ Browsers = {
     },
 }
 
+import socket
+import time
+
+def wait_for_port(host, port, timeout=300, interval=2):
+    """Wait until a specific port on a host is available."""
+    start_time = time.time()
+    
+    while time.time() - start_time < timeout:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(1)
+            if s.connect_ex((host, port)) == 0:
+                print(f"✅ Port {port} on {host} is now available!")
+                return True
+        print(f"⏳ Waiting for port {port} on {host}...")
+        time.sleep(interval)
+    
+    print(f"❌ Timeout: Port {port} on {host} did not become available in {timeout} seconds.")
+    return False
 
 def safe_filename(name):
     for c in ":_- \\/!?#$%&*":
@@ -262,7 +280,6 @@ Library    /opt/src/addons_robot/robot_utils/library/browser.py
 Smoke Test Robot
     Log    Hello, World!
     ${driver}=  Get Driver For Browser  download_path=${CURDIR}${/}..${/}tests/download    headless=${TRUE}  try_reuse_session=${FALSE}
-    Open Browser  https://www.heise.de
     Go To       https://www.heise.de
     Call Method    ${driver}    quit
     """
@@ -294,6 +311,12 @@ def _clean_dir(path):
         else:
             file.unlink()
 
+def restart_selenium_driver():
+    logger.info("Restarting seleniumdriver container")
+    subprocess.run(["odoo", "-p", os.environ['project_name'], "restart", "seleniumdriver"])
+    logger.info("Restarted seleniumdriver container")
+    wait_for_port("seleniumdriver", 4444)
+
 
 if __name__ == "__main__":
     archive = Path("/tmp/archive")
@@ -304,6 +327,8 @@ if __name__ == "__main__":
     os.environ["ROBOT_REMOTE_DEBUGGING"] = "1" if params.get("debug") else "0"
     if params["params"].get("headless"):
         os.environ["MOZ_HEADLESS"] = "1"
+        restart_selenium_driver()
+
     if not smoketestselenium():
         print("\n\n\nSmoketest failed.\n\n")
         sys.exit(-1)
