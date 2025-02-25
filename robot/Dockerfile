@@ -11,7 +11,7 @@ python3-pip python3-magic libmagickwand-dev xvfb curl \
 sudo curl software-properties-common pipx 
 
 COPY ./requirements.txt /tmp/requirements.txt
-RUN python3 -mpip install setuptools --break-system-packages
+RUN python3 -mpip install setuptools python-dotenv --break-system-packages
 RUN python3 -mpip install --no-cache-dir -r /tmp/requirements.txt --break-system-packages
 RUN rm -rf /tmp/requirements.txt
 
@@ -136,7 +136,6 @@ COPY robotest.py ./
 COPY entrypoint.sh ./
 COPY entrypoint_cobot.sh ./
 RUN chmod a+x entrypoint*.sh
-ENTRYPOINT ["/opt/robot/entrypoint.sh"]
 ADD openbox/welcome.txt /etc/welcome.txt
 
 ADD conky.txt /opt/robot/.conkyrc
@@ -145,3 +144,5 @@ RUN apt update && apt install -y \
     unzip \
     curl \
     gnupg 
+
+ENTRYPOINT ["/opt/robot/entrypoint.sh"]

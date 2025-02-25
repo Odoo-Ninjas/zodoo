@@ -16,6 +16,8 @@ import logging
 import threading
 from tabulate import tabulate
 from robot import rebot, run
+from dotenv import load_dotenv
+
 
 
 FORMAT = "[%(levelname)s] %(name) -12s %(asctime)s %(message)s"
@@ -37,10 +39,11 @@ Browsers = {
 import socket
 import time
 
+
 def wait_for_port(host, port, timeout=300, interval=2):
     """Wait until a specific port on a host is available."""
     start_time = time.time()
-    
+
     while time.time() - start_time < timeout:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(1)
@@ -49,9 +52,12 @@ def wait_for_port(host, port, timeout=300, interval=2):
                 return True
         print(f"⏳ Waiting for port {port} on {host}...")
         time.sleep(interval)
-    
-    print(f"❌ Timeout: Port {port} on {host} did not become available in {timeout} seconds.")
+
+    print(
+        f"❌ Timeout: Port {port} on {host} did not become available in {timeout} seconds."
+    )
     return False
+
 
 def safe_filename(name):
     for c in ":_- \\/!?#$%&*":
@@ -127,7 +133,7 @@ def _run_test(
         cmd = _get_cmd(dryrun=False)
 
         try:
-            CUSTOMS_DIR = os.environ['CUSTOMS_DIR']
+            CUSTOMS_DIR = os.environ["CUSTOMS_DIR"]
             subprocess.run(cmd, check=True, encoding="utf8", cwd=CUSTOMS_DIR)
         except subprocess.CalledProcessError:
             success = False
@@ -288,7 +294,9 @@ Smoke Test Robot
     temp_file = Path(f"{uuid.uuid4()}.robot")
     try:
         temp_file.write_text(robot_code)
-        old_width, old_height = os.environ.get("BROWSER_WIDTH"), os.environ.get("BROWSER_HEIGHT")
+        old_width, old_height = os.environ.get("BROWSER_WIDTH"), os.environ.get(
+            "BROWSER_HEIGHT"
+        )
         os.environ["BROWSER_WIDTH"] = "800"
         os.environ["BROWSER_HEIGHT"] = "600"
         result = run(temp_file)
@@ -296,7 +304,7 @@ Smoke Test Robot
         if result:
             raise Exception("Smoke test not passed.")
         logger.info("Smoke test passed.")
-        
+
     finally:
         temp_file.unlink()
         os.environ["BROWSER_WIDTH"] = old_width
@@ -311,14 +319,27 @@ def _clean_dir(path):
         else:
             file.unlink()
 
+
 def restart_selenium_driver():
     logger.info("Restarting seleniumdriver container")
-    subprocess.run(["odoo", "-p", os.environ['project_name'], "restart", "seleniumdriver"])
+    subprocess.run(
+        ["odoo", "-p", os.environ["project_name"], "kill", "seleniumdriver", "--brutal"]
+    )
+    subprocess.run(
+        ["odoo", "-p", os.environ["project_name"], "restart", "seleniumdriver"]
+    )
     logger.info("Restarted seleniumdriver container")
     wait_for_port("seleniumdriver", 4444)
 
 
+def load_environment():
+    project_name = os.environ['project_name']
+    settings_file = os.environ['SETTINGS_FILE']
+    load_dotenv(settings_file)
+
+
 if __name__ == "__main__":
+    load_environment()
     archive = Path("/tmp/archive")
     archive = base64.b64decode(archive.read_bytes())
     params = json.loads(archive)

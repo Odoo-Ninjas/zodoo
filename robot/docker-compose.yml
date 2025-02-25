@@ -44,6 +44,7 @@ services:
             ROBO_WEBDRIVER_HOST: seleniumdriver:4444
             ROBO_FORCE_HEADLESS: 0
             ROBO_PARAMS_FILE: /opt/robot/robo_params.json
+            SETTINGS_FILE: /opt/robot/.odoo/run/${PROJECT_NAME}/settings
         profiles:
             - auto
         extra_hosts:
