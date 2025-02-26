@@ -26,8 +26,7 @@ RUN sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-
 wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
 echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
 apt update && \
-apt purge -y postgresql-client && \
-apt -y install postgresql-client-14
+apt purge -y postgresql-client
 
 # RUN sed -i -e 's/# eUS.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
 #     && dpkg-reconfigure --frontend=noninteractive locales \
@@ -65,8 +64,4 @@ ENV POSTGRES_VERSION=$POSTGRES_VERSION
 RUN echo postgres version ist: $POSTGRES_VERSION
 RUN \
 set -x && \
-if [ "$POSTGRES_VERSION" = "17" ]; then \
-  apt install -y postgresql-client-17; \
-else \
-  apt install -y postgresql-client-16; \
-fi
+apt install -y postgresql-client-17
