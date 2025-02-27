@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 ARG WODOO_VERSION
 ARG POSTGRES_VERSION
 ENV DEBIAN_FRONTEND=noninteractive
@@ -64,4 +64,8 @@ ENV POSTGRES_VERSION=$POSTGRES_VERSION
 RUN echo postgres version ist: $POSTGRES_VERSION
 RUN \
 set -x && \
-apt install -y postgresql-client-17
+if [ "$POSTGRES_VERSION" = "17" ]; then \
+  apt install -y postgresql-client-17; \
+else \
+  apt install -y postgresql-client-16; \
+fi
