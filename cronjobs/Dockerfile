@@ -39,7 +39,7 @@ RUN apt install -y python3-lxml
 
 WORKDIR /root
 COPY requirements.txt requirements.txt
-RUN python3 -mpip install -r requirements.txt
+RUN python3 -mpip install -r requirements.txt --break-system-packages
 
 RUN pipx install wodoo==$WODOO_VERSION
 RUN apt install -y tmux
