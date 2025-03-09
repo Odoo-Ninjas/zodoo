@@ -31,8 +31,7 @@ def watch_file_and_kill():
         if profiling:
             pidfile = Path(tools.pidfile)
             if pidfile.exists():
-                pid = pidfile.read_text().strip()
-                os.system(f"kill -3 {pid}")
+                os.system(f"watch -n0.1 pkill -3 -f python3")
 
 
 class Debugger(object):
@@ -254,6 +253,8 @@ def command_debug(
         os.environ["PYTHONBREAKPOINT"] = "pudb.set_trace"
     os.environ["ODOO_WORKERS_WEB"] = str(web_workers)
     profiling = profile
+    if profile:
+        click.secho("Profiling enabled - set @profile at defs to see the metrics", fg="green")
     prepare_run()
 
     Debugger(
