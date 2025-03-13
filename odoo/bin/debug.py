@@ -35,7 +35,7 @@ def watch_file_and_kill():
 
 
 class Debugger(object):
-    def __init__(self, sync_common_modules, wait_for_remote, remote_debugging, loglevel_debug):
+    def __init__(self, sync_common_modules, wait_for_remote, remote_debugging, loglevel):
         self.odoolib_path = Path(os.environ["ODOOLIB"])
         self.sync_common_modules = sync_common_modules
         self.first_run = True
@@ -44,7 +44,7 @@ class Debugger(object):
         if wait_for_remote:
             remote_debugging = True
         self.remote_debugging = remote_debugging
-        self.loglevel_debug = loglevel_debug
+        self.loglevel = loglevel
 
     def execpy(self, cmd):
         os.chdir(self.odoolib_path)
@@ -101,6 +101,8 @@ class Debugger(object):
         self.last_unit_test = str(customs_dir / filepath)
         print(f"Running unit testt: {self.last_unit_test}")
         args = []
+        # if self.loglevel:
+        #     args += ["--log-level", self.loglevel]
         if self.wait_for_remote:
             args += ["--wait-for-remote"]
             print(
@@ -234,7 +236,7 @@ class Debugger(object):
 @click.option("-r", "--remote-debugging", is_flag=True)
 @click.option("-W", "--web-workers", default=2)
 @click.option("-p", "--profile", is_flag=True)
-@click.option("-l", "--loglevel-debug", is_flag=True)
+@click.option("-l", "--loglevel", default="info")
 def command_debug(
     sync_common_modules,
     debug_queuejobs,
@@ -242,7 +244,7 @@ def command_debug(
     remote_debugging,
     web_workers,
     profile,
-    loglevel_debug,
+    loglevel,
 ):
     global profiling
     if debug_queuejobs:
@@ -261,7 +263,7 @@ def command_debug(
         sync_common_modules=sync_common_modules,
         wait_for_remote=wait_for_remote,
         remote_debugging=remote_debugging,
-        loglevel_debug=loglevel_debug,
+        loglevel=loglevel,
     ).endless_loop()
 
 
