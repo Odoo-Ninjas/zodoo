@@ -19,7 +19,6 @@ from robot import rebot, run
 from dotenv import load_dotenv
 
 
-
 FORMAT = "[%(levelname)s] %(name) -12s %(asctime)s %(message)s"
 logging.basicConfig(format=FORMAT)
 logging.getLogger().setLevel(logging.INFO)
@@ -333,8 +332,8 @@ def restart_selenium_driver():
 
 
 def load_environment():
-    project_name = os.environ['project_name']
-    settings_file = os.environ['SETTINGS_FILE']
+    project_name = os.environ["project_name"]
+    settings_file = os.environ["SETTINGS_FILE"]
     load_dotenv(settings_file)
 
 
