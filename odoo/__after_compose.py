@@ -126,13 +126,13 @@ def _filter_pip(packages, config):
             return None
         if os.uname().machine == "aarch64":
             if float(config.ODOO_VERSION) in [14.0, 15.0, 16.0]:
-                if "gevent" in x:
-                    click.secho(
-                        "HACK: to provide correct gevent: return gevent==22.10.2",
-                        fg="red",
-                    )
-                    time.sleep(0.7)
-                    return "gevent==22.10.2"
+                # if "gevent" in x:
+                #     click.secho(
+                #         "HACK: to provide correct gevent: return gevent==22.10.2",
+                #         fg="red",
+                #     )
+                #     time.sleep(0.7)
+                #     return "gevent==22.10.2"
                 if "greenlet" in x:
                     click.secho(
                         "HACK: removing version info from greenlet on M1 chip",
