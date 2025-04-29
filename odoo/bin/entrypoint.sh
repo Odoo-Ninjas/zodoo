@@ -1,5 +1,6 @@
 #!/bin/bash
 path="/usr/local/bin/wodoo_python"
+export CUSTOMS_DIR=/opt/src
 if [[ ! -e "$path" ]]; then
 	tee -a "$path" > /dev/null <<- EOT
 		#!/bin/bash

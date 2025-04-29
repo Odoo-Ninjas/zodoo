@@ -6,6 +6,7 @@ services:
         dockerfile: $ODOO_IMAGES/odoo/config/${ODOO_VERSION}/Dockerfile
         args:
           ODOO_VERSION: ${ODOO_VERSION}
+          ODOO_CONFIG_DIR: ${ODOO_CONFIG_DIR}
           ODOO_PYTHON_VERSION: ${ODOO_PYTHON_VERSION}
           INSTALL_DOCKER_CLIENTS: ${INSTALL_DOCKER_CLIENTS}
           DOCKER_GROUP_ID: ${DOCKER_GROUP_ID}
@@ -17,39 +18,6 @@ services:
       - ${HOST_RUN_DIR}:/opt/run
       - ${HOST_RUN_DIR}/odoo_outdir:/opt/out_dir
       - ${HOST_RUN_DIR}/debug:/tmp/debug
-      - ${HOST_RUN_DIR}/intercom:/intercom
 
-      - ${DUMPS_PATH}:/opt/dumps
       - ${ODOO_FILES}:/opt/files
 
-      - ${ODOO_IMAGES}/odoo/bin/update_modules.py:/update_modules.py
-      - ${ODOO_IMAGES}/odoo/bin:/odoolib:ro
-      - ${ODOO_IMAGES}/odoo/config/${ODOO_VERSION}/config:${ODOO_CONFIG_DIR}.template:ro
-      - ~/.config/pudb:/home/odoo/.config/pudb
-      # copied by entrpoint to destination and correct UID/GID
-      - ${HOST_RUN_DIR}/odoo-shell-ipython:/home/odoo/.ipython
-      - ${HOST_RUN_DIR}/odoo_outdir/robot_output:/robot_output
-    environment:
-      - OPENUPGRADE_TARGET_VERSION=${ODOO_VERSION}
-      - ODOO_USER=odoo
-      - ODOO_DATA_DIR=/opt/files
-      - ODOO_HOME=/opt/odoo
-      - ODOO_CONFIG_TEMPLATE_DIR=/etc/odoo/config.template
-      - ODOO_SUDO_CMD=1
-      - OUT_DIR=/opt/out_dir
-      - RUN_DIR=/opt/run
-      - INTERCOM_DIR=/intercom
-      - SERVER_DIR=/opt/src/odoo
-      - CUSTOMS_DIR=/opt/src
-      - ODOOLIB=/odoolib
-      - PYTHONPATH=/odoolib:/opt/tools
-      - LANG=en_US.UTF-8
-      - LANGUAGE=en_US:en
-      - LC_ALL=en_US.UTF-8
-      - PYTHONBREAKPOINT=0
-      - ODOO_SERVER_TOOLS_MODULES=/opt/odoo_server_tools
-      - ODOO_FRAMEWORK_KEEP_SQL_CONNECTION=1
-      - PATH=/odoolib:/opt/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-      - WODOO_PYTHON=/opt/wodoo_env/venvs/wodoo/bin/python3
-    command: /odoolib/run.py
-    entrypoint: ["/odoolib/entrypoint.sh"]

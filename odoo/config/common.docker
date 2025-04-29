@@ -18,3 +18,32 @@ RUN chown odoo:odoo /home/odoo/.config -R
 ADD pudb.cfg /home/odoo/.config/pudb
 
 RUN touch /helpme
+
+ENV ODOO_USER=odoo
+ENV ODOO_DATA_DIR=/opt/files
+ENV ODOO_HOME=/opt/odoo
+ENV ODOO_CONFIG_TEMPLATE_DIR=/etc/odoo/config.template
+ENV ODOO_CONFIG_DIR=/etc/odoo/config
+ENV ODOO_SUDO_CMD=1
+ENV OUT_DIR=/opt/out_dir
+ENV RUN_DIR=/opt/run
+ENV INTERCOM_DIR=/intercom
+ENV SERVER_DIR=/opt/src/odoo
+ENV CUSTOMS_DIR=/opt/src
+ENV ODOOLIB=/odoolib
+ENV PYTHONPATH=/odoolib:/opt/tools
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
+ENV PYTHONBREAKPOINT=0
+ENV ODOO_SERVER_TOOLS_MODULES=/opt/odoo_server_tools
+ENV ODOO_FRAMEWORK_KEEP_SQL_CONNECTION=1
+ENV PATH=/odoolib:/opt/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ENV WODOO_PYTHON=/opt/wodoo_env/venvs/wodoo/bin/python3
+
+ADD bin/ /odoolib/
+ENV ODOO_CONFIG_DIR=${ODOO_CONFIG_DIR}
+ADD config/${ODOO_VERSION}/config ${ODOO_CONFIG_DIR}.template
+
+CMD /odoolib/run.py
+ENTRYPOINT ["/odoolib/entrypoint.sh"]

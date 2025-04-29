@@ -1,0 +1,5 @@
+# manage-order 1001
+services:
+  odoo_base:
+    volumes:
+      - ${DUMPS_PATH}:/opt/dumps
