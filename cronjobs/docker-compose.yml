@@ -18,8 +18,8 @@ services:
       - "$DUMPS_PATH:/host/dumps"
       - "${HOST_RUN_DIR}:/root/.odoo/run/$PROJECT_NAME"
       - "${ODOO_IMAGES}:$ODOO_IMAGES"
-      - ${CUSTOMS_DIR}:/opt/src
-      - ${CUSTOMS_DIR}:${CUSTOMS_DIR}
+      - ${HOST_CUSTOMS_DIR}:/opt/src
+      - ${HOST_CUSTOMS_DIR}:${HOST_CUSTOMS_DIR}
       - /var/run/docker.sock:/var/run/docker.sock
       - /var/lib/docker:/var/lib/docker
       - "${ODOO_IMAGES}/cronjobs/bin/postgres.py:/usr/local/bin/postgres.py"

@@ -12,7 +12,7 @@ services:
         DOCKER_GROUP_ID: ${DOCKER_GROUP_ID}
     privileged: true
     volumes:
-      - ${CUSTOMS_DIR}:/home/project:Z
+      - ${HOST_CUSTOMS_DIR}:/home/project:Z
       - ~/.odoo:/home/theia/.odoo
       - ${ODOO_HOME}:/usr/local/lib/python3.7/dist-packages/wodoo
       #- ${ODOO_HOME}/tools/snippets/snippets.vsix:/home/vsix_files/snippets.vsix

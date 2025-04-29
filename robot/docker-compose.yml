@@ -54,8 +54,8 @@ services:
             - ${ODOO_IMAGES}/robot/robotest.py:/opt/robot/robotest.py
             - ${ODOO_IMAGES}/robot/keywords:/opt/robot/keywords
             - ${ODOO_IMAGES}/robot/library:/opt/robot/library
-            - ${CUSTOMS_DIR}:/opt/src
-            - ${CUSTOMS_DIR}:${CUSTOMS_DIR}
+            - ${HOST_CUSTOMS_DIR}:/opt/src
+            - ${HOST_CUSTOMS_DIR}:${HOST_CUSTOMS_DIR}
             - "${HOST_RUN_DIR}:/opt/robot/.odoo/run/$PROJECT_NAME"
             - "${ODOO_IMAGES}:/opt/robot/.odoo/images"
             - "${ODOO_IMAGES}:$ODOO_IMAGES"
@@ -76,7 +76,7 @@ services:
         volumes:
             - $HOST_RUN_DIR/run/intercom:/intercom
             - $ODOO_IMAGES/static_file_browser/app/server.js:/usr/src/app/server.js
-            - ${CUSTOMS_DIR}:/usr/src/app/odoo
+            - ${HOST_CUSTOMS_DIR}:/usr/src/app/odoo
             - ${HOST_RUN_DIR}/odoo_outdir/robot_output:/robot_output
 
         logging:

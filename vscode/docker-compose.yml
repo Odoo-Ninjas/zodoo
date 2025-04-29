@@ -16,8 +16,8 @@ services:
         # ports:
         #     - "5900:5900"
         volumes:
-          - ${CUSTOMS_DIR}:/opt/src
-          - ${CUSTOMS_DIR}:${CUSTOMS_DIR}
+          - ${HOST_CUSTOMS_DIR}:/opt/src
+          - ${HOST_CUSTOMS_DIR}:${HOST_CUSTOMS_DIR}
           - ${ODOO_IMAGES}/vscode/user_data:/home/userdata
           - ${ODOO_IMAGES}/vscode/entrypoint.sh:/entrypoint.sh
           - /var/run/docker.sock:/var/run/docker.sock
