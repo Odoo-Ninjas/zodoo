@@ -43,5 +43,5 @@ def after_settings(settings, config):
     settings.write()
 
     # replace any env variable
-    if settings["LOCAL_SETTINGS"] == "1":
+    if not settings["ODOO_FILES"]:
         settings["ODOO_FILES"] = str(Path(settings["HOST_RUN_DIR"]) / "files")
