@@ -2,7 +2,7 @@ services:
   odoo_base:
     volumes:
       - ${HOST_RUN_DIR}/odoo_outdir/robot_output:/robot_output
-      - ${ODOO_IMAGES}/odoo/bin/update_modules.py:/update_modules.py
+      - ${ODOO_IMAGES}/odoo/bin/update_modules.py:/odoolib/update_modules.py
       - ~/.config/pudb:/home/odoo/.config/pudb
       # copied by entrpoint to destination and correct UID/GID
       - ${HOST_RUN_DIR}/odoo-shell-ipython:/home/odoo/.ipython
