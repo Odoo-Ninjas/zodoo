@@ -83,7 +83,7 @@ class Debugger(object):
         if self.execpy(
             [
                 os.environ['WODOO_PYTHON'],
-                "update_modules.py",
+                "/odoolib/update_modules.py",
                 module,
             ]
             + PARAMS_CONST

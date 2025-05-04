@@ -16,4 +16,8 @@ os.system(f"chown '{owner}:{owner}' /opt/files")
 print(f"Setting ownership of /home/odoo to {owner}")
 os.system(f"chown -R '{owner}:{owner}' /home/odoo")
 
-os.execvp(sys.argv[1], sys.argv[1:])
+try:
+    os.execvp(sys.argv[1], sys.argv[1:])
+except Exception as ex:
+    print(f"Error executing command: {sys.argv[1:]} {ex}")
+    sys.exit(1)
