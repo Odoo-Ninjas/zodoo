@@ -4,6 +4,8 @@ services:
     build:
         context: $ODOO_IMAGES/odoo
         dockerfile: $ODOO_IMAGES/odoo/config/${ODOO_VERSION}/Dockerfile
+        extra_hosts:
+        - "host.docker.internal:host-gateway"
         args:
           ODOO_VERSION: ${ODOO_VERSION}
           ODOO_CONFIG_DIR: ${ODOO_CONFIG_DIR}

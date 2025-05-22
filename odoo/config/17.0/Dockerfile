@@ -27,6 +27,7 @@ WORKDIR /usr/local/src
 RUN tar xfz /usr/local/src/python
 WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
 
+RUN echo 'Acquire::http::Proxy "http://<BUILD_HOST_IP>:3142";' > /etc/apt/apt.conf.d/01proxy
 RUN apt update && \
 apt install -y \
     software-properties-common \
@@ -67,6 +68,7 @@ ARG ODOO_FRAMEWORK_REQUIREMENTS
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
 
+RUN echo 'Acquire::http::Proxy "http://<BUILD_HOST_IP>:3142";' > /etc/apt/apt.conf.d/01proxy
 RUN apt update && apt install -y \
     build-essential \
     libxml2-dev \
@@ -138,6 +140,7 @@ RUN /bin/bash /usr/local/bin/check_sha.sh "$CUSTOMS_SHA"
 ADD etc/apt/apt.conf.d/99fixbadproxy /etc/apt/apt.conf.d/99fixbadproxy
 
 ENV LANG C.UTF-8
+RUN echo 'Acquire::http::Proxy "http://<BUILD_HOST_IP>:3142";' > /etc/apt/apt.conf.d/01proxy
 RUN apt update && apt-get install \
 	-y \
 	--no-install-recommends \
