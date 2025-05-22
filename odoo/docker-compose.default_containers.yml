@@ -34,6 +34,13 @@ services:
         odoo.queuejob_container: '1'
     environment:
       IS_ODOO_QUEUEJOB: 1
+    restart: 'on-failure'
+    healthcheck:
+      test: [CMD-SHELL, '/opt/venv/bin/python /odoolib/healthcheck_queuejobs.py || exit 1']
+      interval: 5s
+      timeout: 10s
+      retries: 1
+      start_period: 10s
 
   odoo_update:
     labels:
