@@ -12,3 +12,8 @@ JOB_KILL_DB_LOCKS=postgres.py exec $DBNAME $DB_HOST $DB_PORT $DB_USER $DB_PWD "s
 #CRONJOB_TEST1=* * * * * * echo test cronjobi1
 
 CRONJOB_BACKUP_FILES=0 0 * * * odoo backup files /host/dumps/${DBNAME}.files; ls -lhtra /host/dumps
+
+
+
+JOB_RESTART_UNHEALTHY_CONTAINERS=/bin/bash restart_unhealthy_containers.sh
+CRONJOB_RESTART_UNHEALTHY_CONTAINERS=* * * * * $JOB_RESTART_UNHEALTHY_CONTAINERS
