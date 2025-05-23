@@ -9,6 +9,7 @@ ARG ODOO_PYTHON_VERSION
 ARG ODOO_INSTALL_LIBPOSTAL
 ARG CUSTOMS_SHA
 ARG ODOO_CONFIG_DIR
+ARG BUILD_HOST_IP
 
 # --------------------------------------------------------------------
 # COMPILE PYTHON
@@ -18,7 +19,7 @@ ARG ODOO_PYTHON_VERSION
 ADD python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
 WORKDIR /usr/local/src/python/Python-${ODOO_PYTHON_VERSION}
 
-RUN echo 'Acquire::http::Proxy "http://<BUILD_HOST_IP>:3142";' > /etc/apt/apt.conf.d/01proxy
+RUN echo "Acquire::http::Proxy \"http://${BUILD_HOST_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 RUN apt update && \
 apt install -y \
     software-properties-common \
