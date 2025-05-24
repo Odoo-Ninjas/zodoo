@@ -17,7 +17,10 @@ services:
         echo Successfully setup ownership of socketfile
 
   postgres:
-    build: $ODOO_IMAGES/postgres
+    build: 
+      context: $ODOO_IMAGES/postgres
+      args:
+        - BUILD_HOST_IP=${BUILD_HOST_IP}
     restart: unless-stopped
     stdin_open: true
     command: ["postgres"]

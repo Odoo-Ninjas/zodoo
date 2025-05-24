@@ -1,5 +1,7 @@
+ARG BUILD_HOST_IP
 FROM postgres:14-bullseye
 CMD ["postgres"]
+RUN echo "Acquire::http::Proxy \"http://${BUILD_HOST_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 RUN apt-get update && \
 apt install -y postgresql-server-dev-14 python-dev build-essential git python3-pip procps sockstat
 

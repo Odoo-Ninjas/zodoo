@@ -7,9 +7,6 @@ ARG BUILD_HOST_IP
 #ARG CUSTOMS_REQUIREMENTS
 MAINTAINER marc@itewimmer.de
 
-# used at a customer to fix proxy; can destroy public keys so no update works
-ADD etc/apt/apt.conf.d/99fixbadproxy /etc/apt/apt.conf.d/99fixbadproxy
-
 #RUN [[ -z "$CUSTOMS_REQUIREMENTS" && exit -1 ]]
 ENV LANG=C.UTF-8
 RUN echo "Acquire::http::Proxy \"http://${BUILD_HOST_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
