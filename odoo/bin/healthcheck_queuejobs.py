@@ -7,7 +7,7 @@ def check_queue_job_status(db_config):
     Checks if there are any pending jobs and no running jobs in the queue_job table.
     """
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    query_pending = "SELECT COUNT(*) FROM queue_job WHERE state in ('pending', 'enqueued') and (eta is null or eta < '{now}';"
+    query_pending = "SELECT COUNT(*) FROM queue_job WHERE state in ('pending', 'enqueued') and (eta is null or eta < '{now}');"
     query_running = "SELECT COUNT(*) FROM queue_job WHERE state = 'started';"
 
     try:
