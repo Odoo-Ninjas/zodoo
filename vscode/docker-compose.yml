@@ -5,6 +5,7 @@ services:
           args:
             OWNER_UID: $OWNER_UID
             DOCKER_GID: $DOCKER_GID
+            BUILD_HOST_IP: ${BUILD_HOST_IP}
         cap_add:
           # required by vscode
           - SYS_ADMIN
@@ -36,6 +37,7 @@ services:
           context: $ODOO_IMAGES/novnc
           args:
             relpathname: wscode
+            BUILD_HOST_IP: ${BUILD_HOST_IP}
         restart: "unless-stopped"
         profiles:
           - manual

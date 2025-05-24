@@ -6,7 +6,11 @@ volumes:
 
 services:
   mail:
-    build: $ODOO_IMAGES/mail
+    build: 
+      context: $ODOO_IMAGES/mail
+      args:
+        BUILD_HOST_IP: ${BUILD_HOST_IP}
+
     profiles:
       - auto
     volumes:
@@ -15,7 +19,10 @@ services:
       - $ODOO_IMAGES/mail/bin:/opt/bin
 
   roundcube:
-    build: $ODOO_IMAGES/roundcube
+    build: 
+      context: $ODOO_IMAGES/roundcube
+      args:
+        BUILD_HOST_IP: ${BUILD_HOST_IP}
     # ports:
     #    - "8282:80"
     profiles:

@@ -1,5 +1,6 @@
 FROM ubuntu:24.04
 ARG  relpathname
+ARG  BUILD_HOST_IP
 
 ENV NOVNC_TAG="v1.5.0"
 
@@ -7,6 +8,7 @@ ENV WEBSOCKIFY_TAG="v0.12.0"
 
 ENV VNC_SERVER="localhost:5900"
 
+RUN echo "Acquire::http::Proxy \"http://${BUILD_HOST_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 RUN apt update && apt install -y  \
         bash \
         python3 \

@@ -2,7 +2,10 @@
 services:
   
   # webssh:
-  #   build: ${ODOO_IMAGES}/webssh
+  #   build: 
+  #     context: ${ODOO_IMAGES}/webssh
+  #     args:
+  #       BUILD_HOST_IP: ${BUILD_HOST_IP}
   #   restart: unless-stopped
   #   profiles:
   #     - auto

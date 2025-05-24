@@ -1,6 +1,9 @@
 services:
   webssh_console:
-    build: ${ODOO_IMAGES}/webssh
+    build: 
+      context: ${ODOO_IMAGES}/webssh
+      args: 
+        BUILD_HOST_IP: ${BUILD_HOST_IP}
     restart: unless-stopped
     profiles:
       - auto
@@ -21,6 +24,7 @@ services:
         DOCKER_GID: $DOCKER_GID
         POSTGRES_VERSION: $POSTGRES_VERSION
         project_name: $project_name
+        BUILD_HOST_IP: ${BUILD_HOST_IP}
         # Dont do: if images used, then not compatible
         # OWNER_UID: $OWNER_UID
     privileged: true

@@ -3,7 +3,9 @@ ARG WODOO_VERSION
 ARG OWNER_UID
 ARG DOCKER_GID
 ARG project_name
+ARG BUILD_HOST_IP
 ENV DEBIAN_FRONTEND=noninteractive
+RUN echo "Acquire::http::Proxy \"http://${BUILD_HOST_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 RUN apt update && \
 apt install -y python3-pip python3 curl rsync locales pv \
 pigz telnet libpq-dev wget lsb-release \

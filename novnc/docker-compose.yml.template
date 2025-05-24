@@ -1,6 +1,9 @@
 services:
     # novnc:
-    #     build: $ODOO_IMAGES/novnc
+    #     build: 
+    #       context: $ODOO_IMAGES/novnc
+    #       args:
+    #         BUILD_HOST_IP: ${BUILD_HOST_IP}
     #     restart: "unless-stopped"
     #     ports: 
     #       - "0.0.0.0:6080:6080"
