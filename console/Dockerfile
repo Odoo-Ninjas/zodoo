@@ -18,10 +18,10 @@ unzip
 # install docker
 ADD docker.gpg /tmp/docker.gpg
 RUN mkdir -p /etc/apt/keyrings && \
-cat /tmp/docker.gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
+cat /tmp/docker.gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
 echo \
   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null && \
+  $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
 apt update && apt $APT_OPTIONS install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin python3-venv zlib1g-dev
 
 # change docker group id to match host
