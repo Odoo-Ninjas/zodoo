@@ -21,6 +21,7 @@ services:
       context: $ODOO_IMAGES/postgres
       args:
         APT_PROXY_IP: ${APT_PROXY_IP}
+        APT_OPTIONS: ${APT_OPTIONS}
     restart: unless-stopped
     stdin_open: true
     command: ["postgres"]

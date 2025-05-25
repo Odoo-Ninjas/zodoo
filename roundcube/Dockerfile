@@ -4,16 +4,19 @@ ENV     TERM=xterm
 ENV     ROUNDCUBE_VERSION=1.6.6
 ENV     MAIL_SERVER=mail
 ARG     APT_PROXY_IP
+ARG     APT_OPTIONS
+ARG     PYPI_SERVER
 MAINTAINER Round Cube <rc@xxx.org>
 
 RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 WORKDIR /root
 RUN mkdir -p /rc
-RUN apt update && apt upgrade -y && apt install -y php-net-ldap2 php-net-ldap3 php-imagick php7.4-common php7.4-gd php7.4-imap php7.4-json php7.4-curl php7.4-zip php7.4-xml php7.4-mbstring php7.4-bz2 php7.4-intl php7.4-gmp php7.4-fpm php7.4-sqlite3
-RUN apt install -y nginx wget composer
+RUN apt update && apt upgrade -y && apt $APT_OPTIONS install -y php-net-ldap2 php-net-ldap3 php-imagick php7.4-common php7.4-gd php7.4-imap php7.4-json php7.4-curl php7.4-zip php7.4-xml php7.4-mbstring php7.4-bz2 php7.4-intl php7.4-gmp php7.4-fpm php7.4-sqlite3
+RUN apt $APT_OPTIONS install -y nginx wget composer
 
 RUN \
-apt install -y python3-pip && \
+apt $APT_OPTIONS install -y python3-pip && \
+pip3 config set global.index-url $PYPI_SERVER && \
 pip3 install pip --upgrade && \
 pip3 install wheel && \
 pip3 install pathlib

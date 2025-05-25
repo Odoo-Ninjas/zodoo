@@ -7,6 +7,9 @@ ARG ODOO_INSTALL_LIBPOSTAL
 ARG ODOO_PYTHON_VERSION
 ARG CUSTOMS_SHA
 ARG ODOO_CONFIG_DIR
+ARG APT_PROXY_IP
+ARG APT_OPTIONS
+ARG PYPI_SERVER
 
 # --------------------------------------------------------------------
 # COMPILE LIBPOSTAL
@@ -15,6 +18,7 @@ FROM $BASE_IMAGE AS libpostal_builder
 ARG TARGETARCH
 ARG ODOO_INSTALL_LIBPOSTAL
 ARG APT_PROXY_IP
+ARG APT_OPTIONS
 COPY install_libpostal.sh install_libpostal.sh
 RUN bash install_libpostal.sh
 
@@ -30,7 +34,7 @@ WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
 
 RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 RUN apt update && \
-apt install -y \
+apt $APT_OPTIONS install -y \
     software-properties-common \
     cmake \
     exuberant-ctags \
@@ -65,12 +69,13 @@ ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_REQUIREMENTS
 ARG ODOO_FRAMEWORK_REQUIREMENTS
 ARG APT_PROXY_IP
+ARG APT_OPTIONS
 
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
 
 RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
-RUN apt update && apt install -y \
+RUN apt update && apt $APT_OPTIONS install -y \
     build-essential \
     libxml2-dev \
     libxslt1-dev \
@@ -92,6 +97,10 @@ RUN apt update && apt install -y \
 COPY --from=python_builder /python /opt/python
 WORKDIR /opt/python
 RUN make install
+# Optional: speed up installs
+ENV PIP_NO_CACHE_DIR=no
+# Set custom PyPI index
+RUN pip3 config set global.index-url $PYPI_SERVER
 RUN python3 -mpip install pip --upgrade
 RUN /usr/local/bin/python3 -m venv --copies /opt/venv
 
@@ -104,7 +113,7 @@ RUN /opt/venv/bin/python3 -mpip install wheel
 
 
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
-RUN xargs apt install -y < /root/deb_requirements.txt
+RUN xargs apt $APT_OPTIONS install -y < /root/deb_requirements.txt
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 RUN cat /root/pip_requirements.txt | grep -v postal > /root/pip_requirements.filtered.txt
@@ -116,7 +125,7 @@ ADD patches/python_3.8.email.patch /usr/local/src
 RUN bash /usr/local/src/python_3.8.email.patch
 
 # Openupgradelib
-RUN apt install -y git
+RUN apt $APT_OPTIONS install -y git
 RUN git clone https://github.com/OCA/openupgradelib /opt/openupgradelib
 WORKDIR /opt/openupgradelib
 RUN /opt/venv/bin/python3 -mpip install /opt/openupgradelib
@@ -134,6 +143,8 @@ ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_INSTALL_LIBPOSTAL
 ARG CUSTOMS_SHA
 ARG APT_PROXY_IP
+ARG APT_OPTIONS
+ARG PYPI_SERVER
 
 MAINTAINER marc@itewimmer.de
 
@@ -143,7 +154,7 @@ RUN /bin/bash /usr/local/bin/check_sha.sh "$CUSTOMS_SHA"
 
 ENV LANG=C.UTF-8
 RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
-RUN apt update && apt-get install \
+RUN apt update && apt $APT_OPTIONS install \
 	-y \
 	--no-install-recommends \
 			man \
@@ -209,12 +220,12 @@ RUN fc-cache -f -v
 WORKDIR /tmp
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
     curl -o /root/wkhtmltox.deb -sSL  https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.bullseye_amd64.deb && \
-    apt-get install -y --no-install-recommends /root/wkhtmltox.deb && \
+    apt $APT_OPTIONS install -y --no-install-recommends /root/wkhtmltox.deb && \
     rm -rf /var/lib/apt/lists/* /root/wkhtmltox.deb; \
 fi
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
     curl -o /root/wkhtmltox.deb -sSL https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.bullseye_arm64.deb &&  \
-    apt-get install -y --no-install-recommends /root/wkhtmltox.deb && \
+    apt $APT_OPTIONS install -y --no-install-recommends /root/wkhtmltox.deb && \
     rm -rf /var/lib/apt/lists/* /root/wkhtmltox.deb;  \
 fi
 
@@ -252,7 +263,7 @@ RUN rm -Rf /tmp/postal
 RUN if [ "$ODOO_INSTALL_LIBPOSTAL" = "1" ]; then python3 -mpip install postal; fi
 
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
-RUN apt update && xargs apt install -y < /root/deb_requirements.txt
+RUN apt update && xargs apt $APT_OPTIONS install -y < /root/deb_requirements.txt
 
 
 WORKDIR /usr/local/bin
@@ -263,6 +274,6 @@ WORKDIR /opt/odoo
 # There is a BUG with M1 and SCRAM authentication
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
 apt update && \
-apt install -y libpq-dev && \
+apt $APT_OPTIONS install -y libpq-dev && \
 /opt/venv/bin/python3 -mpip install psycopg2-binary --no-binary psycopg2-binary --force-reinstall; \
 fi

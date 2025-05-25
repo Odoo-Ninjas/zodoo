@@ -4,8 +4,6 @@ services:
     build:
         context: $ODOO_IMAGES/odoo
         dockerfile: $ODOO_IMAGES/odoo/config/${ODOO_VERSION}/Dockerfile
-        extra_hosts:
-        - "host.docker.internal:host-gateway"
         args:
           ODOO_VERSION: ${ODOO_VERSION}
           ODOO_CONFIG_DIR: ${ODOO_CONFIG_DIR}
@@ -13,6 +11,9 @@ services:
           INSTALL_DOCKER_CLIENTS: ${INSTALL_DOCKER_CLIENTS}
           DOCKER_GROUP_ID: ${DOCKER_GROUP_ID}
           ODOO_INSTALL_LIBPOSTAL: ${ODOO_INSTALL_LIBPOSTAL}
+          PYPI_SERVER: ${PYPI_SERVER}
+          APT_OPTIONS: ${APT_OPTIONS}
+          APT_PROXY_IP: ${APT_PROXY_IP}
     restart: unless-stopped
     profiles:
       - auto

@@ -9,7 +9,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN echo "deb http://us.archive.ubuntu.com/ubuntu/ jammy main"
 RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 RUN apt update && \
-	apt -y install vim postfix dovecot-core \
+	apt $APT_OPTIONS -y install vim postfix dovecot-core \
 	dovecot-imapd telnet postfix-pcre procmail \
 	mailutils rsyslog systemctl && \
 	apt autoclean && \

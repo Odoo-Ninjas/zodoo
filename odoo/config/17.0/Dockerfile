@@ -23,6 +23,8 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then bash /root/install_libpostal.sh; fi
 FROM $BASE_IMAGE AS python_builder
 ARG ODOO_PYTHON_VERSION
 ARG APT_PROXY_IP
+ARG PYPI_SERVER
+ARG APT_OPTIONS
 COPY python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
 WORKDIR /usr/local/src
 RUN tar xfz /usr/local/src/python
@@ -69,6 +71,8 @@ ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_REQUIREMENTS
 ARG ODOO_FRAMEWORK_REQUIREMENTS
 ARG APT_PROXY_IP
+ARG PYPI_SERVER
+ARG APT_OPTIONS
 
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
@@ -102,6 +106,10 @@ WORKDIR /opt/python
 RUN make install
 RUN python3 -m venv --copies /opt/venv
 
+# Optional: speed up installs
+ENV PIP_NO_CACHE_DIR=no
+# Set custom PyPI index
+RUN pip3 config set global.index-url $PYPI_SERVER
 RUN pip3 install wheel && \
 pip3 install pip -U && \
 pip3 install setuptools -U
@@ -118,7 +126,7 @@ RUN pip3 install -r /root/framework_requirements.txt
 RUN pip3 install pudb ipython debugpy
 
 # Openupgradelib
-RUN apt install -y git
+RUN apt $APT_OPTIONS install -y git
 RUN git clone https://github.com/OCA/openupgradelib /opt/openupgradelib
 WORKDIR /opt/openupgradelib
 RUN pip3 install /opt/openupgradelib
@@ -139,6 +147,8 @@ ARG INSTALL_DOCKER_CLIENTS
 ARG ODOO_INSTALL_LIBPOSTAL
 ARG CUSTOMS_SHA
 ARG APT_PROXY_IP
+ARG PYPI_SERVER
+ARG APT_OPTIONS
 
 MAINTAINER marc@itewimmer.de
 
@@ -150,7 +160,7 @@ ENV LANG C.UTF-8
 RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 RUN sed -i 's|http://deb.debian.org|http://ftp.de.debian.org|g' /etc/apt/sources.list
 RUN apt update && \
-    apt -o Acquire::Retries=5 install \
+    apt $APT_OPTIONS install \
 	-y \
 	--no-install-recommends \
 			man \
@@ -214,12 +224,12 @@ WORKDIR /tmp
 
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
     curl -o /root/wkhtmltox.deb -sSL  https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.bullseye_amd64.deb && \
-    apt update && apt-get install -y --no-install-recommends /root/wkhtmltox.deb && \
+    apt update && apt $APT_OPTIONS install -y --no-install-recommends /root/wkhtmltox.deb && \
     rm -rf /var/lib/apt/lists/* /root/wkhtmltox.deb; \
 fi
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
     curl -o /root/wkhtmltox.deb -sSL https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.bullseye_arm64.deb &&  \
-    apt update && apt-get install -y --no-install-recommends /root/wkhtmltox.deb && \
+    apt update && apt $APT_OPTIONS install -y --no-install-recommends /root/wkhtmltox.deb && \
     rm -rf /var/lib/apt/lists/* /root/wkhtmltox.deb;  \
 fi
 
@@ -237,13 +247,13 @@ if [ "$INSTALL_DOCKER_CLIENTS" = "1" ]; then \
     groupadd -g $DOCKER_GROUP_ID docker && \
     usermod -aG docker odoo && \
     apt update && \
-    apt install -y ca-certificates curl gnupg lsb-release software-properties-common && \
+    apt $APT_OPTIONS install -y ca-certificates curl gnupg lsb-release software-properties-common && \
     apt update && \
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg && \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian \
     $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null && \
     apt update && \
-    apt install -y docker-ce-cli && \
+    apt $APT_OPTIONS install -y docker-ce-cli && \
     echo 'done'; \
 fi
 
@@ -266,7 +276,7 @@ RUN make install
 
 
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
-RUN apt update && xargs apt install -y < /root/deb_requirements.txt
+RUN apt update && xargs apt $APT_OPTIONS install -y < /root/deb_requirements.txt
 
 WORKDIR /opt/odoo
 
@@ -274,6 +284,6 @@ WORKDIR /opt/odoo
 
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
 apt update && \
-apt install -y libpq-dev build-essential && \
+apt $APT_OPTIONS install -y libpq-dev build-essential && \
 /opt/venv/bin/python3 -mpip install psycopg2-binary --no-binary psycopg2-binary --force-reinstall; \
 fi

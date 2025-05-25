@@ -1,7 +1,10 @@
 FROM ubuntu:24.04
+ARG  APT_PROXY_IP
+ARG  APT_OPTIONS
 CMD [ "bash", "/root/launch.sh" ]
 RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
-RUN apt update && DEBIAN_FRONTEND="noninteractive" apt install -y --no-install-recommends \
+RUN apt update && \
+    DEBIAN_FRONTEND="noninteractive" apt $APT_OPTIONS install -y --no-install-recommends \
     nginx \
     procps \
     python3-pip \
@@ -22,7 +25,7 @@ RUN apt update && DEBIAN_FRONTEND="noninteractive" apt install -y --no-install-r
     libyaml-dev
 RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
 RUN add-apt-repository "deb [arch=$(dpkg --print-architecture)] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-RUN apt-get update && apt-get install -y docker-ce docker-ce-cli containerd.io
+RUN apt update && apt $APT_OPTIONS install -y docker-ce docker-ce-cli containerd.io
 # RUN pip install webssh
 COPY webssh /root/webssh
 RUN pip install -e /root/webssh  --break-system-packages
@@ -35,7 +38,7 @@ RUN chmod a+x /root/launch.sh
 RUN echo "root:odoo" | chpasswd root
 
 COPY requirements.txt .
-RUN apt install -y python3-venv
+RUN apt $APT_OPTIONS install -y python3-venv
 RUN python3 -mvenv /usr/local/bin/venv
 RUN /usr/local/bin/venv/bin/python3 -mpip install wheel --upgrade
 RUN /usr/local/bin/venv/bin/python3 -mpip install -r requirements.txt

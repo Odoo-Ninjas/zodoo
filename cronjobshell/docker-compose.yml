@@ -7,6 +7,9 @@ services:
       args:
         WODOO_VERSION: $WODOO_VERSION
         POSTGRES_VERSION: $POSTGRES_VERSION
+        PYPI_SERVER: ${PYPI_SERVER}
+        APT_PROXY_IP: ${APT_PROXY_IP}
+        APT_OPTIONS: ${APT_OPTIONS}
         # Dont do: if images used, then not compatible
         # OWNER_UID: $OWNER_UID
     profiles:

@@ -4,6 +4,8 @@ ARG ODOO_VERSION
 ARG ODOO_INSTALL_LIBPOSTAL
 ARG ODOO_CONFIG_DIR
 ARG APT_PROXY_IP
+ARG APT_OPTIONS
+ARG PYPI_SERVER
 #ARG CUSTOMS_REQUIREMENTS
 MAINTAINER marc@itewimmer.de
 
@@ -133,6 +135,10 @@ ADD config/$ODOO_VERSION/requirements.txt /root/requirements.txt
 #p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3
 
 #pip3 10.0 is in other directories; hash -r clears the cache of the path
+# Optional: speed up installs
+ENV PIP_NO_CACHE_DIR=no
+# Set custom PyPI index
+RUN pip3 config set global.index-url $PYPI_SERVER
 RUN pip3 install wheel
 RUN hash -r && \
         pip3 install --upgrade pip && \

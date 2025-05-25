@@ -10,6 +10,8 @@ ARG ODOO_INSTALL_LIBPOSTAL
 ARG CUSTOMS_SHA
 ARG ODOO_CONFIG_DIR
 ARG APT_PROXY_IP
+ARG APT_OPTIONS
+ARG PYPI_SERVER
 
 # --------------------------------------------------------------------
 # COMPILE PYTHON
@@ -90,6 +92,10 @@ pip3 install cython==0.29.35
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 
+# Optional: speed up installs
+ENV PIP_NO_CACHE_DIR=no
+# Set custom PyPI index
+RUN pip3 config set global.index-url $PYPI_SERVER
 RUN pip3 install --no-build-isolation -r /root/pip_requirements.txt
 
 RUN pip3 install \

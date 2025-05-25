@@ -4,10 +4,12 @@ ARG OWNER_UID
 ARG DOCKER_GID
 ARG project_name
 ARG APT_PROXY_IP
+ARG APT_OPTIONS
+ARG PYPI_SERVER
 ENV DEBIAN_FRONTEND=noninteractive
 RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 RUN apt update && \
-apt install -y python3-pip python3 curl rsync locales pv \
+apt $APT_OPTIONS install -y python3-pip python3 curl rsync locales pv \
 pigz telnet libpq-dev wget lsb-release \
 libxml2-dev libxslt-dev pipx gosu git sudo \
 ca-certificates curl gnupg lsb-release \
@@ -20,7 +22,7 @@ cat /tmp/docker.gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
 echo \
   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
   $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null && \
-apt update && apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin python3-venv zlib1g-dev
+apt update && apt $APT_OPTIONS install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin python3-venv zlib1g-dev
 
 # change docker group id to match host
 RUN cat /etc/group
@@ -28,15 +30,15 @@ RUN getent group $DOCKER_GID && groupmod -g 555 $(getent group $DOCKER_GID | cut
 RUN groupmod -g $DOCKER_GID docker
 
 # install postgres
-RUN apt -y install && \
+RUN apt -y $APT_OPTIONS install && \
 export DEBIAN_FRONTEND=noninteractive && \
-apt install -y postgresql postgresql-contrib
+apt $APT_OPTIONS install -y postgresql postgresql-contrib
 RUN sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list' && \
 wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
 echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
 apt update && \
-apt -y install postgresql-17
-RUN apt -y install openssh-server
+apt -y $APT_OPTIONS install postgresql-17
+RUN apt -y $APT_OPTIONS install openssh-server
 RUN mkdir /var/run/sshd
 EXPOSE 22
 
@@ -48,8 +50,12 @@ ENV LC_ALL=en_US.UTF-8
 
 WORKDIR /root
 
+# Optional: speed up installs
+ENV PIP_NO_CACHE_DIR=no
+# Set custom PyPI index
+RUN pip3 config set global.index-url $PYPI_SERVER
 RUN pipx install wodoo==$WODOO_VERSION
-RUN apt install -y tmux
+RUN apt $APT_OPTIONS install -y tmux
 
 
 RUN cat /etc/passwd
@@ -71,7 +77,7 @@ ADD sshd_config /etc/ssh/sshd_config
 # TODO
 # RUN sudo chsh -s /bin/rbash odoo
 
-RUN apt install -y silversearcher-ag
+RUN apt $APT_OPTIONS install -y silversearcher-ag
 RUN \
 ln -s /bin/ls /home/odoo/bin/ls && \
 ln -s /bin/cat /home/odoo/bin/cat && \

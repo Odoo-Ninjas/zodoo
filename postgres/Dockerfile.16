@@ -1,10 +1,12 @@
 FROM postgres:16-bullseye
 ARG APT_PROXY_IP
+ARG APT_OPTIONS
 CMD ["postgres"]
 RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 RUN apt update && \
-apt install -y postgresql-server-dev-16 python-dev build-essential git python3-pip procps sockstat
-RUN apt install -y postgresql-16-postgis-3
+apt $APT_OPTIONS \
+install -y postgresql-server-dev-16 python-dev build-essential git python3-pip procps sockstat
+RUN apt $APT_OPTIONS install -y postgresql-16-postgis-3
 
 
 ADD config* /
