@@ -14,7 +14,7 @@ ARG ODOO_CONFIG_DIR
 FROM $BASE_IMAGE AS libpostal_builder
 ARG TARGETARCH
 ARG ODOO_INSTALL_LIBPOSTAL
-ARG BUILD_HOST_IP
+ARG APT_PROXY_IP
 COPY install_libpostal.sh install_libpostal.sh
 RUN bash install_libpostal.sh
 
@@ -28,7 +28,7 @@ WORKDIR /usr/local/src
 RUN tar xfz /usr/local/src/python
 WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
 
-RUN echo "Acquire::http::Proxy \"http://${BUILD_HOST_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
+RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 RUN apt update && \
 apt install -y \
     software-properties-common \
@@ -64,12 +64,12 @@ FROM $BASE_IMAGE AS build_pip
 ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_REQUIREMENTS
 ARG ODOO_FRAMEWORK_REQUIREMENTS
-ARG BUILD_HOST_IP
+ARG APT_PROXY_IP
 
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
 
-RUN echo "Acquire::http::Proxy \"http://${BUILD_HOST_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
+RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 RUN apt update && apt install -y \
     build-essential \
     libxml2-dev \
@@ -133,7 +133,7 @@ ARG ODOO_REQUIREMENTS
 ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_INSTALL_LIBPOSTAL
 ARG CUSTOMS_SHA
-ARG BUILD_HOST_IP
+ARG APT_PROXY_IP
 
 MAINTAINER marc@itewimmer.de
 
@@ -142,7 +142,7 @@ RUN /bin/bash /usr/local/bin/check_sha.sh "$CUSTOMS_SHA"
 
 
 ENV LANG=C.UTF-8
-RUN echo "Acquire::http::Proxy \"http://${BUILD_HOST_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
+RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 RUN apt update && apt-get install \
 	-y \
 	--no-install-recommends \

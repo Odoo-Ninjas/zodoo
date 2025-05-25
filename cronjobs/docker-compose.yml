@@ -5,7 +5,7 @@ services:
       args:
         WODOO_VERSION: $WODOO_VERSION
         POSTGRES_VERSION: $POSTGRES_VERSION
-        BUILD_HOST_IP: ${BUILD_HOST_IP}
+        APT_PROXY_IP: ${APT_PROXY_IP}
         # Dont do: if images used, then not compatible
         # OWNER_UID: $OWNER_UID
     privileged: true

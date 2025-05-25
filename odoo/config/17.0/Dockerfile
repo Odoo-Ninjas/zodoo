@@ -22,15 +22,18 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then bash /root/install_libpostal.sh; fi
 # --------------------------------------------------------------------
 FROM $BASE_IMAGE AS python_builder
 ARG ODOO_PYTHON_VERSION
-ARG BUILD_HOST_IP
+ARG APT_PROXY_IP
 COPY python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
 WORKDIR /usr/local/src
 RUN tar xfz /usr/local/src/python
 WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
 
-RUN echo "Acquire::http::Proxy \"http://${BUILD_HOST_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
+RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
+RUN sed -i 's|http://deb.debian.org|http://ftp.de.debian.org|g' /etc/apt/sources.list
+
 RUN apt update && \
-apt install -y \
+apt -o Acquire::Retries=5 \
+    install -y \
     software-properties-common \
     cmake \
     exuberant-ctags \
@@ -65,13 +68,16 @@ FROM $BASE_IMAGE AS build_pip
 ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_REQUIREMENTS
 ARG ODOO_FRAMEWORK_REQUIREMENTS
-ARG BUILD_HOST_IP
+ARG APT_PROXY_IP
 
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
 
-RUN echo "Acquire::http::Proxy \"http://${BUILD_HOST_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
-RUN apt update && apt install -y \
+RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
+RUN sed -i 's|http://deb.debian.org|http://ftp.de.debian.org|g' /etc/apt/sources.list
+RUN apt update && \
+    apt -o Acquire::Retries=5 \
+    install -y \
     build-essential \
     libxml2-dev \
     libxslt1-dev \
@@ -101,7 +107,7 @@ pip3 install pip -U && \
 pip3 install setuptools -U
 
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
-RUN xargs apt install -y < /root/deb_requirements.txt
+RUN xargs apt -o Acquire::Retries=5 install -y < /root/deb_requirements.txt
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 RUN pip3 install -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
@@ -132,7 +138,7 @@ ARG DOCKER_GROUP_ID
 ARG INSTALL_DOCKER_CLIENTS
 ARG ODOO_INSTALL_LIBPOSTAL
 ARG CUSTOMS_SHA
-ARG BUILD_HOST_IP
+ARG APT_PROXY_IP
 
 MAINTAINER marc@itewimmer.de
 
@@ -141,8 +147,10 @@ RUN /bin/bash /usr/local/bin/check_sha.sh "$CUSTOMS_SHA"
 
 
 ENV LANG C.UTF-8
-RUN echo "Acquire::http::Proxy \"http://${BUILD_HOST_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
-RUN apt update && apt-get install \
+RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
+RUN sed -i 's|http://deb.debian.org|http://ftp.de.debian.org|g' /etc/apt/sources.list
+RUN apt update && \
+    apt -o Acquire::Retries=5 install \
 	-y \
 	--no-install-recommends \
 			man \

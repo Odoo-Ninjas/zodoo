@@ -3,7 +3,7 @@ ARG OWNER_UID
 ARG DOCKER_GID
 ARG TARGETARCH
 
-RUN echo "Acquire::http::Proxy \"http://${BUILD_HOST_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
+RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 RUN apt update && apt install -y curl
 RUN apt install -y gpg x11vnc xvfb xauth git gosu net-tools rsync
 RUN python3 <<'EOF'

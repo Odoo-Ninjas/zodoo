@@ -5,7 +5,7 @@ services:
   #   build: 
   #     context: ${ODOO_IMAGES}/webssh
   #     args:
-  #       BUILD_HOST_IP: ${BUILD_HOST_IP}
+  #       APT_PROXY_IP: ${APT_PROXY_IP}
   #   restart: unless-stopped
   #   profiles:
   #     - auto

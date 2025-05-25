@@ -3,13 +3,13 @@ ARG TARGETARCH
 ARG ODOO_VERSION
 ARG ODOO_INSTALL_LIBPOSTAL
 ARG ODOO_CONFIG_DIR
-ARG BUILD_HOST_IP
+ARG APT_PROXY_IP
 #ARG CUSTOMS_REQUIREMENTS
 MAINTAINER marc@itewimmer.de
 
 #RUN [[ -z "$CUSTOMS_REQUIREMENTS" && exit -1 ]]
 ENV LANG=C.UTF-8
-RUN echo "Acquire::http::Proxy \"http://${BUILD_HOST_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
+RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 RUN apt update --fix-missing && \
 apt-get install \
         -y \

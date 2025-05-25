@@ -1,7 +1,7 @@
 FROM postgres:13-bullseye
-ARG BUILD_HOST_IP
+ARG APT_PROXY_IP
 CMD ["postgres"]
-RUN echo "Acquire::http::Proxy \"http://${BUILD_HOST_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
+RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 RUN apt-get update && \
 apt install -y postgresql-server-dev-13 python-dev build-essential git python3-pip procps sockstat
 

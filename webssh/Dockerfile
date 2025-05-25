@@ -1,6 +1,6 @@
 FROM ubuntu:24.04
 CMD [ "bash", "/root/launch.sh" ]
-RUN echo "Acquire::http::Proxy \"http://${BUILD_HOST_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
+RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 RUN apt update && DEBIAN_FRONTEND="noninteractive" apt install -y --no-install-recommends \
     nginx \
     procps \

@@ -9,7 +9,7 @@ services:
     build: 
       context: $ODOO_IMAGES/mail
       args:
-        BUILD_HOST_IP: ${BUILD_HOST_IP}
+        APT_PROXY_IP: ${APT_PROXY_IP}
 
     profiles:
       - auto
@@ -22,7 +22,7 @@ services:
     build: 
       context: $ODOO_IMAGES/roundcube
       args:
-        BUILD_HOST_IP: ${BUILD_HOST_IP}
+        APT_PROXY_IP: ${APT_PROXY_IP}
     # ports:
     #    - "8282:80"
     profiles:
