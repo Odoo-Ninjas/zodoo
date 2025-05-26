@@ -17,6 +17,9 @@ ARG APT_OPTIONS
 FROM $BASE_IMAGE AS libpostal_builder
 ARG TARGETARCH
 ARG ODOO_INSTALL_LIBPOSTAL
+ARG APT_PROXY_IP
+ARG APT_OPTIONS
+ARG PYPI_SERVER
 ADD install_libpostal.sh /root/install_libpostal.sh
 RUN if [ "$TARGETARCH" = "amd64" ]; then bash /root/install_libpostal.sh; fi
 
@@ -34,10 +37,8 @@ RUN tar xfz /usr/local/src/python
 WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
 
 RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
-
 RUN apt update && \
-apt -o Acquire::Retries=5 \
-    install -y \
+apt $APT_OPTIONS install -y \
     software-properties-common \
     cmake \
     exuberant-ctags \
@@ -73,15 +74,15 @@ ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_REQUIREMENTS
 ARG ODOO_FRAMEWORK_REQUIREMENTS
 ARG APT_PROXY_IP
-ARG PYPI_SERVER
 ARG APT_OPTIONS
+ARG PYPI_SERVER
 
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
 
 RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 RUN apt update && \
-    apt -o Acquire::Retries=5 \
+    apt $APT_OPTIONS \
     install -y \
     build-essential \
     libxml2-dev \
@@ -95,9 +96,9 @@ RUN apt update && \
     libpoppler-cpp-dev \
     pkg-config \
     libfreetype6-dev \
-    freetds-dev  \
     libffi-dev \
     libkrb5-dev \
+    freetds-dev \
     cmake \
     git
 
@@ -116,7 +117,7 @@ pip3 install pip -U && \
 pip3 install setuptools -U
 
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
-RUN xargs apt -o Acquire::Retries=5 install -y < /root/deb_requirements.txt
+RUN xargs apt $APT_OPTIONS install -y < /root/deb_requirements.txt
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 RUN pip3 install -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
@@ -160,9 +161,7 @@ RUN /bin/bash /usr/local/bin/check_sha.sh "$CUSTOMS_SHA"
 ENV LANG C.UTF-8
 RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 
-RUN apt update && \
-    apt $APT_OPTIONS install \
-	-y \
+RUN apt update && apt $APT_OPTIONS install -y \
 	--no-install-recommends \
 			man \
             htop \

@@ -5,10 +5,11 @@ ARG ODOO_REQUIREMENTS
 ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_INSTALL_LIBPOSTAL
 ARG ODOO_PYTHON_VERSION
+ARG ODOO_CONFIG_DIR
 ARG CUSTOMS_SHA
 ARG APT_PROXY_IP
-ARG APT_OPTIONS
 ARG PYPI_SERVER
+ARG APT_OPTIONS
 
 # --------------------------------------------------------------------
 # COMPILE LIBPOSTAL
@@ -28,8 +29,8 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then bash /root/install_libpostal.sh; fi
 FROM $BASE_IMAGE AS python_builder
 ARG ODOO_PYTHON_VERSION
 ARG APT_PROXY_IP
-ARG APT_OPTIONS
 ARG PYPI_SERVER
+ARG APT_OPTIONS
 COPY python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
 WORKDIR /usr/local/src
 RUN tar xfz /usr/local/src/python
@@ -110,14 +111,16 @@ ENV PIP_NO_CACHE_DIR=no
 RUN pip3 config set global.index-url $PYPI_SERVER
 RUN pip3 install wheel && \
 pip3 install pip -U && \
-pip3 install cython -U && \
 pip3 install setuptools -U
 
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
 RUN xargs apt $APT_OPTIONS install -y < /root/deb_requirements.txt
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
-RUN pip3 install -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed  
+RUN pip3 install -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
+
+RUN echo "$ODOO_FRAMEWORK_REQUIREMENTS"  | base64 --decode > /root/framework_requirements.txt
+RUN pip3 install -r /root/framework_requirements.txt
 
 RUN pip3 install pudb ipython debugpy
 
@@ -143,8 +146,8 @@ ARG INSTALL_DOCKER_CLIENTS
 ARG ODOO_INSTALL_LIBPOSTAL
 ARG CUSTOMS_SHA
 ARG APT_PROXY_IP
-ARG APT_OPTIONS
 ARG PYPI_SERVER
+ARG APT_OPTIONS
 
 ADD bin/check_sha.sh /usr/local/bin
 RUN /bin/bash /usr/local/bin/check_sha.sh "$CUSTOMS_SHA"
@@ -155,7 +158,7 @@ RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.
 RUN apt update && apt $APT_OPTIONS install \
 	-y \
 	--no-install-recommends \
-			man \
+            man \
             htop \
             ca-certificates \
             curl \
@@ -186,13 +189,12 @@ RUN apt update && apt $APT_OPTIONS install \
             cups \
             libreoffice \
             locales \
-			libmagickwand-dev \
+            libmagickwand-dev \
             ffmpeg \
             zip \
             gpg-agent \
             pdftk \
             python3-gi \
-            python3-click \
             python3-gi-cairo \
             python3-cairo \
             gir1.2-gtk-3.0 \
@@ -201,6 +203,8 @@ RUN apt update && apt $APT_OPTIONS install \
             libcups2-dev \
             locales-all \
             libpoppler-cpp-dev \
+            python3-click \
+            locales \
             postgresql-client \
             sassc \
             time \
@@ -211,6 +215,7 @@ RUN apt update && apt $APT_OPTIONS install \
 ADD liberation-sans /usr/share/fonts/
 # rebuild font cache
 RUN fc-cache -f -v
+RUN locale-gen en_US.UTF-8 && dpkg-reconfigure locales
 
 WORKDIR /tmp
 
@@ -257,7 +262,8 @@ COPY --from=build_pip /opt/python /opt/python
 COPY --from=build_pip /opt/venv /opt/venv
 WORKDIR /opt/python
 RUN make install
-RUN rm /usr/local/bin/python3 /usr/bin/python3
+# Otherwise libreoffice installation does not work
+# RUN rm /usr/local/bin/python3 /usr/bin/python3
 
 
 # Transfer lib postal (TODO)
@@ -271,7 +277,7 @@ RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.tx
 RUN apt update && xargs apt $APT_OPTIONS install -y < /root/deb_requirements.txt
 
 WORKDIR /usr/local/bin
-RUN ln -s /opt/venv/bin/python3
+RUN rm python3 && ln -s /opt/venv/bin/python3
 
 WORKDIR /opt/odoo
 

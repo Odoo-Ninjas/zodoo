@@ -7,6 +7,9 @@ ARG ODOO_INSTALL_LIBPOSTAL
 ARG ODOO_PYTHON_VERSION
 ARG ODOO_CONFIG_DIR
 ARG CUSTOMS_SHA
+ARG APT_PROXY_IP
+ARG PYPI_SERVER
+ARG APT_OPTIONS
 
 # --------------------------------------------------------------------
 # COMPILE LIBPOSTAL
@@ -14,6 +17,9 @@ ARG CUSTOMS_SHA
 FROM $BASE_IMAGE AS libpostal_builder
 ARG TARGETARCH
 ARG ODOO_INSTALL_LIBPOSTAL
+ARG APT_PROXY_IP
+ARG APT_OPTIONS
+ARG PYPI_SERVER
 ADD install_libpostal.sh /root/install_libpostal.sh
 RUN if [ "$TARGETARCH" = "amd64" ]; then bash /root/install_libpostal.sh; fi
 
@@ -32,7 +38,7 @@ WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
 
 RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 RUN apt update && \
-apt install -y \
+apt $APT_OPTIONS install -y \
     software-properties-common \
     cmake \
     exuberant-ctags \
@@ -68,14 +74,13 @@ ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_REQUIREMENTS
 ARG ODOO_FRAMEWORK_REQUIREMENTS
 ARG APT_PROXY_IP
-ARG PYPI_SERVER
 ARG APT_OPTIONS
+ARG PYPI_SERVER
 
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
-
 RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
-RUN apt update && apt install -y \
+RUN apt update && apt $APT_OPTIONS install -y \
     build-essential \
     libxml2-dev \
     libxslt1-dev \
@@ -88,9 +93,9 @@ RUN apt update && apt install -y \
     libpoppler-cpp-dev \
     pkg-config \
     libfreetype6-dev \
-    freetds-dev  \
     libffi-dev \
     libkrb5-dev \
+    freetds-dev \
     cmake \
     git
 
@@ -144,8 +149,6 @@ ARG APT_PROXY_IP
 ARG PYPI_SERVER
 ARG APT_OPTIONS
 
-MAINTAINER marc@itewimmer.de
-
 ADD bin/check_sha.sh /usr/local/bin
 RUN /bin/bash /usr/local/bin/check_sha.sh "$CUSTOMS_SHA"
 
@@ -155,6 +158,7 @@ RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.
 RUN apt update && apt $APT_OPTIONS install \
 	-y \
 	--no-install-recommends \
+            man \
             htop \
             ca-certificates \
             curl \
@@ -166,11 +170,14 @@ RUN apt update && apt $APT_OPTIONS install \
             libjpeg-dev \
             automake \
             pkg-config \
+            libpcre3-dev \
             liblzma-dev \
             make \
             ssh \
+            mc \
             libfontconfig \
             rsync \
+            psmisc \
             lsof \
             git \
             sudo \
@@ -178,16 +185,36 @@ RUN apt update && apt $APT_OPTIONS install \
             freetds-dev \
             wget \
             cifs-utils \
+            imagemagick \
             cups \
+            libreoffice \
             locales \
+            libmagickwand-dev \
+            ffmpeg \
             zip \
             gpg-agent \
             pdftk \
             python3-gi \
+            python3-gi-cairo \
+            python3-cairo \
+            gir1.2-gtk-3.0 \
+            libmagickwand-dev \
+            libmagic-dev \
+            libcups2-dev \
+            locales-all \
+            libpoppler-cpp-dev \
             python3-click \
             locales \
-            postgresql-client 
+            postgresql-client \
+            sassc \
+            time \
+            xfonts-75dpi \
+            xfonts-base \
+            libgeos-dev
 
+ADD liberation-sans /usr/share/fonts/
+# rebuild font cache
+RUN fc-cache -f -v
 RUN locale-gen en_US.UTF-8 && dpkg-reconfigure locales
 
 WORKDIR /tmp
@@ -198,7 +225,7 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
     rm -rf /var/lib/apt/lists/* /root/wkhtmltox.deb; \
 fi
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
-    curl -o /root/wkhtmltox.deb -sSL https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.jammy_arm64.deb &&  \
+    curl -o /root/wkhtmltox.deb -sSL  https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.jammy_arm64.deb && \
     apt update && apt $APT_OPTIONS install -y --no-install-recommends /root/wkhtmltox.deb && \
     rm -rf /var/lib/apt/lists/* /root/wkhtmltox.deb;  \
 fi
@@ -249,10 +276,12 @@ RUN make install
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
 RUN apt update && xargs apt $APT_OPTIONS install -y < /root/deb_requirements.txt
 
+WORKDIR /usr/local/bin
+RUN rm python3 && ln -s /opt/venv/bin/python3
+
 WORKDIR /opt/odoo
 
 # There is a BUG with M1 and SCRAM authentication
-
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
 apt update && \
 apt $APT_OPTIONS install -y libpq-dev build-essential && \
