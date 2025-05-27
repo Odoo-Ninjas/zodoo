@@ -234,8 +234,8 @@ def _apply_configuration(config_file, to_apply_config_file):
 
 
 def _run_libreoffice_in_background():
-    subprocess.Popen(["/bin/bash", os.environ["ODOOLIB"] + "/run_soffice.sh"])
-
+    cmd = os.environ["ODOOLIB"] + "/run_soffice.py"
+    os.system(f"python3 {cmd} 1>/dev/null 2>/dev/null &")
 
 def get_config_file(confname):
     return str(Path(os.environ["ODOO_CONFIG_DIR"]) / confname)
