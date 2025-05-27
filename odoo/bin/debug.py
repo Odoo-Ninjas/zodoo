@@ -9,6 +9,7 @@ import click
 from pathlib import Path
 import tools
 from tools import prepare_run
+from tools import sane_tty
 from tools import get_config_file  # NOQA
 from wodoo.odoo_config import current_version  # NOQA
 from wodoo.odoo_config import get_settings  # NOQA
@@ -22,6 +23,12 @@ print("Watching file {}".format(DEBUGGER_WATCH))
 customs_dir = Path(os.environ["CUSTOMS_DIR"])
 profiling = False
 
+import os
+import platform
+
+def clear_terminal():
+    command = "cls" if platform.system() == "Windows" else "clear"
+    os.system(command)
 
 def watch_file_and_kill():
     while True:
@@ -50,7 +57,9 @@ class Debugger(object):
         os.chdir(self.odoolib_path)
         if not cmd[0].startswith("/"):
             cmd = ["python3"] + cmd
-        return not subprocess.call(cmd, cwd=self.odoolib_path)  # exitcode
+        res = not subprocess.run(cmd, cwd=self.odoolib_path)  # exitcode
+        sane_tty()
+        return res
 
     def action_debug(self):
         self.first_run = False

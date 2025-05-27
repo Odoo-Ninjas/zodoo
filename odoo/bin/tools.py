@@ -337,42 +337,46 @@ def kill_odoo():
             cmd = [
                 "/usr/bin/sudo",
             ] + cmd
-        subprocess.call(cmd)
+        subprocess.run(cmd ,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL ,stdin=subprocess.DEVNULL)
         try:
             pidfile.unlink()
         except FileNotFoundError:
             pass
     else:
         if version <= 9.0:
-            subprocess.call(
+            subprocess.run(
                 [
                     "/usr/bin/sudo",
                     "/usr/bin/pkill",
                     "-9",
                     "-f",
                     "openerp-server",
-                ]
+                ] ,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL ,stdin=subprocess.DEVNULL
             )
-            subprocess.call(
+            subprocess.run(
                 [
                     "/usr/bin/sudo",
                     "/usr/bin/pkill",
                     "-9",
                     "-f",
                     "openerp-gevent",
-                ]
+                ] ,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL ,stdin=subprocess.DEVNULL
             )
         else:
-            subprocess.call(
+            subprocess.run(
                 [
                     "/usr/bin/sudo",
                     "/usr/bin/pkill",
                     "-9",
                     "-f",
                     "odoo-bin",
-                ]
+                ] ,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL 
             )
+    sane_tty()
 
+def sane_tty():
+    # was not needed in debian
+    subprocess.run(["/usr/bin/stty", "sane"])
 
 def __python_exe(remote_debug=False, wait_for_remote=False):
     if version <= 10.0:
@@ -484,15 +488,12 @@ def exec_odoo(
     filename = Path(tempfile.mktemp(suffix=".exitcode"))
     cmd += f" || echo $? > {filename}"
 
-    # if stdin:
-    #     cmd = f'{stdin} |' + cmd
     if stdin:
         if isinstance(stdin, str):
             stdin = stdin.encode("utf-8")
         subprocess.run(cmd, input=stdin, shell=True)
     else:
         subprocess.run(cmd, shell=True)
-    print(cmd)
     if pidfile.exists():
         pidfile.unlink()
     if on_done:
