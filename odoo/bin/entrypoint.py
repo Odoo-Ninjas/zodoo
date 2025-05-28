@@ -9,12 +9,12 @@ owner = os.environ['OWNER_UID']
 
 os.system(f"usermod -u {owner} odoo")
 
-print(f"Setting ownership of /opt/files to {owner}")
+#print(f"Setting ownership of /opt/files to {owner}")
 os.system(f"chown '{owner}:{owner}' /opt/files")
 
 # important is especially the .config folder, so that libreoffice works
-print(f"Setting ownership of /home/odoo to {owner}")
-os.system(f"chown -R '{owner}:{owner}' /home/odoo")
+#print(f"Setting ownership of /home/odoo to {owner}")
+os.system(f"chown '{owner}:{owner}' /home/odoo")  # -R too heavy
 
 try:
     os.execvp(sys.argv[1], sys.argv[1:])
