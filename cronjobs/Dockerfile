@@ -4,6 +4,7 @@ ARG POSTGRES_VERSION
 ARG APT_PROXY_IP
 ARG APT_OPTIONS
 ARG PYPI_SERVER
+ARG DOCKER_GID
 ENV DEBIAN_FRONTEND=noninteractive
 RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 RUN apt update && \
