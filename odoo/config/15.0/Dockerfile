@@ -239,20 +239,18 @@ rm -Rf /usr/local/man && mkdir -p /usr/local/man/man1
 
 # install docker client
 ENV DEBIAN_FRONTEND=noninteractive
-RUN \
-if [ "$INSTALL_DOCKER_CLIENTS" = "1" ]; then \
-    groupadd -g $DOCKER_GROUP_ID docker && \
-    usermod -aG docker odoo && \
-    apt update && \
-    apt $APT_OPTIONS install -y ca-certificates curl gnupg lsb-release software-properties-common && \
-    apt update && \
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian \
-    $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null && \
-    apt update && \
-    apt $APT_OPTIONS install -y docker-ce-cli && \
-    echo 'done'; \
-fi
+RUN install -m 0755 -d /etc/apt/keyrings
+RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+RUN echo \
+  "deb [arch=$(dpkg --print-architecture) \
+  signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | \
+  tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+RUN apt update && \
+apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
 # Transfer python
 ENV VIRTUAL_ENV=/opt/venv/env

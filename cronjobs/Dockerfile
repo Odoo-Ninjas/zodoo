@@ -19,13 +19,18 @@ ENV PIP_NO_CACHE_DIR=no
 RUN pip3 config set global.index-url $PYPI_SERVER
 
 # install docker
-ADD docker.gpg /tmp/docker.gpg
-RUN mkdir -p /etc/apt/keyrings && \
-cat /tmp/docker.gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
-echo \
-  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null && \
-apt update && apt $APT_OPTIONS install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin python3-venv zlib1g-dev
+RUN install -m 0755 -d /etc/apt/keyrings
+RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+RUN echo \
+  "deb [arch=$(dpkg --print-architecture) \
+  signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | \
+  tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+RUN apt update && \
+apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
 
 # install postgres
