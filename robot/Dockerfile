@@ -6,9 +6,9 @@ ARG DOCKER_GID
 ARG APT_PROXY_IP
 ARG APT_OPTIONS
 
-RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt update -q && \
+RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
+RUN apt update && \
 apt install -y wget unzip python3 \
 python3-pip python3-magic libmagickwand-dev xvfb curl \
 sudo curl software-properties-common pipx 
