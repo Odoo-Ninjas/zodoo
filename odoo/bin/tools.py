@@ -469,8 +469,8 @@ def exec_odoo(
         DBNAME = os.environ["DBNAME"]
     cmd += ["-c", CONFIG, "-d", DBNAME]
 
-    if os.getenv("DEVMODE") == "1":
-        print(Path(CONFIG).read_text())
+    # if os.getenv("DEVMODE") == "1":
+    #     print(Path(CONFIG).read_text())
     if os.getenv("PROXY_PORT", ""):
         PROXY_PORT = os.environ["PROXY_PORT"]
         click.secho(f"PROXY Port: {PROXY_PORT}", fg="green", bold=True)
