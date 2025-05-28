@@ -31,6 +31,8 @@ RUN echo \
 
 RUN apt update && \
 apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+RUN groupmod -g 555 $(getent group $DOCKER_GID | cut -d: -f1) || true
+RUN groupadd -g $DOCKER_GID docker
 
 
 # install postgres

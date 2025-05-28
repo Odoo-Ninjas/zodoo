@@ -10,6 +10,7 @@ ARG ODOO_CONFIG_DIR
 ARG APT_PROXY_IP
 ARG APT_OPTIONS
 ARG PYPI_SERVER
+ARG DOCKER_GID
 
 # --------------------------------------------------------------------
 # COMPILE LIBPOSTAL

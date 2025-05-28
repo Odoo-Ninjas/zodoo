@@ -33,9 +33,8 @@ apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker
 RUN apt update && apt $APT_OPTIONS install -y python3-venv zlib1g-dev
 
 # change docker group id to match host
-RUN groupadd docker
-RUN getent group $DOCKER_GID && groupmod -g 555 $(getent group $DOCKER_GID | cut -d: -f1) || true
-RUN groupmod -g $DOCKER_GID docker
+RUN groupmod -g 555 $(getent group $DOCKER_GID | cut -d: -f1) || true
+RUN groupadd -g $DOCKER_GID docker
 
 # install postgres
 RUN apt -y $APT_OPTIONS install && \

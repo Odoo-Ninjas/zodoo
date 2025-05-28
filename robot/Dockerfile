@@ -68,10 +68,8 @@ RUN echo \
 
 RUN apt update && \
 apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-RUN usermod -aG docker robot
 RUN groupmod -g 555 $(getent group $DOCKER_GID | cut -d: -f1) || true
-RUN cat /etc/group
-RUN groupmod -g $DOCKER_GID docker
+RUN groupadd -g $DOCKER_GID docker
 RUN usermod -aG docker robot
 
 #--------------------------------------------
