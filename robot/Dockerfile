@@ -3,7 +3,10 @@ ARG TARGETARCH
 ARG OWNER_UID
 ARG WODOO_VERSION
 ARG DOCKER_GID
+ARG APT_PROXY_IP
+ARG APT_OPTIONS
 
+RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt update -q && \
 apt install -y wget unzip python3 \
@@ -68,8 +71,8 @@ RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor
 RUN echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 RUN \
 	apt update && \
-	apt install docker-ce docker-ce-cli containerd.io -y && \
-	usermod -aG docker robot
+	apt $APT_OPTIONS install docker-ce docker-ce-cli containerd.io -y
+RUN usermod -aG docker robot
 RUN groupmod -g 555 $(getent group $DOCKER_GID | cut -d: -f1) || true
 RUN cat /etc/group
 RUN groupmod -g $DOCKER_GID docker
