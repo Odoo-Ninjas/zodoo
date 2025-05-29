@@ -65,7 +65,6 @@ RUN pipx install wodoo==$WODOO_VERSION
 RUN apt $APT_OPTIONS install -y tmux
 
 
-RUN cat /etc/passwd
 RUN deluser ubuntu
 RUN useradd -m -s /bin/bash -G sudo,docker -p $(openssl passwd -1 odoo) -u ${OWNER_UID} odoo
 RUN echo 'odoo:odoo' | sudo chpasswd
