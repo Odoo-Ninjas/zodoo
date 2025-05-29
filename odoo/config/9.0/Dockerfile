@@ -1,6 +1,5 @@
 FROM ubuntu:22.04
 ARG ODOO_VERSION
-MAINTAINER marc@itewimmer.de
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt update --fix-missing && \
@@ -76,7 +75,7 @@ echo 'LC_ALL=en_US.UTF-8' >> /etc/environment && \
 echo 'LANG=en_US.UTF-8' >> /etc/environment && \
 echo 'LANGUAGE=en_US.UTF-8' >> /etc/environment 
 
-ADD liberation-sans /usr/share/fonts/
+COPY liberation-sans /usr/share/fonts/
 # rebuild font cache
 RUN fc-cache -f -v
 
@@ -105,50 +104,50 @@ chown odoo:odoo /home/odoo -R && \
 rm -Rf /usr/local/man && mkdir -p /usr/local/man/man1
 RUN apt install -y libpython2-dev python2 python2-dev
 RUN apt update && apt install -y python-setuptools
-RUN pip install lxml
+RUN pip install --no-cache-dir lxml
 RUN ls -lhtra /usr/bin
 RUN curl https://bootstrap.pypa.io/pip/2.7/get-pip.py --output get-pip.py
 RUN apt update && apt install -y python3 python3-pip
 RUN cd /usr/bin && ln -s python2.7 python
 RUN python2.7 get-pip.py
 
-RUN pip install pip --upgrade
-RUN pip install cython==0.29.36
+RUN pip install --no-cache-dir pip --upgrade
+RUN pip install --no-cache-dir cython==0.29.36
 
 RUN \
-	pip install requests[security] && \
-	pip install glob2
-RUN pip install pip --upgrade
-RUN pip install lxml psycopg2-binary click pudb psutil
+	pip install --no-cache-dir requests[security] && \
+	pip install --no-cache-dir glob2
+RUN pip install --no-cache-dir pip --upgrade
+RUN pip install --no-cache-dir lxml psycopg2-binary click pudb psutil
 
-ADD config/$ODOO_VERSION/requirements.txt /root/requirements.txt
-RUN pip install pathlib2
-RUN pip install -r /root/requirements.txt --no-build-isolation
-RUN pip install python-magic==0.4.25
+COPY config/$ODOO_VERSION/requirements.txt /root/requirements.txt
+RUN pip install --no-cache-dir pathlib2
+RUN pip install --no-cache-dir -r /root/requirements.txt --no-build-isolation
+RUN pip install --no-cache-dir python-magic==0.4.25
 
 # python2 binary error on ubuntu 18.04
 # https://github.com/psycopg/psycopg2-wheels/issues/2
 RUN mv /bin/sh /bin/sh.bak; ln -s /bin/bash /bin/sh
-RUN pip install psycopg2
+RUN pip install --no-cache-dir psycopg2
 RUN rm /bin/sh; mv /bin/sh.bak /bin/sh
 
 
 RUN apt update
 RUN apt install -y python3-pip
-ADD config/${ODOO_VERSION}/pip3 /usr/local/bin/pip3
+COPY config/${ODOO_VERSION}/pip3 /usr/local/bin/pip3
 RUN chmod a+x /usr/local/bin/pip3
-RUN pip3 install humanize retrying click pyyaml requests passlib arrow inquirer tabulate psutil iscompatible lxml psycopg2 pudb docker gitpython
+RUN pip3 install --no-cache-dir humanize retrying click pyyaml requests passlib arrow inquirer tabulate psutil iscompatible lxml psycopg2 pudb docker gitpython
 
 
 WORKDIR /opt
 
 ENV PYTHONIOENCODING=utf8
 
-RUN pip install pudb ipython docker gitpython
+RUN pip install --no-cache-dir pudb ipython docker gitpython
 RUN echo "\nimport sys; sys.setdefaultencoding('utf-8')" >> /etc/python2.7/sitecustomize.py
 
-RUN pip install gevent==1.2.2
-RUN pip install psycopg2==2.8.6 pathlib==1.0.1
+RUN pip install --no-cache-dir gevent==1.2.2
+RUN pip install --no-cache-dir psycopg2==2.8.6 pathlib==1.0.1
 
 RUN \
 apt update && \

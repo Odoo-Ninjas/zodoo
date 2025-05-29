@@ -11,8 +11,8 @@ ENV ROBOT_THREADS=1
 ENV PATH="$PATH:/opt/robot/.local/bin"
 
 
-___SNIPPET_APT_MIRRORS___
-___SNIPPET_APT_PROXY___
+#___SNIPPET_APT_MIRRORS___
+#___SNIPPET_APT_PROXY___
 
 RUN apt update
 RUN apt $APT_OPTIONS install -y wget unzip python3
@@ -25,7 +25,7 @@ RUN python3 -mpip install --no-cache-dir -r /tmp/requirements.txt --break-system
 RUN rm -rf /tmp/requirements.txt
 
 
-___SNIPPET_FIREFOX___
+#___SNIPPET_FIREFOX___
 
 
 WORKDIR $WORKDIR
@@ -40,7 +40,7 @@ chown robot /opt/robot && \
 chown robot /opt/robot/.ssh -R 
 
 	
-___SNIPPET_DOCKER___
+#___SNIPPET_DOCKER___
 
 # -------------------------------------------
 # Setup Wodoo Framework
@@ -51,7 +51,7 @@ USER robot
 RUN \
 mkdir /opt/robot/.local/pipx -p && \
 pipx install wodoo --force
-RUN pip install debugpy pudb --break-system-packages
+RUN pip install --no-cache-dir debugpy pudb --break-system-packages
 #--------------------------------------------
 USER root
 
@@ -60,15 +60,15 @@ COPY ssh_config /opt/robot/.ssh/config
 RUN chown robot /opt/robot/.ssh/config  
 
 
-___SNIPPET_VSCODE___
-# ADD some extensions here
+#___SNIPPET_VSCODE___
+# COPY some extensions here
 USER robot
-___SNIPPET_VSCODE_EXTENSIONS___
+#___SNIPPET_VSCODE_EXTENSIONS___
 
 
 USER root
-ADD openbox/rc.xml  /opt/robot/.config/openbox/rc.xml
-ADD openbox/menu.xml  /opt/robot/.config/openbox/menu.xml
+COPY openbox/rc.xml  /opt/robot/.config/openbox/rc.xml
+COPY openbox/menu.xml  /opt/robot/.config/openbox/menu.xml
 
 
 # ###########################
@@ -78,8 +78,8 @@ COPY robotest.py ./
 COPY entrypoint.sh ./
 COPY entrypoint_cobot.sh ./
 RUN chmod a+x entrypoint*.sh
-ADD openbox/welcome.txt /etc/welcome.txt
+COPY openbox/welcome.txt /etc/welcome.txt
 
-ADD conky.txt /opt/robot/.conkyrc
+COPY conky.txt /opt/robot/.conkyrc
 
 ENTRYPOINT ["/opt/robot/entrypoint.sh"]

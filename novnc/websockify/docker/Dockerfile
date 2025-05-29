@@ -2,7 +2,7 @@ FROM python
 
 COPY websockify-*.tar.gz /
 
-RUN python3 -m pip install websockify-*.tar.gz
+RUN python3 -m pip install --no-cache-dir websockify-*.tar.gz
 RUN rm -rf /websockify-* /root/.cache
 
 VOLUME /data

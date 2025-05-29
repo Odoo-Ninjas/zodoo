@@ -3,8 +3,8 @@ ARG  APT_PROXY_IP
 ARG  APT_OPTIONS
 CMD [ "bash", "/root/launch.sh" ]
 
-___SNIPPET_APT_MIRRORS___
-___SNIPPET_APT_PROXY___
+#___SNIPPET_APT_MIRRORS___
+#___SNIPPET_APT_PROXY___
 RUN DEBIAN_FRONTEND="noninteractive" apt $APT_OPTIONS install -y --no-install-recommends \
     nginx \
     procps \
@@ -40,11 +40,11 @@ RUN apt update && \
 apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 # RUN pip install webssh
 COPY webssh /root/webssh
-RUN pip install -e /root/webssh  --break-system-packages
+RUN pip install --no-cache-dir -e /root/webssh  --break-system-packages
 
 RUN docker --version
 
-ADD launch.sh /root
+COPY launch.sh /root
 RUN chmod a+x /root/launch.sh
 
 RUN echo "root:odoo" | chpasswd root
@@ -66,9 +66,9 @@ RUN find /usr/local/lib -name webssh
 COPY ["font/Meslo LG M Regular for Powerline.ttf", "/usr/local/lib/python3.8/dist-packages/webssh/static/css/fonts"]
 #COPY ["font/Lucida Regular.ttf", "/usr/local/lib/python3.8/dist-packages/webssh/static/css/fonts"]
 
-ADD programs/* /root/programs/
+COPY programs/* /root/programs/
 RUN mkdir -p /root/.ssh
-ADD sshkey/* /root/.ssh/
+COPY sshkey/* /root/.ssh/
 RUN chmod 500 /root/.ssh && \
 chmod 400 /root/.ssh/* && \
 echo 'Adding paths to .bash_profile' && \

@@ -5,8 +5,8 @@ ARG DOCKER_GID
 ARG TARGETARCH
 
 # --- APT: Mirror & Proxy Configuration ---
-___SNIPPET_APT_MIRRORS___
-___SNIPPET_APT_PROXY___
+#___SNIPPET_APT_MIRRORS___
+#___SNIPPET_APT_PROXY___
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -32,7 +32,7 @@ RUN apt update && apt install -y \
     software-properties-common
 
 
-# --- Add newer Python version ---
+# --- COPY newer Python version ---
 RUN add-apt-repository -y ppa:deadsnakes/ppa && \
     apt update && \
     apt install -y \
@@ -52,20 +52,20 @@ downloadlink.write_text(link)
 EOF
 
 RUN echo "Download link: $(cat /tmp/downloadlink)" && \
-    wget -O /tmp/vscode.deb "$(cat /tmp/downloadlink)" && \
+    wget --progress=dot:giga -O /tmp/vscode.deb "$(cat /tmp/downloadlink)" && \
     apt install -y /tmp/vscode.deb
 
 # --- System update ---
 RUN apt update && apt upgrade -y
 
-# --- Add welcome message ---
-ADD welcome.txt /root/welcome.txt
+# --- COPY welcome message ---
+COPY welcome.txt /root/welcome.txt
 
 # --- Create user ---
 ENV USERNAME=user1
 RUN userdel -r $(getent passwd $OWNER_UID | cut -d: -f1) || true && \
     groupdel $USERNAME || true && \
-    groupadd $USERNAME && \
+    groupCOPY $USERNAME && \
     useradd -u $OWNER_UID -g $USERNAME -m $USERNAME
 
 # --- User home prep ---
@@ -84,7 +84,7 @@ RUN python3.9 -m venv venv && \
 
 # --- Setup VSCode default config ---
 RUN mkdir -p /home/$USERNAME/.config/Code/User
-ADD default_vscode_settings.json /tmp/settings
+COPY default_vscode_settings.json /tmp/settings
 
 USER root
 RUN mv /tmp/settings /home/$USERNAME/.config/Code/User/settings.json && \
@@ -99,7 +99,7 @@ RUN /usr/bin/code --install-extension ms-python.python || true && \
 
 # --- Docker CLI ---
 USER root
-___SNIPPET_DOCKER___
+#___SNIPPET_DOCKER___
 
 # --- Group fix and user shell ---
 RUN usermod -aG docker $USERNAME && \
@@ -118,7 +118,7 @@ RUN echo 'export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/b
 
 # --- Install Google Chrome ---
 USER root
-RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+RUN wget --progress=dot:giga https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
     dpkg -i google-chrome-stable_current_amd64.deb || true && \
     apt install -y -f
 

@@ -18,11 +18,11 @@ RUN \
   fonts-wqy-microhei tightvncserver 
 RUN apt-get update && apt-get install -y curl gnupg ca-certificates
 
-# Add Google's official GPG key securely
+# COPY Google's official GPG key securely
 RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | \
     gpg --dearmor -o /usr/share/keyrings/google-chrome-keyring.gpg
 
-# Add Google Chrome repository
+# COPY Google Chrome repository
 RUN echo "deb [signed-by=/usr/share/keyrings/google-chrome-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | \
     tee /etc/apt/sources.list.d/google-chrome.list > /dev/null
 
@@ -32,7 +32,7 @@ RUN apt-get update && apt-get install -y google-chrome-stable
 
 
 RUN \
-  groupadd -g 1000 user1 && \
+  groupCOPY -g 1000 user1 && \
   useradd -u 1000 -g 1000 -m -d /data user1 
 
 RUN \
@@ -50,9 +50,9 @@ WORKDIR /data
 
 # password is odoo3000
 RUN mkdir .vnc
-ADD vncconfig/ .vnc/
-ADD fluxbox/ .fluxbox/
-ADD cmd.sh cmd.sh
+COPY vncconfig/ .vnc/
+COPY fluxbox/ .fluxbox/
+COPY cmd.sh cmd.sh
 ENV USER=user1
 
 # Define default command.

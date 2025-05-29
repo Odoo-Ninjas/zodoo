@@ -8,8 +8,8 @@ ENV WEBSOCKIFY_TAG="v0.12.0"
 
 ENV VNC_SERVER="localhost:5900"
 
-___SNIPPET_APT_MIRRORS___
-___SNIPPET_APT_PROXY___
+#___SNIPPET_APT_MIRRORS___
+#___SNIPPET_APT_PROXY___
 
 RUN apt install -y  \
         bash \
