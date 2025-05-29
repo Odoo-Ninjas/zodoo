@@ -37,7 +37,7 @@ WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
 
 #___SNIPPET_APT_MIRRORS___
 #___SNIPPET_APT_PROXY___
-RUN apt $APT_OPTIONS \
+RUN apt-get $APT_OPTIONS \
     install -y \
     software-properties-common \
     cmake \
@@ -82,7 +82,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 #___SNIPPET_APT_MIRRORS___
 #___SNIPPET_APT_PROXY___
-RUN apt \
+RUN apt-get \
     $APT_OPTIONS \
     install -y \
     build-essential \
@@ -130,7 +130,7 @@ RUN pip3 install --no-cache-dir  -r /root/framework_requirements.txt
 RUN pip3 install --no-cache-dir pudb ipython debugpy
 
 # Openupgradelib
-RUN apt $APT_OPTIONS install -y git
+RUN apt-get $APT_OPTIONS install -y git
 RUN git clone https://github.com/OCA/openupgradelib /opt/openupgradelib
 WORKDIR /opt/openupgradelib
 RUN pip3 install --no-cache-dir /opt/openupgradelib
@@ -165,7 +165,7 @@ ENV PIP_NO_CACHE_DIR=no
 ENV LANG=C.UTF-8
 #___SNIPPET_APT_MIRRORS___
 #___SNIPPET_APT_PROXY___
-RUN apt \
+RUN apt-get \
     $APT_OPTIONS \
     install \
 	-y \
@@ -267,7 +267,7 @@ RUN make install
 
 
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
-RUN apt update && xargs apt $APT_OPTIONS install -y < /root/deb_requirements.txt
+RUN apt-get update && xargs apt $APT_OPTIONS install -y < /root/deb_requirements.txt
 
 WORKDIR /opt/odoo
 
