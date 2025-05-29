@@ -21,9 +21,6 @@ ENV PIP_NO_CACHE_DIR=no
 RUN pip3 config set global.index-url $PYPI_SERVER
 
 # install docker
-RUN install -m 0755 -d /etc/apt/keyrings
-RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-
 ___SNIPPET_DOCKER___
 
 

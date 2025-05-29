@@ -72,22 +72,9 @@ RUN /usr/bin/code --install-extension MarcWimmerITE.odoobrowserITE || true
 USER root
 
 # install docker cli
-RUN install -m 0755 -d /etc/apt/keyrings
-RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-
-RUN echo \
-  "deb [arch=$(dpkg --print-architecture) \
-  signed-by=/etc/apt/keyrings/docker.gpg] \
-  https://download.docker.com/linux/ubuntu \
-  $(lsb_release -cs) stable" | \
-  tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-RUN apt update && \
-apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+___SNIPPET_DOCKER___
 
 # change docker group id to match host
-RUN groupmod -g 555 $(getent group $DOCKER_GID | cut -d: -f1) || true
-RUN groupmod -g $DOCKER_GID docker
 RUN usermod -aG docker user1
 
 RUN chsh -s /bin/bash $USERNAME
