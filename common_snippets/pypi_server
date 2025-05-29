@@ -1,0 +1,1 @@
+RUN pip3 config set global.index-url $PYPI_SERVER

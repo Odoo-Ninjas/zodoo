@@ -7,6 +7,7 @@ services:
         POSTGRES_VERSION: $POSTGRES_VERSION
         APT_PROXY_IP: ${APT_PROXY_IP}
         PYPI_SERVER: ${PYPI_SERVER}
+        DOCKER_GID: ${DOCKER_GID}
         # Dont do: if images used, then not compatible
         # OWNER_UID: $OWNER_UID
     privileged: true
