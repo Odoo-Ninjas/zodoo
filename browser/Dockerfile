@@ -62,4 +62,4 @@ chmod a+x .vnc/xstartup && \
 chown user1 . -R
 
 USER user1
-CMD ./cmd.sh
+CMD ["./cmd.sh"]
