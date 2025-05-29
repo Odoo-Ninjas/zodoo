@@ -9,9 +9,10 @@ ARG APT_OPTIONS
 ENV DEBIAN_FRONTEND=noninteractive
 ___SNIPPET_APT_MIRRORS___
 ___SNIPPET_APT_PROXY___
-RUN  apt install -y wget unzip python3 \
-python3-pip python3-magic libmagickwand-dev xvfb curl \
-sudo curl software-properties-common pipx 
+RUN apt update
+RUN apt $APT_OPTIONS install -y wget unzip python3
+RUN apt $APT_OPTIONS install -y python3-pip python3-magic libmagickwand-dev xvfb curl
+RUN apt $APT_OPTIONS install -y  sudo curl software-properties-common pipx 
 
 COPY ./requirements.txt /tmp/requirements.txt
 RUN python3 -mpip install setuptools python-dotenv --break-system-packages
