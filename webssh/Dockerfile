@@ -3,8 +3,8 @@ ARG  APT_PROXY_IP
 ARG  APT_OPTIONS
 CMD [ "bash", "/root/launch.sh" ]
 
-___APT_MIRRORS___
-___APT_PROXY___
+___SNIPPET_APT_MIRRORS___
+___SNIPPET_APT_PROXY___
 RUN DEBIAN_FRONTEND="noninteractive" apt $APT_OPTIONS install -y --no-install-recommends \
     nginx \
     procps \

@@ -37,8 +37,8 @@ WORKDIR /usr/local/src
 RUN tar xfz /usr/local/src/python
 WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
 
-___APT_MIRRORS_
-___APT_PROXY___
+___SNIPPET_APT_MIRRORS_
+___SNIPPET_APT_PROXY___
 RUN $APT_OPTIONS install -y \
     software-properties-common \
     cmake \
