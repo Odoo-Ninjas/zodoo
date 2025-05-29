@@ -1,0 +1,4 @@
+RUN /usr/bin/code --install-extension ms-python.python || true
+RUN /usr/bin/code --install-extension robocorp.robotframework-lsp || true
+RUN /usr/bin/code --install-extension vscodevim.vim || true
+RUN /usr/bin/code --install-extension MarcWimmerITE.odoobrowserITE || true

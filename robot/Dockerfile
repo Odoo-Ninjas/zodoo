@@ -1,14 +1,19 @@
 FROM ubuntu:24.04
 ARG TARGETARCH
 ARG OWNER_UID
-ARG WODOO_VERSION
 ARG DOCKER_GID
 ARG APT_PROXY_IP
 ARG APT_OPTIONS
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV WORKDIR=/opt/robot
+ENV ROBOT_THREADS=1
+ENV PATH="$PATH:/opt/robot/.local/bin"
+
+
 ___SNIPPET_APT_MIRRORS___
 ___SNIPPET_APT_PROXY___
+
 RUN apt update
 RUN apt $APT_OPTIONS install -y wget unzip python3
 RUN apt $APT_OPTIONS install -y python3-pip python3-magic libmagickwand-dev xvfb curl
@@ -20,31 +25,14 @@ RUN python3 -mpip install --no-cache-dir -r /tmp/requirements.txt --break-system
 RUN rm -rf /tmp/requirements.txt
 
 
-# Download and install Firefox
-RUN add-apt-repository ppa:mozillateam/ppa && \
-printf 'Package: *\nPin: release o=LP-PPA-mozillateam\nPin-Priority: 1001\n' | sudo tee /etc/apt/preferences.d/mozilla-firefox
-RUN cat /etc/apt/preferences.d/mozilla-firefox
-RUN \
-apt remove firefox && \
-apt update && \
-apt install -y firefox
+___SNIPPET_FIREFOX___
 
-ENV WORKDIR=/opt/robot
-ENV ROBOT_THREADS=1
 
 WORKDIR $WORKDIR
 
 RUN userdel -r $(getent passwd $OWNER_UID | cut -d: -f1) || true
 RUN useradd -rm -s /bin/bash -d /opt/robot -g root -G sudo -u $OWNER_UID robot
 RUN echo 'robot ALL=NOPASSWD:SETENV: ALL' > /etc/sudoers.d/robot
-RUN \
-	apt install -y \
-	firefox gpg x11vnc xvfb xauth \
-	git gosu net-tools rsync x11-apps python3-pip python3-venv xdotool \
-	firefox-esr xvfb x11-utils x11-xserver-utils mesa-utils libgl1-mesa-dri \
-	fonts-dejavu-core fonts-dejavu-core fonts-liberation \ 
-	libpci3 curl pipx gosu openbox ca-certificates curl gnupg lsb-release \
-	ssh 
 
 RUN mkdir -p /opt/robot/.ssh && \
 chmod 500 /opt/robot/.ssh  && \
@@ -52,21 +40,19 @@ chown robot /opt/robot && \
 chown robot /opt/robot/.ssh -R 
 
 	
+___SNIPPET_DOCKER___
 
 # -------------------------------------------
 # Setup Wodoo Framework
 # postgres
-___SNIPPET_DOCKER___
 
-#--------------------------------------------
 
 USER robot
-ENV WODOO_VERSION=$WODOO_VERSION
 RUN \
 mkdir /opt/robot/.local/pipx -p && \
-pipx install wodoo==$WODOO_VERSION --force
+pipx install wodoo --force
 RUN pip install debugpy pudb --break-system-packages
-ENV PATH="$PATH:/opt/robot/.local/bin"
+#--------------------------------------------
 USER root
 
 RUN find /opt/robot -not -user robot -exec chown robot {} \;
@@ -74,40 +60,13 @@ COPY ssh_config /opt/robot/.ssh/config
 RUN chown robot /opt/robot/.ssh/config  
 
 
-
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# INSTALL CODE
-RUN python3 <<'EOF'
-# V3
-
-import os
-from pathlib import Path
-downloadlink = Path("/tmp/downloadlink")
-# link = ("https://code.visualstudio.com/sha/download?build=stable&os=linux-deb-")
-link = "https://artefacts.zebroo.de/simplicissimus_agatha_christie/code-"
-if os.getenv("TARGETARCH") == "amd64": 
-    link += "x64"
-else:
-    link += os.getenv("TARGETARCH")
-downloadlink.write_text(link)
-EOF
-
-RUN echo "Download link: $(cat /tmp/downloadlink)"
-RUN apt install -y wget
-RUN wget -O /tmp/vscode.deb "$(cat /tmp/downloadlink)"
-
-RUN apt install -y /tmp/vscode.deb
+___SNIPPET_VSCODE___
 # ADD some extensions here
 USER robot
-RUN /usr/bin/code --install-extension ms-python.python || true
-RUN /usr/bin/code --install-extension robocorp.robotframework-lsp || true
-RUN /usr/bin/code --install-extension vscodevim.vim || true
-RUN /usr/bin/code --install-extension MarcWimmerITE.odoobrowserITE || true
+___SNIPPET_VSCODE_EXTENSIONS___
+
+
 USER root
-
-# INSTALL CODE END
-#!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
 ADD openbox/rc.xml  /opt/robot/.config/openbox/rc.xml
 ADD openbox/menu.xml  /opt/robot/.config/openbox/menu.xml
 
@@ -122,10 +81,5 @@ RUN chmod a+x entrypoint*.sh
 ADD openbox/welcome.txt /etc/welcome.txt
 
 ADD conky.txt /opt/robot/.conkyrc
-RUN apt update && apt install -y \
-    wget \
-    unzip \
-    curl \
-    gnupg 
 
 ENTRYPOINT ["/opt/robot/entrypoint.sh"]
