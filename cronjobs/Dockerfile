@@ -7,8 +7,8 @@ ARG PYPI_SERVER
 ARG DOCKER_GID
 ENV DEBIAN_FRONTEND=noninteractive
 RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
-RUN apt update && \
-apt $APT_OPTIONS install -y python3-pip python3 curl rsync locales pv \
+RUN apt update
+RUN apt install -y python3-pip python3 curl rsync locales pv \
 pigz telnet libpq-dev wget lsb-release \
 libxml2-dev libxslt-dev pipx gosu git sudo \
 ca-certificates curl gnupg lsb-release \
@@ -33,7 +33,7 @@ RUN echo \
 RUN apt update && \
 apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 RUN groupmod -g 555 $(getent group $DOCKER_GID | cut -d: -f1) || true
-RUN groupadd -g $DOCKER_GID docker
+RUN groupmod -g $DOCKER_GID docker
 
 
 # install postgres

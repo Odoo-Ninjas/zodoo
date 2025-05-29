@@ -86,7 +86,7 @@ apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker
 
 # change docker group id to match host
 RUN groupmod -g 555 $(getent group $DOCKER_GID | cut -d: -f1) || true
-RUN groupadd -g $DOCKER_GID docker
+RUN groupmod -g $DOCKER_GID docker
 RUN usermod -aG docker user1
 
 RUN chsh -s /bin/bash $USERNAME
