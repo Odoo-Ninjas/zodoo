@@ -2,3 +2,13 @@ RUN find /etc/apt/sources.list.d/ -type f -name "*" -exec \
   sed -i 's|http://archive.ubuntu.com/ubuntu|http://ftp.halifax.rwth-aachen.de/ubuntu|g' /etc/apt/sources.list {} +
 RUN find /etc/apt/sources.list.d/ -type f -name "*" -exec \
   sed -i 's|http://security.ubuntu.com/ubuntu|http://ftp.halifax.rwth-aachen.de/ubuntu|g' /etc/apt/sources.list {} +
+
+RUN find /etc/apt/sources.list.d/ -type f -name "*" -exec \
+  sed -i 's|http://deb.debian.org/debian-security|http://security.debian.org/debian-security|g' /etc/apt/sources.list {} +
+RUN find /etc/apt/sources.list.d/ -type f -name "*" -exec \
+  sed -i 's|http://deb.debian.org/debian|http://ftp.halifax.rwth-aachen.de/debian|g' /etc/apt/sources.list {} +
+
+RUN find /etc/apt/sources.list -type f -name "*" -exec \
+  sed -i 's|http://deb.debian.org/debian-security|http://security.debian.org/debian-security|g' /etc/apt/sources.list {} +
+RUN find /etc/apt/sources.list -type f -name "*" -exec \
+  sed -i 's|http://deb.debian.org/debian|http://ftp.halifax.rwth-aachen.de/debian|g' /etc/apt/sources.list {} +
