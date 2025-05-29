@@ -32,7 +32,7 @@ RUN apt-get update && apt-get install -y google-chrome-stable
 
 
 RUN \
-  groupCOPY -g 1000 user1 && \
+  groupadd -g 1000 user1 && \
   useradd -u 1000 -g 1000 -m -d /data user1 
 
 RUN \

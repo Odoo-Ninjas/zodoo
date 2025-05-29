@@ -65,7 +65,7 @@ COPY welcome.txt /root/welcome.txt
 ENV USERNAME=user1
 RUN userdel -r $(getent passwd $OWNER_UID | cut -d: -f1) || true && \
     groupdel $USERNAME || true && \
-    groupCOPY $USERNAME && \
+    groupadd $USERNAME && \
     useradd -u $OWNER_UID -g $USERNAME -m $USERNAME
 
 # --- User home prep ---
