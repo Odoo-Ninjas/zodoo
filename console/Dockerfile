@@ -11,7 +11,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 #___SNIPPET_APT_MIRRORS___
 
 #___SNIPPET_APT_PROXY___
-RUN apt $APT_OPTIONS install -y python3-pip python3 curl rsync locales pv \
+RUN apt-get $APT_OPTIONS install -y python3-pip python3 curl rsync locales pv \
 pigz telnet libpq-dev wget lsb-release \
 libxml2-dev libxslt-dev pipx gosu git sudo \
 ca-certificates curl gnupg lsb-release \
@@ -22,19 +22,19 @@ unzip
 
 #___SNIPPET_DOCKER___
 
-RUN apt update && apt $APT_OPTIONS install -y python3-venv zlib1g-dev
+RUN apt-get update && apt $APT_OPTIONS install -y python3-venv zlib1g-dev
 
 
 # install postgres
-RUN apt -y $APT_OPTIONS install && \
+RUN apt-get -y $APT_OPTIONS install && \
 export DEBIAN_FRONTEND=noninteractive && \
-apt $APT_OPTIONS install -y postgresql postgresql-contrib
+apt-get $APT_OPTIONS install -y postgresql postgresql-contrib
 RUN sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list' && \
-wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key COPY - && \
+wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
 echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
-apt update && \
-apt -y $APT_OPTIONS install postgresql-17
-RUN apt -y $APT_OPTIONS install openssh-server
+apt-get update && \
+apt-get -y $APT_OPTIONS install postgresql-17
+RUN apt-get -y $APT_OPTIONS install --no-install-recommends openssh-server
 RUN mkdir /var/run/sshd
 EXPOSE 22
 
@@ -49,14 +49,12 @@ WORKDIR /root
 # Optional: speed up installs
 ENV PIP_NO_CACHE_DIR=no
 # Set custom PyPI index
-RUN pip3 config set global.index-url $PYPI_SERVER
-RUN pipx install wodoo==$WODOO_VERSION
-RUN apt $APT_OPTIONS install -y tmux
-
-
-RUN deluser ubuntu && \
-useradd -m -s /bin/bash -G sudo,docker -p $(openssl passwd -1 odoo) -u ${OWNER_UID} odoo && \
-echo 'odoo:odoo' | sudo chpasswd
+RUN pip3 config set global.index-url $PYPI_SERVER && \
+pipx install wodoo==$WODOO_VERSION && \
+apt-get $APT_OPTIONS install -y tmux && \
+deluser ubuntu && \
+useradd -l -m -s /bin/bash -G sudo,docker -p $(openssl passwd -1 odoo) -u ${OWNER_UID} odoo && \
+echo 'odoo:odoo' | chpasswd
 
 USER odoo
 RUN pipx install --no-cache-dir wodoo && \
@@ -72,7 +70,7 @@ COPY sshd_config /etc/ssh/sshd_config
 # TODO
 # RUN sudo chsh -s /bin/rbash odoo
 
-RUN apt $APT_OPTIONS install -y silversearcher-ag
+RUN apt-get $APT_OPTIONS install --no-install-recommends -y silversearcher-ag
 RUN \
 ln -s /bin/ls /home/odoo/bin/ls && \
 ln -s /bin/cat /home/odoo/bin/cat && \
