@@ -4,4 +4,4 @@ repos:
     hooks:
       - id: hadolint
         name: Lint Dockerfiles
-        files: ^Dockerfile$  # or use: ^Dockerfile.*$ to match Dockerfile.dev etc.
+        files: Dockerfile.*$  # or use: ^Dockerfile.*$ to match Dockerfile.dev etc.
