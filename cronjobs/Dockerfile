@@ -44,6 +44,7 @@ RUN apt $APT_OPTIONS install -y python3-lxml
 
 WORKDIR /root
 COPY requirements.txt requirements.txt
+RUN apt-get -y $APT_OPTIONS install -y build-essential gcc python3-dev
 RUN python3 -mpip install -r requirements.txt --break-system-packages
 
 RUN pipx install wodoo==$WODOO_VERSION
