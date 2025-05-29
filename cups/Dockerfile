@@ -1,6 +1,7 @@
 FROM debian:stretch
 
-MAINTAINER Nicolas Delaby "nicolas@ezeep.com"
+___SNIPPET_APT_PROXY___
+___SNIPPET_APT_MIRRORS___
 
 # Install cups
 RUN apt-get update && apt-get install cups cups-pdf whois wget samba-client python3 python3-cups rsync python3-pip vim -y \

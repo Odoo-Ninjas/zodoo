@@ -1,4 +1,8 @@
 FROM ubuntu:22.04
+
+___SNIPPET_APT_PROXY___
+___SNIPPET_APT_MIRRORS___
+
 RUN apt-get update -q && \
 apt install -y postgresql-server-dev-14 python3-dev \
 build-essential git python3-pip procps sockstat pv
