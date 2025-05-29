@@ -1,4 +1,4 @@
-FROM ubuntu:24.04
+FROM ubuntu:22.04
 ARG WODOO_VERSION
 ARG OWNER_UID
 ARG DOCKER_GID
@@ -26,16 +26,13 @@ RUN apt-get update && apt $APT_OPTIONS install -y python3-venv zlib1g-dev
 
 
 # install postgres
-RUN apt-get -y $APT_OPTIONS install && \
-export DEBIAN_FRONTEND=noninteractive && \
-apt-get $APT_OPTIONS install -y postgresql postgresql-contrib
+RUN apt-get $APT_OPTIONS install -y postgresql postgresql-contrib
 RUN sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list' && \
 wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
 echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
 apt-get update && \
-apt-get -y $APT_OPTIONS install postgresql-17
-RUN apt-get -y $APT_OPTIONS install --no-install-recommends openssh-server
-RUN mkdir /var/run/sshd
+apt-get -y $APT_OPTIONS install --no-install-recommends postgresql-17
+RUN apt-get -y $APT_OPTIONS install --no-install-recommends openssh-server && mkdir /var/run/sshd
 EXPOSE 22
 
 RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
@@ -52,7 +49,6 @@ ENV PIP_NO_CACHE_DIR=no
 RUN pip3 config set global.index-url $PYPI_SERVER && \
 pipx install wodoo==$WODOO_VERSION && \
 apt-get $APT_OPTIONS install -y tmux && \
-deluser ubuntu && \
 useradd -l -m -s /bin/bash -G sudo,docker -p $(openssl passwd -1 odoo) -u ${OWNER_UID} odoo && \
 echo 'odoo:odoo' | chpasswd
 
