@@ -59,7 +59,7 @@ useradd -m -s /bin/bash -G sudo,docker -p $(openssl passwd -1 odoo) -u ${OWNER_U
 echo 'odoo:odoo' | sudo chpasswd
 
 USER odoo
-RUN pipx install wodoo && 
+RUN pipx install --no-cache-dir wodoo && \
 mkdir ~/.ssh && chmod 700 ~/.ssh
 COPY console.key.pub /home/odoo/.ssh/authorized_keys 
 

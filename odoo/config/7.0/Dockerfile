@@ -69,7 +69,7 @@ apt install -y pdftk
 # Install nodejs and npm
 RUN \
 curl -sL https://deb.nodesource.com/setup_10.x | bash - && \
-curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key COPY -  && \
+curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add -  && \
 apt update && apt install -y nodejs yarn 
 
 RUN \

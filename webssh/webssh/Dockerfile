@@ -5,7 +5,7 @@ LABEL version='0.0.0-dev.0-build.0'
 COPY . /code
 WORKDIR /code
 RUN \
-  apk COPY --no-cache libc-dev libffi-dev gcc && \
+  apk add --no-cache libc-dev libffi-dev gcc && \
   pip install -r requirements.txt --no-cache-dir && \
   apk del gcc libc-dev libffi-dev && \
   addgroup webssh && \
