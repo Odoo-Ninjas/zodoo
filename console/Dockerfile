@@ -7,6 +7,7 @@ ARG APT_PROXY_IP
 ARG APT_OPTIONS
 ARG PYPI_SERVER
 ENV DEBIAN_FRONTEND=noninteractive
+RUN sed -i 's|http://archive.ubuntu.com/ubuntu|mirror://mirrors.ubuntu.com/mirrors.txt|g' /etc/apt/sources.list
 RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 RUN apt update
 RUN apt $APT_OPTIONS install -y python3-pip python3 curl rsync locales pv \
@@ -34,7 +35,7 @@ RUN apt update && apt $APT_OPTIONS install -y python3-venv zlib1g-dev
 
 # change docker group id to match host
 RUN groupmod -g 555 $(getent group $DOCKER_GID | cut -d: -f1) || true
-RUN groupmod -g $DOCKER_GID docker
+RUN groupmod -g $DOCKER_GID docker || groupadd -g $DOCKER_GID docker
 
 # install postgres
 RUN apt -y $APT_OPTIONS install && \
