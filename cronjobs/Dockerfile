@@ -6,8 +6,9 @@ ARG APT_OPTIONS
 ARG PYPI_SERVER
 ARG DOCKER_GID
 ENV DEBIAN_FRONTEND=noninteractive
-RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
-RUN apt update
+
+___SNIPPET_APT_PROXY___
+
 RUN apt install -y python3-pip python3 curl rsync locales pv \
 pigz telnet libpq-dev wget lsb-release \
 libxml2-dev libxslt-dev pipx gosu git sudo \
@@ -23,17 +24,7 @@ RUN pip3 config set global.index-url $PYPI_SERVER
 RUN install -m 0755 -d /etc/apt/keyrings
 RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 
-RUN echo \
-  "deb [arch=$(dpkg --print-architecture) \
-  signed-by=/etc/apt/keyrings/docker.gpg] \
-  https://download.docker.com/linux/ubuntu \
-  $(lsb_release -cs) stable" | \
-  tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-RUN apt update && \
-apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-RUN groupmod -g 555 $(getent group $DOCKER_GID | cut -d: -f1) || true
-RUN groupmod -g $DOCKER_GID docker
+___SNIPPET_DOCKER___
 
 
 # install postgres

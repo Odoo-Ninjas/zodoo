@@ -11,7 +11,9 @@ MAINTAINER marc@itewimmer.de
 
 #RUN [[ -z "$CUSTOMS_REQUIREMENTS" && exit -1 ]]
 ENV LANG=C.UTF-8
-RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
+___SNIPPET_APT_MIRRORS___
+___SNIPPET_APT_PROXY___
+
 RUN apt update --fix-missing && \
 apt-get install \
         -y \

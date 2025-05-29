@@ -37,9 +37,9 @@ WORKDIR /usr/local/src
 RUN tar xfz /usr/local/src/python
 WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
 
-RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
-RUN apt update && \
-apt $APT_OPTIONS install -y \
+___APT_MIRRORS_
+___APT_PROXY___
+RUN $APT_OPTIONS install -y \
     software-properties-common \
     cmake \
     exuberant-ctags \
@@ -80,8 +80,9 @@ ARG PYPI_SERVER
 
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
-RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
-RUN apt update && apt $APT_OPTIONS install -y \
+___SNIPPET_APT_MIRRORS___
+___SNIPPET_APT_PROXY___
+RUN apt $APT_OPTIONS install -y \
     build-essential \
     libxml2-dev \
     libxslt1-dev \
@@ -155,8 +156,9 @@ RUN /bin/bash /usr/local/bin/check_sha.sh "$CUSTOMS_SHA"
 
 
 ENV LANG=C.UTF-8
-RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
-RUN apt update && apt $APT_OPTIONS install \
+___SNIPPET_APT_MIRRORS___
+___SNIPPET_APT_PROXY___
+RUN apt $APT_OPTIONS install \
 	-y \
 	--no-install-recommends \
             man \

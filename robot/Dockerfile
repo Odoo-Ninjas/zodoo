@@ -7,9 +7,9 @@ ARG APT_PROXY_IP
 ARG APT_OPTIONS
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
-RUN apt update && \
-apt install -y wget unzip python3 \
+___SNIPPET_APT_MIRRORS___
+___SNIPPET_APT_PROXY___
+RUN  apt install -y wget unzip python3 \
 python3-pip python3-magic libmagickwand-dev xvfb curl \
 sudo curl software-properties-common pipx 
 

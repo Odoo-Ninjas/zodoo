@@ -8,8 +8,9 @@ ENV WEBSOCKIFY_TAG="v0.12.0"
 
 ENV VNC_SERVER="localhost:5900"
 
-RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
-RUN apt update && apt install -y  \
+___SNIPPET_APT_MIRRORS___
+___SNIPPET_APT_PROXY___
+RUN apt install -y  \
         bash \
         python3 \
         python3-dev \

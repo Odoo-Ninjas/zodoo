@@ -22,9 +22,9 @@ ARG ODOO_PYTHON_VERSION
 ADD python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
 WORKDIR /usr/local/src/python/Python-${ODOO_PYTHON_VERSION}
 
-RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
-RUN apt update && \
-apt install -y \
+___SNIPPET_APT_MIRRORS___
+___SNIPPET_APT_PROXY___
+RUN apt install -y \
     software-properties-common \
     cmake \
     exuberant-ctags \
