@@ -7,12 +7,11 @@ ARG APT_PROXY_IP
 ARG APT_OPTIONS
 ARG PYPI_SERVER
 #ARG CUSTOMS_REQUIREMENTS
-MAINTAINER marc@itewimmer.de
 
 #RUN [[ -z "$CUSTOMS_REQUIREMENTS" && exit -1 ]]
 ENV LANG=C.UTF-8
-___SNIPPET_APT_MIRRORS___
-___SNIPPET_APT_PROXY___
+#___SNIPPET_APT_MIRRORS___
+#___SNIPPET_APT_PROXY___
 
 RUN apt update --fix-missing && \
 apt-get install \
@@ -104,7 +103,7 @@ apt-get install \
             libkrb5-dev
 
 
-ADD liberation-sans /usr/share/fonts/
+COPY liberation-sans /usr/share/fonts/
 # rebuild font cache
 RUN fc-cache -f -v
 
@@ -129,8 +128,8 @@ RUN \
 chown odoo:odoo /home/odoo -R && \
 rm -Rf /usr/local/man && mkdir -p /usr/local/man/man1
 
-ADD config/$ODOO_VERSION/odoo_requirements.txt /root/odoo_requirements.txt
-ADD config/$ODOO_VERSION/requirements.txt /root/requirements.txt
+COPY config/$ODOO_VERSION/odoo_requirements.txt /root/odoo_requirements.txt
+COPY config/$ODOO_VERSION/requirements.txt /root/requirements.txt
 
 #p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3
 # PYTHON 3 and PIP
@@ -141,20 +140,20 @@ ADD config/$ODOO_VERSION/requirements.txt /root/requirements.txt
 ENV PIP_NO_CACHE_DIR=no
 # Set custom PyPI index
 RUN pip3 config set global.index-url $PYPI_SERVER
-RUN pip3 install wheel
+RUN pip3 install --no-cache-dir wheel
 RUN hash -r && \
-        pip3 install --upgrade pip && \
+        pip3 install --no-cache-dir --upgrade pip && \
         hash -r && \
-    pip3 install cython==0.29.35
-RUN pip3 install 'setuptools<58.0'
-RUN pip3 install psycopg2 pyinotify python-magic wand pycups pudb numpy
-RUN pip3 install -r /root/odoo_requirements.txt 
-RUN pip3 install -r /root/requirements.txt
+    pip3 install --no-cache-dir cython==0.29.35
+RUN pip3 install --no-cache-dir 'setuptools<58.0'
+RUN pip3 install --no-cache-dir psycopg2 pyinotify python-magic wand pycups pudb numpy
+RUN pip3 install --no-cache-dir -r /root/odoo_requirements.txt 
+RUN pip3 install --no-cache-dir -r /root/requirements.txt
 #p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3
 
 RUN echo "deb http://ftp.de.debian.org/debian buster main " >> /etc/apt/sources.list.d/dmtx && apt update && apt install -y libdmtx0b
 # https://github.com/openvenues/pypostal postal lib for address checking
-ADD install_libpostal.sh /root/install_libpostal.sh
+COPY install_libpostal.sh /root/install_libpostal.sh
 RUN if [ "$TARGETARCH" = "amd64" ] && [ "$ODOO_INSTALL_LIBPOSTAL" == "1" ]; then bash /root/install_libpostal.sh; fi
 
 
@@ -172,5 +171,5 @@ echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
 
 
 RUN apt update && apt install -y libodbc1 unixodbc-dev unixodbc
-RUN pip3 install requests-oauth2client faker requests_oauthlib 
-RUN pip3 install lxml==4.6.0
+RUN pip3 install --no-cache-dir requests-oauth2client faker requests_oauthlib 
+RUN pip3 install --no-cache-dir lxml==4.6.0

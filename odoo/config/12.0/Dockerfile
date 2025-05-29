@@ -14,7 +14,7 @@ ARG CUSTOMS_SHA
 # --------------------------------------------------------------------
 FROM $BASE_IMAGE AS python_builder
 ARG ODOO_PYTHON_VERSION
-ADD python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
+COPY python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
 WORKDIR /usr/local/src/python/Python-${ODOO_PYTHON_VERSION}
 
 RUN apt update && \
@@ -77,30 +77,31 @@ RUN make install
 RUN python3 -m venv --copies /opt/venv
 
 
-RUN pip3 install wheel && \
-pip3 install pip -U && \
-pip3 install setuptools -U
+RUN pip3 install --no-cache-dir wheel && \
+pip3 install --no-cache-dir pip -U && \
+pip3 install --no-cache-dir setuptools -U
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
-RUN pip3 install -r /root/pip_requirements.txt
+RUN pip3 install --no-cache-dir -r /root/pip_requirements.txt
 
 RUN echo "$ODOO_FRAMEWORK_REQUIREMENTS"  | base64 --decode > /root/framework_requirements.txt
-RUN pip3 install -r /root/framework_requirements.txt
+RUN pip3 install --no-cache-dir -r /root/framework_requirements.txt
 
 RUN pip3 install \
+--no-cache-dir  \
 pudb ipython marabunta \
 wodoo debugpy psycopg2-binary \
 pyinotify python-magic wand \
 pycups pudb ipython
 
-ADD patches/python_3.8.email.patch /usr/local/src
+COPY patches/python_3.8.email.patch /usr/local/src
 RUN bash /usr/local/src/python_3.8.email.patch
 
 # Openupgradelib
 RUN apt install -y git
 RUN git clone https://github.com/OCA/openupgradelib /opt/openupgradelib
 WORKDIR /opt/openupgradelib
-RUN pip3 install /opt/openupgradelib
+RUN pip3 install --no-cache-dir /opt/openupgradelib
 
 # --------------------------------------------------------------------
 # ODOO
@@ -112,7 +113,6 @@ ARG ODOO_REQUIREMENTS
 ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_INSTALL_LIBPOSTAL
 ARG CUSTOMS_SHA
-MAINTAINER marc@itewimmer.de
 
 
 ENV LANG C.UTF-8
@@ -175,7 +175,7 @@ RUN apt-get install \
             xfonts-75dpi \
             xfonts-base
 
-ADD liberation-sans /usr/share/fonts/
+COPY liberation-sans /usr/share/fonts/
 # rebuild font cache
 RUN fc-cache -f -v
 
@@ -223,7 +223,7 @@ python3 -mpip install greenlet
 COPY config/12.0/requirements.txt requirements.txt
 RUN python3 -mpip install -r requirements.txt
 RUN python3 -mpip install babel ics pdf2image zxcvbn reportlab==3.6.12 odoorpc
-RUN pip3 install lxml[html_clean]==4.8.0
+RUN pip3 install --no-cache-dir lxml[html_clean]==4.8.0
 
 # install wodoo
 RUN \
@@ -237,13 +237,13 @@ PIPX_BIN_DIR=/usr/local/bin/pipxbin \
 pipx install wodoo && \
 echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
 
-RUN pip install pillow==6.1.0
-RUN pip install cachetools==2.0.1
-RUN pip install dicttoxml==1.7.4
-RUN pip install openpyxl==2.6.4
-RUN pip install xmltodict==0.12.0
-RUN pip install zeep==3.4.0
-RUN pip install sentry-sdk==0.19.5
+RUN pip install --no-cache-dir pillow==6.1.0
+RUN pip install --no-cache-dir cachetools==2.0.1
+RUN pip install --no-cache-dir dicttoxml==1.7.4
+RUN pip install --no-cache-dir openpyxl==2.6.4
+RUN pip install --no-cache-dir xmltodict==0.12.0
+RUN pip install --no-cache-dir zeep==3.4.0
+RUN pip install --no-cache-dir sentry-sdk==0.19.5
 
 WORKDIR /opt/odoo
 

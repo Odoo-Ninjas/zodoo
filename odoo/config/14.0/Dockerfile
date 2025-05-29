@@ -33,8 +33,8 @@ WORKDIR /usr/local/src
 RUN tar xfz /usr/local/src/python
 WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
 
-___SNIPPET_APT_MIRRORS___
-___SNIPPET_APT_PROXY___
+#___SNIPPET_APT_MIRRORS___
+#___SNIPPET_APT_PROXY___
 RUN apt $APT_OPTIONS install -y \
     software-properties-common \
     cmake \
@@ -75,8 +75,8 @@ ARG APT_OPTIONS
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
 
-___SNIPPET_APT_MIRRORS___
-___SNIPPET_APT_PROXY___
+#___SNIPPET_APT_MIRRORS___
+#___SNIPPET_APT_PROXY___
 RUN apt $APT_OPTIONS install -y \
     build-essential \
     libxml2-dev \
@@ -123,7 +123,7 @@ RUN . /opt/venv/bin/activate && /opt/venv/bin/python3 -mpip install -r /root/pip
 
 RUN /opt/venv/bin/python3 -mpip install pudb ipython debugpy
 
-ADD patches/python_3.8.email.patch /usr/local/src
+COPY patches/python_3.8.email.patch /usr/local/src
 RUN bash /usr/local/src/python_3.8.email.patch
 
 # Openupgradelib
@@ -148,15 +148,13 @@ ARG APT_PROXY_IP
 ARG APT_OPTIONS
 ARG PYPI_SERVER
 
-MAINTAINER marc@itewimmer.de
-
-ADD bin/check_sha.sh /usr/local/bin
+COPY bin/check_sha.sh /usr/local/bin
 RUN /bin/bash /usr/local/bin/check_sha.sh "$CUSTOMS_SHA"
 
 
 ENV LANG=C.UTF-8
-___SNIPPET_APT_MIRRORS___
-___SNIPPET_APT_PROXY___
+#___SNIPPET_APT_MIRRORS___
+#___SNIPPET_APT_PROXY___
 RUN apt $APT_OPTIONS install \
 	-y \
 	--no-install-recommends \
@@ -215,7 +213,7 @@ RUN apt $APT_OPTIONS install \
             xfonts-75dpi \
             xfonts-base
 
-ADD liberation-sans /usr/share/fonts/
+COPY liberation-sans /usr/share/fonts/
 # rebuild font cache
 RUN fc-cache -f -v
 

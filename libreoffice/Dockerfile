@@ -1,8 +1,8 @@
 FROM debian:stretch
 WORKDIR /usr/bin
 
-___SNIPPET_APT_PROXY___
-___SNIPPET_APT_MIRRORS___
+#___SNIPPET_APT_PROXY___
+#___SNIPPET_APT_MIRRORS___
 
 # libreoffice
 RUN apt-get update && \
@@ -10,4 +10,4 @@ apt install -q -y libreoffice libreoffice-writer ure libreoffice-java-common lib
 apt -y -q remove libreoffice-gnome python3
 CMD /usr/bin/python3 /usr/bin/loop.py
 
-ADD loop.py loop.py
+COPY loop.py loop.py

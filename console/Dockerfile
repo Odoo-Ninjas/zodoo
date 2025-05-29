@@ -8,9 +8,9 @@ ARG APT_OPTIONS
 ARG PYPI_SERVER
 ENV DEBIAN_FRONTEND=noninteractive
 
-___SNIPPET_APT_MIRRORS___
+#___SNIPPET_APT_MIRRORS___
 
-___SNIPPET_APT_PROXY___
+#___SNIPPET_APT_PROXY___
 RUN apt $APT_OPTIONS install -y python3-pip python3 curl rsync locales pv \
 pigz telnet libpq-dev wget lsb-release \
 libxml2-dev libxslt-dev pipx gosu git sudo \
@@ -20,7 +20,7 @@ unzip
 # install docker
 # Prepare keyring
 
-___SNIPPET_DOCKER___
+#___SNIPPET_DOCKER___
 
 RUN apt update && apt $APT_OPTIONS install -y python3-venv zlib1g-dev
 
@@ -54,21 +54,21 @@ RUN pipx install wodoo==$WODOO_VERSION
 RUN apt $APT_OPTIONS install -y tmux
 
 
-RUN deluser ubuntu
-RUN useradd -m -s /bin/bash -G sudo,docker -p $(openssl passwd -1 odoo) -u ${OWNER_UID} odoo
-RUN echo 'odoo:odoo' | sudo chpasswd
+RUN deluser ubuntu && \
+useradd -m -s /bin/bash -G sudo,docker -p $(openssl passwd -1 odoo) -u ${OWNER_UID} odoo && \
+echo 'odoo:odoo' | sudo chpasswd
 
 USER odoo
-RUN pipx install wodoo
-RUN mkdir ~/.ssh && chmod 700 ~/.ssh
+RUN pipx install wodoo && \
+mkdir ~/.ssh && chmod 700 ~/.ssh
 COPY console.key.pub /home/odoo/.ssh/authorized_keys 
 
 
 USER root
-RUN chmod 600 /home/odoo/.ssh/authorized_keys
-RUN mkdir /home/odoo/bin
+RUN chmod 600 /home/odoo/.ssh/authorized_keys && \
+mkdir /home/odoo/bin
 
-ADD sshd_config /etc/ssh/sshd_config
+COPY sshd_config /etc/ssh/sshd_config
 # TODO
 # RUN sudo chsh -s /bin/rbash odoo
 
@@ -80,14 +80,14 @@ ln -s /usr/bin/tmux /home/odoo/bin/tmux && \
 ln -s /usr/bin/docker /home/odoo/bin/docker && \
 ln -s /home/odoo/.local/bin/odoo /home/odoo/bin/odoo
 
-ADD welcome.txt /usr/share/welcome.txt
+COPY welcome.txt /usr/share/welcome.txt
 RUN ln -s /opt/src /home/odoo/$project_name
 RUN chmod -x /etc/update-motd.d/* && rm /etc/update-motd.d -Rf 
 RUN truncate -s 0 /etc/legal /etc/bash.bashrc
 RUN usermod -aG docker odoo
-ADD profile.d /home/odoo/.profile
+COPY profile.d /home/odoo/.profile
 RUN chown odoo:odoo /home/odoo/.profile && chmod a+x /home/odoo/.profile
-ADD entrypoint.sh /entrypoint.sh
+COPY entrypoint.sh /entrypoint.sh
 RUN chmod a+x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
 

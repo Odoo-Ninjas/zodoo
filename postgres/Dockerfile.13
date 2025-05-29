@@ -2,14 +2,14 @@ FROM postgres:13-bullseye
 ARG APT_PROXY_IP
 ARG APT_OPTIONS
 CMD ["postgres"]
-___SNIPPET_APT_MIRRORS___
-___SNIPPET_APT_PROXY___
+#___SNIPPET_APT_MIRRORS___
+#___SNIPPET_APT_PROXY___
 RUN apt $APT_OPTIONS install -y \
 postgresql-server-dev-13 python-dev build-essential git python3-pip procps sockstat
 
 
-ADD config* /
-ADD run.sh /run.sh
+COPY config* /
+COPY run.sh /run.sh
 COPY init/* /docker-entrypoint-initdb.d/
 RUN chown -R postgres:postgres /docker-entrypoint-initdb.d && \
     chmod a+x /docker-entrypoint-initdb.d/*.sh /run.sh

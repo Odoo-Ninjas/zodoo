@@ -7,7 +7,7 @@ ARG PYPI_SERVER
 ARG DOCKER_GID
 ENV DEBIAN_FRONTEND=noninteractive
 
-___SNIPPET_APT_PROXY___
+#___SNIPPET_APT_PROXY___
 
 RUN apt install -y python3-pip python3 curl rsync locales pv \
 pigz telnet libpq-dev wget lsb-release \
@@ -21,7 +21,7 @@ ENV PIP_NO_CACHE_DIR=no
 RUN pip3 config set global.index-url $PYPI_SERVER
 
 # install docker
-___SNIPPET_DOCKER___
+#___SNIPPET_DOCKER___
 
 
 # install postgres
@@ -49,11 +49,11 @@ RUN python3 -mpip install -r requirements.txt --break-system-packages
 RUN pipx install wodoo==$WODOO_VERSION
 RUN apt $APT_OPTIONS install -y tmux
 
-ADD entrypoint.sh /entrypoint.sh
+COPY entrypoint.sh /entrypoint.sh
 RUN chmod a+x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
 
-ADD bin/ /usr/local/bin/
+COPY bin/ /usr/local/bin/
 RUN chmod a+x /usr/local/bin/*.py
 
 RUN apt -y $APT_OPTIONS install && \

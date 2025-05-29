@@ -1,8 +1,8 @@
 FROM fluentd:v1.16-debian-1
 
 USER root
-___SNIPPET_APT_PROXY___
-___SNIPPET_APT_MIRRORS___
+#___SNIPPET_APT_PROXY___
+#___SNIPPET_APT_MIRRORS___
 
 #RUN ["apk", "add", "gcc", "g++"]
 #RUN ["apk", "add", "ruby-dev"]
@@ -20,7 +20,7 @@ RUN ["gem", "install", "fluent-plugin-postgres", "--no-document"]
 RUN ["gem", "install", "fluent-plugin-rewrite-tag-filter", "--no-document"]
 #RUN ["gem", "install", "fluent-plugin-tail", "--no-document"]
 RUN ["gem", "install", "pg", "--no-document"]
-RUN pip install fluent-logger --break-system-packages
+RUN pip install --no-cache-dir fluent-logger --break-system-packages
 RUN ["gem", "install", "fluent-plugin-json", "--no-document"]
 RUN ["gem", "install", "fluent-plugin-docker-json", "--no-document"]
 RUN ["gem", "install", "fluent-plugin-multi-format-parser", "--no-document"]

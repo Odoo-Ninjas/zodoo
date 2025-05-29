@@ -2,7 +2,7 @@ FROM python:3-alpine
 
 LABEL version='0.0.0-dev.0-build.0'
 
-ADD . /code
+COPY . /code
 WORKDIR /code
 RUN \
   apk add --no-cache libc-dev libffi-dev gcc && \

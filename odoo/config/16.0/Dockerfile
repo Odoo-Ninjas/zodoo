@@ -21,7 +21,7 @@ ARG ODOO_INSTALL_LIBPOSTAL
 ARG APT_PROXY_IP
 ARG APT_OPTIONS
 ARG PYPI_SERVER
-ADD install_libpostal.sh /root/install_libpostal.sh
+COPY install_libpostal.sh /root/install_libpostal.sh
 RUN if [ "$TARGETARCH" = "amd64" ]; then bash /root/install_libpostal.sh; fi
 
 # --------------------------------------------------------------------
@@ -37,8 +37,8 @@ WORKDIR /usr/local/src
 RUN tar xfz /usr/local/src/python
 WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
 
-___SNIPPET_APT_MIRRORS___
-___SNIPPET_APT_PROXY___
+#___SNIPPET_APT_MIRRORS___
+#___SNIPPET_APT_PROXY___
 RUN apt $APT_OPTIONS install -y \
     software-properties-common \
     cmake \
@@ -80,8 +80,8 @@ ARG PYPI_SERVER
 
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
-___SNIPPET_APT_MIRRORS___
-___SNIPPET_APT_PROXY___
+#___SNIPPET_APT_MIRRORS___
+#___SNIPPET_APT_PROXY___
 RUN apt $APT_OPTIONS install -y \
     build-essential \
     libxml2-dev \
@@ -111,26 +111,26 @@ RUN python3 -m venv --copies /opt/venv
 ENV PIP_NO_CACHE_DIR=no
 # Set custom PyPI index
 RUN pip3 config set global.index-url $PYPI_SERVER
-RUN pip3 install wheel && \
-pip3 install pip -U && \
-pip3 install setuptools -U
+RUN pip3 install --no-cache-dir wheel && \
+pip3 install --no-cache-dir pip -U && \
+pip3 install --no-cache-dir setuptools -U
 
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
 RUN xargs apt $APT_OPTIONS install -y < /root/deb_requirements.txt
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
-RUN pip3 install -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
+RUN pip3 install --no-cache-dir -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
 
 RUN echo "$ODOO_FRAMEWORK_REQUIREMENTS"  | base64 --decode > /root/framework_requirements.txt
-RUN pip3 install -r /root/framework_requirements.txt
+RUN pip3 install --no-cache-dir -r /root/framework_requirements.txt
 
-RUN pip3 install pudb ipython debugpy
+RUN pip3 install --no-cache-dir pudb ipython debugpy
 
 # Openupgradelib
 RUN apt $APT_OPTIONS install -y git
 RUN git clone https://github.com/OCA/openupgradelib /opt/openupgradelib
 WORKDIR /opt/openupgradelib
-RUN pip3 install /opt/openupgradelib
+RUN pip3 install --no-cache-dir /opt/openupgradelib
 
 
 
@@ -152,13 +152,13 @@ ARG PYPI_SERVER
 ARG APT_OPTIONS
 ARG DOCKER_GID
 
-ADD bin/check_sha.sh /usr/local/bin
+COPY bin/check_sha.sh /usr/local/bin
 RUN /bin/bash /usr/local/bin/check_sha.sh "$CUSTOMS_SHA"
 
 
 ENV LANG=C.UTF-8
-___SNIPPET_APT_MIRRORS___
-___SNIPPET_APT_PROXY___
+#___SNIPPET_APT_MIRRORS___
+#___SNIPPET_APT_PROXY___
 RUN apt $APT_OPTIONS install \
 	-y \
 	--no-install-recommends \
@@ -216,7 +216,7 @@ RUN apt $APT_OPTIONS install \
             xfonts-base \
             libgeos-dev
 
-ADD liberation-sans /usr/share/fonts/
+COPY liberation-sans /usr/share/fonts/
 # rebuild font cache
 RUN fc-cache -f -v
 RUN locale-gen en_US.UTF-8 && dpkg-reconfigure locales
@@ -272,8 +272,8 @@ RUN make install
 
 
 # Transfer lib postal (TODO)
-#ADD install_libpostal.sh /root/install_libpostal.sh
-#ADD install_libpostal.sh /root/install_libpostal.sh
+#COPY install_libpostal.sh /root/install_libpostal.sh
+#COPY install_libpostal.sh /root/install_libpostal.sh
 #RUN if [ "$TARGETARCH" = "amd64" ] && [ "$ODOO_INSTALL_LIBPOSTAL" == "1" ]; then bash /root/install_libpostal.sh; fi
 #RUN if [ "$TARGETARCH" = "amd64" ]; then bash /root/install_libpostal.sh; fi
 

@@ -19,11 +19,11 @@ ARG DOCKER_GID
 # --------------------------------------------------------------------
 FROM $BASE_IMAGE AS python_builder
 ARG ODOO_PYTHON_VERSION
-ADD python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
+COPY python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
 WORKDIR /usr/local/src/python/Python-${ODOO_PYTHON_VERSION}
 
-___SNIPPET_APT_MIRRORS___
-___SNIPPET_APT_PROXY___
+#___SNIPPET_APT_MIRRORS___
+#___SNIPPET_APT_PROXY___
 RUN apt install -y \
     software-properties-common \
     cmake \
@@ -89,10 +89,10 @@ RUN make install
 RUN python3 -m venv --copies /opt/venv
 
 
-RUN pip3 install wheel && \
-pip3 install pip -U && \
-pip3 install setuptools==57.5.0 -U && \
-pip3 install cython==0.29.35
+RUN pip3 install --no-cache-dir wheel && \
+pip3 install --no-cache-dir pip -U && \
+pip3 install --no-cache-dir setuptools==57.5.0 -U && \
+pip3 install --no-cache-dir cython==0.29.35
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 
@@ -100,23 +100,24 @@ RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 ENV PIP_NO_CACHE_DIR=no
 # Set custom PyPI index
 RUN pip3 config set global.index-url $PYPI_SERVER
-RUN pip3 install --no-build-isolation -r /root/pip_requirements.txt
+RUN pip3 install --no-cache-dir --no-build-isolation -r /root/pip_requirements.txt
 
 RUN pip3 install \
+--no-cache-dir \
 pudb ipython \
 debugpy psycopg2-binary \
 pyinotify python-magic wand \
 pycups pudb ipython
 
 
-ADD patches/python_3.8.email.patch /usr/local/src
+COPY patches/python_3.8.email.patch /usr/local/src
 RUN bash /usr/local/src/python_3.8.email.patch
 
 # Openupgradelib
 RUN apt install -y git
 RUN git clone https://github.com/OCA/openupgradelib /opt/openupgradelib
 WORKDIR /opt/openupgradelib
-RUN pip3 install /opt/openupgradelib
+RUN pip3 install --no-cache-dir /opt/openupgradelib
 
 # --------------------------------------------------------------------
 # ODOO
@@ -128,9 +129,8 @@ ARG ODOO_REQUIREMENTS
 ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_INSTALL_LIBPOSTAL
 ARG CUSTOMS_SHA
-MAINTAINER marc@itewimmer.de
 
-ADD bin/check_sha.sh /usr/local/bin
+COPY bin/check_sha.sh /usr/local/bin
 RUN /bin/bash /usr/local/bin/check_sha.sh "$CUSTOMS_SHA"
 
 
@@ -194,7 +194,7 @@ RUN apt-get install \
             xfonts-75dpi \
             xfonts-base
 
-ADD liberation-sans /usr/share/fonts/
+COPY liberation-sans /usr/share/fonts/
 # rebuild font cache
 RUN fc-cache -f -v
 
@@ -236,5 +236,5 @@ WORKDIR /opt/odoo
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
 apt update && \
 apt install -y libpq-dev && \
-pip3 install psycopg2-binary --no-binary psycopg2-binary --force-reinstall; \
+pip3 install --no-cache-dir psycopg2-binary --no-binary psycopg2-binary --force-reinstall; \
 fi

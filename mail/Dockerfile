@@ -1,32 +1,31 @@
 FROM ubuntu:22.04
-MAINTAINER Marc Wimmer
 
-___SNIPPET_APT_MIRRORS___
-___SNIPPET_APT_PROXY___
+#___SNIPPET_APT_MIRRORS___
+#___SNIPPET_APT_PROXY___
 
 # Packages
 RUN apt-get update --fix-missing
 RUN apt-get -y upgrade
 # procmail sets up mailbox directories; postconf |grep mailbox_command
 ENV DEBIAN_FRONTEND=noninteractive
-___SNIPPET_APT_PROXY___
+#___SNIPPET_APT_PROXY___
 RUN apt $APT_OPTIONS -y install vim postfix dovecot-core \
 	dovecot-imapd telnet postfix-pcre procmail \
 	mailutils rsyslog systemctl && \
 	apt autoclean && \
 	rm -rf /var/lib/apt/lists/*
 
-ADD etc/ etc/
+COPY etc/ etc/
 
-ADD install.sh /install.sh
+COPY install.sh /install.sh
 RUN chmod a+x /install.sh
 RUN /install.sh
 
 # Start-mailserver script
-ADD run.sh /run.sh
+COPY run.sh /run.sh
 RUN chmod a+x /run.sh
 
-ADD sslsettings.txt .
+COPY sslsettings.txt .
 # Generate a root private key (rootCA.key):
 RUN openssl genrsa -out rootCA.key 2048
 # Generate a self-singed root certificate (rootCA.pem):

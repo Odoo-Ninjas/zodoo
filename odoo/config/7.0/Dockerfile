@@ -1,6 +1,5 @@
 FROM ubuntu:18.04
 ARG ODOO_VERSION
-MAINTAINER marc@itewimmer.de
 
 RUN apt update --fix-missing && \
 apt-get install \
@@ -63,14 +62,14 @@ apt-get install \
             zip \
             gpg-agent
 RUN \
-sudo add-apt-repository ppa:malteworld/ppa && \
-sudo apt update && \
-sudo apt install -y pdftk
+add-apt-repository ppa:malteworld/ppa && \
+apt update && \
+apt install -y pdftk
 
 # Install nodejs and npm
 RUN \
-curl -sL https://deb.nodesource.com/setup_10.x | sudo -E bash - && \
-curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -  && \
+curl -sL https://deb.nodesource.com/setup_10.x | bash - && \
+curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add -  && \
 apt update && apt install -y nodejs yarn 
 
 RUN \
@@ -97,15 +96,15 @@ RUN curl -o wkhtmltox.tar.xz -SL https://github.com/wkhtmltopdf/wkhtmltopdf/rele
 
 RUN update-alternatives --install /usr/bin/node node /usr/bin/nodejs 10 && \
 useradd -ms /bin/bash odoo
-ADD sysroot/ /
+COPY sysroot/ /
 RUN \
 chown odoo:odoo /home/odoo -R && \
 rm -Rf /usr/local/man && mkdir -p /usr/local/man/man1
 
-ADD config/$ODOO_VERSION/requirements.txt /root/requirements.txt
+COPY config/$ODOO_VERSION/requirements.txt /root/requirements.txt
 
-ADD bin/utils.py /
-ADD bin/eval_odoo_settings.sh /eval_odoo_settings.sh
+COPY bin/utils.py /
+COPY bin/eval_odoo_settings.sh /eval_odoo_settings.sh
 RUN chmod a+x /eval_odoo_settings.sh
 RUN /eval_odoo_settings.sh
 
@@ -124,31 +123,31 @@ RUN apt install -y \
 		python-psycopg2 \
 		python-wand  \
 		python-magic && \
-	pip install requests[security] && \
-	pip install glob2 && \
-	pip install pip==9.0.3 --upgrade
+	pip install --no-cache-dir requests[security] && \
+	pip install --no-cache-dir glob2 && \
+	pip install --no-cache-dir pip==9.0.3 --upgrade
 
 # echo "Installing version $1 requirements"
-RUN wget https://raw.githubusercontent.com/odoo/odoo/$ODOO_VERSION/requirements.txt -O /root/requirements_$ODOO_VERSION.txt
+RUN wget --progress=dot:giga https://raw.githubusercontent.com/odoo/odoo/$ODOO_VERSION/requirements.txt -O /root/requirements_$ODOO_VERSION.txt
 RUN install -r /root/requirements_$ODOO_VERSION.txt
 
 
 # python2 binary error on ubuntu 18.04
 # https://github.com/psycopg/psycopg2-wheels/issues/2
 RUN mv /bin/sh /bin/sh.bak; ln -s /bin/bash /bin/sh
-RUN if ((`bc <<< "$ODOO_VERSION<=10.0"`)); then pip uninstall -y psycopg2; pip install --no-binary psycopg2; fi
+RUN if ((`bc <<< "$ODOO_VERSION<=10.0"`)); then pip uninstall -y psycopg2; pip install --no-cache-dir --no-binary psycopg2; fi
 RUN rm /bin/sh; mv /bin/sh.bak /bin/sh
 
-ADD bin/ /
-ADD config/$ODOO_VERSION/* /home/odoo/
-ADD res/imageio /home/odoo/.imageio
+COPY bin/ /
+COPY config/$ODOO_VERSION/* /home/odoo/
+COPY res/imageio /home/odoo/.imageio
 RUN chmod a+x /*.sh && \
 chmod 644 /etc/python2.7/sitecustomize.py && \
 chmod a+x /usr/local/bin/* && \
 chmod a+x /*.sh && \
 chown odoo:odoo /home/odoo -R
 
-ADD liberation-sans /usr/share/fonts/
+COPY liberation-sans /usr/share/fonts/
 RUN ls -lhtra /usr/share/fonts -lhtra
 # rebuild font cache
 RUN fc-cache -f -v
