@@ -1,6 +1,9 @@
 FROM ubuntu:22.04
 MAINTAINER Marc Wimmer
 
+___SNIPPET_APT_MIRRORS___
+___SNIPPET_APT_PROXY___
+
 # Packages
 RUN apt-get update --fix-missing
 RUN apt-get -y upgrade

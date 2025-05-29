@@ -1,0 +1,4 @@
+RUN find /etc/apt/sources.list.d/ -type f -name "*" -exec \
+  sed -i 's|http://archive.ubuntu.com/ubuntu|http://ftp.halifax.rwth-aachen.de/ubuntu|g' /etc/apt/sources.list {} +
+RUN find /etc/apt/sources.list.d/ -type f -name "*" -exec \
+  sed -i 's|http://security.ubuntu.com/ubuntu|http://ftp.halifax.rwth-aachen.de/ubuntu|g' /etc/apt/sources.list {} +

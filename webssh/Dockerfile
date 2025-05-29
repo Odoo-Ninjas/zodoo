@@ -2,6 +2,8 @@ FROM ubuntu:24.04
 ARG  APT_PROXY_IP
 ARG  APT_OPTIONS
 CMD [ "bash", "/root/launch.sh" ]
+RUN find /etc/apt/sources.list.d/ -type f -name "*.list" -exec \
+  sed -i 's|http://archive.ubuntu.com/ubuntu|mirror://mirrors.ubuntu.com/mirrors.txt|g' {} +
 RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
 RUN apt update && \
     DEBIAN_FRONTEND="noninteractive" apt $APT_OPTIONS install -y --no-install-recommends \

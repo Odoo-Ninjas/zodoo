@@ -2,9 +2,10 @@ FROM postgres:13-bullseye
 ARG APT_PROXY_IP
 ARG APT_OPTIONS
 CMD ["postgres"]
-RUN echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy
-RUN apt update && \
-apt $APT_OPTIONS install -y postgresql-server-dev-13 python-dev build-essential git python3-pip procps sockstat
+___SNIPPET_APT_MIRRORS___
+___SNIPPET_APT_PROXY___
+RUN apt $APT_OPTIONS install -y \
+postgresql-server-dev-13 python-dev build-essential git python3-pip procps sockstat
 
 
 ADD config* /
