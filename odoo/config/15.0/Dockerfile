@@ -39,7 +39,7 @@ WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
 
 #___SNIPPET_APT_MIRRORS_
 #___SNIPPET_APT_PROXY___
-RUN $APT_OPTIONS install -y \
+RUN apt-get $APT_OPTIONS install -y \
     software-properties-common \
     cmake \
     exuberant-ctags \
@@ -116,7 +116,7 @@ pip3 --no-cache-dir install pip -U && \
 pip3 --no-cache-dir install setuptools -U
 
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
-RUN xargs apt $APT_OPTIONS install -y < /root/deb_requirements.txt
+RUN xargs apt-get $APT_OPTIONS install -y < /root/deb_requirements.txt
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 RUN pip3 install --no-cache-dir -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
@@ -127,7 +127,7 @@ RUN pip3 install --no-cache-dir -r /root/framework_requirements.txt
 RUN pip3 install --no-cache-dir pudb ipython debugpy
 
 # Openupgradelib
-RUN apt $APT_OPTIONS install -y git
+RUN apt-get $APT_OPTIONS install -y git
 RUN git clone https://github.com/OCA/openupgradelib /opt/openupgradelib
 WORKDIR /opt/openupgradelib
 RUN pip3 install --no-cache-dir /opt/openupgradelib
@@ -158,7 +158,7 @@ RUN /bin/bash /usr/local/bin/check_sha.sh "$CUSTOMS_SHA"
 ENV LANG=C.UTF-8
 #___SNIPPET_APT_MIRRORS___
 #___SNIPPET_APT_PROXY___
-RUN apt $APT_OPTIONS install \
+RUN apt-get $APT_OPTIONS install \
 	-y \
 	--no-install-recommends \
             man \
