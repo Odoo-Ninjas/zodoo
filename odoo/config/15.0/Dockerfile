@@ -150,6 +150,7 @@ ARG CUSTOMS_SHA
 ARG APT_PROXY_IP
 ARG PYPI_SERVER
 ARG APT_OPTIONS
+ARG DOCKER_GID
 
 COPY bin/check_sha.sh /usr/local/bin
 RUN /bin/bash /usr/local/bin/check_sha.sh "$CUSTOMS_SHA"
