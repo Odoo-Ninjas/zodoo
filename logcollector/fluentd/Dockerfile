@@ -1,8 +1,8 @@
 FROM fluentd:v1.16-debian-1
 
 USER root
-#___SNIPPET_APT_PROXY___
 #___SNIPPET_APT_MIRRORS___
+#___SNIPPET_APT_PROXY___
 
 #RUN ["apk", "add", "gcc", "g++"]
 #RUN ["apk", "add", "ruby-dev"]

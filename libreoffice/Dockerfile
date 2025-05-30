@@ -1,8 +1,8 @@
 FROM debian:stretch
 WORKDIR /usr/bin
 
-#___SNIPPET_APT_PROXY___
 #___SNIPPET_APT_MIRRORS___
+#___SNIPPET_APT_PROXY___
 
 # libreoffice
 RUN apt-get update && \
