@@ -40,7 +40,7 @@ RUN apt-get $APT_OPTIONS install -y --no-install-recommends python3-lxml
 WORKDIR /root
 COPY requirements.txt requirements.txt
 RUN apt-get -y $APT_OPTIONS install -y --no-install-recommends build-essential gcc python3-dev && \
-python3 -mpip install -r requirements.txt --break-system-packages && \
+python3 -mpip install -r requirements.txt && \
 pipx install wodoo==$WODOO_VERSION && \
 apt-get $APT_OPTIONS install --no-install-recommends -y tmux
 
