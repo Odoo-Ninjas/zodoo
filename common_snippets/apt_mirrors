@@ -21,3 +21,10 @@ apt install -y --no-install-recommends gnupg2 gnupg  gnupg1
 
 #RUN apt-key del 871920D1991BC93C || true  # remove corrupt key
 #RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 871920D1991BC93C
+
+RUN apt-key del 871920D1991BC93C || true  
+RUN mkdir -p /etc/apt/keyrings 
+RUN apt install -y --no-install-recommends curl
+RUN apt-get update && apt-get install -y --reinstall ubuntu-keyring || apt-get install -y --reinstall debian-archive-keyring
+# RUN curl -fsSL https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x871920D1991BC93C | gpg --dearmor -o /etc/apt/keyrings/ubuntu-archive-keyring.gpg 
+# RUN apt-get update && apt-get install --reinstall -y ubuntu-keyring
