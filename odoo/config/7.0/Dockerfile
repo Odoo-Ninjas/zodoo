@@ -1,7 +1,7 @@
 FROM ubuntu:18.04
 ARG ODOO_VERSION
 
-RUN apt update --fix-missing && \
+RUN apt-get update --fix-missing && \
 apt-get install \
 	-y \
 	--no-install-recommends \
@@ -63,14 +63,14 @@ apt-get install \
             gpg-agent
 RUN \
 add-apt-repository ppa:malteworld/ppa && \
-apt update && \
-apt install -y pdftk
+apt-get update && \
+apt-get install -y pdftk
 
 # Install nodejs and npm
 RUN \
 curl -sL https://deb.nodesource.com/setup_10.x | bash - && \
 curl -sL https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add -  && \
-apt update && apt install -y nodejs yarn 
+apt-get update && apt-get install -y nodejs yarn 
 
 RUN \
 locale-gen en_US.UTF-8 && \
@@ -81,8 +81,8 @@ echo 'LANGUAGE=en_US.UTF-8' >> /etc/environment
 
 # libreoffice
 #RUN apt-get update && \
-#apt install -q -y libreoffice libreoffice-writer ure libreoffice-java-common libreoffice-core libreoffice-common openjdk-8-jre fonts-opensymbol hyphen-fr hyphen-de hyphen-en-us hyphen-it hyphen-ru fonts-dejavu fonts-dejavu-core fonts-dejavu-extra fonts-droid-fallback fonts-dustin fonts-f500 fonts-fanwood fonts-freefont-ttf fonts-liberation fonts-lmodern fonts-lyx fonts-sil-gentium fonts-texgyre fonts-tlwg-purisa && \
-#apt -y -q remove libreoffice-gnome
+#apt-get install -q -y libreoffice libreoffice-writer ure libreoffice-java-common libreoffice-core libreoffice-common openjdk-8-jre fonts-opensymbol hyphen-fr hyphen-de hyphen-en-us hyphen-it hyphen-ru fonts-dejavu fonts-dejavu-core fonts-dejavu-extra fonts-droid-fallback fonts-dustin fonts-f500 fonts-fanwood fonts-freefont-ttf fonts-liberation fonts-lmodern fonts-lyx fonts-sil-gentium fonts-texgyre fonts-tlwg-purisa && \
+#apt-get -y -q remove libreoffice-gnome
 
 WORKDIR /tmp
 
@@ -108,7 +108,7 @@ COPY bin/eval_odoo_settings.sh /eval_odoo_settings.sh
 RUN chmod a+x /eval_odoo_settings.sh
 RUN /eval_odoo_settings.sh
 
-RUN apt install -y \
+RUN apt-get install -y \
 		libpython-dev \
 		python \
 		python-pip \

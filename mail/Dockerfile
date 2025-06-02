@@ -9,10 +9,10 @@ RUN apt-get -y upgrade
 # procmail sets up mailbox directories; postconf |grep mailbox_command
 ENV DEBIAN_FRONTEND=noninteractive
 #___SNIPPET_APT_PROXY___
-RUN apt $APT_OPTIONS -y install vim postfix dovecot-core \
+RUN apt-get $APT_OPTIONS -y install vim postfix dovecot-core \
 	dovecot-imapd telnet postfix-pcre procmail \
 	mailutils rsyslog systemctl && \
-	apt autoclean && \
+	apt-get autoclean && \
 	rm -rf /var/lib/apt/lists/*
 
 COPY etc/ etc/

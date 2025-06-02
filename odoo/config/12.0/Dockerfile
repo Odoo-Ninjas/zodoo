@@ -17,8 +17,8 @@ ARG ODOO_PYTHON_VERSION
 COPY python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
 WORKDIR /usr/local/src/python/Python-${ODOO_PYTHON_VERSION}
 
-RUN apt update && \
-apt install -y \
+RUN apt-get update && \
+apt-get install -y \
     software-properties-common \
     cmake \
     exuberant-ctags \
@@ -41,7 +41,7 @@ apt install -y \
 
 RUN ./configure --enable-optimizations && make -j4 && make install
 
-RUN apt install -y rsync
+RUN apt-get install -y rsync
 RUN rsync /usr/local/src/python/Python-${ODOO_PYTHON_VERSION}/ /python -ar
 
 
@@ -57,7 +57,7 @@ ARG ODOO_FRAMEWORK_REQUIREMENTS
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
 
-RUN apt update && apt install -y \
+RUN apt-get update && apt-get install -y \
     libxml2-dev \
     libxslt1-dev \
     libcups2-dev \
@@ -98,7 +98,7 @@ COPY patches/python_3.8.email.patch /usr/local/src
 RUN bash /usr/local/src/python_3.8.email.patch
 
 # Openupgradelib
-RUN apt install -y git
+RUN apt-get install -y git
 RUN git clone https://github.com/OCA/openupgradelib /opt/openupgradelib
 WORKDIR /opt/openupgradelib
 RUN pip3 install --no-cache-dir /opt/openupgradelib
@@ -116,7 +116,7 @@ ARG CUSTOMS_SHA
 
 
 ENV LANG C.UTF-8
-RUN apt update
+RUN apt-get update
 RUN apt-get install \
 	-y \
 	--no-install-recommends \
@@ -208,10 +208,10 @@ RUN make install
 RUN rm /usr/local/bin/python3 /usr/bin/python3
 
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
-RUN apt update && xargs apt install -y < /root/deb_requirements.txt
+RUN apt-get update && xargs apt-get install -y < /root/deb_requirements.txt
 
 # RUN python3 -mpip install cython
-RUN apt update; apt install -y \
+RUN apt-get update; apt-get install -y \
 libpq-dev \
 libxml2-dev libxslt1-dev \
 libsasl2-dev python-dev libldap2-dev libssl-dev \

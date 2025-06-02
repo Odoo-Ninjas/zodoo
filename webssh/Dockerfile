@@ -5,7 +5,7 @@ CMD [ "bash", "/root/launch.sh" ]
 
 #___SNIPPET_APT_MIRRORS___
 #___SNIPPET_APT_PROXY___
-RUN DEBIAN_FRONTEND="noninteractive" apt $APT_OPTIONS install -y --no-install-recommends \
+RUN DEBIAN_FRONTEND="noninteractive" apt-get $APT_OPTIONS install -y --no-install-recommends \
     nginx \
     procps \
     python3-pip \
@@ -36,8 +36,8 @@ RUN echo \
   $(lsb_release -cs) stable" | \
   tee /etc/apt/sources.list.d/docker.list > /dev/null
 
-RUN apt update && \
-apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+RUN apt-get update && \
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 # RUN pip install webssh
 COPY webssh /root/webssh
 RUN pip install --no-cache-dir -e /root/webssh  --break-system-packages
@@ -50,7 +50,7 @@ RUN chmod a+x /root/launch.sh
 RUN echo "root:odoo" | chpasswd root
 
 COPY requirements.txt .
-RUN apt $APT_OPTIONS install -y python3-venv
+RUN apt-get $APT_OPTIONS install -y python3-venv
 RUN python3 -mvenv /usr/local/bin/venv
 RUN /usr/local/bin/venv/bin/python3 -mpip install wheel --upgrade
 RUN /usr/local/bin/venv/bin/python3 -mpip install -r requirements.txt

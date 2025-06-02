@@ -11,7 +11,7 @@ ARG TARGETARCH
 ENV DEBIAN_FRONTEND=noninteractive
 
 # --- Basic tools and core dependencies ---
-RUN apt update && apt install -y \
+RUN apt-get update && apt-get install -y \
     curl \
     gpg \
     git \
@@ -34,8 +34,8 @@ RUN apt update && apt install -y \
 
 # --- COPY newer Python version ---
 RUN add-apt-repository -y ppa:deadsnakes/ppa && \
-    apt update && \
-    apt install -y \
+    apt-get update && \
+    apt-get install -y \
         python3.9 \
         python3.9-dev \
         python3.9-distutils \
@@ -53,10 +53,10 @@ EOF
 
 RUN echo "Download link: $(cat /tmp/downloadlink)" && \
     wget --progress=dot:giga -O /tmp/vscode.deb "$(cat /tmp/downloadlink)" && \
-    apt install -y /tmp/vscode.deb
+    apt-get install -y /tmp/vscode.deb
 
 # --- System update ---
-RUN apt update && apt upgrade -y
+RUN apt-get update && apt-get upgrade -y
 
 # --- COPY welcome message ---
 COPY welcome.txt /root/welcome.txt
@@ -120,7 +120,7 @@ RUN echo 'export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/b
 USER root
 RUN wget --progress=dot:giga https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
     dpkg -i google-chrome-stable_current_amd64.deb || true && \
-    apt install -y -f
+    apt-get install -y -f
 
 # --- Entrypoint ---
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]

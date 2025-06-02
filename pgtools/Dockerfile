@@ -4,7 +4,7 @@ FROM ubuntu:22.04
 #___SNIPPET_APT_PROXY___
 
 RUN apt-get update -q && \
-apt install -y postgresql-server-dev-14 python3-dev \
+apt-get install -y postgresql-server-dev-14 python3-dev \
 build-essential git python3-pip procps sockstat pv
 
 ENV PGCLIRC=/var/lib/postgresql/.pgcli.config

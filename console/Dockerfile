@@ -22,14 +22,14 @@ unzip
 
 #___SNIPPET_DOCKER___
 
-RUN apt-get update && apt $APT_OPTIONS install -y python3-venv zlib1g-dev
+RUN apt-get update && apt-get $APT_OPTIONS install -y python3-venv zlib1g-dev
 
 
 # install postgres
 RUN apt-get $APT_OPTIONS install -y postgresql postgresql-contrib
-RUN sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list' && \
+RUN sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt-get $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list' && \
 wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
-echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
+echo "deb http://apt.postgresql.org/pub/repos/apt-get $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
 apt-get update && \
 apt-get -y $APT_OPTIONS install --no-install-recommends postgresql-17
 RUN apt-get -y $APT_OPTIONS install --no-install-recommends openssh-server && mkdir /var/run/sshd

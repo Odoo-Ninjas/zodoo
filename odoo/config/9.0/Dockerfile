@@ -2,7 +2,7 @@ FROM ubuntu:22.04
 ARG ODOO_VERSION
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt update --fix-missing && \
+RUN apt-get update --fix-missing && \
 apt-get install \
 	-y \
 	--no-install-recommends \
@@ -80,12 +80,12 @@ COPY liberation-sans /usr/share/fonts/
 RUN fc-cache -f -v
 
 # Install nodejs and npm
-RUN apt install -y nodejs yarn
+RUN apt-get install -y nodejs yarn
 
 # libreoffice
 #RUN apt-get update && \
-#apt install -q -y libreoffice libreoffice-writer ure libreoffice-java-common libreoffice-core libreoffice-common openjdk-8-jre fonts-opensymbol hyphen-fr hyphen-de hyphen-en-us hyphen-it hyphen-ru fonts-dejavu fonts-dejavu-core fonts-dejavu-extra fonts-droid-fallback fonts-dustin fonts-f500 fonts-fanwood fonts-freefont-ttf fonts-liberation fonts-lmodern fonts-lyx fonts-sil-gentium fonts-texgyre fonts-tlwg-purisa && \
-#apt -y -q remove libreoffice-gnome
+#apt-get install -q -y libreoffice libreoffice-writer ure libreoffice-java-common libreoffice-core libreoffice-common openjdk-8-jre fonts-opensymbol hyphen-fr hyphen-de hyphen-en-us hyphen-it hyphen-ru fonts-dejavu fonts-dejavu-core fonts-dejavu-extra fonts-droid-fallback fonts-dustin fonts-f500 fonts-fanwood fonts-freefont-ttf fonts-liberation fonts-lmodern fonts-lyx fonts-sil-gentium fonts-texgyre fonts-tlwg-purisa && \
+#apt-get -y -q remove libreoffice-gnome
 
 WORKDIR /tmp
 
@@ -102,12 +102,12 @@ useradd -ms /bin/bash odoo
 RUN \
 chown odoo:odoo /home/odoo -R && \
 rm -Rf /usr/local/man && mkdir -p /usr/local/man/man1
-RUN apt install -y libpython2-dev python2 python2-dev
-RUN apt update && apt install -y python-setuptools
+RUN apt-get install -y libpython2-dev python2 python2-dev
+RUN apt-get update && apt-get install -y python-setuptools
 RUN pip install --no-cache-dir lxml
 RUN ls -lhtra /usr/bin
 RUN curl https://bootstrap.pypa.io/pip/2.7/get-pip.py --output get-pip.py
-RUN apt update && apt install -y python3 python3-pip
+RUN apt-get update && apt-get install -y python3 python3-pip
 RUN cd /usr/bin && ln -s python2.7 python
 RUN python2.7 get-pip.py
 
@@ -132,8 +132,8 @@ RUN pip install --no-cache-dir psycopg2
 RUN rm /bin/sh; mv /bin/sh.bak /bin/sh
 
 
-RUN apt update
-RUN apt install -y python3-pip
+RUN apt-get update
+RUN apt-get install -y python3-pip
 COPY config/${ODOO_VERSION}/pip3 /usr/local/bin/pip3
 RUN chmod a+x /usr/local/bin/pip3
 RUN pip3 install --no-cache-dir humanize retrying click pyyaml requests passlib arrow inquirer tabulate psutil iscompatible lxml psycopg2 pudb docker gitpython
@@ -150,8 +150,8 @@ RUN pip install --no-cache-dir gevent==1.2.2
 RUN pip install --no-cache-dir psycopg2==2.8.6 pathlib==1.0.1
 
 RUN \
-apt update && \
-apt install -y python3.10-venv && \
+apt-get update && \
+apt-get install -y python3.10-venv && \
 python3.10 -mpip install pipx && \
 python3.10 -mpipx ensurepath
 

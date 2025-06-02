@@ -24,7 +24,7 @@ WORKDIR /usr/local/src/python/Python-${ODOO_PYTHON_VERSION}
 
 #___SNIPPET_APT_MIRRORS___
 #___SNIPPET_APT_PROXY___
-RUN apt install -y \
+RUN apt-get install -y \
     software-properties-common \
     cmake \
     exuberant-ctags \
@@ -47,7 +47,7 @@ RUN apt install -y \
 
 RUN ./configure --enable-optimizations && make -j4 && make install
 
-RUN apt install -y rsync
+RUN apt-get install -y rsync
 RUN rsync /usr/local/src/python/Python-${ODOO_PYTHON_VERSION}/ /python -ar
 
 
@@ -66,7 +66,7 @@ ARG PYPI_SERVER
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
 
-RUN apt update && apt install -y \
+RUN apt-get update && apt-get install -y \
     build-essential \
     libxml2-dev \
     libxslt1-dev \
@@ -114,7 +114,7 @@ COPY patches/python_3.8.email.patch /usr/local/src
 RUN bash /usr/local/src/python_3.8.email.patch
 
 # Openupgradelib
-RUN apt install -y git
+RUN apt-get install -y git
 RUN git clone https://github.com/OCA/openupgradelib /opt/openupgradelib
 WORKDIR /opt/openupgradelib
 RUN pip3 install --no-cache-dir /opt/openupgradelib
@@ -135,7 +135,7 @@ RUN /bin/bash /usr/local/bin/check_sha.sh "$CUSTOMS_SHA"
 
 
 ENV LANG=C.UTF-8
-RUN apt update
+RUN apt-get update
 RUN apt-get install \
 	-y \
 	--no-install-recommends \
@@ -227,14 +227,14 @@ RUN make install
 RUN rm /usr/local/bin/python3 /usr/bin/python3
 
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
-RUN apt update && xargs apt install -y < /root/deb_requirements.txt
+RUN apt-get update && xargs apt-get install -y < /root/deb_requirements.txt
 
 WORKDIR /opt/odoo
 
 
 # There is a BUG with M1 and SCRAM authentication
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
-apt update && \
-apt install -y libpq-dev && \
+apt-get update && \
+apt-get install -y libpq-dev && \
 pip3 install --no-cache-dir psycopg2-binary --no-binary psycopg2-binary --force-reinstall; \
 fi

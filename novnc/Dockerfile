@@ -11,7 +11,7 @@ ENV VNC_SERVER="localhost:5900"
 #___SNIPPET_APT_MIRRORS___
 #___SNIPPET_APT_PROXY___
 
-RUN apt install -y  \
+RUN apt-get install -y  \
         bash \
         python3 \
         python3-dev \
@@ -23,7 +23,7 @@ RUN apt install -y  \
         rsync \ 
         libffi-dev
 
-RUN apt install -y python3-venv
+RUN apt-get install -y python3-venv
 RUN python3 -mvenv /venv
 RUN /venv/bin/pip install --no-cache-dir numpy
 

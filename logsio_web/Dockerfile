@@ -1,6 +1,6 @@
 FROM node:12-bullseye
 ARG LOGIO_RELATIVE_PATH
-RUN apt update && apt install -y build-essential python2 python3 python3-pip
+RUN apt-get update && apt-get install -y build-essential python2 python3 python3-pip
 # in the application there is a PUBLIC_URL which is replaced by the relative part
 # of the homepage section *facepalm*; the host doesnt matter
 # ../ui/package.json "https://example.com$LOGIO_RELATIVE_PATH"

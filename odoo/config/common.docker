@@ -1,5 +1,5 @@
 # install wodoo
-RUN apt $APT_OPTIONS install -y build-essential
+RUN apt-get $APT_OPTIONS install -y build-essential
 RUN \
 python3 -mpip install pipx && \
 python3 -mpipx ensurepath && \

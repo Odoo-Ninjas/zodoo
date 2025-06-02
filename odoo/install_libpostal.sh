@@ -3,8 +3,8 @@ set -ex
 if [[ "$ODOO_INSTALL_LIBPOSTAL" != "1" ]]; then
 	exit 0
 fi
-apt update || exit -1
-apt install -y \
+apt-get update || exit -1
+apt-get install -y \
 python3 python3-venv git \
 build-essential autoconf \
 libtool curl automake \

@@ -13,7 +13,7 @@ ENV LANG=C.UTF-8
 #___SNIPPET_APT_MIRRORS___
 #___SNIPPET_APT_PROXY___
 
-RUN apt update --fix-missing && \
+RUN apt-get update --fix-missing && \
 apt-get install \
         -y \
         --no-install-recommends \
@@ -109,7 +109,7 @@ RUN fc-cache -f -v
 
 WORKDIR /tmp
 
-RUN apt install -y xfonts-75dpi xfonts-base libgeos-dev
+RUN apt-get install -y xfonts-75dpi xfonts-base libgeos-dev
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
     curl -o wkhtmltox.deb -sSL https://github.com/wkhtmltopdf/wkhtmltopdf/releases/download/0.12.5/wkhtmltox_0.12.5-1.buster_amd64.deb &&  \
     echo 'ea8277df4297afc507c61122f3c349af142f31e5 wkhtmltox.deb' | sha1sum -c - && \
@@ -151,7 +151,7 @@ RUN pip3 install --no-cache-dir -r /root/odoo_requirements.txt
 RUN pip3 install --no-cache-dir -r /root/requirements.txt
 #p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3
 
-RUN echo "deb http://ftp.de.debian.org/debian buster main " >> /etc/apt/sources.list.d/dmtx && apt update && apt install -y libdmtx0b
+RUN echo "deb http://ftp.de.debian.org/debian buster main " >> /etc/apt/sources.list.d/dmtx && apt-get update && apt-get install -y libdmtx0b
 # https://github.com/openvenues/pypostal postal lib for address checking
 COPY install_libpostal.sh /root/install_libpostal.sh
 RUN if [ "$TARGETARCH" = "amd64" ] && [ "$ODOO_INSTALL_LIBPOSTAL" == "1" ]; then bash /root/install_libpostal.sh; fi
@@ -170,6 +170,6 @@ pipx install wodoo && \
 echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
 
 
-RUN apt update && apt install -y libodbc1 unixodbc-dev unixodbc
+RUN apt-get update && apt-get install -y libodbc1 unixodbc-dev unixodbc
 RUN pip3 install --no-cache-dir requests-oauth2client faker requests_oauthlib 
 RUN pip3 install --no-cache-dir lxml==4.6.0

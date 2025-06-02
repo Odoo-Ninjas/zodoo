@@ -3,9 +3,9 @@ RUN add-apt-repository ppa:mozillateam/ppa && \
 printf 'Package: *\nPin: release o=LP-PPA-mozillateam\nPin-Priority: 1001\n' | sudo tee /etc/apt/preferences.d/mozilla-firefox
 RUN cat /etc/apt/preferences.d/mozilla-firefox
 RUN \
-apt remove firefox && \
-apt update && \
-apt $APT_OPTIONS install -y firefox gpg x11vnc xvfb xauth \
+apt-get remove firefox && \
+apt-get update && \
+apt-get $APT_OPTIONS install -y firefox gpg x11vnc xvfb xauth \
 	git gosu net-tools rsync x11-apps python3-pip python3-venv xdotool \
 	firefox-esr xvfb x11-utils x11-xserver-utils mesa-utils libgl1-mesa-dri \
 	fonts-dejavu-core fonts-dejavu-core fonts-liberation \ 

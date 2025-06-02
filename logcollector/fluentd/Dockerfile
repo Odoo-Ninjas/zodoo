@@ -8,10 +8,10 @@ USER root
 #RUN ["apk", "add", "ruby-dev"]
 #RUN ["apk", "add", "libpq-dev"]
 
-RUN apt update
-RUN apt install -y build-essential
-RUN apt install -y libpq-dev
-RUN apt install -y python3-pip
+RUN apt-get update
+RUN apt-get install -y build-essential
+RUN apt-get install -y libpq-dev
+RUN apt-get install -y python3-pip
 
 #RUN ["gem", "install", "fluent-plugin-sql", "--no-document", "--version", "5.0.3"]
 #RUN ["gem", "install", "fluent-plugin-nginx", "--no-document"]
@@ -28,7 +28,7 @@ RUN ["gem", "install", "fluent-plugin-concat", "--no-document"]
 RUN ["gem", "install", "fluent-plugin-multiline-parser", "--no-document"]
 RUN ["gem", "install", "fluent-plugin-unix-client", "--no-document"]
 
-RUN apt install -y sudo
+RUN apt-get install -y sudo
 RUN echo "#!/bin/bash\nchmod a+rwx /var/run/fluentd.sock -R" > /root/opensock.sh
 RUN chmod a+x /root/opensock.sh
 RUN echo "fluent ALL=NOPASSWD: /root/opensock.sh" >> /etc/sudoers

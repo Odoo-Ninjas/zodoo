@@ -35,7 +35,7 @@ WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
 
 #___SNIPPET_APT_MIRRORS___
 #___SNIPPET_APT_PROXY___
-RUN apt $APT_OPTIONS install -y \
+RUN apt-get $APT_OPTIONS install -y \
     software-properties-common \
     cmake \
     exuberant-ctags \
@@ -77,7 +77,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 #___SNIPPET_APT_MIRRORS___
 #___SNIPPET_APT_PROXY___
-RUN apt $APT_OPTIONS install -y \
+RUN apt-get $APT_OPTIONS install -y \
     build-essential \
     libxml2-dev \
     libxslt1-dev \
@@ -115,7 +115,7 @@ RUN /opt/venv/bin/python3 -mpip install wheel
 
 
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
-RUN xargs apt $APT_OPTIONS install -y < /root/deb_requirements.txt
+RUN xargs apt-get $APT_OPTIONS install -y < /root/deb_requirements.txt
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 RUN cat /root/pip_requirements.txt | grep -v postal > /root/pip_requirements.filtered.txt
@@ -127,7 +127,7 @@ COPY patches/python_3.8.email.patch /usr/local/src
 RUN bash /usr/local/src/python_3.8.email.patch
 
 # Openupgradelib
-RUN apt $APT_OPTIONS install -y git
+RUN apt-get $APT_OPTIONS install -y git
 RUN git clone https://github.com/OCA/openupgradelib /opt/openupgradelib
 WORKDIR /opt/openupgradelib
 RUN /opt/venv/bin/python3 -mpip install /opt/openupgradelib
@@ -155,7 +155,7 @@ RUN /bin/bash /usr/local/bin/check_sha.sh "$CUSTOMS_SHA"
 ENV LANG=C.UTF-8
 #___SNIPPET_APT_MIRRORS___
 #___SNIPPET_APT_PROXY___
-RUN apt $APT_OPTIONS install \
+RUN apt-get $APT_OPTIONS install \
 	-y \
 	--no-install-recommends \
 			man \
@@ -221,12 +221,12 @@ RUN fc-cache -f -v
 WORKDIR /tmp
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
     curl -o /root/wkhtmltox.deb -sSL  https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.bullseye_amd64.deb && \
-    apt $APT_OPTIONS install -y --no-install-recommends /root/wkhtmltox.deb && \
+    apt-get $APT_OPTIONS install -y --no-install-recommends /root/wkhtmltox.deb && \
     rm -rf /var/lib/apt/lists/* /root/wkhtmltox.deb; \
 fi
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
     curl -o /root/wkhtmltox.deb -sSL https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.bullseye_arm64.deb &&  \
-    apt $APT_OPTIONS install -y --no-install-recommends /root/wkhtmltox.deb && \
+    apt-get $APT_OPTIONS install -y --no-install-recommends /root/wkhtmltox.deb && \
     rm -rf /var/lib/apt/lists/* /root/wkhtmltox.deb;  \
 fi
 
@@ -264,7 +264,7 @@ RUN rm -Rf /tmp/postal
 RUN if [ "$ODOO_INSTALL_LIBPOSTAL" = "1" ]; then python3 -mpip install postal; fi
 
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
-RUN apt update && xargs apt $APT_OPTIONS install -y < /root/deb_requirements.txt
+RUN apt-get update && xargs apt-get $APT_OPTIONS install -y < /root/deb_requirements.txt
 
 
 WORKDIR /usr/local/bin
@@ -274,7 +274,7 @@ WORKDIR /opt/odoo
 
 # There is a BUG with M1 and SCRAM authentication
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
-apt update && \
-apt $APT_OPTIONS install -y libpq-dev && \
+apt-get update && \
+apt-get $APT_OPTIONS install -y libpq-dev && \
 /opt/venv/bin/python3 -mpip install psycopg2-binary --no-binary psycopg2-binary --force-reinstall; \
 fi

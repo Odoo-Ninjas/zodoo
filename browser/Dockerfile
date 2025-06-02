@@ -40,8 +40,8 @@ RUN \
   sed -ri 's/UsePAM yes/#UsePAM yes/g' /etc/ssh/sshd_config && \
   sed -ri 's/#Port 22/Port 5800/g' /etc/ssh/sshd_config 
 
-#RUN apt install -y xfce4 xfce4-goodies x11vnc xvfb
-RUN apt install -y fluxbox
+#RUN apt-get install -y xfce4 xfce4-goodies x11vnc xvfb
+RUN apt-get install -y fluxbox
 
 
 #RUN rm -rf /var/lib/apt/lists/* 

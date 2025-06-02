@@ -1,12 +1,12 @@
 FROM phusion/baseimage:0.9.22
 
 RUN \
-apt update && \
-apt install -y postgresql-client libdbi-perl libconfig-yaml-perl libdbd-pg-perl netcat-openbsd python python-pip python-psycopg2 apache2 php7.0 libapache2-mod-php7.0 php7.0-mysql php7.0-curl php7.0-gd php7.0-intl php-pear php-imagick php7.0-imap php7.0-mcrypt php-memcache  php7.0-pspell php7.0-recode php7.0-sqlite3 php7.0-tidy php7.0-xmlrpc php7.0-xsl php7.0-mbstring php-gettext php7.0-pgsql
+apt-get update && \
+apt-get install -y postgresql-client libdbi-perl libconfig-yaml-perl libdbd-pg-perl netcat-openbsd python python-pip python-psycopg2 apache2 php7.0 libapache2-mod-php7.0 php7.0-mysql php7.0-curl php7.0-gd php7.0-intl php-pear php-imagick php7.0-imap php7.0-mcrypt php-memcache  php7.0-pspell php7.0-recode php7.0-sqlite3 php7.0-tidy php7.0-xmlrpc php7.0-xsl php7.0-mbstring php-gettext php7.0-pgsql
 RUN pip install --no-cache-dir pip==9.0.3 --upgrade && \
 pip install --no-cache-dir cherrypy
 
-RUN apt install -y rsync
+RUN apt-get install -y rsync
 
 COPY config.php /etc/davical/config.php
 COPY pgpass /root/.pgpass

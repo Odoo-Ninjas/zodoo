@@ -225,12 +225,12 @@ WORKDIR /tmp
 
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
     curl -o /root/wkhtmltox.deb -sSL  https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.jammy_amd64.deb && \
-    apt update && apt $APT_OPTIONS install -y --no-install-recommends /root/wkhtmltox.deb && \
+    apt-get update && apt-get $APT_OPTIONS install -y --no-install-recommends /root/wkhtmltox.deb && \
     rm -rf /var/lib/apt/lists/* /root/wkhtmltox.deb; \
 fi
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
     curl -o /root/wkhtmltox.deb -sSL  https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.jammy_arm64.deb && \
-    apt update && apt $APT_OPTIONS install -y --no-install-recommends /root/wkhtmltox.deb && \
+    apt-get update && apt-get $APT_OPTIONS install -y --no-install-recommends /root/wkhtmltox.deb && \
     rm -rf /var/lib/apt/lists/* /root/wkhtmltox.deb;  \
 fi
 
@@ -265,7 +265,7 @@ RUN make install
 
 
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
-RUN apt update && xargs apt $APT_OPTIONS install -y < /root/deb_requirements.txt
+RUN apt-get update && xargs apt-get $APT_OPTIONS install -y < /root/deb_requirements.txt
 
 WORKDIR /usr/local/bin
 RUN rm python3 && ln -s /opt/venv/bin/python3
@@ -274,7 +274,7 @@ WORKDIR /opt/odoo
 
 # There is a BUG with M1 and SCRAM authentication
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
-apt update && \
-apt $APT_OPTIONS install -y libpq-dev build-essential && \
+apt-get update && \
+apt-get $APT_OPTIONS install -y libpq-dev build-essential && \
 /opt/venv/bin/python3 -mpip install psycopg2-binary --no-binary psycopg2-binary --force-reinstall; \
 fi
