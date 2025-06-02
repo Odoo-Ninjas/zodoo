@@ -1,0 +1,17 @@
+RUN mv /etc/apt/apt.conf.d/01proxy /tmp && \
+    apt-get update && \
+    apt-get $APT_OPTIONS install -y postgresql postgresql-contrib && \
+    mkdir -p /etc/apt/keyrings && \
+    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/keyrings/pgdg.gpg && \
+    echo "deb [signed-by=/etc/apt/keyrings/pgdg.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+        > /etc/apt/sources.list.d/pgdg.list && \
+    apt-get update && \
+    apt-get $APT_OPTIONS -y install --no-install-recommends postgresql-17 && \
+    mv /tmp/01proxy /etc/apt/apt.conf.d
+RUN \
+set -x && \
+if [ "$POSTGRES_VERSION" = "17" ]; then \
+  apt-get $APT_OPTIONS install -y --no-install-recommends postgresql-client-17; \
+else \
+  apt-get $APT_OPTIONS install -y --no-install-recommends postgresql-client-16; \
+fi

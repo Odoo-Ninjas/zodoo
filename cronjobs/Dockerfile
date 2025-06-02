@@ -28,11 +28,7 @@ unzip
 
 
 # install postgres
-RUN sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt-get $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list' && \
-wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
-echo "deb http://apt.postgresql.org/pub/repos/apt-get $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
-apt-get update && \
-apt-get purge -y postgresql-client
+#___SNIPPET_POSTGRES___
 
 
 WORKDIR /usr/local/bin
@@ -52,19 +48,5 @@ ENTRYPOINT ["/entrypoint.sh"]
 COPY bin/ /usr/local/bin/
 RUN chmod a+x /usr/local/bin/*.py
 
-RUN apt-get $APT_OPTIONS install -y --no-install-recommends postgresql postgresql-contrib && \
-sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt-get $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list' && \
-wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add - && \
-echo "deb http://apt.postgresql.org/pub/repos/apt-get $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list && \
-apt-get update && \
-apt-get purge -y postgresql-client postgresql-client-17 postgresql-client-16
-
-RUN \
-set -x && \
-if [ "$POSTGRES_VERSION" = "17" ]; then \
-  apt-get $APT_OPTIONS install -y --no-install-recommends postgresql-client-17; \
-else \
-  apt-get $APT_OPTIONS install -y --no-install-recommends postgresql-client-16; \
-fi
 
 #___SNIPPET_CLEANUP___
