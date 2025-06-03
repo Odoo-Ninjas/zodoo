@@ -2,10 +2,11 @@ FROM ubuntu:24.04
 ARG  APT_PROXY_IP
 ARG  APT_OPTIONS
 CMD [ "bash", "/root/launch.sh" ]
+ENV DEBIAN_FRONTEND=noninteractive
 
 #___SNIPPET_APT_MIRRORS___
 #___SNIPPET_APT_PROXY___
-RUN DEBIAN_FRONTEND="noninteractive" apt-get $APT_OPTIONS install -y --no-install-recommends \
+RUN apt-get update && apt-get $APT_OPTIONS install -y --no-install-recommends \
     nginx \
     procps \
     python3-pip \
@@ -28,12 +29,12 @@ RUN DEBIAN_FRONTEND="noninteractive" apt-get $APT_OPTIONS install -y --no-instal
 
 RUN install -m 0755 -d /etc/apt/keyrings
 
-#__SNIPPET_DOCKER__
+#___SNIPPET_DOCKER___
 
 COPY webssh /root/webssh
 RUN pip install --no-cache-dir -e /root/webssh  --break-system-packages
 
-RUN docker --version
+# RUN docker --version
 
 COPY launch.sh /root
 RUN chmod a+x /root/launch.sh
