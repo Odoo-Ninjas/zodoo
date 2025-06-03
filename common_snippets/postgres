@@ -1,4 +1,4 @@
-RUN mv /etc/apt/apt.conf.d/01proxy /tmp && \
+RUN mv $(/etc/apt/apt.conf.d/01proxy /tmp || true) && \
     apt-get update && \
     apt-get $APT_OPTIONS install -y postgresql postgresql-contrib && \
     mkdir -p /etc/apt/keyrings && \
@@ -7,7 +7,7 @@ RUN mv /etc/apt/apt.conf.d/01proxy /tmp && \
         > /etc/apt/sources.list.d/pgdg.list && \
     apt-get update && \
     apt-get $APT_OPTIONS -y install --no-install-recommends postgresql-17 && \
-    mv /tmp/01proxy /etc/apt/apt.conf.d
+    $(mv /tmp/01proxy /etc/apt/apt.conf.d || true)
 RUN \
 set -x && \
 if [ "$POSTGRES_VERSION" = "17" ]; then \

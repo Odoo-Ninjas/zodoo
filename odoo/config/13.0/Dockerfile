@@ -20,7 +20,7 @@ ARG USE_APT_MIRRORS
 # --------------------------------------------------------------------
 FROM $BASE_IMAGE AS python_builder
 ARG ODOO_PYTHON_VERSION
-COPY python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
+ADD python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
 WORKDIR /usr/local/src/python/Python-${ODOO_PYTHON_VERSION}
 
 #___SNIPPET_APT_MIRRORS___
