@@ -1,4 +1,11 @@
+ARG DOCKER_GID
+ENV DOCKER_GID=$DOCKER_GID
 ENV DEBIAN_FRONTEND=noninteractive
+
+RUN if [ -z "$DOCKER_GID" ]; then \
+  echo "Please provide a valid DOCKER_GID as build argument"; \
+  exit 1; \
+fi
 RUN install -m 0755 -d /etc/apt/keyrings
 RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 

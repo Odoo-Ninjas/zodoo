@@ -7,6 +7,7 @@ services:
         USE_APT_MIRRORS: ${USE_APT_MIRRORS}
         PYPI_SERVER: ${PYPI_SERVER}
         APT_OPTIONS: ${APT_OPTIONS}
+        DOCKER_GID: ${DOCKER_GID}
     restart: unless-stopped
     profiles:
       - auto
