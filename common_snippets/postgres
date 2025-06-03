@@ -1,4 +1,4 @@
-RUN mv $(/etc/apt/apt.conf.d/01proxy /tmp || true) && \
+RUN $(mv /etc/apt/apt.conf.d/01proxy /tmp || true) && \
     apt-get update && \
     apt-get $APT_OPTIONS install -y postgresql postgresql-contrib && \
     mkdir -p /etc/apt/keyrings && \
