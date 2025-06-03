@@ -8,6 +8,7 @@ db_password = __DB_PWD__
 db_port = __DB_PORT__
 db_template = template1
 db_user = __DB_USER__
+db_sslmode = __DB_SSLMODE__
 email_from = False
 limit_request = 8192
 limit_time_cpu = 6000000
