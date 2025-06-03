@@ -3,6 +3,7 @@ FROM ubuntu:24.04
 ARG OWNER_UID
 ARG DOCKER_GID
 ARG TARGETARCH
+ARG APT_OPTIONS
 
 # --- APT: Mirror & Proxy Configuration ---
 #___SNIPPET_APT_MIRRORS___
@@ -33,9 +34,13 @@ RUN apt-get update && apt-get install -y \
 
 
 # --- COPY newer Python version ---
-RUN add-apt-repository -y ppa:deadsnakes/ppa && \
+RUN add-apt-repository -y ppa:deadsnakes/ppa --no-update && \
+    find /etc/apt/sources.list /etc/apt/sources.list.d/ -type f -print0 | \
+    xargs -0 -I{} bash -c ' \
+        sed -i "s|https://|http://|g" "$1"; \
+    ' _ {} && \
     apt-get update && \
-    apt-get install -y \
+    apt-get $APT_OPTIONS install -y \
         python3.9 \
         python3.9-dev \
         python3.9-distutils \

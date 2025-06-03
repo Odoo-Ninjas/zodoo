@@ -6,6 +6,7 @@ services:
             OWNER_UID: $OWNER_UID
             DOCKER_GID: $DOCKER_GID
             APT_PROXY_IP: ${APT_PROXY_IP}
+            APT_OPTIONS: ${APT_OPTIONS}
         cap_add:
           # required by vscode
           - SYS_ADMIN
