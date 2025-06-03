@@ -4,6 +4,9 @@ services:
       context: ${ODOO_IMAGES}/webssh
       args: 
         APT_PROXY_IP: ${APT_PROXY_IP}
+        USE_APT_MIRRORS: ${USE_APT_MIRRORS}
+        PYPI_SERVER: ${PYPI_SERVER}
+        APT_OPTIONS: ${APT_OPTIONS}
     restart: unless-stopped
     profiles:
       - auto
@@ -27,6 +30,7 @@ services:
         APT_PROXY_IP: ${APT_PROXY_IP}
         PYPI_SERVER: ${PYPI_SERVER}
         APT_OPTIONS: ${APT_OPTIONS}
+        USE_APT_MIRRORS: ${USE_APT_MIRRORS}
         # Dont do: if images used, then not compatible
         # OWNER_UID: $OWNER_UID
     privileged: true
