@@ -11,6 +11,7 @@ ARG APT_OPTIONS
 ARG APT_PROXY_IP
 ARG PYPI_SERVER
 ARG DOCKER_GID
+ARG USE_APT_MIRRORS
 
 # --------------------------------------------------------------------
 # COMPILE LIBPOSTAL
@@ -130,7 +131,7 @@ RUN pip3 install --no-cache-dir  -r /root/framework_requirements.txt
 RUN pip3 install --no-cache-dir pudb ipython debugpy
 
 # Openupgradelib
-RUN apt-get $APT_OPTIONS install -y git
+RUN apt-get $APT_OPTIONS install -y --no-install-recommends git
 RUN git clone https://github.com/OCA/openupgradelib /opt/openupgradelib
 WORKDIR /opt/openupgradelib
 RUN pip3 install --no-cache-dir /opt/openupgradelib
@@ -275,6 +276,6 @@ WORKDIR /opt/odoo
 
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
 apt-get update && \
-apt-get $APT_OPTIONS install -y libpq-dev build-essential && \
+apt-get $APT_OPTIONS install -y --no-install-recommends libpq-dev build-essential && \
 /opt/venv/bin/python3 -mpip install psycopg2-binary --no-binary psycopg2-binary --force-reinstall; \
 fi

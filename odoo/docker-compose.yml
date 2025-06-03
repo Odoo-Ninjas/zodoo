@@ -15,6 +15,7 @@ services:
           APT_OPTIONS: ${APT_OPTIONS}
           APT_PROXY_IP: ${APT_PROXY_IP}
           DOCKER_GID: ${DOCKER_GID}
+          USE_APT_MIRRORS: ${USE_APT_MIRRORS}
     restart: unless-stopped
     profiles:
       - auto

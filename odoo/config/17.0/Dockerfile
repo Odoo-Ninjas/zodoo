@@ -11,6 +11,7 @@ ARG APT_PROXY_IP
 ARG PYPI_SERVER
 ARG APT_OPTIONS
 ARG DOCKER_GID
+ARG USE_APT_MIRRORS
 
 # --------------------------------------------------------------------
 # COMPILE LIBPOSTAL
