@@ -11,7 +11,6 @@ ARG APT_OPTIONS
 ARG APT_PROXY_IP
 ARG PYPI_SERVER
 ARG DOCKER_GID
-ARG USE_APT_MIRRORS
 
 # --------------------------------------------------------------------
 # COMPILE LIBPOSTAL
@@ -36,7 +35,7 @@ WORKDIR /usr/local/src
 RUN tar xfz /usr/local/src/python
 WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
 
-#___SNIPPET_APT_MIRRORS___
+
 #___SNIPPET_APT_PROXY___
 RUN apt-get $APT_OPTIONS \
     install -y \
@@ -81,7 +80,7 @@ ARG APT_OPTIONS
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
 
-#___SNIPPET_APT_MIRRORS___
+
 #___SNIPPET_APT_PROXY___
 RUN apt-get \
     $APT_OPTIONS \
@@ -164,7 +163,7 @@ ENV PIP_NO_CACHE_DIR=no
 # Set custom PyPI index
 
 ENV LANG=C.UTF-8
-#___SNIPPET_APT_MIRRORS___
+
 #___SNIPPET_APT_PROXY___
 RUN apt-get \
     $APT_OPTIONS \

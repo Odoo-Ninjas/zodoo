@@ -1,6 +1,5 @@
 FROM ubuntu:22.04
 
-#___SNIPPET_APT_MIRRORS___
 #___SNIPPET_APT_PROXY___
 
 # Packages

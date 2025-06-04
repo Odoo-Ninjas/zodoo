@@ -6,7 +6,7 @@ ARG TARGETARCH
 ARG APT_OPTIONS
 
 # --- APT: Mirror & Proxy Configuration ---
-#___SNIPPET_APT_MIRRORS___
+
 #___SNIPPET_APT_PROXY___
 
 ENV DEBIAN_FRONTEND=noninteractive

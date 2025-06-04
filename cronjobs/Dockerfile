@@ -11,7 +11,6 @@ ENV PIP_NO_CACHE_DIR=no
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-#___SNIPPET_APT_MIRRORS___
 #___SNIPPET_APT_PROXY___
 
 RUN apt-get install --no-install-recommends -y python3-pip python3 curl rsync locales pv \

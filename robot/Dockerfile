@@ -11,7 +11,7 @@ ENV ROBOT_THREADS=1
 ENV PATH="$PATH:/opt/robot/.local/bin"
 
 
-#___SNIPPET_APT_MIRRORS___
+
 #___SNIPPET_APT_PROXY___
 
 RUN apt update

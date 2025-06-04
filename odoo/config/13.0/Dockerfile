@@ -13,7 +13,6 @@ ARG APT_PROXY_IP
 ARG APT_OPTIONS
 ARG PYPI_SERVER
 ARG DOCKER_GID
-ARG USE_APT_MIRRORS
 
 # --------------------------------------------------------------------
 # COMPILE PYTHON
@@ -23,7 +22,6 @@ ARG ODOO_PYTHON_VERSION
 ADD python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
 WORKDIR /usr/local/src/python/Python-${ODOO_PYTHON_VERSION}
 
-#___SNIPPET_APT_MIRRORS___
 #___SNIPPET_APT_PROXY___
 RUN apt-get install -y \
     software-properties-common \

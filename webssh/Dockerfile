@@ -6,7 +6,7 @@ CMD [ "bash", "/root/launch.sh" ]
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DOCKER_GID=$DOCKER_GID
 
-#___SNIPPET_APT_MIRRORS___
+
 #___SNIPPET_APT_PROXY___
 RUN apt-get update && apt-get $APT_OPTIONS install -y --no-install-recommends \
     nginx \

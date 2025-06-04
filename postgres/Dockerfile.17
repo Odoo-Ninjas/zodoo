@@ -2,7 +2,7 @@ FROM postgres:17-bullseye
 ARG APT_PROXY_IP
 ARG APT_OPTIONS
 CMD ["postgres"]
-#___SNIPPET_APT_MIRRORS___
+
 #___SNIPPET_APT_PROXY___
 RUN apt-get $APT_OPTIONS install -y \
 postgresql-server-dev-17 python-dev build-essential git python3-pip procps sockstat

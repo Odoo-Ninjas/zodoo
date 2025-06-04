@@ -11,7 +11,6 @@ services:
         APT_PROXY_IP: ${APT_PROXY_IP}
         APT_OPTIONS: ${APT_OPTIONS}
         DOCKER_GID: ${DOCKER_GID}
-        USE_APT_MIRRORS: ${USE_APT_MIRRORS}
         # Dont do: if images used, then not compatible
         # OWNER_UID: $OWNER_UID
     profiles:

@@ -11,7 +11,6 @@ ARG APT_PROXY_IP
 ARG APT_OPTIONS
 ARG PYPI_SERVER
 ARG DOCKER_GID
-ARG USE_APT_MIRRORS
 
 # --------------------------------------------------------------------
 # COMPILE LIBPOSTAL
@@ -34,7 +33,6 @@ WORKDIR /usr/local/src
 RUN tar xfz /usr/local/src/python
 WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
 
-#___SNIPPET_APT_MIRRORS___
 #___SNIPPET_APT_PROXY___
 RUN apt-get $APT_OPTIONS install -y \
     software-properties-common \
@@ -76,7 +74,6 @@ ARG APT_OPTIONS
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
 
-#___SNIPPET_APT_MIRRORS___
 #___SNIPPET_APT_PROXY___
 RUN apt-get $APT_OPTIONS install -y \
     build-essential \
@@ -154,7 +151,6 @@ RUN /bin/bash /usr/local/bin/check_sha.sh "$CUSTOMS_SHA"
 
 
 ENV LANG=C.UTF-8
-#___SNIPPET_APT_MIRRORS___
 #___SNIPPET_APT_PROXY___
 RUN apt-get $APT_OPTIONS install \
 	-y \
