@@ -3,9 +3,9 @@ services:
   odoo_base:
     build:
         context: $ODOO_IMAGES/odoo
-        dockerfile: $ODOO_IMAGES/odoo/config/${ODOO_VERSION}/Dockerfile
+        dockerfile: $ODOO_IMAGES/odoo/config/${ODOO_VERSION_INT}/Dockerfile
         args:
-          ODOO_VERSION: ${ODOO_VERSION}
+          ODOO_VERSION: "${ODOO_VERSION_INT}"
           ODOO_CONFIG_DIR: ${ODOO_CONFIG_DIR}
           ODOO_PYTHON_VERSION: ${ODOO_PYTHON_VERSION}
           INSTALL_DOCKER_CLIENTS: ${INSTALL_DOCKER_CLIENTS}

@@ -7,11 +7,9 @@ import hashlib
 from copy import deepcopy
 from datetime import datetime
 import shutil
-import json
 import re
 import base64
 import click
-import yaml
 import inspect
 import os
 import subprocess
@@ -81,7 +79,6 @@ def after_compose(config, settings, yml, globals):
     _eval_symlinks_in_root(config, settings, yml, globals)
 
     yml["services"].pop("odoo_base")
-    # odoodc = yaml.safe_load((dirs['odoo_home'] / 'images/odoo/docker-compose.yml').read_text())
 
     # download python3.x version
     python_tgz = (
