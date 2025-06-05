@@ -109,9 +109,13 @@ RUN python3 -m venv --copies /opt/venv
 ENV PIP_NO_CACHE_DIR=no
 # Set custom PyPI index
 RUN pip3 config set global.index-url $PYPI_SERVER
-RUN pip3 install --no-cache-dir wheel && \
+RUN pip3 install --no-cache-dir wheel -U && \
 pip3 --no-cache-dir install pip -U && \
 pip3 --no-cache-dir install setuptools -U
+
+ENV PIP_ONLY_BINARY=Pyyaml,python_tds
+RUN pip3 install --no-cache-dir pyyaml python_tds
+
 
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
 RUN xargs apt-get $APT_OPTIONS install -y < /root/deb_requirements.txt
