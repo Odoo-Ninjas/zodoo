@@ -147,6 +147,20 @@ def _filter_pip(packages, config):
     return packages
 
 
+def _remove_requirements_from_requirements(the_list, remove_this):
+    result = []
+    for line in the_list:
+        req2 = Requirement(line).name
+        for remove in remove_this:
+            req = Requirement(remove).name
+            if req == req2:
+                break
+        else:
+            result.append(line)
+
+    return result
+
+
 def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
     from wodoo.odoo_config import customs_dir
 
@@ -168,6 +182,10 @@ def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
     static_reqs = customs_dir() / "requirements.static"
     if static_reqs.exists():
         static_reqs = static_reqs.read_text().splitlines()
+        # remove static requirements from collected deps:
+        external_dependencies["pip"] = _remove_requirements_from_requirements(
+            external_dependencies["pip"], static_reqs
+        )
         external_dependencies["pip"] += static_reqs
         external_dependencies_justaddons["pip"] += static_reqs
 
@@ -187,7 +205,9 @@ def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
         service["build"]["args"]["ODOO_REQUIREMENTS_CLEARTEXT"] = (
             ";".join(py_deps).encode("utf-8")
         ).decode("utf-8")
-        service["build"]["args"]["ODOO_DEB_REQUIREMENTS_CLEARTEXT"] = "\n".join(sorted(external_dependencies["deb"]))
+        service["build"]["args"]["ODOO_DEB_REQUIREMENTS_CLEARTEXT"] = "\n".join(
+            sorted(external_dependencies["deb"])
+        )
         service["build"]["args"]["ODOO_DEB_REQUIREMENTS"] = base64.encodebytes(
             "\n".join(sorted(external_dependencies["deb"])).encode("utf-8")
         ).decode("utf-8")
@@ -355,8 +375,8 @@ def append_odoo_requirements(config, external_dependencies, tools):
             package_name = req.name
             version_specifier = req.specifier
             marker = req.marker  # This is a Marker object
-            PYTHON_VERSION = '.'.join(config.ODOO_PYTHON_VERSION.split(".")[:2])
-            if marker is None or marker.evaluate({'python_version': PYTHON_VERSION}):
+            PYTHON_VERSION = ".".join(config.ODOO_PYTHON_VERSION.split(".")[:2])
+            if marker is None or marker.evaluate({"python_version": PYTHON_VERSION}):
                 libpy = libpy.split(";")[0].strip()
                 pass
             else:
