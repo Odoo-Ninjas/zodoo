@@ -11,7 +11,23 @@ RUN $(mv /etc/apt/apt.conf.d/01proxy /tmp || true) && \
 RUN \
 set -x && \
 if [ "$POSTGRES_VERSION" = "17" ]; then \
+  apt purge -y postgresql-14 postgresql-client-14 postgresql-contrib-14 || true; \
+  apt purge -y postgresql-14 postgresql-client-14 postgresql-contrib-15 || true; \
+  apt purge -y postgresql-16 postgresql-client-16 postgresql-contrib-16 || true; \
   apt-get $APT_OPTIONS install -y --no-install-recommends postgresql-client-17; \
-else \
+elif [ "$POSTGRES_VERSION" = "16" ]; then
+  apt purge -y postgresql-14 postgresql-client-14 postgresql-contrib-17 || true; \
+  apt purge -y postgresql-14 postgresql-client-14 postgresql-contrib-15 || true; \
+  apt purge -y postgresql-16 postgresql-client-16 postgresql-contrib-14 || true; \
   apt-get $APT_OPTIONS install -y --no-install-recommends postgresql-client-16; \
+elif [ "$POSTGRES_VERSION" = "15" ]; then
+  apt purge -y postgresql-14 postgresql-client-14 postgresql-contrib-17 || true; \
+  apt purge -y postgresql-14 postgresql-client-14 postgresql-contrib-16 || true; \
+  apt purge -y postgresql-16 postgresql-client-16 postgresql-contrib-14 || true; \
+  apt-get $APT_OPTIONS install -y --no-install-recommends postgresql-client-15; \
+else \
+  apt purge -y postgresql-14 postgresql-client-14 postgresql-contrib-17 || true; \
+  apt purge -y postgresql-14 postgresql-client-14 postgresql-contrib-16 || true; \
+  apt purge -y postgresql-16 postgresql-client-16 postgresql-contrib-15 || true; \
+  apt-get $APT_OPTIONS install -y --no-install-recommends postgresql-client-14; \
 fi
