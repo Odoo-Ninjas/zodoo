@@ -113,7 +113,7 @@ RUN pip3 install --no-cache-dir wheel -U && \
 pip3 --no-cache-dir install pip -U && \
 pip3 --no-cache-dir install setuptools -U
 
-ENV PIP_ONLY_BINARY=Pyyaml,python_tds
+ENV PIP_ONLY_BINARY=Pyyaml,python_tds,libsass
 
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
 RUN xargs apt-get $APT_OPTIONS install -y < /root/deb_requirements.txt
