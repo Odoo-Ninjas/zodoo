@@ -7,6 +7,6 @@ services:
       # copied by entrpoint to destination and correct UID/GID
       - ${HOST_RUN_DIR}/odoo-shell-ipython:/home/odoo/.ipython
       - ${ODOO_IMAGES}/odoo/bin:/odoolib:ro
-      - ${ODOO_IMAGES}/odoo/config/${ODOO_VERSION}/config:/etc/odoo/config.template:ro
+      - ${ODOO_IMAGES}/odoo/config/${ODOO_VERSION_INT}/config:/etc/odoo/config.template:ro
     environment:
       - OPENUPGRADE_TARGET_VERSION=${ODOO_VERSION}

@@ -376,7 +376,8 @@ def kill_odoo():
 
 def sane_tty():
     # was not needed in debian
-    subprocess.run(["/usr/bin/stty", "sane"])
+    if Path('/usr/bin/stty').exists():
+        subprocess.run(["/usr/bin/stty", "sane"])
 
 def __python_exe(remote_debug=False, wait_for_remote=False):
     if version <= 10.0:

@@ -237,3 +237,5 @@ apt-get update && \
 apt-get install -y libpq-dev && \
 pip3 install --no-cache-dir psycopg2-binary --no-binary psycopg2-binary --force-reinstall; \
 fi
+
+RUN apt install -y coreutils
