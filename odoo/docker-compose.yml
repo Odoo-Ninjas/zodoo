@@ -1,4 +1,4 @@
-# manage-order 1000
+# manage-order 999
 services:
   odoo_base:
     build:
