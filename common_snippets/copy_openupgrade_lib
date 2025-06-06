@@ -1,0 +1,1 @@
+COPY --from=build_pip /opt/openupgradelib /opt/openupgradelib

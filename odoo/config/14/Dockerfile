@@ -124,11 +124,7 @@ RUN /opt/venv/bin/python3 -mpip install pudb ipython debugpy
 COPY patches/python_3.8.email.patch /usr/local/src
 RUN bash /usr/local/src/python_3.8.email.patch
 
-# Openupgradelib
-RUN apt-get $APT_OPTIONS install -y git
-RUN git clone https://github.com/OCA/openupgradelib /opt/openupgradelib
-WORKDIR /opt/openupgradelib
-RUN /opt/venv/bin/python3 -mpip install /opt/openupgradelib
+#___SNIPPET_OPENUPGRADELIB___
 
 
 

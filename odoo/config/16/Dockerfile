@@ -124,13 +124,7 @@ RUN pip3 install --no-cache-dir -r /root/framework_requirements.txt
 
 RUN pip3 install --no-cache-dir pudb ipython debugpy
 
-# Openupgradelib
-RUN apt-get $APT_OPTIONS install -y git
-RUN git clone https://github.com/OCA/openupgradelib /opt/openupgradelib
-WORKDIR /opt/openupgradelib
-RUN pip3 install --no-cache-dir /opt/openupgradelib
-
-
+#___SNIPPET_OPENUPGRADELIB___
 
 # --------------------------------------------------------------------
 # ODOO
@@ -283,6 +277,9 @@ WORKDIR /usr/local/bin
 RUN rm python3 && ln -s /opt/venv/bin/python3
 
 WORKDIR /opt/odoo
+
+# to be importable as addons paths:
+#___SNIPPET_COPY_OPENUPGRADE_LIB___
 
 # There is a BUG with M1 and SCRAM authentication
 RUN if [ "$TARGETARCH" = "arm64" ]; then \

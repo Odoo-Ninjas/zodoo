@@ -126,12 +126,7 @@ RUN pip3 install --no-cache-dir -r /root/framework_requirements.txt
 
 RUN pip3 install --no-cache-dir pudb ipython debugpy
 
-# Openupgradelib
-RUN apt-get $APT_OPTIONS install -y git
-RUN git clone https://github.com/OCA/openupgradelib /opt/openupgradelib
-WORKDIR /opt/openupgradelib
-RUN pip3 install --no-cache-dir /opt/openupgradelib
-
+#___SNIPPET_OPENUPGRADELIB___
 
 
 # --------------------------------------------------------------------

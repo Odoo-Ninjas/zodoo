@@ -129,11 +129,7 @@ RUN pip3 install --no-cache-dir  -r /root/framework_requirements.txt
 
 RUN pip3 install --no-cache-dir pudb ipython debugpy
 
-# Openupgradelib
-RUN apt-get $APT_OPTIONS install -y --no-install-recommends git
-RUN git clone https://github.com/OCA/openupgradelib /opt/openupgradelib
-WORKDIR /opt/openupgradelib
-RUN pip3 install --no-cache-dir /opt/openupgradelib
+#___SNIPPET_OPENUPGRADELIB___
 
 
 
@@ -271,6 +267,7 @@ RUN apt-get update && xargs apt-get $APT_OPTIONS install -y < /root/deb_requirem
 
 WORKDIR /opt/odoo
 
+#___SNIPPET_COPY_OPENUPGRADE_LIB___
 # There is a BUG with M1 and SCRAM authentication
 
 RUN if [ "$TARGETARCH" = "arm64" ]; then \

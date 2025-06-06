@@ -20,3 +20,6 @@ translate_modules = ['all']
 
 limit_memory_hard = __LIMIT_MEMORY_HARD__
 limit_memory_soft = __LIMIT_MEMORY_SOFT__
+
+# upgrade_path = /opt/src/addons-upgrade-util/src
+upgrade_path = __UPGRADE_PATH__

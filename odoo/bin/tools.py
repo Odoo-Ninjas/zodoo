@@ -63,7 +63,9 @@ def _get_queuejob_channels():
     return channels
 
 
-def _replace_params_in_config(ADDONS_PATHS, content, server_wide_modules=None):
+def _replace_params_in_config(
+    ADDONS_PATHS, content, server_wide_modules=None, upgrade_path=None
+):
     if not config.get("DB_HOST", "") or not config.get("DB_USER", ""):
         raise Exception("Please define all DB Env Variables!")
     content = content.replace("__ADDONS_PATH__", ADDONS_PATHS)
@@ -90,6 +92,11 @@ def _replace_params_in_config(ADDONS_PATHS, content, server_wide_modules=None):
     # queuejob channels
     content = content.replace("__ODOO_QUEUEJOBS_CHANNELS__", _get_queuejob_channels())
 
+    # upgrade paths
+    upgrade_path = upgrade_path or []
+    upgrade_path = make_absolute_upgrade_paths(upgrade_path)
+    content = content.replace("__UPGRADE_PATH__", ",".join(upgrade_path))
+
     for key, value in os.environ.items():
         key = f"__{key}__"
         content = content.replace(key, value)
@@ -99,6 +106,16 @@ def _replace_params_in_config(ADDONS_PATHS, content, server_wide_modules=None):
 
     # exchange existing configurations
     return content
+
+def make_absolute_upgrade_paths(upgrade_path):
+    res = []
+    c = customs_dir()
+    for path in upgrade_path:
+        if path.startswith("/"):
+            res.append(path)
+        else:
+            res.append(str(c / path))
+    return res
 
 
 def _apply_additional_odoo_config(content, addition):
@@ -185,8 +202,17 @@ def _replace_variables_in_config_files(local_config):
         elif os.getenv("SERVER_WIDE_MODULES"):
             server_wide_modules = os.environ["SERVER_WIDE_MODULES"].split(",")
 
+        if local_config and local_config.upgrade_path:
+            upgrade_path = local_config.upgrade_path.split(",")
+        else:
+            upgrade_path = os.getenv("UPGRADE_PATH", "").split(",")
+        upgrade_path = list(map(lambda x: x.strip(), upgrade_path))
+
         content = _replace_params_in_config(
-            ADDONS_PATHS, content, server_wide_modules=server_wide_modules
+            ADDONS_PATHS,
+            content,
+            server_wide_modules=server_wide_modules,
+            upgrade_path=upgrade_path,
         )
         cfg = configparser.ConfigParser()
         cfg.read_string(content)
@@ -211,10 +237,12 @@ def _replace_variables_in_config_files(local_config):
             ]
 
         if config.get("ODOO_DEBUG_LOGLEVEL"):
-            loglevel = config['ODOO_DEBUG_LOGLEVEL']
+            loglevel = config["ODOO_DEBUG_LOGLEVEL"]
             LOGLEVEL = loglevel.upper()
-            config_file_content['options']['log_handler'] = f":{LOGLEVEL},openerp:{LOGLEVEL},werkzeug:{LOGLEVEL},odoo.addons.queue_job:{LOGLEVEL}"
-            config_file_content['options']['log_level'] = loglevel
+            config_file_content["options"][
+                "log_handler"
+            ] = f":{LOGLEVEL},openerp:{LOGLEVEL},werkzeug:{LOGLEVEL},odoo.addons.queue_job:{LOGLEVEL}"
+            config_file_content["options"]["log_level"] = loglevel
 
         if "without_demo" not in config_file_content["options"]:
             if os.getenv("ODOO_DEMO", "") == "1":
@@ -236,6 +264,7 @@ def _apply_configuration(config_file, to_apply_config_file):
 def _run_libreoffice_in_background():
     cmd = os.environ["ODOOLIB"] + "/run_soffice.py"
     os.system(f"python3 {cmd} 1>/dev/null 2>/dev/null &")
+
 
 def get_config_file(confname):
     return str(Path(os.environ["ODOO_CONFIG_DIR"]) / confname)
@@ -337,7 +366,12 @@ def kill_odoo():
             cmd = [
                 "/usr/bin/sudo",
             ] + cmd
-        subprocess.run(cmd ,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL ,stdin=subprocess.DEVNULL)
+        subprocess.run(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+        )
         try:
             pidfile.unlink()
         except FileNotFoundError:
@@ -351,7 +385,10 @@ def kill_odoo():
                     "-9",
                     "-f",
                     "openerp-server",
-                ] ,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL ,stdin=subprocess.DEVNULL
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
             )
             subprocess.run(
                 [
@@ -360,7 +397,10 @@ def kill_odoo():
                     "-9",
                     "-f",
                     "openerp-gevent",
-                ] ,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL ,stdin=subprocess.DEVNULL
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
             )
         else:
             subprocess.run(
@@ -370,14 +410,18 @@ def kill_odoo():
                     "-9",
                     "-f",
                     "odoo-bin",
-                ] ,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL 
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
             )
     sane_tty()
 
+
 def sane_tty():
     # was not needed in debian
-    if Path('/usr/bin/stty').exists():
+    if Path("/usr/bin/stty").exists():
         subprocess.run(["/usr/bin/stty", "sane"])
+
 
 def __python_exe(remote_debug=False, wait_for_remote=False):
     if version <= 10.0:

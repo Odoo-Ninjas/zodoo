@@ -219,6 +219,7 @@ def cli():
 )
 @click.option("--server-wide-modules", is_flag=False)
 @click.option("--additional-addons-paths", is_flag=False)
+@click.option("--upgrade-path", is_flag=False)
 @pass_config
 def main(
     config,
@@ -237,6 +238,7 @@ def main(
     server_wide_modules,
     test_tags,
     log,
+    upgrade_path
 ):
     # region config
     config.interactive = not non_interactive
@@ -247,6 +249,7 @@ def main(
     config.config_file = config_file
     config.server_wide_modules = server_wide_modules
     config.additional_addons_paths = additional_addons_paths
+    config.upgrade_path = upgrade_path
     config.test_tags = test_tags
     config.log = log
 

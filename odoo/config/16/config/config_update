@@ -6,3 +6,5 @@ workers = 0
 
 limit_memory_hard = __LIMIT_MEMORY_HARD_UPDATE__
 limit_memory_soft = __LIMIT_MEMORY_SOFT_UPDATE__
+
+upgrade_path = /opt/src/addons-upgrade-util/src
