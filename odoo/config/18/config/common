@@ -18,5 +18,4 @@ server_wide_modules = __SERVER_WIDE_MODULES__
 proxy_mode = True
 translate_modules = ['all']
 
-# upgrade_path = /opt/src/addons-upgrade-util/src
 upgrade_path = __UPGRADE_PATH__
