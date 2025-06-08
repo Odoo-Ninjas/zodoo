@@ -492,6 +492,10 @@ def exec_odoo(
 
     wait_postgres()
 
+    MANIFEST = odoo_config.MANIFEST()
+    manifest = MANIFEST._get_data()
+    os.environ['SERVER_DIR'] = str(Path(os.environ['CUSTOMS_DIR']) /  MANIFEST.odoo_dir)
+
     EXEC, _CONFIG = get_odoo_bin(for_shell=odoo_shell)
     CONFIG = get_config_file(CONFIG or _CONFIG)
     cmd = []

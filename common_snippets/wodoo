@@ -1,0 +1,8 @@
+COPY --from=wodoo-src /opt/wodoo /opt/wodoo
+RUN \
+PIPX_HOME=/opt/wodoo_env \
+PIPX_BIN_DIR=/usr/local/bin/pipxbin \
+pipx install -e /opt/wodoo \
+|| (echo "=== pipx install failed ===" && \
+     cat /opt/wodoo_env/logs/*.log && \
+     exit 1)

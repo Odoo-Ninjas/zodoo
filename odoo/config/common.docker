@@ -6,14 +6,8 @@ python3 -mpipx ensurepath && \
 mkdir /usr/local/bin/pipxbin -p && \
 PIPX_DEFAULT_PYTHON=/usr/local/bin/python3
 
-COPY --from=wodoo-src /opt/wodoo /opt/wodoo
-RUN \
-PIPX_HOME=/opt/wodoo_env \
-PIPX_BIN_DIR=/usr/local/bin/pipxbin \
-pipx install -e /opt/wodoo \
-|| (echo "=== pipx install failed ===" && \
-     cat /opt/wodoo_env/logs/*.log && \
-     exit 1)
+
+___SNIPPET_WODOO___
 
 
 RUN echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
@@ -35,7 +29,6 @@ ENV ODOO_SUDO_CMD=1
 ENV OUT_DIR=/opt/out_dir
 ENV RUN_DIR=/opt/run
 ENV INTERCOM_DIR=/intercom
-ENV SERVER_DIR=/opt/src/odoo
 ENV CUSTOMS_DIR=/opt/src
 ENV ODOOLIB=/odoolib
 ENV PYTHONPATH=/odoolib:/opt/tools
