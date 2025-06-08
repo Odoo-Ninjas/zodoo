@@ -213,18 +213,9 @@ COPY liberation-sans /usr/share/fonts/
 RUN fc-cache -f -v
 RUN locale-gen en_US.UTF-8 && dpkg-reconfigure locales
 
-WORKDIR /tmp
+#___SNIPPET_WKHTML2PDF___
 
-RUN if [ "$TARGETARCH" = "amd64" ]; then \
-    curl -o /root/wkhtmltox.deb -sSL  https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.jammy_amd64.deb && \
-    apt-get update && apt-get $APT_OPTIONS install -y --no-install-recommends /root/wkhtmltox.deb && \
-    rm -rf /var/lib/apt/lists/* /root/wkhtmltox.deb; \
-fi
-RUN if [ "$TARGETARCH" = "arm64" ]; then \
-    curl -o /root/wkhtmltox.deb -sSL  https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.jammy_arm64.deb && \
-    apt-get update && apt-get $APT_OPTIONS install -y --no-install-recommends /root/wkhtmltox.deb && \
-    rm -rf /var/lib/apt/lists/* /root/wkhtmltox.deb;  \
-fi
+#___SNIPPET_NODEJS___
 
 # Node-JS
 RUN update-alternatives --install /usr/bin/node node /usr/bin/nodejs 10 && \

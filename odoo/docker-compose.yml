@@ -1,5 +1,9 @@
 # manage-order 999
 services:
+  wodoo_src:
+    build:
+      context: $ODOO_IMAGES/wodoo
+
   odoo_base:
     build:
         context: $ODOO_IMAGES/odoo
@@ -16,6 +20,8 @@ services:
           APT_PROXY_IP: ${APT_PROXY_IP}
           DOCKER_GID: ${DOCKER_GID}
     restart: unless-stopped
+    depends_on:
+      - wodoo_src
     profiles:
       - auto
     volumes:

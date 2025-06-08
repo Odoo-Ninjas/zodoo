@@ -210,27 +210,9 @@ COPY liberation-sans /usr/share/fonts/
 # rebuild font cache
 RUN fc-cache -f -v
 
-# WKHTML2PDF
-WORKDIR /tmp
-RUN if [ "$TARGETARCH" = "amd64" ]; then \
-    curl -o /root/wkhtmltox.deb -sSL  https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.bullseye_amd64.deb && \
-    apt-get $APT_OPTIONS install -y --no-install-recommends /root/wkhtmltox.deb && \
-    rm -rf /var/lib/apt/lists/* /root/wkhtmltox.deb; \
-fi
-RUN if [ "$TARGETARCH" = "arm64" ]; then \
-    curl -o /root/wkhtmltox.deb -sSL https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.bullseye_arm64.deb &&  \
-    apt-get $APT_OPTIONS install -y --no-install-recommends /root/wkhtmltox.deb && \
-    rm -rf /var/lib/apt/lists/* /root/wkhtmltox.deb;  \
-fi
+#___SNIPPET_WKHTML2PDF___
 
-# Node-JS
-RUN update-alternatives --install /usr/bin/node node /usr/bin/nodejs 10 && \
-useradd -ms /bin/bash odoo
-RUN \
-chown odoo:odoo /home/odoo -R && \
-rm -Rf /usr/local/man && mkdir -p /usr/local/man/man1
-
-
+#___SNIPPET_NODEJS___
 
 
 # Transfer python
