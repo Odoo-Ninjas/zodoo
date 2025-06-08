@@ -357,7 +357,10 @@ def _eval_symlinks_in_root(config, settings, yml, globals):
 
 
 def append_odoo_requirements(config, external_dependencies, tools):
-    requirements_odoo = config.WORKING_DIR / "odoo" / "requirements.txt"
+    from wodoo.odoo_config import customs_dir, MANIFEST
+    manifest = MANIFEST()
+    odoo_dir = manifest.get("odoo_dir", "odoo")
+    requirements_odoo = config.WORKING_DIR / odoo_dir / "requirements.txt"
     if not requirements_odoo.exists():
         return
 
