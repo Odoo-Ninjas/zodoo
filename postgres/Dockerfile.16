@@ -6,7 +6,7 @@ CMD ["postgres"]
 #___SNIPPET_APT_PROXY___
 RUN apt update && apt $APT_OPTIONS install -y \
 postgresql-server-dev-16 python-dev build-essential git python3-pip procps sockstat && \
-apt $APT_OPTIONS install -y postgresql-16-postgis-3
+apt-get $APT_OPTIONS install -y postgresql-16-postgis-3
 
 
 COPY config* /
