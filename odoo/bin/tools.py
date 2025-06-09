@@ -205,7 +205,7 @@ def _replace_variables_in_config_files(local_config):
         if local_config and local_config.upgrade_path:
             upgrade_path = local_config.upgrade_path.split(",")
         else:
-            upgrade_path = os.getenv("UPGRADE_PATH", "").split(",")
+            upgrade_path = list(filter(bool, os.getenv("UPGRADE_PATH", "").split(",")))
         upgrade_path = list(map(lambda x: x.strip(), upgrade_path))
 
         content = _replace_params_in_config(
