@@ -4,7 +4,7 @@ ARG APT_OPTIONS
 CMD ["postgres"]
 
 #___SNIPPET_APT_PROXY___
-RUN apt $APT_OPTIONS install -y \
+RUN apt update && apt-get $APT_OPTIONS install -y \
 postgresql-server-dev-14 python-dev build-essential git python3-pip procps sockstat
 
 
