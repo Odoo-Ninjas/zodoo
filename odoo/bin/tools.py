@@ -246,7 +246,8 @@ def _replace_variables_in_config_files(local_config):
 
         if "without_demo" not in config_file_content["options"]:
             if os.getenv("ODOO_DEMO", "") == "1":
-                config_file_content["options"]["without_demo"] = "False"
+                if version <= 17.0:
+                    config_file_content["options"]["without_demo"] = "None"
             else:
                 config_file_content["options"]["without_demo"] = "all"
 
