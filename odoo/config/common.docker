@@ -7,7 +7,7 @@ mkdir /usr/local/bin/pipxbin -p && \
 PIPX_DEFAULT_PYTHON=/usr/local/bin/python3
 
 
-___SNIPPET_WODOO___
+#___SNIPPET_WODOO___
 
 
 RUN echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
