@@ -228,7 +228,6 @@ RUN fc-cache -f -v
 
 #___SNIPPET_NODEJS___
 
-
 # Transfer python
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/odoolib:/opt/venv/bin:$PATH"
