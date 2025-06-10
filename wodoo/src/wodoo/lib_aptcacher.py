@@ -1,20 +1,16 @@
 
+from pathlib import Path
 from .tools import create_network
+import json
 
-import time
 import click
-
-import re
-import os
-from .cli import cli, pass_config, Commands
+from .cli import cli, pass_config
 from .lib_clickhelpers import AliasedGroup
-from .tools import execute_script
-from .tools import force_input_hostname
 import subprocess
 from .tools import abort
-from .tools import ensure_project_name
-from .tools import print_prod_env
-from .tools import autocleanpaper
+from .tools import remove_comments
+from .tools import docker_get_file_content
+from .tools import copy_into_docker
 
 
 APT_CACHER_CONTAINER_NAME = "apt-cacher"
@@ -26,8 +22,8 @@ def apt(config):
     pass
 
 
-def delete_gpg_files():
-    start_apt_cacher()
+def delete_gpg_files(config):
+    start_apt_cacher(config)
     cmd = "find /var/cache/apt-cacher-ng/ -type f \( -name '*InRelease' -o -name '*Release.gpg' \)"
     subprocess.run(
         ["docker", "exec", APT_CACHER_CONTAINER_NAME, "sh", "-c", cmd]
@@ -35,28 +31,45 @@ def delete_gpg_files():
 
 
 def _get_apt_cacher_config():
-    ancg_conf = (
-        subprocess.run(
-            [
-                "docker",
-                "exec",
-                APT_CACHER_CONTAINER_NAME,
-                "cat",
-                config_file,
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        .stdout.strip()
-        .splitlines()
-    )
-    ancg_conf = [
-        line.strip()
-        for line in ancg_conf
-        if line.strip() and not line.startswith("#")
-    ]
-    return ancg_conf
+    return remove_comments(docker_get_file_content(APT_CACHER_CONTAINER_NAME, config_file))
+
+def update_ancg_conf():
+    ancg_conf = _get_apt_cacher_config()
+    options = json.loads((config.dirs['images'] / 'apt_cacher' / 'acng.conf').read_text())
+    conf = []
+    for line in ancg_conf:
+        if any(line.startswith(f"{option}: ") for option in options):
+            continue
+        conf.append(line)
+    for option, value in options.items():
+        if not isinstance(value, list):
+            value = [value]
+        for value in value:
+            conf.append(f"{option}: {value}")
+    if ancg_conf != conf:
+        copy_into_docker("\n".join(conf) + "\n", APT_CACHER_CONTAINER_NAME, config_file)
+        subprocess.run(["docker", "restart", APT_CACHER_CONTAINER_NAME])
+    click.secho("\n".join(ancg_conf), fg='blue')
+
+def update_mirrors(config):
+    changed = False
+    for file in (config.dirs['images'] / 'apt_cacher').glob("*"):
+        if str(file).endswith(".orig"):
+            continue
+        filepath_docker = Path("/usr/lib/apt-cacher-ng") / file.name
+        try:
+            content = docker_get_file_content(APT_CACHER_CONTAINER_NAME, filepath_docker):
+        except:
+            content = []
+        newcontent = file.splitlines() 
+        if newcontent != content:
+            copy_into_docker("\n".join(newcontent) + "\n", APT_CACHER_CONTAINER_NAME, 
+                             filepath_docker)
+            changed = True
+
+    if changed:
+        subprocess.run(["docker", "restart", APT_CACHER_CONTAINER_NAME])
+
 
 
 def start_apt_cacher():
@@ -65,6 +78,7 @@ def start_apt_cacher():
     network = "aptcache-net"  # necessary so name resolution works
     port_mapping = "3142:3142"
 
+<<<<<<< Updated upstream
     def setup_options():
         ancg_conf = _get_apt_cacher_config()
         options = {
@@ -103,6 +117,8 @@ def start_apt_cacher():
                 )
                 subprocess.run(["docker", "restart", container_name])
         click.secho("\n".join(conf), fg='blue')
+=======
+>>>>>>> Stashed changes
 
     # Check if container is already running
     result = subprocess.run(
@@ -111,7 +127,7 @@ def start_apt_cacher():
         text=True,
     )
     if result.stdout.strip():
-        setup_options()
+        update_ancg_conf(config)
         click.secho(f"Container '{container_name}' is already running.")
         return
 
@@ -152,7 +168,7 @@ def start_apt_cacher():
     except subprocess.CalledProcessError as e:
         abort(str(e))
 
-    setup_options()
+    update_ancg_conf()
 
 @apt.command()
 @pass_config
@@ -163,7 +179,7 @@ def attach(ctx, config):
 @apt.command()
 @pass_config
 @click.pass_context
-def show_config(ctx, config):
+def config(ctx, config):
     conf = _get_apt_cacher_config()
     click.secho('\n'.join(conf), fg='green')
 
@@ -177,7 +193,7 @@ def restart(ctx, config):
 @pass_config
 @click.pass_context
 def gpg_clear(ctx, config):
-    delete_gpg_files()
+    delete_gpg_files(config)
     click.secho("Deleted GPG files in apt-cacher-ng cache", fg="green")
 
 
