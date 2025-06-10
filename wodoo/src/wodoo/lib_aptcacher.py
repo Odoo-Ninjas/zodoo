@@ -1,4 +1,3 @@
-
 from pathlib import Path
 from .tools import create_network
 import json
@@ -16,6 +15,7 @@ from .tools import copy_into_docker
 APT_CACHER_CONTAINER_NAME = "apt-cacher"
 config_file = "/etc/apt-cacher-ng/acng.conf"
 
+
 @cli.group(cls=AliasedGroup)
 @pass_config
 def apt(config):
@@ -31,11 +31,16 @@ def delete_gpg_files(config):
 
 
 def _get_apt_cacher_config():
-    return remove_comments(docker_get_file_content(APT_CACHER_CONTAINER_NAME, config_file))
+    return remove_comments(
+        docker_get_file_content(APT_CACHER_CONTAINER_NAME, config_file)
+    )
 
-def update_ancg_conf():
+
+def update_ancg_conf(config):
     ancg_conf = _get_apt_cacher_config()
-    options = json.loads((config.dirs['images'] / 'apt_cacher' / 'acng.conf').read_text())
+    options = json.loads(
+        (config.dirs["images"] / "apt_cacher" / "acng.conf").read_text()
+    )
     conf = []
     for line in ancg_conf:
         if any(line.startswith(f"{option}: ") for option in options):
@@ -47,78 +52,43 @@ def update_ancg_conf():
         for value in value:
             conf.append(f"{option}: {value}")
     if ancg_conf != conf:
-        copy_into_docker("\n".join(conf) + "\n", APT_CACHER_CONTAINER_NAME, config_file)
+        copy_into_docker(
+            "\n".join(conf) + "\n", APT_CACHER_CONTAINER_NAME, config_file
+        )
         subprocess.run(["docker", "restart", APT_CACHER_CONTAINER_NAME])
-    click.secho("\n".join(ancg_conf), fg='blue')
+    click.secho("\n".join(ancg_conf), fg="blue")
+
 
 def update_mirrors(config):
     changed = False
-    for file in (config.dirs['images'] / 'apt_cacher').glob("*"):
+    for file in (config.dirs["images"] / "apt_cacher").glob("*"):
         if str(file).endswith(".orig"):
             continue
         filepath_docker = Path("/usr/lib/apt-cacher-ng") / file.name
         try:
-            content = docker_get_file_content(APT_CACHER_CONTAINER_NAME, filepath_docker):
+            content = docker_get_file_content(
+                APT_CACHER_CONTAINER_NAME, filepath_docker
+            )
         except:
             content = []
-        newcontent = file.splitlines() 
+        newcontent = file.splitlines()
         if newcontent != content:
-            copy_into_docker("\n".join(newcontent) + "\n", APT_CACHER_CONTAINER_NAME, 
-                             filepath_docker)
+            copy_into_docker(
+                "\n".join(newcontent) + "\n",
+                APT_CACHER_CONTAINER_NAME,
+                filepath_docker,
+            )
             changed = True
 
     if changed:
         subprocess.run(["docker", "restart", APT_CACHER_CONTAINER_NAME])
 
 
-
-def start_apt_cacher():
+def start_apt_cacher(config):
     container_name = APT_CACHER_CONTAINER_NAME
     image_name = "sameersbn/apt-cacher-ng:latest"
     network = "aptcache-net"  # necessary so name resolution works
     port_mapping = "3142:3142"
-
-<<<<<<< Updated upstream
-    def setup_options():
-        ancg_conf = _get_apt_cacher_config()
-        options = {
-            "ExThreshold": "0",
-            "PassThroughPattern": [
-                ".*apt\.postgres\.org.*",
-                ".*apt*.postgresql*.org.*",
-                ".*Release$",
-                ".*InRelease$",
-                ".*Packages$",
-                ".*Sources$",
-            ],
-            "DlMaxRetries": "5",
-        }
-        conf = []
-        for line in ancg_conf:
-            if any(line.startswith(f"{option}: ") for option in options):
-                continue
-            conf.append(line)
-        for option, value in options.items():
-            if not isinstance(value, list):
-                value = [value]
-            for value in value:
-                conf.append(f"{option}: {value}")
-        if ancg_conf != conf:
-            with autocleanpaper() as tfile:
-                tfile.write_text("\n".join(conf) + "\n")
-
-                subprocess.run(
-                    [
-                        "docker",
-                        "cp",
-                        tfile,
-                        f"{container_name}:{config_file}",
-                    ]
-                )
-                subprocess.run(["docker", "restart", container_name])
-        click.secho("\n".join(conf), fg='blue')
-=======
->>>>>>> Stashed changes
 
     # Check if container is already running
     result = subprocess.run(
@@ -170,24 +140,30 @@ def start_apt_cacher():
 
     update_ancg_conf()
 
+
 @apt.command()
 @pass_config
 @click.pass_context
 def attach(ctx, config):
-    subprocess.run(["docker", "exec", "-it", APT_CACHER_CONTAINER_NAME, "bash"])
+    subprocess.run(
+        ["docker", "exec", "-it", APT_CACHER_CONTAINER_NAME, "bash"]
+    )
+
 
 @apt.command()
 @pass_config
 @click.pass_context
 def config(ctx, config):
     conf = _get_apt_cacher_config()
-    click.secho('\n'.join(conf), fg='green')
+    click.secho("\n".join(conf), fg="green")
+
 
 @apt.command()
 @pass_config
 @click.pass_context
 def restart(ctx, config):
     subprocess.run(["docker", "restart", APT_CACHER_CONTAINER_NAME])
+
 
 @apt.command()
 @pass_config
@@ -271,3 +247,11 @@ def clear(ctx, config, cache):
         )
     click.secho("Stopping apt proxy...", fg="green")
     subprocess.run(["docker", "kill", containerid])
+
+
+@apt.command()
+@pass_config
+@click.pass_context
+def reset(ctx, config):
+    click.secho("Removing apt cacher with volumes.")
+    subprocess.run(["docker", "rm", "-f", APT_CACHER_CONTAINER_NAME])
