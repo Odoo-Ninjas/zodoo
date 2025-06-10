@@ -7,7 +7,7 @@ printf 'Package: *\nPin: release o=LP-PPA-mozillateam\nPin-Priority: 1001\n' | s
     ' _ {}
 RUN \
 apt-get remove firefox && \
-apt-get update && \
+apt-get $APT_OPTIONS update && \
 apt-get $APT_OPTIONS install -y --no-install-recommends \	
 	firefox gpg x11vnc xvfb xauth \
 	git gosu net-tools rsync x11-apps python3-pip python3-venv xdotool \
