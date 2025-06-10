@@ -41,5 +41,6 @@ repos:
   url: https://github.com/huashengdun/webssh
 - branch: main
   path: wodoo/src
+  sha: 279e3b0d4a564f19ee107c060d847f6c97c20af7
   type: integrated
   url: https://github.com/marcwimmer/wodoo
