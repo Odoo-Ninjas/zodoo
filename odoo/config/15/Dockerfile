@@ -219,7 +219,6 @@ RUN locale-gen en_US.UTF-8 && dpkg-reconfigure locales
 
 #___SNIPPET_NODEJS___
 
-# install docker client
 ENV DEBIAN_FRONTEND=noninteractive
 #___SNIPPET_DOCKER___
 
