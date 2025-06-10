@@ -217,9 +217,7 @@ RUN locale-gen en_US.UTF-8 && dpkg-reconfigure locales
 
 #___SNIPPET_NODEJS___
 
-# Node-JS
-RUN update-alternatives --install /usr/bin/node node /usr/bin/nodejs 10 && \
-useradd -ms /bin/bash odoo
+
 RUN \
 chown odoo:odoo /home/odoo -R && \
 rm -Rf /usr/local/man && mkdir -p /usr/local/man/man1
