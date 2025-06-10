@@ -9,7 +9,7 @@ ARG PYPI_SERVER
 ENV DEBIAN_FRONTEND=noninteractive
 
 #___SNIPPET_APT_PROXY___
-RUN apt-get update && \
+RUN apt-get $APT_OPTIONS update && \
 apt-get $APT_OPTIONS install -y --fix-missing python3-pip python3 curl rsync locales pv \
 pigz telnet libpq-dev wget lsb-release \
 libxml2-dev libxslt-dev pipx gosu git sudo \

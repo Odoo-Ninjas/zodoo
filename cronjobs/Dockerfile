@@ -13,7 +13,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 #___SNIPPET_APT_PROXY___
 
-RUN apt-get install --no-install-recommends -y python3-pip python3 curl rsync locales pv \
+RUN apt-get $APT_OPTIONS update && apt-get $APT_OPTIONS nstall --no-install-recommends -y python3-pip python3 curl rsync locales pv \
 pigz telnet libpq-dev wget lsb-release \
 libxml2-dev libxslt-dev pipx gosu git sudo \
 ca-certificates curl gnupg lsb-release \
