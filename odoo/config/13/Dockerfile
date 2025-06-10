@@ -23,7 +23,7 @@ ADD python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
 WORKDIR /usr/local/src/python/Python-${ODOO_PYTHON_VERSION}
 
 #___SNIPPET_APT_PROXY___
-RUN apt-get install -y \
+RUN apt-get $APT_OPTIONS update && apt-get $APT_OPTIONS install -y \
     software-properties-common \
     cmake \
     exuberant-ctags \
@@ -46,7 +46,7 @@ RUN apt-get install -y \
 
 RUN ./configure --enable-optimizations && make -j4 && make install
 
-RUN apt-get install -y rsync
+RUN apt-get $APT_OPTIONS install -y rsync
 RUN rsync /usr/local/src/python/Python-${ODOO_PYTHON_VERSION}/ /python -ar
 
 
@@ -65,7 +65,7 @@ ARG PYPI_SERVER
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get $APT_OPTIONS update && apt-get $APT_OPTIONS install -y \
     build-essential \
     libxml2-dev \
     libxslt1-dev \
@@ -134,8 +134,8 @@ RUN /bin/bash /usr/local/bin/check_sha.sh "$CUSTOMS_SHA"
 
 
 ENV LANG=C.UTF-8
-RUN apt-get update
-RUN apt-get install \
+RUN apt-get $APT_OPTIONS update
+RUN apt-get $APT_OPTIONS install \
 	-y \
 	--no-install-recommends \
 			man \
@@ -216,16 +216,16 @@ RUN make install
 RUN rm /usr/local/bin/python3 /usr/bin/python3
 
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
-RUN apt-get update && xargs apt-get install -y < /root/deb_requirements.txt
+RUN apt-get $APT_OPTIONS update && xargs apt-get $APT_OPTIONS install -y < /root/deb_requirements.txt
 
 WORKDIR /opt/odoo
 
 
 # There is a BUG with M1 and SCRAM authentication
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
-apt-get update && \
-apt-get install -y libpq-dev && \
+apt-get $APT_OPTIONS update && \
+apt-get $APT_OPTIONS install -y libpq-dev && \
 pip3 install --no-cache-dir psycopg2-binary --no-binary psycopg2-binary --force-reinstall; \
 fi
 
-RUN apt install -y coreutils
+RUN apt $APT_OPTIONS install -y coreutils

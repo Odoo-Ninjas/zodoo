@@ -239,7 +239,7 @@ RUN rm -Rf /tmp/postal
 RUN if [ "$ODOO_INSTALL_LIBPOSTAL" = "1" ]; then python3 -mpip install postal; fi
 
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
-RUN apt-get update && xargs apt-get $APT_OPTIONS install -y < /root/deb_requirements.txt
+RUN apt-get $APT_OPTIONS update && xargs apt-get $APT_OPTIONS install -y < /root/deb_requirements.txt
 
 
 WORKDIR /usr/local/bin
@@ -249,7 +249,7 @@ WORKDIR /opt/odoo
 
 # There is a BUG with M1 and SCRAM authentication
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
-apt-get update && \
+apt-get $APT_OPTIONS update && \
 apt-get $APT_OPTIONS install -y libpq-dev && \
 /opt/venv/bin/python3 -mpip install psycopg2-binary --no-binary psycopg2-binary --force-reinstall; \
 fi

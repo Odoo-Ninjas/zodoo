@@ -12,8 +12,8 @@ ARG PYPI_SERVER
 ENV LANG=C.UTF-8
 #___SNIPPET_APT_PROXY___
 
-RUN apt-get update --fix-missing && \
-apt-get install \
+RUN apt-get $APT_OPTIONS update --fix-missing && \
+apt-get $APT_OPTIONS install \
         -y \
         --no-install-recommends \
                         software-properties-common \
@@ -108,7 +108,7 @@ RUN fc-cache -f -v
 
 WORKDIR /tmp
 
-RUN apt-get install -y xfonts-75dpi xfonts-base libgeos-dev
+RUN apt-get $APT_OPTIONS install -y xfonts-75dpi xfonts-base libgeos-dev
 #___SNIPPET_WKHTML2PDF___
 
 #___SNIPPET_NODEJS___
@@ -159,6 +159,6 @@ pipx install wodoo && \
 echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
 
 
-RUN apt-get update && apt-get install -y libodbc1 unixodbc-dev unixodbc
+RUN apt-get $APT_OPTIONS update && apt-get $APT_OPTIONS install -y libodbc1 unixodbc-dev unixodbc
 RUN pip3 install --no-cache-dir requests-oauth2client faker requests_oauthlib 
 RUN pip3 install --no-cache-dir lxml==4.6.0
