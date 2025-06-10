@@ -1,5 +1,9 @@
 ARG APT_PROXY_IP
+ARG APT_OPTIONS
+
+ENV APT_OPTIONS=$APT_OPTIONS
 ENV APT_PROXY_IP=${APT_PROXY_IP}
+
 RUN if [ "$APT_PROXY_IP" != "ignore" ]; then \
     echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy; \
 fi
