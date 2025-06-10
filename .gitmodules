@@ -1,4 +1,0 @@
-[submodule "wodoo/src"]
-	path = wodoo/src
-	url = https://github.com/marcwimmer/wodoo
-	branch = main
