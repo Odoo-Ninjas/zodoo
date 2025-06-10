@@ -1,3 +1,0 @@
-networks:
-    default:
-        name: ${NETWORK_NAME}
