@@ -32,7 +32,7 @@ unzip
 
 WORKDIR /usr/local/bin
 
-#___SNIPPET_APT_INSTALL___ \ 
+RUN #___SNIPPET_APT_INSTALL___ \ 
 python3-lxml
 
 WORKDIR /root
