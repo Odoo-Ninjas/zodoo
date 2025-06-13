@@ -2,6 +2,7 @@ FROM ubuntu:24.04
 ARG  relpathname
 ARG  APT_PROXY_IP
 
+ENV DEBIAN_FRONTEND=noninteractive
 ENV NOVNC_TAG="v1.5.0"
 
 ENV WEBSOCKIFY_TAG="v0.12.0"
@@ -10,7 +11,7 @@ ENV VNC_SERVER="localhost:5900"
 
 #___SNIPPET_APT_PROXY___
 
-RUN apt-get install -y  \
+RUN #___SNIPPET_APT_INSTALL___ \
         bash \
         python3 \
         python3-dev \
