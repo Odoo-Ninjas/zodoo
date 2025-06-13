@@ -31,11 +31,14 @@ unzip
 
 
 WORKDIR /usr/local/bin
-RUN apt-get $APT_OPTIONS install -y --no-install-recommends python3-lxml
+
+#___SNIPPET_APT_INSTALL___ \ 
+python3-lxml
 
 WORKDIR /root
 COPY requirements.txt requirements.txt
-#___SNIPPET_APT_INSTALL___ \ 
+
+RUN #___SNIPPET_APT_INSTALL___ \ 
 build-essential gcc python3-dev tmux && \
 python3 -mpip install -r requirements.txt && \
 pipx install wodoo==$WODOO_VERSION 
