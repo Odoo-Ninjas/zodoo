@@ -14,7 +14,7 @@ python3-pip python3 curl rsync locales pv \
 pigz telnet libpq-dev wget lsb-release \
 libxml2-dev libxslt-dev pipx gosu git sudo \
 ca-certificates curl gnupg lsb-release \
-unzip
+unzip build-essential
 
 #___SNIPPET_DOCKER___
 
