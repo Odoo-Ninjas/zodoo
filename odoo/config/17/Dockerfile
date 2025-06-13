@@ -152,7 +152,7 @@ COPY bin/check_sha.sh /usr/local/bin
 RUN /bin/bash /usr/local/bin/check_sha.sh "$CUSTOMS_SHA"
 
 
-ENV LANG C.UTF-8
+ENV LANG=C.UTF-8
 
 
 #___SNIPPET_APT_PROXY___

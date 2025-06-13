@@ -8,7 +8,7 @@ ENV DOCKER_GID=$DOCKER_GID
 
 
 #___SNIPPET_APT_PROXY___
-RUN apt-get update && apt-get $APT_OPTIONS install -y --no-install-recommends \
+RUN #___SNIPPET_APT_INSTALL___ \ 
     nginx \
     procps \
     python3-pip \
@@ -36,15 +36,15 @@ RUN install -m 0755 -d /etc/apt/keyrings
 COPY webssh /root/webssh
 RUN pip install --no-cache-dir -e /root/webssh  --break-system-packages
 
-# RUN docker --version
-
 COPY launch.sh /root
 RUN chmod a+x /root/launch.sh
 
 RUN echo "root:odoo" | chpasswd root
 
 COPY requirements.txt .
-RUN apt-get $APT_OPTIONS install -y python3-venv
+
+RUN #___SNIPPET_APT_INSTALL___ \
+python3-venv
 RUN python3 -mvenv /usr/local/bin/venv
 RUN /usr/local/bin/venv/bin/python3 -mpip install wheel --upgrade
 RUN /usr/local/bin/venv/bin/python3 -mpip install -r requirements.txt

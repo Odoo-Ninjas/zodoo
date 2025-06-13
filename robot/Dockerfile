@@ -14,10 +14,10 @@ ENV PATH="$PATH:/opt/robot/.local/bin"
 
 #___SNIPPET_APT_PROXY___
 
-RUN apt update
-RUN apt $APT_OPTIONS install -y wget unzip python3
-RUN apt $APT_OPTIONS install -y python3-pip python3-magic libmagickwand-dev xvfb curl
-RUN apt $APT_OPTIONS install -y  sudo curl software-properties-common pipx 
+RUN #___SNIPPET_APT_INSTALL___ \
+wget unzip python3 \
+python3-pip python3-magic libmagickwand-dev xvfb curl \
+sudo curl software-properties-common pipx build-essential python3-dev
 
 COPY ./requirements.txt /tmp/requirements.txt
 RUN python3 -mpip install setuptools python-dotenv --break-system-packages
@@ -47,10 +47,12 @@ chown robot /opt/robot/.ssh -R
 # postgres
 
 
+USER root
+#___SNIPPET_WODOO___
+RUN rsync "${WODOO_SRC}/" /opt/robot/wodoo -ar && chown -R robot /opt/robot/wodoo
 USER robot
-RUN \
-mkdir /opt/robot/.local/pipx -p && \
-pipx install wodoo --force
+RUN pipx install -e /opt/robot/wodoo
+
 RUN pip install --no-cache-dir debugpy pudb --break-system-packages
 #--------------------------------------------
 USER root

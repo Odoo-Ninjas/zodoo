@@ -115,7 +115,7 @@ ARG ODOO_INSTALL_LIBPOSTAL
 ARG CUSTOMS_SHA
 
 
-ENV LANG C.UTF-8
+ENV LANG=C.UTF-8
 RUN apt-get update
 RUN apt-get install \
 	-y \
