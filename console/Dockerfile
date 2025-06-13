@@ -9,24 +9,23 @@ ARG PYPI_SERVER
 ENV DEBIAN_FRONTEND=noninteractive
 
 #___SNIPPET_APT_PROXY___
-RUN apt-get $APT_OPTIONS update && \
-apt-get $APT_OPTIONS install -y --fix-missing python3-pip python3 curl rsync locales pv \
+RUN #___SNIPPET_APT_INSTALL___ \
+python3-pip python3 curl rsync locales pv \
 pigz telnet libpq-dev wget lsb-release \
 libxml2-dev libxslt-dev pipx gosu git sudo \
 ca-certificates curl gnupg lsb-release \
 unzip
 
-# install docker
-# Prepare keyring
-
 #___SNIPPET_DOCKER___
 
-RUN apt-get update && apt-get $APT_OPTIONS install -y python3-venv zlib1g-dev
+RUN #___SNIPPET_APT_INSTALL___ \
+python3-venv zlib1g-dev
 
 
 # install postgres
 # ___SNIPPET_POSTGRES___
-RUN apt-get -y $APT_OPTIONS install --no-install-recommends openssh-server && mkdir /var/run/sshd
+RUN #___SNIPPET_APT_INSTALL___ \
+openssh-server && mkdir /var/run/sshd
 EXPOSE 22
 
 RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \
@@ -60,7 +59,8 @@ COPY sshd_config /etc/ssh/sshd_config
 # TODO
 # RUN sudo chsh -s /bin/rbash odoo
 
-RUN apt-get $APT_OPTIONS install --no-install-recommends -y silversearcher-ag
+RUN #___SNIPPET_APT_INSTALL___ \
+silversearcher-ag
 RUN \
 ln -s /bin/ls /home/odoo/bin/ls && \
 ln -s /bin/cat /home/odoo/bin/cat && \
