@@ -83,8 +83,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 
 #___SNIPPET_APT_PROXY___
-RUN apt-get $APT_OPTIONS \
-    install -y \
+RUN #___SNIPPET_APT_INSTALL___  \
     build-essential \
     libxml2-dev \
     libxslt1-dev \
@@ -158,8 +157,7 @@ ENV LANG C.UTF-8
 
 #___SNIPPET_APT_PROXY___
 
-RUN apt-get $APT_OPTIONS install -y \
-	--no-install-recommends \
+RUN #___SNIPPET_APT_INSTALL___ \ 
 			man \
             htop \
             ca-certificates \

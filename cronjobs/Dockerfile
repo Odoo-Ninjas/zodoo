@@ -35,10 +35,10 @@ RUN apt-get $APT_OPTIONS install -y --no-install-recommends python3-lxml
 
 WORKDIR /root
 COPY requirements.txt requirements.txt
-RUN apt-get -y $APT_OPTIONS install -y --no-install-recommends build-essential gcc python3-dev && \
+#___SNIPPET_APT_INSTALL___ \ 
+build-essential gcc python3-dev tmux && \
 python3 -mpip install -r requirements.txt && \
-pipx install wodoo==$WODOO_VERSION && \
-apt-get $APT_OPTIONS install --no-install-recommends -y tmux
+pipx install wodoo==$WODOO_VERSION 
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod a+x /entrypoint.sh

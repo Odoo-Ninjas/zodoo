@@ -37,8 +37,7 @@ WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
 
 
 #___SNIPPET_APT_PROXY___
-RUN apt-get $APT_OPTIONS \
-    install -y \
+RUN #___SNIPPET_APT_INSTALL___ \ 
     software-properties-common \
     cmake \
     exuberant-ctags \
@@ -82,9 +81,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 
 #___SNIPPET_APT_PROXY___
-RUN apt-get \
-    $APT_OPTIONS \
-    install -y \
+#___SNIPPET_APT_INSTALL___ \ 
     build-essential \
     libxml2-dev \
     libxslt1-dev \
@@ -161,11 +158,7 @@ ENV PIP_NO_CACHE_DIR=no
 ENV LANG=C.UTF-8
 
 #___SNIPPET_APT_PROXY___
-RUN apt-get \
-    $APT_OPTIONS \
-    install \
-	-y \
-	--no-install-recommends \
+#___SNIPPET_APT_INSTALL___ \
 			man \
             htop \
             ca-certificates \
