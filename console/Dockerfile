@@ -39,8 +39,10 @@ WORKDIR /root
 # Optional: speed up installs
 ENV PIP_NO_CACHE_DIR=no
 # Set custom PyPI index
-RUN pip3 config set global.index-url $PYPI_SERVER && \
-pipx install wodoo==$WODOO_VERSION && \
+
+#___SNIPPET_WODOO___
+
+RUN \
 apt-get $APT_OPTIONS install -y tmux && \
 useradd -l -m -s /bin/bash -G sudo,docker -p $(openssl passwd -1 odoo) -u ${OWNER_UID} odoo && \
 echo 'odoo:odoo' | chpasswd
