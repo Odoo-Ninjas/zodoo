@@ -43,16 +43,14 @@ chown robot /opt/robot/.ssh -R
 #___SNIPPET_DOCKER___
 
 # -------------------------------------------
-# Setup Wodoo Framework
-# postgres
 
+
+#___SNIPPET_WODOO___
 
 USER root
-#___SNIPPET_WODOO___
-RUN rsync "${WODOO_SRC}/" /opt/robot/wodoo -ar && chown -R robot /opt/robot/wodoo
-USER robot
-RUN pipx install -e /opt/robot/wodoo
+RUN find /opt/robot/.* -not -user robot -exec chown -R robot -Rv {} \;
 
+USER robot
 RUN pip install --no-cache-dir debugpy pudb --break-system-packages
 #--------------------------------------------
 USER root

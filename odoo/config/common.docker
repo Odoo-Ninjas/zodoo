@@ -1,12 +1,9 @@
+
 # install wodoo
-RUN apt-get $APT_OPTIONS install -y build-essential
-RUN \
-python3 -mpip install pipx --upgrade && \
-python3 -mpipx ensurepath && \
-mkdir /usr/local/bin/pipxbin -p && \
-PIPX_DEFAULT_PYTHON=/usr/local/bin/python3
-
-
+RUN #___SNIPPET_APT_INSTALL___ \
+build-essential python3-dev
+RUN python3 -mpip install pipx --upgrade
+USER root
 #___SNIPPET_WODOO___
 
 
@@ -39,7 +36,6 @@ ENV PYTHONBREAKPOINT=0
 ENV ODOO_SERVER_TOOLS_MODULES=/opt/odoo_server_tools
 ENV ODOO_FRAMEWORK_KEEP_SQL_CONNECTION=1
 ENV PATH=/odoolib:/opt/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-ENV WODOO_PYTHON=/opt/wodoo_env/venvs/wodoo/bin/python3
 ENV DOCKER_MACHINE=1
 
 ADD bin/ /odoolib/

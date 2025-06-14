@@ -1,10 +1,13 @@
 ENV WODOO_SRC=/opt/wodoo
+ENV WODOO_PIPX_HOME=/opt/wodoo_pipx
+ENV WODOO_ENV_DIR=/opt/wodoo_pipx/venvs/wodoo
+ENV WODOO_PYTHON=${WODOO_ENV_DIR}/bin/python3
 COPY --from=wodoo-src:latest /opt/wodoo "$WODOO_SRC"
 RUN \
-PIPX_HOME=/opt/wodoo_env \
-PIPX_BIN_DIR=/usr/local/bin/pipxbin \
+export PIPX_HOME="${WODOO_PIPX_HOME}" && \
+export PIPX_BIN_DIR=/usr/local/bin && \
 chmod a+rw "$WODOO_SRC" -R && \
-pipx install -e "$WODOO_SRC" \
+PIP_VERBOSE=1 pipx install --verbose "$WODOO_SRC" \
 || (echo "=== pipx install failed ===" && \
      cat /opt/wodoo_env/logs/*.log && \
      exit 1)

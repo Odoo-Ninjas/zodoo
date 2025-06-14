@@ -47,9 +47,12 @@ apt-get $APT_OPTIONS install -y tmux && \
 useradd -l -m -s /bin/bash -G sudo,docker -p $(openssl passwd -1 odoo) -u ${OWNER_UID} odoo && \
 echo 'odoo:odoo' | chpasswd
 
-USER odoo
-RUN pipx install wodoo && \
-mkdir ~/.ssh && chmod 700 ~/.ssh
+USER root
+ENV WODOO_USER=odoo
+ENV WODOO_USER_INSTALL=/home/odoo/wodoo
+#___SNIPPET_WODOO_USER___
+
+RUN mkdir ~/.ssh && chmod 700 ~/.ssh
 COPY console.key.pub /home/odoo/.ssh/authorized_keys 
 
 
