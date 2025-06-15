@@ -153,7 +153,7 @@ def attach(ctx, config):
 @apt.command()
 @pass_config
 @click.pass_context
-def config(ctx, config):
+def aptconfig(ctx, config):
     conf = _get_apt_cacher_config()
     click.secho("\n".join(conf), fg="green")
 
@@ -161,7 +161,7 @@ def config(ctx, config):
 @apt.command()
 @pass_config
 @click.pass_context
-def restart(ctx, config):
+def aptrestart(ctx, config):
     subprocess.run(["docker", "restart", APT_CACHER_CONTAINER_NAME])
 
 
