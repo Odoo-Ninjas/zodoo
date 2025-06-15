@@ -41,6 +41,7 @@ chown robot /opt/robot/.ssh -R
 
 	
 #___SNIPPET_DOCKER___
+RUN usermod -aG $DOCKER_GID robot
 
 # -------------------------------------------
 
