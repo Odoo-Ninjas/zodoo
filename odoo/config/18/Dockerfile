@@ -81,7 +81,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 
 #___SNIPPET_APT_PROXY___
-#___SNIPPET_APT_INSTALL___ \ 
+RUN #___SNIPPET_APT_INSTALL___ \ 
     build-essential \
     libxml2-dev \
     libxslt1-dev \
@@ -158,7 +158,7 @@ ENV PIP_NO_CACHE_DIR=no
 ENV LANG=C.UTF-8
 
 #___SNIPPET_APT_PROXY___
-#___SNIPPET_APT_INSTALL___ \
+RUN #___SNIPPET_APT_INSTALL___ \
 			man \
             htop \
             ca-certificates \
