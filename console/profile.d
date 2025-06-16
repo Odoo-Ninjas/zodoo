@@ -5,5 +5,5 @@ cd /opt/src
 . "$HOME/env"
 
 export PS1="\[\e[1;32m\]odoo \[\e[0m\]> "
-
-alias odoo="/home/odoo/.local/bin/odoo -p $PROJECT_NAME"
+export ODOO_BIN=/home/odoo/bin/odoo
+alias odoo="$ODOO_BIN -p $PROJECT_NAME"

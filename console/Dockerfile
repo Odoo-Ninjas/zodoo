@@ -42,21 +42,17 @@ ENV PIP_NO_CACHE_DIR=no
 
 #___SNIPPET_WODOO___
 
-RUN \
-apt-get $APT_OPTIONS install -y tmux && \
+RUN #___SNIPPET_APT_INSTALL___ \
+tmux silversearcher-ag && \
 useradd -l -m -s /bin/bash -G sudo,docker -p $(openssl passwd -1 odoo) -u ${OWNER_UID} odoo && \
 echo 'odoo:odoo' | chpasswd
 
-USER root
-ENV WODOO_USER=odoo
-ENV WODOO_USER_INSTALL=/home/odoo/wodoo
 #___SNIPPET_WODOO_USER___
 
 RUN mkdir ~/.ssh && chmod 700 ~/.ssh
 COPY console.key.pub /home/odoo/.ssh/authorized_keys 
 
 
-USER root
 RUN chmod 600 /home/odoo/.ssh/authorized_keys && \
 mkdir /home/odoo/bin
 
@@ -64,14 +60,13 @@ COPY sshd_config /etc/ssh/sshd_config
 # TODO
 # RUN sudo chsh -s /bin/rbash odoo
 
-RUN #___SNIPPET_APT_INSTALL___ \
-silversearcher-ag
 RUN \
 ln -s /bin/ls /home/odoo/bin/ls && \
 ln -s /bin/cat /home/odoo/bin/cat && \
 ln -s /usr/bin/tmux /home/odoo/bin/tmux && \
 ln -s /usr/bin/docker /home/odoo/bin/docker && \
-ln -s /home/odoo/.local/bin/odoo /home/odoo/bin/odoo
+export ODOO_BIN=/home/odoo/bin/odoo && \
+ln -s $WODOO_ENV_DIR/bin/odoo $ODOO_BIN
 
 COPY welcome.txt /usr/share/welcome.txt
 RUN ln -s /opt/src /home/odoo/$project_name
