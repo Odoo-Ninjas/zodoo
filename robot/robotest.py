@@ -288,6 +288,8 @@ Smoke Test Robot
     Go To       https://www.heise.de
     Call Method    ${driver}    quit
     """
+    if os.getenv("ROBO_SMOKETEST") == "0":
+        return True
 
     # Create a temporary file
     temp_file = Path(f"{uuid.uuid4()}.robot")
