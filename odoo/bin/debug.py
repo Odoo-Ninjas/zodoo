@@ -57,7 +57,8 @@ class Debugger(object):
         os.chdir(self.odoolib_path)
         if not cmd[0].startswith("/"):
             cmd = ["python3"] + cmd
-        res = not subprocess.run(cmd, cwd=self.odoolib_path)  # exitcode
+        proc = subprocess.run(cmd, cwd=self.odoolib_path)  # exitcode
+        res = proc.returncode == 0
         sane_tty()
         return res
 
