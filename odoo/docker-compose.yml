@@ -3,6 +3,8 @@ services:
   wodoo_src:
     build:
       context: $ODOO_IMAGES/wodoo
+    profiles:
+      - auto
 
   odoo_base:
     build:
@@ -20,8 +22,8 @@ services:
           APT_PROXY_IP: ${APT_PROXY_IP}
           DOCKER_GID: ${DOCKER_GID}
     restart: unless-stopped
-    depends_on:
-      - wodoo_src
+    # depends_on:
+    #   - wodoo_src
     profiles:
       - auto
     volumes:

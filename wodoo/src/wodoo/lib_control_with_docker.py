@@ -285,7 +285,7 @@ def build(
 
     # update wodoo src before:
     subprocess.run(
-        ["docker", "build", "-t", "wodoo-src:latest", "."],
+        ["docker", "build", "-t", "wodoo-src", "."],
         cwd=config.dirs["images"] / "wodoo",
         check=True,
     )
