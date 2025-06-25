@@ -131,7 +131,7 @@ def _apply_additional_odoo_config(content, addition):
     ...
     """
     content = list(
-        filter(lambda x: not x.strip().startswith("#"), content.splitlines())
+        filter(lambda x: not x.strip().startswith("#"), content.split("___|||___"))
     )
     assert content[0] == "[options]"
     for i, line in enumerate(content[1:], 1):

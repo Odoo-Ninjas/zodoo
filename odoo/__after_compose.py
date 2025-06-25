@@ -408,7 +408,7 @@ def _determine_odoo_configuration(config, yml, PYTHON_VERSION, settings, globals
     odoo_machines = get_services(config, "odoo_base", yml=yml)
     for odoo_machine in odoo_machines:
         service = yml["services"][odoo_machine]
-        service["environment"]["ADDITIONAL_ODOO_CONFIG"] = config
+        service["environment"]["ADDITIONAL_ODOO_CONFIG"] = "___|||___".join(config.splitlines())
 
 
 def _apply_fluentd_logging(config, yml, settings, globals):
