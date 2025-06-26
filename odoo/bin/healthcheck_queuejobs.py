@@ -33,7 +33,7 @@ def check_queue_job_status(db_config):
             conn.close()
 
 # Example usage:
-if __name__ == "__main__" and os.getenv("DEVMODE") != "1":
+if __name__ == "__main__":
     db_config = {
         "host": os.getenv("DB_HOST"),
         "port": int(os.getenv("DB_PORT")),

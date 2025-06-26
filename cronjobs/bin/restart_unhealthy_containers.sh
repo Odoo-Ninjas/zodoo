@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# Exit immediately if DEVMODE is set to 1
+if [ "$DEVMODE" = "1" ]; then
+  echo "⚙️  DEVMODE=1 → Skipping healthcheck and restart logic."
+  exit 0
+fi
+
 # Find all unhealthy containers starting with the project name
 unhealthy_containers=$(docker ps \
   --filter "health=unhealthy" \
