@@ -120,12 +120,14 @@ RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.tx
 RUN xargs apt-get $APT_OPTIONS install -y < /root/deb_requirements.txt
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
-RUN pip3 install --no-cache-dir -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
+# RUN pip install "Cython<3"
+# no build isolation to use cython<3
+RUN pip3 install --no-cache-dir --no-build-isolation -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
 
 RUN echo "$ODOO_FRAMEWORK_REQUIREMENTS"  | base64 --decode > /root/framework_requirements.txt
-RUN pip3 install --no-cache-dir -r /root/framework_requirements.txt
+RUN pip3 install --no-cache-dir --no-build-isolation -r /root/framework_requirements.txt
 
-RUN pip3 install --no-cache-dir pudb ipython debugpy
+RUN pip3 install --no-cache-dir --no-build-isolation pudb ipython debugpy
 
 #___SNIPPET_OPENUPGRADELIB___
 
