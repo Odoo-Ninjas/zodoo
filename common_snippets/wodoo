@@ -7,7 +7,9 @@ RUN \
 export PIPX_HOME="${WODOO_PIPX_HOME}" && \
 export PIPX_BIN_DIR=/usr/local/bin && \
 chmod a+rw "$WODOO_SRC" -R && \
+if [ "$ODOO_VERSION"  != '11' ]; then \
 PIP_VERBOSE=1 pipx install --verbose "$WODOO_SRC" \
 || (echo "=== pipx install failed ===" && \
      cat /opt/wodoo_env/logs/*.log && \
-     exit 1)
+     exit 1) \
+fi

@@ -6,7 +6,6 @@ RUN python3 -mpip install pipx --upgrade
 USER root
 #___SNIPPET_WODOO___
 
-
 RUN echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
 
 
