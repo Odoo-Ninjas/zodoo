@@ -12,8 +12,8 @@ ARG PYPI_SERVER
 ENV LANG=C.UTF-8
 #___SNIPPET_APT_PROXY___
 
-RUN apt-get $APT_OPTIONS update --fix-missing && \
-apt-get $APT_OPTIONS install \
+RUN apt-get update --fix-missing && \
+apt-get install \
         -y \
         --no-install-recommends \
                         software-properties-common \
@@ -108,11 +108,21 @@ RUN fc-cache -f -v
 
 WORKDIR /tmp
 
-RUN apt-get $APT_OPTIONS install -y xfonts-75dpi xfonts-base libgeos-dev
-#___SNIPPET_WKHTML2PDF___
+RUN apt-get install -y xfonts-75dpi xfonts-base libgeos-dev
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+    curl -o wkhtmltox.deb -sSL https://github.com/wkhtmltopdf/wkhtmltopdf/releases/download/0.12.5/wkhtmltox_0.12.5-1.buster_amd64.deb &&  \
+    echo 'ea8277df4297afc507c61122f3c349af142f31e5 wkhtmltox.deb' | sha1sum -c - && \
+    apt-get install -y --no-install-recommends ./wkhtmltox.deb && \
+    rm -rf /var/lib/apt/lists/* wkhtmltox.deb; \
+fi
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+    curl -o /root/wkhtmltox.deb -sSL  https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox_0.12.6-1.buster_arm64.deb && \
+    apt-get install -y --no-install-recommends /root/wkhtmltox.deb && \
+    rm -rf /var/lib/apt/lists/* wkhtmltox.deb;  \
+fi
 
-#___SNIPPET_NODEJS___
-
+RUN update-alternatives --install /usr/bin/node node /usr/bin/nodejs 10 && \
+useradd -ms /bin/bash odoo
 RUN \
 chown odoo:odoo /home/odoo -R && \
 rm -Rf /usr/local/man && mkdir -p /usr/local/man/man1
@@ -159,6 +169,6 @@ pipx install wodoo && \
 echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
 
 
-RUN apt-get $APT_OPTIONS update && apt-get $APT_OPTIONS install -y libodbc1 unixodbc-dev unixodbc
+RUN apt-get update && apt-get install -y libodbc1 unixodbc-dev unixodbc
 RUN pip3 install --no-cache-dir requests-oauth2client faker requests_oauthlib 
 RUN pip3 install --no-cache-dir lxml==4.6.0

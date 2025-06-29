@@ -537,7 +537,9 @@ def __dc_out(config, cmd, env={}, profile="auto"):
     ensure_project_name(config)
     c = __get_cmd(config, profile=profile) + cmd
     env = _set_default_envs(env)
-    return subprocess.check_output(c, env=_merge_env_dict(env))
+    return subprocess.check_output(
+        c, env=_merge_env_dict(env), encoding="utf8"
+    )
 
 
 def __dcexec(config, cmd, interactive=True, env=None):
@@ -697,9 +699,10 @@ def __get_cmd(config, profile="auto"):
         cmd = config.commands["dc2"]
     else:
         cmd = config.commands["dc"]
-    if profile:
-        if "--profile" not in cmd:
-            cmd += ["--profile", profile]
+    if isinstance(profile, str):
+        profile = [profile]
+    for profile in profile or []:
+        cmd += ["--profile", profile]
     cmd = [os.path.expandvars(x) for x in cmd]
     return cmd
 
@@ -718,6 +721,7 @@ def __cmd_interactive(config, *params):
             f"Command failed with return code: {res.returncode}:\n{cmd}\n\n{res.stdout}\n{res.stderr}",
             fg="red",
         )
+    return res.returncode
 
     # ctrl+c leads always to error otherwise
     # if proc.returncode:
