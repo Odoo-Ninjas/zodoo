@@ -197,7 +197,18 @@ COPY liberation-sans /usr/share/fonts/
 # rebuild font cache
 RUN fc-cache -f -v
 
-#___SNIPPET_WKHTML2PDF___
+RUN apt-get install -y xfonts-75dpi xfonts-base libgeos-dev
+WORKDIR /tmp
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+    curl -o /root/wkhtmltox.deb -sSL  https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.bullseye_amd64.deb && \
+    apt-get install -y --no-install-recommends /root/wkhtmltox.deb && \
+    rm -rf /var/lib/apt/lists/* /root/wkhtmltox.deb; \
+fi
+RUN if [ "$TARGETARCH" = "arm64" ]; then \
+    curl -o /root/wkhtmltox.deb -sSL https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.bullseye_arm64.deb &&  \
+    apt-get install -y --no-install-recommends /root/wkhtmltox.deb && \
+    rm -rf /var/lib/apt/lists/* /root/wkhtmltox.deb;  \
+fi
 
 #___SNIPPET_NODEJS___
 
@@ -219,6 +230,33 @@ RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.tx
 RUN apt-get $APT_OPTIONS update && xargs apt-get $APT_OPTIONS install -y < /root/deb_requirements.txt
 
 WORKDIR /opt/odoo
+
+
+# WODOO
+WORKDIR /opt/odoo
+RUN python3 -mpip install debugpy docker
+RUN mkdir /opt/venv; ln -s /usr/bin /opt/venv/bin
+RUN python3 -mpip install pipx
+RUN python3 -mpipx ensurepath 
+COPY config/$ODOO_VERSION/constraints.txt /opt/constraints.txt
+ENV WODOO_SRC=/opt/wodoo
+ENV WODOO_PIPX_HOME=/opt/wodoo_pipx
+ENV WODOO_ENV_DIR=/opt/wodoo_pipx/venvs/wodoo
+ENV WODOO_PYTHON=${WODOO_ENV_DIR}/bin/python3
+RUN git clone --depth 1 https://github.com/marcwimmer/wodoo $WODOO_SRC
+
+RUN rm $WODOO_SRC/wodoo/requirements.txt
+COPY config/$ODOO_VERSION/wodoo_requirements.txt $WODOO_SRC/wodoo/requirements.txt
+
+RUN \
+export PIPX_HOME="${WODOO_PIPX_HOME}" && \
+export PIPX_BIN_DIR=/usr/local/bin && \
+PIPX_DEFAULT_PYTHON=/opt/venv/bin/python3 \
+pipx install --pip-args="--constraint /opt/constraints.txt" -e $WODOO_SRC && \
+echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
+RUN pip3 install --no-cache-dir lxml==4.6.0
+
+
 
 
 # There is a BUG with M1 and SCRAM authentication
