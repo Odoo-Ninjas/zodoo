@@ -60,9 +60,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
     ncurses-dev \
     rsync
 
-RUN ./configure --enable-optimizations && make -j4 && make install
-RUN rsync /usr/local/src/Python-${ODOO_PYTHON_VERSION}/ /python -ar
-
+#___SNIPPET_BUILD_PYTHON___
 
 
 # --------------------------------------------------------------------
