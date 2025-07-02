@@ -29,7 +29,7 @@ WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
 
 
 #___SNIPPET_APT_PROXY___
-RUN #___SNIPPET_APT_INSTALL___ \ 
+RUN #___SNIPPET_APT_INSTALL___ \
     software-properties-common \
     cmake \
     exuberant-ctags \
