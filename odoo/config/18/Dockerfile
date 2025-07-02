@@ -93,6 +93,8 @@ RUN #___SNIPPET_APT_INSTALL___ \
 # install python from compiled binaries
 #___SNIPPET_PYTHON_INSTALL___
 
+#___SNIPPET_SETUP_PYTHON_VENV___
+
 #___SNIPPET_PYPI_SERVER___
 
 

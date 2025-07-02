@@ -89,6 +89,8 @@ RUN #___SNIPPET_APT_INSTALL___ \
 # install python from compiled binaries
 #___SNIPPET_PYTHON_INSTALL___
 
+#___SNIPPET_SETUP_PYTHON_VENV___
+
 # Optional: speed up installs
 ENV PIP_NO_CACHE_DIR=no
 # Set custom PyPI index

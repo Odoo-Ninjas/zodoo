@@ -96,6 +96,8 @@ RUN #___SNIPPET_APT_INSTALL___ \
 # install python from compiled binaries
 #___SNIPPET_PYTHON_INSTALL___
 
+#___SNIPPET_SETUP_PYTHON_VENV___
+
 #___SNIPPET_PYPI_SERVER___
 RUN python3 -mpip install pip --upgrade
 RUN /usr/local/bin/python3 -m venv --copies /opt/venv
