@@ -1,12 +1,6 @@
 # SNIPPET WODOO Must be run as root one time before
 # just set USERNAME= before this snippet
 
-ENV WODOO_SRC=/opt/wodoo
-ENV WODOO_PIPX_HOME=/opt/wodoo_pipx
+# CRITICAL: must match root WODOO_PYTHON
 ENV WODOO_ENV_DIR=/opt/wodoo_pipx/venvs/wodoo
-ENV WODOO_PYTHON=${WODOO_ENV_DIR}/bin/python3
-
-RUN PIP_VERBOSE=1 $WODOO_PYTHON -mpipx install --verbose --force "$WODOO_SRC" \
-|| (echo "=== pipx install failed ===" && \
-     cat /opt/wodoo_env/logs/*.log && \
-     exit 1) 
+ENV WODOO_PYTHON=$WODOO_ENV_DIR/bin/python3

@@ -1,4 +1,4 @@
-#!/usr/bin/env wodoo_python
+#!/usr/bin/env WODOO_PYTHON
 import os
 from tools import prepare_run
 from tools import exec_odoo
