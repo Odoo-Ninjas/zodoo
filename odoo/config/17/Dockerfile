@@ -89,6 +89,8 @@ RUN #___SNIPPET_APT_INSTALL___  \
     cmake \
     git
 
+#___SNIPPET_DEB_REQUIREMENTS___
+
 #___SNIPPET_PYTHON_INSTALL___
 
 #___SNIPPET_SETUP_PYTHON_VENV___
@@ -99,8 +101,6 @@ RUN pip3 install --no-cache-dir wheel && \
 pip3 install --no-cache-dir pip -U && \
 pip3 install --no-cache-dir setuptools -U
 
-
-#___SNIPPET_DEB_REQUIREMENTS___
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 # RUN pip install "Cython<3"
