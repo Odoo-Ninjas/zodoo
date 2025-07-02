@@ -1,3 +1,5 @@
-RUN rm /usr/local/bin/python3 || true
-RUN rm /usr/bin/python3 || true
-RUN cd /usr/local/bin && ln -s /opt/venv/bin/python3
+# dont do that: if example someone installs libreoffice debian adds extra packages in system python
+# they would be gone
+#RUN rm /usr/local/bin/python3 || true
+#RUN rm /usr/bin/python3 || true
+#RUN cd /usr/local/bin && ln -s /opt/venv/bin/python3

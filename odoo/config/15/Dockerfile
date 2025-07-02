@@ -206,11 +206,12 @@ RUN locale-gen en_US.UTF-8 && dpkg-reconfigure locales
 
 #___SNIPPET_DOCKER___
 
+#___SNIPPET_DEB_REQUIREMENTS___
+
 #___SNIPPET_PYTHON_INSTALL___
 
 #___SNIPPET_TRANSFER_VENV___
 
-#___SNIPPET_DEB_REQUIREMENTS___
 
 
 WORKDIR /opt/odoo
