@@ -2,14 +2,34 @@ ENV WODOO_SRC=/opt/wodoo
 ENV WODOO_PIPX_HOME=/opt/wodoo_pipx
 ENV WODOO_ENV_DIR=/opt/wodoo_pipx/venvs/wodoo
 ENV WODOO_PYTHON=${WODOO_ENV_DIR}/bin/python3
+
 COPY --from=wodoo_src:latest /opt/wodoo "$WODOO_SRC"
+RUN chown -R $CURRENT_USER:$CURRENT_USER "$WODOO_SRC"
+
+RUN if [ ! -e "$WODOO_ENV_DIR" ]; then \
+     python3 -m venv "$WODOO_ENV_DIR"; \
+     $WODOO_PYTHON -m pip install --upgrade pip; \
+     $WODOO_PYTHON -m pip install pipx --upgrade;  \
+     $WODOO_PYTHON -m pip install setuptools --upgrade;  \
+fi
 RUN \
 export PIPX_HOME="${WODOO_PIPX_HOME}" && \
 export PIPX_BIN_DIR=/usr/local/bin && \
-chmod a+rw "$WODOO_SRC" -R && \
+
+
 if [ "$ODOO_VERSION"  != '11' ]; then \
-PIP_VERBOSE=1 pipx install --verbose "$WODOO_SRC" \
-|| (echo "=== pipx install failed ===" && \
-     cat /opt/wodoo_env/logs/*.log && \
-     exit 1) \
+     PIP_VERBOSE=1 \
+     $WODOO_PYTHON \
+     -mpipx \
+     install  \
+     --force \
+     --verbose \
+     "$WODOO_SRC" \
+     || (echo "=== pipx install failed ===" && \
+          cat /opt/wodoo_env/logs/*.log && \
+          exit 1) \
+
 fi
+
+RUN echo 'export PATH=$PATH:$HOME/.local/bin' >> $HOME/.bashrc
+RUN chmod a+rw -R "$WODOO_SRC" "$WODOO_PIPX_HOME" "$WODOO_ENV_DIR"

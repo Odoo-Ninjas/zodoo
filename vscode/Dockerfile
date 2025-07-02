@@ -82,8 +82,9 @@ WORKDIR /home/$USERNAME
 RUN python3.9 -m venv venv && \
     . venv/bin/activate && \
     ./venv/bin/python -m pip install pipx && \
-    pipx install wodoo && \
     pipx install gimera
+RUN echo 'export PATH=$PATH:$HOME/.local/bin' >> $HOME/.bashrc
+
 
 # --- Setup VSCode default config ---
 RUN mkdir -p /home/$USERNAME/.config/Code/User
@@ -110,15 +111,6 @@ RUN usermod -aG docker $USERNAME && \
     cp /etc/skel/.bashrc /home/$USERNAME/.bashrc && \
     chown -R $USERNAME:$USERNAME /home/$USERNAME/.vnc
 
-# --- Bashrc enhancements and shell completions ---
-USER $USERNAME
-ENV SHELL=/bin/bash
-
-RUN echo 'export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/$USERNAME/.local/bin' >> /home/$USERNAME/.bashrc && \
-    echo '. /tmp/envvars.sh' >> /home/$USERNAME/.bashrc && \
-    ~/.local/bin/odoo completion -x && \
-    ~/.local/bin/gimera completion -x
-
 # --- Install Google Chrome ---
 USER root
 RUN wget --progress=dot:giga https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
@@ -127,3 +119,21 @@ RUN wget --progress=dot:giga https://dl.google.com/linux/direct/google-chrome-st
 
 # --- Entrypoint ---
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
+
+USER root
+ENV SHELL=/bin/bash
+RUN apt install -y python3-dev
+
+
+#___SNIPPET_WODOO___
+USER $USERNAME
+#___SNIPPET_WODOO_USER___
+
+USER $USERNAME
+ENV SHELL=/bin/bash
+
+RUN $HOME/.local/bin/odoo completion -x
+RUN $HOME/.local/bin/gimera completion -x
+
+
+RUN echo '. /tmp/envvars.sh' >> /home/$USERNAME/.bashrc
