@@ -39,8 +39,7 @@ RUN add-apt-repository -y ppa:deadsnakes/ppa --no-update && \
     xargs -0 -I{} bash -c ' \
         sed -i "s|https://|http://|g" "$1"; \
     ' _ {} && \
-    apt-get update && \
-    apt-get $APT_OPTIONS install -y \
+    #___SNIPPET_APT_INSTALL___ \
         python3.9 \
         python3.9-dev \
         python3.9-distutils \
@@ -58,10 +57,8 @@ EOF
 
 RUN echo "Download link: $(cat /tmp/downloadlink)" && \
     wget --progress=dot:giga -O /tmp/vscode.deb "$(cat /tmp/downloadlink)" && \
-    apt-get install -y /tmp/vscode.deb
-
-# --- System update ---
-RUN apt-get update && apt-get upgrade -y
+    #___SNIPPET_APT_INSTALL___ \
+    /tmp/vscode.deb
 
 # --- COPY welcome message ---
 COPY welcome.txt /root/welcome.txt
