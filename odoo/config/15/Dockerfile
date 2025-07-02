@@ -210,8 +210,6 @@ RUN locale-gen en_US.UTF-8 && dpkg-reconfigure locales
 
 #___SNIPPET_DEB_REQUIREMENTS___
 
-WORKDIR /usr/local/bin
-RUN rm python3 && ln -s /opt/venv/bin/python3
 
 WORKDIR /opt/odoo
 
