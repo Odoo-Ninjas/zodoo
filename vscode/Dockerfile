@@ -30,7 +30,8 @@ RUN #___SNIPPET_APT_INSTALL___ \
     fluxbox \
     xdotool \
     postgresql-server-dev-16 \
-    software-properties-common
+    software-properties-common \
+    build-essential
 
 
 # --- COPY newer Python version ---
