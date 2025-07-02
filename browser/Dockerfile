@@ -7,16 +7,17 @@ TOTAL BROKEN
 
 # Pull base image.
 FROM ubuntu:24.04
+ARG  APT_PROXY_IP
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install Chromium.
 RUN \
-  apt-get update -y && \
-  apt-get install -y apt-utils wget openssh-server \
+  #___SNIPPET_APT_INSTALL___ \
+  apt-utils wget openssh-server \
   libnspr4 libnss3 fonts-liberation \
-  fonts-wqy-microhei tightvncserver 
-RUN apt-get update && apt-get install -y curl gnupg ca-certificates
+  fonts-wqy-microhei tightvncserver  \
+  curl gnupg ca-certificates fluxbox
 
 # COPY Google's official GPG key securely
 RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | \
@@ -27,7 +28,9 @@ RUN echo "deb [signed-by=/usr/share/keyrings/google-chrome-keyring.gpg] http://d
     tee /etc/apt/sources.list.d/google-chrome.list > /dev/null
 
 # Update package lists and install Google Chrome
-RUN apt-get update && apt-get install -y google-chrome-stable
+RUN \
+  #___SNIPPET_APT_INSTALL___ \
+  google-chrome-stable
 
 
 
@@ -40,11 +43,7 @@ RUN \
   sed -ri 's/UsePAM yes/#UsePAM yes/g' /etc/ssh/sshd_config && \
   sed -ri 's/#Port 22/Port 5800/g' /etc/ssh/sshd_config 
 
-#RUN apt-get install -y xfce4 xfce4-goodies x11vnc xvfb
-RUN apt-get install -y fluxbox
-
-
-#RUN rm -rf /var/lib/apt/lists/* 
+RUN rm -rf /var/lib/apt/lists/* 
 
 WORKDIR /data
 

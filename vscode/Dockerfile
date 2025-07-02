@@ -12,7 +12,7 @@ ARG APT_OPTIONS
 ENV DEBIAN_FRONTEND=noninteractive
 
 # --- Basic tools and core dependencies ---
-RUN apt-get update && apt-get install -y \
+RUN #___SNIPPET_APT_INSTALL___ \
     curl \
     gpg \
     git \
