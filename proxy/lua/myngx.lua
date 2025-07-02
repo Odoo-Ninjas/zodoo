@@ -4,7 +4,7 @@ local resolver = require "resty.dns.resolver"
 function myngx.get_ip(hostname)
 	local dns_server = os.getenv("PROXY_DNS_SERVER")
 	
-	ngx.log(ngx.INFO, "Resolving ip address for " .. hostname)
+	ngx.log(ngx.INFO, "Resolving ip address for " .. hostname .. " using DNS server: " .. dns_server)
 	local ip
 	local r, err = resolver:new({
 		nameservers = {dns_server}, -- Docker's DNS resolver
