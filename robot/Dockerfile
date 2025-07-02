@@ -34,10 +34,6 @@ RUN userdel -r $(getent passwd $OWNER_UID | cut -d: -f1) || true
 RUN useradd -rm -s /bin/bash -d /opt/robot -g root -G sudo -u $OWNER_UID robot
 RUN echo 'robot ALL=NOPASSWD:SETENV: ALL' > /etc/sudoers.d/robot
 
-RUN mkdir -p /opt/robot/.ssh && \
-chmod 500 /opt/robot/.ssh  && \
-chown robot /opt/robot && \
-chown robot /opt/robot/.ssh -R 
 
 	
 #___SNIPPET_DOCKER___
@@ -50,6 +46,8 @@ RUN find /opt/robot/.* -not -user robot -exec chown -R robot -Rv {} \;
 
 USER robot
 RUN pip install --no-cache-dir debugpy pudb --break-system-packages
+RUN mkdir -p /opt/robot/.ssh && \
+chmod 500 /opt/robot/.ssh
 #--------------------------------------------
 USER root
 
