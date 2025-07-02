@@ -308,6 +308,9 @@ def _get_dependencies(config, globals, PYTHON_VERSION, exclude=None):
     external_dependencies.setdefault("pip", [])
     external_dependencies.setdefault("deb", [])
 
+    for bin in external_dependencies.get("bin", []):
+        external_dependencies['deb'] += [bin]
+
     if not exclude:
         append_odoo_requirements(config, external_dependencies, tools)
         external_dependencies["pip"] = Modules.resolve_pydeps(
