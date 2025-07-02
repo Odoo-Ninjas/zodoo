@@ -5,8 +5,11 @@ ngx.req.set_header("X-Forwarded-Proto", request_proto)
 
 local myngx = require("myngx")
 local projectname = os.getenv("PROJECT_NAME")
+local proxy_odoo_host = os.getenv("PROXY_ODOO_HOST")
 local hostname = "odoo"
-if projectname then
+if proxy_odoo_host then
+    hostname = proxy_odoo_host
+elseif projectname then
     hostname = projectname .. "_" .. "odoo"
 end
 local varname = "target_odoo"
