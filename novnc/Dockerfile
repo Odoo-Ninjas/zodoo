@@ -21,9 +21,8 @@ RUN #___SNIPPET_APT_INSTALL___ \
         procps \
         git \
         rsync \ 
-        libffi-dev
-
-RUN apt-get install -y python3-venv
+        libffi-dev \
+        python3-venv
 RUN python3 -mvenv /venv
 RUN /venv/bin/pip install --no-cache-dir numpy
 
