@@ -13,18 +13,6 @@ ARG APT_OPTIONS
 ARG DOCKER_GID
 
 # --------------------------------------------------------------------
-# COMPILE LIBPOSTAL
-# --------------------------------------------------------------------
-FROM $BASE_IMAGE AS libpostal_builder
-ARG TARGETARCH
-ARG ODOO_INSTALL_LIBPOSTAL
-ARG APT_PROXY_IP
-ARG APT_OPTIONS
-ARG PYPI_SERVER
-COPY install_libpostal.sh /root/install_libpostal.sh
-RUN if [ "$TARGETARCH" = "amd64" ]; then bash /root/install_libpostal.sh; fi
-
-# --------------------------------------------------------------------
 # COMPILE PYTHON
 # --------------------------------------------------------------------
 FROM $BASE_IMAGE AS python_builder
@@ -38,7 +26,7 @@ RUN tar xfz /usr/local/src/python
 WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
 
 #___SNIPPET_APT_PROXY___
-RUN apt-get $APT_OPTIONS install -y \
+RUN #___SNIPPET_APT_INSTALL___ \
     software-properties-common \
     cmake \
     exuberant-ctags \
@@ -79,7 +67,7 @@ ARG PYPI_SERVER
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
 #___SNIPPET_APT_PROXY___
-RUN apt-get $APT_OPTIONS install -y \
+RUN #___SNIPPET_APT_INSTALL___ \
     build-essential \
     libxml2-dev \
     libxslt1-dev \
@@ -99,10 +87,7 @@ RUN apt-get $APT_OPTIONS install -y \
     git
 
 # install python from compiled binaries
-COPY --from=python_builder /python /opt/python
-WORKDIR /opt/python
-RUN make install
-RUN python3 -m venv --copies /opt/venv
+#___SNIPPET_PYTHON_INSTALL___
 
 # Optional: speed up installs
 ENV PIP_NO_CACHE_DIR=no
@@ -148,15 +133,12 @@ ARG PYPI_SERVER
 ARG APT_OPTIONS
 ARG DOCKER_GID
 
-COPY bin/check_sha.sh /usr/local/bin
-RUN /bin/bash /usr/local/bin/check_sha.sh "$CUSTOMS_SHA"
+#___SNIPPET_CHECK_SHA___
 
 
 ENV LANG=C.UTF-8
 #___SNIPPET_APT_PROXY___
-RUN apt-get $APT_OPTIONS install \
-	-y \
-	--no-install-recommends \
+RUN #___SNIPPET_APT_INSTALL___ \
             man \
             htop \
             ca-certificates \
@@ -220,39 +202,17 @@ RUN locale-gen en_US.UTF-8 && dpkg-reconfigure locales
 
 #___SNIPPET_NODEJS___
 
-ENV DEBIAN_FRONTEND=noninteractive
 #___SNIPPET_DOCKER___
 
-# Transfer python
-ENV VIRTUAL_ENV=/opt/venv/env
-ENV PATH="/odoolib:/opt/venv/bin:$PATH"
-RUN rm -Rf /opt/venv
-COPY --from=build_pip /opt/python /opt/python
-COPY --from=build_pip /opt/venv /opt/venv
-WORKDIR /opt/python
-RUN make install
-# Otherwise libreoffice installation does not work
-# RUN rm /usr/local/bin/python3 /usr/bin/python3
+#___SNIPPET_TRANSFER_VENV___
 
+#___SNIPPET_PYTHON_INSTALL___
 
-# Transfer lib postal (TODO)
-#COPY install_libpostal.sh /root/install_libpostal.sh
-#COPY install_libpostal.sh /root/install_libpostal.sh
-#RUN if [ "$TARGETARCH" = "amd64" ] && [ "$ODOO_INSTALL_LIBPOSTAL" == "1" ]; then bash /root/install_libpostal.sh; fi
-#RUN if [ "$TARGETARCH" = "amd64" ]; then bash /root/install_libpostal.sh; fi
-
-
-RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
-RUN apt-get $APT_OPTIONS update && xargs apt-get $APT_OPTIONS install -y < /root/deb_requirements.txt
+#___SNIPPET_DEB_REQUIREMENTS___
 
 WORKDIR /usr/local/bin
 RUN rm python3 && ln -s /opt/venv/bin/python3
 
 WORKDIR /opt/odoo
 
-# There is a BUG with M1 and SCRAM authentication
-RUN if [ "$TARGETARCH" = "arm64" ]; then \
-apt-get $APT_OPTIONS update && \
-apt-get $APT_OPTIONS install -y libpq-dev build-essential && \
-/opt/venv/bin/python3 -mpip install --no-build-isolation psycopg2-binary --no-binary psycopg2-binary --force-reinstall; \
-fi
+#___SNIPPET_M1_BUG___

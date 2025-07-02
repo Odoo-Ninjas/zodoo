@@ -12,14 +12,6 @@ ARG APT_PROXY_IP
 ARG PYPI_SERVER
 ARG DOCKER_GID
 
-# --------------------------------------------------------------------
-# COMPILE LIBPOSTAL
-# --------------------------------------------------------------------
-FROM $BASE_IMAGE AS libpostal_builder
-ARG TARGETARCH
-ARG ODOO_INSTALL_LIBPOSTAL
-COPY install_libpostal.sh /root/install_libpostal.sh
-RUN if [ "$TARGETARCH" = "amd64" ]; then bash /root/install_libpostal.sh; fi
 
 # --------------------------------------------------------------------
 # COMPILE PYTHON
@@ -99,22 +91,16 @@ RUN #___SNIPPET_APT_INSTALL___ \
     git
 
 # install python from compiled binaries
-COPY --from=python_builder /python /opt/python
-WORKDIR /opt/python
-RUN make install
-RUN python3 -m venv --copies /opt/venv
+#___SNIPPET_PYTHON_INSTALL___
 
-# Optional: speed up installs
-ENV PIP_NO_CACHE_DIR=no
-# Set custom PyPI index
-RUN pip3 config set global.index-url $PYPI_SERVER
+#___SNIPPET_PYPI_SERVER___
+
 
 RUN pip3 install --no-cache-dir wheel && \
 pip3 install --no-cache-dir pip -U && \
 pip3 install --no-cache-dir setuptools -U
 
-RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
-RUN xargs apt-get $APT_OPTIONS install -y < /root/deb_requirements.txt
+#___SNIPPET_DEB_REQUIREMENTS___
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 RUN pip3 install --no-cache-dir  -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
@@ -146,8 +132,7 @@ ARG APT_OPTIONS
 ARG PYPI_SERVER
 ARG DOCKER_GID
 
-COPY bin/check_sha.sh /usr/local/bin
-RUN /bin/bash /usr/local/bin/check_sha.sh "$CUSTOMS_SHA"
+#___SNIPPET_CHECK_SHA___
 
 # Optional: speed up installs
 ENV PIP_NO_CACHE_DIR=no
@@ -186,7 +171,6 @@ RUN #___SNIPPET_APT_INSTALL___ \
             cifs-utils \
             imagemagick \
             cups \
-            libreoffice \
             locales \
 			libmagickwand-dev \
             ffmpeg \
@@ -219,34 +203,16 @@ RUN fc-cache -f -v
 
 #___SNIPPET_NODEJS___
 
-# Transfer python
-ENV VIRTUAL_ENV=/opt/venv/env
-ENV PATH="/odoolib:/opt/venv/bin:$PATH"
-RUN rm -Rf /opt/venv
-COPY --from=build_pip /opt/python /opt/python
-COPY --from=build_pip /opt/venv /opt/venv
-WORKDIR /opt/python
-RUN make install
-#RUN rm /usr/local/bin/python3 /usr/bin/python3
+#___SNIPPET_TRANSFER_VENV___
+
+#___SNIPPET_PYTHON_INSTALL___
 
 
-# Transfer lib postal (TODO)
-#COPY install_libpostal.sh /root/install_libpostal.sh
-#COPY install_libpostal.sh /root/install_libpostal.sh
-#RUN if [ "$TARGETARCH" = "amd64" ] && [ "$ODOO_INSTALL_LIBPOSTAL" == "1" ]; then bash /root/install_libpostal.sh; fi
-#RUN if [ "$TARGETARCH" = "amd64" ]; then bash /root/install_libpostal.sh; fi
-
-
-RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
-RUN apt-get $APT_OPTIONS update && xargs apt-get $APT_OPTIONS install -y < /root/deb_requirements.txt
+#___SNIPPET_DEB_REQUIREMENTS___
 
 WORKDIR /opt/odoo
 
 #___SNIPPET_COPY_OPENUPGRADE_LIB___
-# There is a BUG with M1 and SCRAM authentication
 
-RUN if [ "$TARGETARCH" = "arm64" ]; then \
-apt-get $APT_OPTIONS update && \
-apt-get $APT_OPTIONS install -y --no-install-recommends libpq-dev build-essential && \
-/opt/venv/bin/python3 -mpip install psycopg2-binary --no-binary psycopg2-binary --force-reinstall; \
-fi
+
+#___SNIPPET_M1_BUG___

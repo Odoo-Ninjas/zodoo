@@ -1,0 +1,7 @@
+COPY --from=python_builder /python /opt/python
+WORKDIR /opt/python
+RUN make install
+RUN python3 -m venv --copies /opt/venv
+RUN rm -Rf /opt/python
+ENV PIP_NO_CACHE_DIR=no
+RUN rm /usr/local/bin/python3 /usr/bin/python3

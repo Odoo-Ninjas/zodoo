@@ -34,7 +34,7 @@ RUN tar xfz /usr/local/src/python
 WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
 
 #___SNIPPET_APT_PROXY___
-RUN apt-get $APT_OPTIONS install -y \
+RUN #___SNIPPET_APT_INSTALL___ \
     software-properties-common \
     cmake \
     exuberant-ctags \
@@ -75,7 +75,7 @@ ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
 
 #___SNIPPET_APT_PROXY___
-RUN apt-get $APT_OPTIONS install -y \
+RUN #___SNIPPET_APT_INSTALL___ \
     build-essential \
     libxml2-dev \
     libxslt1-dev \
@@ -94,13 +94,9 @@ RUN apt-get $APT_OPTIONS install -y \
     git
 
 # install python from compiled binaries
-COPY --from=python_builder /python /opt/python
-WORKDIR /opt/python
-RUN make install
-# Optional: speed up installs
-ENV PIP_NO_CACHE_DIR=no
-# Set custom PyPI index
-RUN pip3 config set global.index-url $PYPI_SERVER
+#___SNIPPET_PYTHON_INSTALL___
+
+#___SNIPPET_PYPI_SERVER___
 RUN python3 -mpip install pip --upgrade
 RUN /usr/local/bin/python3 -m venv --copies /opt/venv
 
@@ -142,15 +138,12 @@ ARG APT_PROXY_IP
 ARG APT_OPTIONS
 ARG PYPI_SERVER
 
-COPY bin/check_sha.sh /usr/local/bin
-RUN /bin/bash /usr/local/bin/check_sha.sh "$CUSTOMS_SHA"
+#___SNIPPET_CHECK_SHA___
 
 
 ENV LANG=C.UTF-8
 #___SNIPPET_APT_PROXY___
-RUN apt-get $APT_OPTIONS install \
-	-y \
-	--no-install-recommends \
+RUN #___SNIPPET_APT_INSTALL___ \
 			man \
             exuberant-ctags \
             libtool \
@@ -175,7 +168,6 @@ RUN apt-get $APT_OPTIONS install \
             cifs-utils \
             imagemagick \
             cups \
-            libreoffice \
             libcairo2 libpango1.0-0 libgdk-pixbuf2.0-0 libffi-dev shared-mime-info \
             locales \
 			libmagickwand-dev \
@@ -209,37 +201,20 @@ RUN apt-get $APT_OPTIONS install \
 COPY liberation-sans /usr/share/fonts/
 # rebuild font cache
 RUN fc-cache -f -v
+RUN locale-gen en_US.UTF-8 && dpkg-reconfigure locales
 
 #___SNIPPET_WKHTML2PDF___
 
 #___SNIPPET_NODEJS___
 
 
-# Transfer python
-ENV VIRTUAL_ENV=/opt/venv/env
-ENV PATH="/odoolib:/opt/venv/bin:$PATH"
-RUN rm -Rf /opt/venv
-COPY --from=build_pip /opt/python /opt/python
-COPY --from=build_pip /opt/venv /opt/venv
-WORKDIR /opt/python
-RUN make install
-RUN rm /usr/local/bin/python3 /usr/bin/python3
+#___SNIPPET_TRANSFER_VENV___
 
-COPY --from=libpostal_builder /usr/local/src /tmp/postal
-RUN if [ "$ODOO_INSTALL_LIBPOSTAL" = "1" ]; then \
-set -ex && \
-mkdir -p /usr/local/src/postal && \
-mv /tmp/postal/postal/code /usr/local/src/postal/code && \
-mv /tmp/postal/postal/data /usr/local/src/postal/data && \
-cd /usr/local/src/postal/code && \
-make install && \
-ldconfig; \
-fi
-RUN rm -Rf /tmp/postal
-RUN if [ "$ODOO_INSTALL_LIBPOSTAL" = "1" ]; then python3 -mpip install postal; fi
 
-RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
-RUN apt-get $APT_OPTIONS update && xargs apt-get $APT_OPTIONS install -y < /root/deb_requirements.txt
+#___SNIPPET_PYTHON_INSTALL___
+
+
+#___SNIPPET_DEB_REQUIREMENTS___
 
 
 WORKDIR /usr/local/bin
@@ -247,9 +222,4 @@ RUN ln /opt/venv/bin/python3
 
 WORKDIR /opt/odoo
 
-# There is a BUG with M1 and SCRAM authentication
-RUN if [ "$TARGETARCH" = "arm64" ]; then \
-apt-get $APT_OPTIONS update && \
-apt-get $APT_OPTIONS install -y libpq-dev && \
-/opt/venv/bin/python3 -mpip install psycopg2-binary --no-binary psycopg2-binary --force-reinstall; \
-fi
+#___SNIPPET_M1_BUG___

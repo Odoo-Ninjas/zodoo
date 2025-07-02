@@ -71,11 +71,7 @@ RUN apt-get update && apt-get install -y \
     libfreetype6-dev \
     freetds-dev
 
-COPY --from=python_builder /python /opt/python
-WORKDIR /opt/python
-RUN make install
-RUN python3 -m venv --copies /opt/venv
-
+#___SNIPPET_PYTHON_INSTALL___
 
 RUN pip3 install --no-cache-dir wheel && \
 pip3 install --no-cache-dir pip -U && \

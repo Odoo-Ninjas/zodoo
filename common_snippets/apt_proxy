@@ -1,6 +1,8 @@
 ARG APT_PROXY_IP
 ARG APT_OPTIONS
 
+ENV DEBIAN_FRONTEND=noninteractive
+
 ENV APT_OPTIONS="$APT_OPTIONS  -o Acquire::http::proxy::apt.postgresql.org=DIRECT"
 ENV APT_PROXY_IP="${APT_PROXY_IP}"
 

@@ -82,10 +82,10 @@ RUN apt-get $APT_OPTIONS update && apt-get $APT_OPTIONS install -y \
     libkrb5-dev \
     git
 
-COPY --from=python_builder /python /opt/python
-WORKDIR /opt/python
-RUN make install
-RUN python3 -m venv --copies /opt/venv
+# install python from compiled binaries
+#___SNIPPET_PYTHON_INSTALL___
+
+#___SNIPPET_PYPI_SERVER___
 
 
 RUN pip3 install --no-cache-dir wheel && \
@@ -95,10 +95,6 @@ pip3 install --no-cache-dir cython==0.29.35
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 
-# Optional: speed up installs
-ENV PIP_NO_CACHE_DIR=no
-# Set custom PyPI index
-RUN pip3 config set global.index-url $PYPI_SERVER
 RUN pip3 install --no-cache-dir --no-build-isolation -r /root/pip_requirements.txt
 
 RUN pip3 install \
@@ -129,15 +125,12 @@ ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_INSTALL_LIBPOSTAL
 ARG CUSTOMS_SHA
 
-COPY bin/check_sha.sh /usr/local/bin
-RUN /bin/bash /usr/local/bin/check_sha.sh "$CUSTOMS_SHA"
+#___SNIPPET_CHECK_SHA___
 
 
 ENV LANG=C.UTF-8
-RUN apt-get $APT_OPTIONS update
-RUN apt-get $APT_OPTIONS install \
-	-y \
-	--no-install-recommends \
+#___SNIPPET_APT_PROXY___
+RUN #___SNIPPET_APT_INSTALL___ \
 			man \
             exuberant-ctags \
             libtool \
@@ -220,10 +213,10 @@ rm -Rf /usr/local/man && mkdir -p /usr/local/man/man1
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/odoolib:/opt/venv/bin:$PATH"
 RUN rm -Rf /opt/venv
-COPY --from=build_pip /opt/python /opt/python
 COPY --from=build_pip /opt/venv /opt/venv
-WORKDIR /opt/python
-RUN make install
+
+#___SNIPPET_PYTHON_INSTALL___
+
 RUN rm /usr/local/bin/python3 /usr/bin/python3
 
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
