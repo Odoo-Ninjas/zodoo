@@ -781,7 +781,6 @@ class Modules(object):
                     continue
                 try:
                     dep_mod = Module.get_by_name(dep, no_deptree=True)
-
                 except (NotInAddonsPath, Module.IsNot, KeyError):
                     # if it is a module, which is probably just auto install
                     # but not in the manifest, then it is not critical
@@ -796,8 +795,6 @@ class Modules(object):
                             bold=False,
                         )
                     dep_mod = Module(None, force_name=dep)
-                except RecursionError as ex:
-                    raise Exception(f"Recursion at {mod}/{dep}") from ex
 
                 result.add(dep_mod)
                 if dep_mod in dep_tree_cache:
