@@ -4,3 +4,5 @@ ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/odoolib:/opt/venv/bin:$PATH"
 RUN rm -Rf /opt/venv
 COPY --from=build_pip /opt/venv /opt/venv
+
+#___SNIPPET_LINK_PYTHON_VENV___

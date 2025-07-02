@@ -88,6 +88,8 @@ RUN #___SNIPPET_APT_INSTALL___ \
 # install python from compiled binaries
 #___SNIPPET_PYTHON_INSTALL___
 
+#___SNIPPET_SETUP_PYTHON_VENV___
+
 #___SNIPPET_PYPI_SERVER___
 RUN pip3 install --no-cache-dir wheel && \
 pip3 install --no-cache-dir pip -U && \
@@ -200,7 +202,7 @@ rm -Rf /usr/local/man && mkdir -p /usr/local/man/man1
 
 #___SNIPPET_TRANSFER_VENV___
 
-#SNIPPET_PYTHON_INSTALL___
+#___SNIPPET_PYTHON_INSTALL___
 
 #___SNIPPET_DEB_REQUIREMENTS___
 

@@ -1,0 +1,7 @@
+
+RUN rm -Rf /opt/venv || true
+RUN python3 -m venv --copies /opt/venv
+RUN rm -Rf /opt/python
+ENV PIP_NO_CACHE_DIR=no
+
+#___SNIPPET_LINK_PYTHON_VENV___

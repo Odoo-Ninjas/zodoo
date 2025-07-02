@@ -1,12 +1,4 @@
 COPY --from=python_builder /python /opt/python
 WORKDIR /opt/python
 RUN make install
-RUN rm -Rf /opt/venv || true
-RUN sleep 10 && python3 -m venv --copies /opt/venv
-RUN rm -Rf /opt/python
-ENV PIP_NO_CACHE_DIR=no
 RUN rm /usr/local/bin/python3 /usr/bin/python3
-
-RUN rm /usr/local/bin/python3 || true
-RUN rm /usr/bin/python3 || true
-RUN cd /usr/local/bin && ln -s /opt/venv/bin/python3
