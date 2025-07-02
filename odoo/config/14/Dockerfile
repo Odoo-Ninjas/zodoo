@@ -207,12 +207,9 @@ RUN locale-gen en_US.UTF-8 && dpkg-reconfigure locales
 
 #___SNIPPET_NODEJS___
 
-
-#___SNIPPET_TRANSFER_VENV___
-
-
 #___SNIPPET_PYTHON_INSTALL___
 
+#___SNIPPET_TRANSFER_VENV___
 
 #___SNIPPET_DEB_REQUIREMENTS___
 

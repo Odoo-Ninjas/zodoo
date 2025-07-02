@@ -205,9 +205,9 @@ RUN \
 chown odoo:odoo /home/odoo -R && \
 rm -Rf /usr/local/man && mkdir -p /usr/local/man/man1
 
-#___SNIPPET_TRANSFER_VENV___
-
 #___SNIPPET_PYTHON_INSTALL___
+
+#___SNIPPET_TRANSFER_VENV___
 
 #___SNIPPET_DEB_REQUIREMENTS___
 
