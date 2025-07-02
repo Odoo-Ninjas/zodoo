@@ -89,7 +89,6 @@ RUN #___SNIPPET_APT_INSTALL___  \
     cmake \
     git
 
-# install python from compiled binaries
 #___SNIPPET_PYTHON_INSTALL___
 
 #___SNIPPET_SETUP_PYTHON_VENV___

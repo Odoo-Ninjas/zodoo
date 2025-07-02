@@ -82,8 +82,9 @@ RUN apt-get $APT_OPTIONS update && apt-get $APT_OPTIONS install -y \
     libkrb5-dev \
     git
 
-# install python from compiled binaries
 #___SNIPPET_PYTHON_INSTALL___
+
+#___SNIPPET_SETUP_PYTHON_VENV___
 
 #___SNIPPET_PYPI_SERVER___
 
@@ -210,14 +211,14 @@ chown odoo:odoo /home/odoo -R && \
 rm -Rf /usr/local/man && mkdir -p /usr/local/man/man1
 
 # Transfer python
-ENV VIRTUAL_ENV=/opt/venv/env
-ENV PATH="/odoolib:/opt/venv/bin:$PATH"
-RUN rm -Rf /opt/venv
-COPY --from=build_pip /opt/venv /opt/venv
+# ENV VIRTUAL_ENV=/opt/venv/env
+# ENV PATH="/odoolib:/opt/venv/bin:$PATH"
+# RUN rm -Rf /opt/venv
+# COPY --from=build_pip /opt/venv /opt/venv
 
 #___SNIPPET_PYTHON_INSTALL___
 
-RUN rm /usr/local/bin/python3 /usr/bin/python3
+#___SNIPPET_TRANSFER_VENV___
 
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
 RUN apt-get $APT_OPTIONS update && xargs apt-get $APT_OPTIONS install -y < /root/deb_requirements.txt
