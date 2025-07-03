@@ -1,5 +1,5 @@
 import time
-import sys
+import hashlib
 from packaging.requirements import Requirement
 from packaging.markers import Marker
 from packaging.specifiers import SpecifierSet
@@ -106,16 +106,13 @@ def after_compose(config, settings, yml, globals):
     _apply_fluentd_logging(config, yml, settings, globals)
 
 
-def store_sha_of_external_deps(config, deps):
+def store_sha_of_external_deps(deps, PYTHON_VERSION, file):
     v = ""
     for k in sorted(deps.keys()):
         v += str(deps[k])
-    # get md5 hash of string
-    v = hashlib.md5(v.encode("utf-8")).hexdigest()
-
-    req_file = config.WORKING_DIR / "requirements.hash"
-    req_file.write_text(v)
-
+    v+=str(PYTHON_VERSION)
+    hash = get_string_hash(v)
+    file.write_text(hash)
 
 def _filter_pip(packages, config):
     def _map(x):
@@ -159,7 +156,8 @@ def _remove_requirements_from_requirements(the_list, remove_this):
 
 
 def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
-    from wodoo.odoo_config import customs_dir
+    from wodoo.odoo_config import customs_dir, MANIFEST
+    manifest = MANIFEST()
 
     if float(config.ODOO_VERSION) < 13.0:
         return
@@ -167,13 +165,20 @@ def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
     get_services = globals["tools"].get_services
 
     odoo_machines = get_services(config, "odoo_base", yml=yml)
+    odoo_dir = manifest.get("odoo_dir", "odoo")
 
     external_dependencies = _get_dependencies(config, globals, PYTHON_VERSION)
     external_dependencies_justaddons = _get_dependencies(
         config,
         globals,
         PYTHON_VERSION,
-        exclude=("odoo", "enterprise"),
+        exclude=(odoo_dir, "enterprise"),
+    )
+    external_dependencies_odoo = _get_dependencies(
+        config,
+        globals,
+        PYTHON_VERSION,
+        include=(odoo_dir, "enterprise"),
     )
     # add static requirements:
     static_reqs = customs_dir() / "requirements.static"
@@ -186,7 +191,8 @@ def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
         external_dependencies["pip"] += static_reqs
         external_dependencies_justaddons["pip"] += static_reqs
 
-    store_sha_of_external_deps(config, external_dependencies)
+    store_sha_of_external_deps(external_dependencies, PYTHON_VERSION, config.WORKING_DIR / 'requirements.hash')
+    store_sha_of_external_deps(external_dependencies_odoo, PYTHON_VERSION, config.dirs['run'] / 'requirements.odoo.hash')
 
     sha = _get_sha(config) if settings["SHA_IN_DOCKER"] == "1" else "n/a"
     click.secho(f"Identified SHA '{sha}'", fg="yellow")
@@ -269,7 +275,7 @@ def cache_dir(tools):
     return path
 
 
-def _get_dependencies(config, globals, PYTHON_VERSION, exclude=None):
+def _get_dependencies(config, globals, PYTHON_VERSION, exclude=None, include=None):
     # fetch dependencies from odoo lib requirements
     # requirements from odoo framework
     tools = globals["tools"]
@@ -277,6 +283,12 @@ def _get_dependencies(config, globals, PYTHON_VERSION, exclude=None):
     Modules = globals["Modules"]
     Module = globals["Module"]
 
+    def included(module):
+        module = Module.get_by_name(module)
+        for X in exclude or []:
+            if str(module.path).startswith(X):
+                return True
+        return False
     def not_excluded(module):
         module = Module.get_by_name(module)
         for X in exclude or []:
@@ -289,6 +301,8 @@ def _get_dependencies(config, globals, PYTHON_VERSION, exclude=None):
     modules = list(sorted(set(modules) | set(MINIMAL_MODULES or [])))
     if exclude:
         modules = [x for x in modules if not_excluded(x)]
+    if include:
+        modules = [x for x in modules if included(x)]
     external_dependencies = Modules.get_all_external_dependencies(
         modules, PYTHON_VERSION
     )
@@ -436,3 +450,10 @@ def _filter_framework_requirements(reqs):
         return True
 
     return "\n".join(filter(_f, reqs.splitlines()))
+
+def get_string_hash(input_string: str) -> str:
+    """
+    Returns the SHA-256 hash of the input string as a hexadecimal string.
+    """
+    hash_object = hashlib.sha256(input_string.encode('utf-8'))
+    return hash_object.hexdigest()
