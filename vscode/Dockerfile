@@ -1,4 +1,4 @@
-FROM ubuntu:24.04
+FROM ubuntu:22.04
 
 ARG OWNER_UID
 ARG DOCKER_GID
@@ -25,26 +25,25 @@ RUN #___SNIPPET_APT_INSTALL___ \
     wget \
     x11-apps \
     python3 \
+    python3-dev \
     python3-pip \
     python3-venv \
     fluxbox \
     xdotool \
-    postgresql-server-dev-16 \
+    libpq-dev \
     software-properties-common \
-    build-essential
+    build-essential \
+    gnupg-agent 
 
 
 # --- COPY newer Python version ---
-RUN add-apt-repository -y ppa:deadsnakes/ppa --no-update && \
-    find /etc/apt/sources.list /etc/apt/sources.list.d/ -type f -print0 | \
-    xargs -0 -I{} bash -c ' \
-        sed -i "s|https://|http://|g" "$1"; \
-    ' _ {} && \
-    #___SNIPPET_APT_INSTALL___ \
-        python3.9 \
-        python3.9-dev \
-        python3.9-distutils \
-        python3.9-venv
+RUN add-apt-repository -y ppa:deadsnakes/ppa --no-update
+RUN #___SNIPPET_APT_INSTALL___ \
+    software-properties-common \
+    python3.11 \
+    python3.11-dev \
+    python3.11-distutils \
+    python3.11-venv
 
 # --- Determine VSCode download link and install ---
 RUN python3 <<'EOF'
@@ -79,7 +78,7 @@ RUN mkdir -p /home/$USERNAME/.vnc && \
 USER $USERNAME
 WORKDIR /home/$USERNAME
 
-RUN python3.9 -m venv venv && \
+RUN python3.11 -m venv venv && \
     . venv/bin/activate && \
     ./venv/bin/python -m pip install pipx && \
     pipx install gimera
@@ -122,7 +121,6 @@ ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
 
 USER root
 ENV SHELL=/bin/bash
-RUN apt install -y python3-dev
 
 
 #___SNIPPET_WODOO___
@@ -132,7 +130,7 @@ USER $USERNAME
 USER $USERNAME
 ENV SHELL=/bin/bash
 
-RUN $HOME/.local/bin/odoo completion -x
+RUN /usr/local/bin/odoo completion -x
 RUN $HOME/.local/bin/gimera completion -x
 
 

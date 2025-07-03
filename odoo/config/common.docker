@@ -6,7 +6,7 @@ RUN python3 -mpip install pipx --upgrade
 USER root
 #___SNIPPET_WODOO___
 USER odoo
-#__SNIPPET_WODOO_USER___
+#___SNIPPET_WODOO_USER___
 
 USER root
 RUN echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc

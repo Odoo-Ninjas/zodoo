@@ -1,4 +1,4 @@
-FROM ubuntu:24.04
+FROM ubuntu:22.04
 ARG TARGETARCH
 ARG OWNER_UID
 ARG DOCKER_GID
@@ -17,11 +17,12 @@ ENV PATH="$PATH:/opt/robot/.local/bin"
 RUN #___SNIPPET_APT_INSTALL___ \
 wget unzip python3 \
 python3-pip python3-magic libmagickwand-dev xvfb curl \
-sudo curl software-properties-common pipx build-essential python3-dev
+sudo curl software-properties-common pipx build-essential python3-dev \
+gnupg-agent
 
 COPY ./requirements.txt /tmp/requirements.txt
-RUN python3 -mpip install setuptools python-dotenv --break-system-packages
-RUN python3 -mpip install --no-cache-dir -r /tmp/requirements.txt --break-system-packages
+RUN python3 -mpip install setuptools python-dotenv 
+RUN python3 -mpip install --no-cache-dir -r /tmp/requirements.txt 
 RUN rm -rf /tmp/requirements.txt
 
 

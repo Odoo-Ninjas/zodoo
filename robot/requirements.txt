@@ -7,7 +7,7 @@ odoo-rpc-client==1.2.0
 click==8.1.7
 newrelic==7.16.0.178
 selenium==4.3.0
-robotframework==7.1.1
+robotframework==7.3.1
 robotframework-datetime-tz==1.0.6
 robotframework-faker==5.0.0
 robotframework-imaplibrary==0.3.0

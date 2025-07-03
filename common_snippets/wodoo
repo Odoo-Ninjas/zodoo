@@ -5,7 +5,7 @@ ENV WODOO_PYTHON=$WODOO_ENV_DIR/bin/python3
 
 RUN #___SNIPPET_APT_INSTALL___ \
      software-properties-common libxml2-dev libxslt1-dev zlib1g-dev python3-dev build-essential
-RUN add-apt-repository -y ppa:deadsnakes/ppa
+RUN add-apt-repository -y ppa:deadsnakes/ppa --no-update
 RUN #___SNIPPET_APT_INSTALL___ \
      software-properties-common \
      python3.11 python3.11-venv python3.11-dev
