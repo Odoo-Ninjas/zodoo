@@ -19,13 +19,12 @@ ARG DOCKER_GID
 FROM $BASE_IMAGE AS python_builder
 ARG ODOO_PYTHON_VERSION
 ARG APT_PROXY_IP
-ARG PYPI_SERVER
 ARG APT_OPTIONS
+ARG PYPI_SERVER
 COPY python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
 WORKDIR /usr/local/src
 RUN tar xfz /usr/local/src/python
 WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
-
 
 #___SNIPPET_APT_PROXY___
 RUN #___SNIPPET_APT_INSTALL___ \
@@ -62,15 +61,14 @@ ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_REQUIREMENTS
 ARG ODOO_FRAMEWORK_REQUIREMENTS
 ARG APT_PROXY_IP
-ARG APT_OPTIONS
 ARG PYPI_SERVER
+ARG APT_OPTIONS
 
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
 
-
 #___SNIPPET_APT_PROXY___
-RUN #___SNIPPET_APT_INSTALL___  \
+RUN #___SNIPPET_APT_INSTALL___ \
     build-essential \
     libxml2-dev \
     libxslt1-dev \
@@ -83,9 +81,9 @@ RUN #___SNIPPET_APT_INSTALL___  \
     libpoppler-cpp-dev \
     pkg-config \
     libfreetype6-dev \
+    freetds-dev \
     libffi-dev \
     libkrb5-dev \
-    freetds-dev \
     cmake \
     git
 
@@ -103,8 +101,6 @@ pip3 install --no-cache-dir setuptools -U
 
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
-# RUN pip install "Cython<3"
-# no build isolation to use cython<3
 RUN pip3 install --no-cache-dir --no-build-isolation -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
 
 RUN echo "$ODOO_FRAMEWORK_REQUIREMENTS"  | base64 --decode > /root/framework_requirements.txt
@@ -126,7 +122,6 @@ ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_PYTHON_VERSION
 ARG DOCKER_GROUP_ID
 ARG INSTALL_DOCKER_CLIENTS
-ARG ODOO_INSTALL_LIBPOSTAL
 ARG CUSTOMS_SHA
 ARG APT_PROXY_IP
 ARG PYPI_SERVER
@@ -137,17 +132,17 @@ ARG DOCKER_GID
 
 
 ENV LANG=C.UTF-8
-
+ENV PIP_NO_CACHE_DIR=no
 
 #___SNIPPET_APT_PROXY___
 
-RUN #___SNIPPET_APT_INSTALL___ \ 
-			man \
+RUN #___SNIPPET_APT_INSTALL___ \
+            man \
             htop \
             ca-certificates \
             curl \
             node-less \
-			node-clean-css \
+            node-clean-css \
             tmux \
             libfreetype6-dev \
             libpng-dev \
@@ -172,7 +167,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
             imagemagick \
             cups \
             locales \
-			libmagickwand-dev \
+            libmagickwand-dev \
             ffmpeg \
             zip \
             gpg-agent \
@@ -197,6 +192,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
 COPY liberation-sans /usr/share/fonts/
 # rebuild font cache
 RUN fc-cache -f -v
+RUN locale-gen en_US.UTF-8 && dpkg-reconfigure locales
 
 #___SNIPPET_WKHTML2PDF___
 

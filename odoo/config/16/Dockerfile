@@ -18,8 +18,8 @@ ARG DOCKER_GID
 FROM $BASE_IMAGE AS python_builder
 ARG ODOO_PYTHON_VERSION
 ARG APT_PROXY_IP
-ARG PYPI_SERVER
 ARG APT_OPTIONS
+ARG PYPI_SERVER
 COPY python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
 WORKDIR /usr/local/src
 RUN tar xfz /usr/local/src/python
@@ -60,11 +60,12 @@ ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_REQUIREMENTS
 ARG ODOO_FRAMEWORK_REQUIREMENTS
 ARG APT_PROXY_IP
-ARG APT_OPTIONS
 ARG PYPI_SERVER
+ARG APT_OPTIONS
 
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
+
 #___SNIPPET_APT_PROXY___
 RUN #___SNIPPET_APT_INSTALL___ \
     build-essential \
@@ -79,9 +80,9 @@ RUN #___SNIPPET_APT_INSTALL___ \
     libpoppler-cpp-dev \
     pkg-config \
     libfreetype6-dev \
+    freetds-dev \
     libffi-dev \
     libkrb5-dev \
-    freetds-dev \
     cmake \
     git
 
@@ -92,6 +93,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
 #___SNIPPET_SETUP_PYTHON_VENV___
 
 #___SNIPPET_PYPI_SERVER___
+
 RUN pip3 install --no-cache-dir wheel && \
 pip3 install --no-cache-dir pip -U && \
 pip3 install --no-cache-dir setuptools -U
@@ -99,13 +101,12 @@ pip3 install --no-cache-dir setuptools -U
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 RUN pip install "Cython<3"
-# no build isolation to use cython<3
 RUN pip3 install --no-cache-dir --no-build-isolation -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
 
 RUN echo "$ODOO_FRAMEWORK_REQUIREMENTS"  | base64 --decode > /root/framework_requirements.txt
 RUN pip3 install --no-cache-dir --no-build-isolation -r /root/framework_requirements.txt
 
-RUN pip3 install --no-cache-dir pudb ipython debugpy
+RUN pip3 install --no-cache-dir --no-build-isolation pudb ipython debugpy
 
 #___SNIPPET_OPENUPGRADELIB___
 
@@ -130,6 +131,7 @@ ARG DOCKER_GID
 
 
 ENV LANG=C.UTF-8
+ENV PIP_NO_CACHE_DIR=no
 
 #___SNIPPET_APT_PROXY___
 RUN #___SNIPPET_APT_INSTALL___ \
@@ -138,7 +140,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
             ca-certificates \
             curl \
             node-less \
-			node-clean-css \
+            node-clean-css \
             tmux \
             libfreetype6-dev \
             libpng-dev \
@@ -169,6 +171,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
             gpg-agent \
             pdftk \
             python3-gi \
+            python3-click \
             python3-gi-cairo \
             python3-cairo \
             gir1.2-gtk-3.0 \
@@ -177,7 +180,6 @@ RUN #___SNIPPET_APT_INSTALL___ \
             libcups2-dev \
             locales-all \
             libpoppler-cpp-dev \
-            python3-click \
             locales \
             postgresql-client \
             sassc \
@@ -194,7 +196,6 @@ RUN locale-gen en_US.UTF-8 && dpkg-reconfigure locales
 #___SNIPPET_WKHTML2PDF___
 
 #___SNIPPET_NODEJS___
-
 
 RUN \
 chown odoo:odoo /home/odoo -R && \

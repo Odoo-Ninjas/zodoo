@@ -105,12 +105,12 @@ pip3 install --no-cache-dir setuptools -U
 
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
-RUN pip3 install --no-cache-dir  -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
+RUN pip3 install --no-cache-dir --no-build-isolation -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
 
 RUN echo "$ODOO_FRAMEWORK_REQUIREMENTS"  | base64 --decode > /root/framework_requirements.txt
-RUN pip3 install --no-cache-dir  -r /root/framework_requirements.txt
+RUN pip3 install --no-cache-dir --no-build-isolation -r /root/framework_requirements.txt
 
-RUN pip3 install --no-cache-dir pudb ipython debugpy
+RUN pip3 install --no-cache-dir --no-build-isolation pudb ipython debugpy
 
 #___SNIPPET_OPENUPGRADELIB___
 
@@ -130,16 +130,13 @@ ARG INSTALL_DOCKER_CLIENTS
 ARG ODOO_INSTALL_LIBPOSTAL
 ARG CUSTOMS_SHA
 ARG APT_PROXY_IP
-ARG APT_OPTIONS
 ARG PYPI_SERVER
+ARG APT_OPTIONS
 ARG DOCKER_GID
 
 #___SNIPPET_CHECK_SHA___
 
-# Optional: speed up installs
 ENV PIP_NO_CACHE_DIR=no
-# Set custom PyPI index
-
 ENV LANG=C.UTF-8
 
 #___SNIPPET_APT_PROXY___
@@ -199,22 +196,21 @@ RUN #___SNIPPET_APT_INSTALL___ \
 COPY liberation-sans /usr/share/fonts/
 # rebuild font cache
 RUN fc-cache -f -v
-
+RUN locale-gen en_US.UTF-8 && dpkg-reconfigure locales
 
 #___SNIPPET_WKHTML2PDF___
 
 #___SNIPPET_NODEJS___
+
+#___SNIPPET_DEB_REQUIREMENTS___
 
 #___SNIPPET_PYTHON_INSTALL___
 
 #___SNIPPET_TRANSFER_VENV___
 
 
-#___SNIPPET_DEB_REQUIREMENTS___
-
 WORKDIR /opt/odoo
 
 #___SNIPPET_COPY_OPENUPGRADE_LIB___
-
 
 #___SNIPPET_M1_BUG___
