@@ -3,13 +3,7 @@ ENV WODOO_PIPX_HOME=/opt/wodoo_pipx
 ENV WODOO_ENV_DIR=/opt/wodoo_pipx/venvs/wodoo
 ENV WODOO_PYTHON=$WODOO_ENV_DIR/bin/python3
 
-RUN #___SNIPPET_APT_INSTALL___ \
-     software-properties-common libxml2-dev libxslt1-dev zlib1g-dev python3-dev build-essential
-RUN add-apt-repository -y ppa:deadsnakes/ppa --no-update
-RUN #___SNIPPET_APT_INSTALL___ \
-     software-properties-common \
-     python3.11 python3.11-venv python3.11-dev
-RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
+#___SNIPPET_PYTHON311___
 
 COPY --from=wodoo_src:latest /opt/wodoo "$WODOO_SRC"
 RUN chown -R $CURRENT_USER:$CURRENT_USER "$WODOO_SRC"
@@ -44,3 +38,6 @@ fi
 
 RUN echo 'export PATH=$PATH:$HOME/.local/bin' >> $HOME/.bashrc
 RUN chmod a+rw -R "$WODOO_SRC" "$WODOO_PIPX_HOME" "$WODOO_ENV_DIR"
+RUN echo "export WODOO_PYTHON=$WODOO_PYTHON" >> /etc/bash.bashrc
+RUN echo "export WODOO_PYTHON=$WODOO_PYTHON" >> /etc/profile.d/wodoo_python.sh && \
+    chmod +x /etc/profile.d/wodoo_python.sh

@@ -5,8 +5,6 @@ build-essential python3-dev
 RUN python3 -mpip install pipx --upgrade
 USER root
 #___SNIPPET_WODOO___
-USER odoo
-#___SNIPPET_WODOO_USER___
 
 USER root
 RUN echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
@@ -44,5 +42,5 @@ ADD bin/ /odoolib/
 ENV ODOO_CONFIG_DIR=${ODOO_CONFIG_DIR}
 ADD config/${ODOO_VERSION}/config ${ODOO_CONFIG_DIR}.template
 
-CMD /odoolib/run.py
+CMD ["sh", "-c", "WODOO_PYTHON='/opt/wodoo_pipx/venvs/wodoo/bin/python3 /odoolib/run.py"]
 ENTRYPOINT ["/odoolib/entrypoint.sh"]
