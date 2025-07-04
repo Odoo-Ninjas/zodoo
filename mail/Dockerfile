@@ -6,7 +6,8 @@ FROM ubuntu:22.04
 # procmail sets up mailbox directories; postconf |grep mailbox_command
 ENV DEBIAN_FRONTEND=noninteractive
 #___SNIPPET_APT_PROXY___
-RUN #___SNIPPET_APT_INSTALL \
+RUN #___SNIPPET_APT_INSTALL___ \
+	openssl \
 	vim postfix dovecot-core \
 	dovecot-imapd telnet postfix-pcre procmail \
 	mailutils rsyslog systemctl && \
