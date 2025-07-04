@@ -1,4 +1,3 @@
-#!/usr/local/bin/wodoo_python
 import sys
 import os
 import shutil
@@ -17,7 +16,13 @@ os.system(f"chown '{owner}:{owner}' /opt/files")
 os.system(f"chown '{owner}:{owner}' /home/odoo")  # -R too heavy
 
 try:
-    os.execvp(sys.argv[1], sys.argv[1:])
+    if sys.argv[1].endswith('.py'):
+        # If the first argument is a Python script, execute it with the Python interpreter
+        WODOO_PYTHON = os.getenv("WODOO_PYTHON")
+        cmd, args  = WODOO_PYTHON, [WODOO_PYTHON] + sys.argv[1:]
+    else:
+        cmd, args  = sys.argv[1], sys.argv[1:]
+    os.execvp(cmd, args)
 except Exception as ex:
-    print(f"Error executing command: {sys.argv[1:]} {ex}")
+    print(f"Error executing command: <{cmd}> {args}: \n{ex}")
     sys.exit(1)
