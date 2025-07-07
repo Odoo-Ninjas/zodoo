@@ -34,3 +34,8 @@ packages.wazuh.com                      # Wazuh (OSSEC fork)
 ports.ubuntu.com
 apt.postgresql.org
 ppa.launchpadcontent.net
+deb.debian.org
+security.debian.org
+archive.ubuntu.com
+security.ubuntu.com
+download.docker.com
