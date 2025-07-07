@@ -1,5 +1,10 @@
 repos:
 - branch: master
+  path: apt_cacher/docker
+  sha: 9bca995afec49ba843a97bcad3220f23a7c17a90
+  type: integrated
+  url: https://github.com/SafeEval/docker-squid-deb-proxy.git
+- branch: master
   patches: []
   path: framework/images/theia_odoo_vim
   sha: 41b0221255f4c25362780da5977512a4ef970328
