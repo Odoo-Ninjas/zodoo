@@ -138,7 +138,7 @@ COPY config/$ODOO_VERSION/requirements.txt /root/requirements.txt
 # Optional: speed up installs
 ENV PIP_NO_CACHE_DIR=no
 # Set custom PyPI index
-RUN pip3 config set global.index-url $PYPI_SERVER
+#___SNIPPET_PYPI_SERVER___
 RUN pip3 install --no-cache-dir wheel
 RUN hash -r && \
         pip3 install --no-cache-dir --upgrade pip && \

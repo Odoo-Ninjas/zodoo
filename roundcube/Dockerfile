@@ -15,9 +15,10 @@ RUN mkdir -p /rc
 RUN apt upgrade -y && apt $APT_OPTIONS install -y php-net-ldap2 php-net-ldap3 php-imagick php7.4-common php7.4-gd php7.4-imap php7.4-json php7.4-curl php7.4-zip php7.4-xml php7.4-mbstring php7.4-bz2 php7.4-intl php7.4-gmp php7.4-fpm php7.4-sqlite3
 RUN apt $APT_OPTIONS install -y nginx wget composer
 
+#___SNIPPET_PYPI_SERVER___
+
 RUN \
 apt $APT_OPTIONS install -y python3-pip && \
-pip3 config set global.index-url $PYPI_SERVER && \
 pip3 install --no-cache-dir pip --upgrade && \
 pip3 install --no-cache-dir wheel && \
 pip3 install --no-cache-dir pathlib

@@ -94,7 +94,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
 # Optional: speed up installs
 ENV PIP_NO_CACHE_DIR=no
 # Set custom PyPI index
-RUN pip3 config set global.index-url $PYPI_SERVER
+#___SNIPPET_PYPI_SERVER___
 RUN pip3 install --no-cache-dir wheel -U && \
 pip3 --no-cache-dir install pip -U && \
 pip3 --no-cache-dir install setuptools -U
