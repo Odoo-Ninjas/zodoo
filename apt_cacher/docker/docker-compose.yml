@@ -1,0 +1,17 @@
+version: '3'
+services:
+  squid-deb-proxy:
+    # docker-compose settings
+    build: .
+    container_name: squid-deb-proxy
+    # docker swarm settings
+    deploy:
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
+    # general settings
+    image: squid-deb-proxy
+    ports:
+      - "8002:8000/tcp"
+    volumes:
+      - ./squid:/data/squid

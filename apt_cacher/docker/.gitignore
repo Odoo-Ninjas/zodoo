@@ -1,0 +1,11 @@
+bootstrap_salt.sh
+*~
+*.swp
+*.swo
+*.pyc
+*.img
+*.qcow2
+*.sw*
+
+squid/cache
+squid/log
