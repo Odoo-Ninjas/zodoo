@@ -181,3 +181,46 @@ RUN pip3 install --no-cache-dir lxml==4.6.0
 
 RUN apt-get update && apt-get install -y libodbc1 unixodbc-dev unixodbc
 RUN pip3 install --no-cache-dir requests-oauth2client faker requests_oauthlib 
+
+
+
+
+
+USER root
+RUN echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
+
+
+# pudb config
+RUN mkdir /home/odoo/.config/pudb -p
+RUN chown odoo:odoo /home/odoo/.config -R
+ADD pudb.cfg /home/odoo/.config/pudb
+
+RUN touch /helpme
+
+ENV ODOO_USER=odoo
+ENV ODOO_DATA_DIR=/opt/files
+ENV ODOO_HOME=/opt/odoo
+ENV ODOO_CONFIG_TEMPLATE_DIR=/etc/odoo/config.template
+ENV ODOO_CONFIG_DIR=/etc/odoo/config
+ENV ODOO_SUDO_CMD=1
+ENV OUT_DIR=/opt/out_dir
+ENV RUN_DIR=/opt/run
+ENV INTERCOM_DIR=/intercom
+ENV CUSTOMS_DIR=/opt/src
+ENV ODOOLIB=/odoolib
+ENV PYTHONPATH=/odoolib:/opt/tools
+ENV LANG=en_US.UTF-8
+ENV LANGUAGE=en_US:en
+ENV LC_ALL=en_US.UTF-8
+ENV PYTHONBREAKPOINT=0
+ENV ODOO_SERVER_TOOLS_MODULES=/opt/odoo_server_tools
+ENV ODOO_FRAMEWORK_KEEP_SQL_CONNECTION=1
+ENV PATH=/odoolib:/opt/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ENV DOCKER_MACHINE=1
+
+ADD bin/ /odoolib/
+ENV ODOO_CONFIG_DIR=${ODOO_CONFIG_DIR}
+ADD config/${ODOO_VERSION}/config ${ODOO_CONFIG_DIR}.template
+
+CMD ["sh", "-c", "/opt/wodoo_pipx/venvs/wodoo/bin/python3 /odoolib/run.py"]
+ENTRYPOINT ["/odoolib/entrypoint.sh"]
