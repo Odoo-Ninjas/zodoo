@@ -1,5 +1,7 @@
 repos:
 - branch: master
+  patches:
+  - path: patches/aptcacher
   path: apt_cacher
   sha: 9bca995afec49ba843a97bcad3220f23a7c17a90
   type: integrated
