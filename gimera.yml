@@ -1,6 +1,6 @@
 repos:
 - branch: master
-  path: apt_cacher/docker
+  path: apt_cacher
   sha: 9bca995afec49ba843a97bcad3220f23a7c17a90
   type: integrated
   url: https://github.com/SafeEval/docker-squid-deb-proxy.git
