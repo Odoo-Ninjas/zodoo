@@ -4,16 +4,11 @@ ARG APT_OPTIONS
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Chatgpt: ports.ubuntu.com is not mirrored widely
-ENV APT_OPTIONS="$APT_OPTIONS  \
-    -o Acquire::http::proxy::ports.ubuntu.com=DIRECT \
-    -o Acquire::http::proxy::security.ubuntu.com=DIRECT \
-    -o Acquire::http::proxy::apt.postgresql.org=DIRECT \
-    -o Acquire::http::proxy::download.docker.com=DIRECT  \
-    -o Acquire::https::Proxy::ppa.launchpadcontent.net=DIRECT \
-    -o Acquire::http::Proxy::ppa.launchpadcontent.net=DIRECT"
+ENV APT_OPTIONS="$APT_OPTIONS"
 ENV APT_PROXY_IP="${APT_PROXY_IP}"
 
-RUN if [ "$APT_PROXY_IP" != "ignore" ]; then \
-    echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:3142\";" > /etc/apt/apt.conf.d/01proxy; \
-fi
+RUN if [ -n "$APT_PROXY_IP" ] && [ "$APT_PROXY_IP" != "ignore" ]; then \
+      [ -z "$APT_PROXY_PORT" ] && APT_PROXY_PORT=3142; \
+      echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:${APT_PROXY_PORT}\";" > /etc/apt/apt.conf.d/01proxy; \
+    fi
 RUN apt-get $APT_OPTIONS update
