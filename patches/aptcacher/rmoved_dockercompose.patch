@@ -1,0 +1,35 @@
+From 16936fbd0d84a5bc7f8e41c1a19920057c5dc419 Mon Sep 17 00:00:00 2001
+From: Marc Wimmer <marc@zebroo.de>
+Date: Mon, 7 Jul 2025 21:20:58 +0200
+Subject: [PATCH] for patch
+
+---
+ docker-compose.yml | 17 -----------------
+ 1 file changed, 17 deletions(-)
+ delete mode 100644 apt_cacher/docker-compose.yml
+
+diff --git a/docker-compose.yml b/docker-compose.yml
+deleted file mode 100644
+index 8a657ce..0000000
+--- a/docker-compose.yml
++++ /dev/null
+@@ -1,17 +0,0 @@
+-version: '3'
+-services:
+-  squid-deb-proxy:
+-    # docker-compose settings
+-    build: .
+-    container_name: squid-deb-proxy
+-    # docker swarm settings
+-    deploy:
+-      replicas: 1
+-      placement:
+-        constraints: [node.role == manager]
+-    # general settings
+-    image: squid-deb-proxy
+-    ports:
+-      - "8002:8000/tcp"
+-    volumes:
+-      - ./squid:/data/squid
+-- 
+2.43.0
