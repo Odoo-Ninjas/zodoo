@@ -31,3 +31,6 @@ extras.ubuntu.com                       # Ubuntu Extras
 ppa.launchpad.net                       # Ubuntu PPA
 download.virtualbox.org                 # VirtualBox
 packages.wazuh.com                      # Wazuh (OSSEC fork)
+ports.ubuntu.com
+apt.postgresql.org
+ppa.launchpadcontent.net
