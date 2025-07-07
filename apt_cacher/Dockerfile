@@ -1,5 +1,4 @@
-FROM debian:jessie
-MAINTAINER Jack Sullivan
+FROM debian:bullseye
 
 # Install squid-deb-proxy
 RUN apt-get update -y && \
@@ -10,6 +9,7 @@ RUN apt-get update -y && \
 
 # Copy init script
 COPY entrypoint.sh /data/entrypoint.sh
+COPY squid/etc/extra-sources.acl /data/squid/etc/extra-sources.acl
 RUN chmod +x /data/entrypoint.sh
 
 # Handle user and paths
@@ -21,4 +21,4 @@ RUN ln -sf /data/squid/etc/extra-sources.acl /etc/squid-deb-proxy/mirror-dstdoma
 
 EXPOSE 8000/tcp
 
-ENTRYPOINT ["/data/entrypoint.sh"]
+ENTRYPOINT ["/bin/bash", "/data/entrypoint.sh"]

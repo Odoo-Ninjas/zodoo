@@ -1,0 +1,49 @@
+From 2b2d402facc47c4647c176f2e69521a445a24fd8 Mon Sep 17 00:00:00 2001
+From: Marc Wimmer <marc@zebroo.de>
+Date: Mon, 7 Jul 2025 21:15:00 +0200
+Subject: [PATCH] for patch
+
+---
+ Dockerfile                  | 6 +++---
+ squid/etc/extra-sources.acl | 3 +++
+ 2 files changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/Dockerfile b/Dockerfile
+index 58003ec..af0f20a 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -1,5 +1,4 @@
+-FROM debian:jessie
+-MAINTAINER Jack Sullivan
++FROM debian:bullseye
+ 
+ # Install squid-deb-proxy
+ RUN apt-get update -y && \
+@@ -10,6 +9,7 @@ RUN apt-get update -y && \
+ 
+ # Copy init script
+ COPY entrypoint.sh /data/entrypoint.sh
++COPY squid/etc/extra-sources.acl /data/squid/etc/extra-sources.acl
+ RUN chmod +x /data/entrypoint.sh
+ 
+ # Handle user and paths
+@@ -21,4 +21,4 @@ RUN ln -sf /data/squid/etc/extra-sources.acl /etc/squid-deb-proxy/mirror-dstdoma
+ 
+ EXPOSE 8000/tcp
+ 
+-ENTRYPOINT ["/data/entrypoint.sh"]
++ENTRYPOINT ["/bin/bash", "/data/entrypoint.sh"]
+diff --git a/squid/etc/extra-sources.acl b/squid/etc/extra-sources.acl
+index 298f06e..1842790 100644
+--- a/squid/etc/extra-sources.acl
++++ b/squid/etc/extra-sources.acl
+@@ -31,3 +31,6 @@ extras.ubuntu.com                       # Ubuntu Extras
+ ppa.launchpad.net                       # Ubuntu PPA
+ download.virtualbox.org                 # VirtualBox
+ packages.wazuh.com                      # Wazuh (OSSEC fork)
++ports.ubuntu.com
++apt.postgresql.org
++ppa.launchpadcontent.net
+\ No newline at end of file
+-- 
+2.43.0
