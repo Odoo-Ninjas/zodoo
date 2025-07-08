@@ -91,12 +91,13 @@ RUN apt-get $APT_OPTIONS update && apt-get $APT_OPTIONS install -y \
 
 RUN pip3 install $PIP_OPTIONS wheel && \
 pip3 install $PIP_OPTIONS pip -U && \
-pip3 install $PIP_OPTIONS setuptools==57.5.0 -U && \
-pip3 install $PIP_OPTIONS cython==0.29.35
+pip3 install $PIP_OPTIONS setuptools==57.5.0 -U
+RUN pip3 install $PIP_OPTIONS "Cython<3"
+RUN pip3 install --only-binary :all: pymssql
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 
-RUN pip3 install $PIP_OPTIONS -r /root/pip_requirements.txt
+RUN pip3 install --only-binary pymssql $PIP_OPTIONS -r /root/pip_requirements.txt
 
 RUN pip3 install $PIP_OPTIONS \
 pudb ipython \
@@ -305,3 +306,5 @@ ADD config/${ODOO_VERSION}/config ${ODOO_CONFIG_DIR}.template
 
 CMD ["sh", "-c", "/opt/wodoo_pipx/venvs/wodoo/bin/python3 /odoolib/run.py"]
 ENTRYPOINT ["/odoolib/entrypoint.sh"]
+
+RUN pip3 install pymssql==2.1.4
