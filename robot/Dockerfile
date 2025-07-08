@@ -22,7 +22,7 @@ gnupg-agent
 
 COPY ./requirements.txt /tmp/requirements.txt
 RUN python3 -mpip install setuptools python-dotenv 
-RUN python3 -mpip install --no-cache-dir -r /tmp/requirements.txt 
+RUN python3 -mpip install $PIP_OPTIONS -r /tmp/requirements.txt 
 RUN rm -rf /tmp/requirements.txt
 
 

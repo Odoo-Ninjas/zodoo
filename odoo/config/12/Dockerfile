@@ -73,18 +73,17 @@ RUN apt-get update && apt-get install -y \
 
 #___SNIPPET_PYTHON_INSTALL___
 
-RUN pip3 install --no-cache-dir wheel && \
-pip3 install --no-cache-dir pip -U && \
-pip3 install --no-cache-dir setuptools -U
+RUN pip3 install $PIP_OPTIONS wheel && \
+pip3 install $PIP_OPTIONS pip -U && \
+pip3 install $PIP_OPTIONS setuptools -U
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
-RUN pip3 install --no-cache-dir -r /root/pip_requirements.txt
+RUN pip3 install $PIP_OPTIONS -r /root/pip_requirements.txt
 
 RUN echo "$ODOO_FRAMEWORK_REQUIREMENTS"  | base64 --decode > /root/framework_requirements.txt
-RUN pip3 install --no-cache-dir -r /root/framework_requirements.txt
+RUN pip3 install $PIP_OPTIONS -r /root/framework_requirements.txt
 
-RUN pip3 install \
---no-cache-dir  \
+RUN pip3 install $PIP_OPTIONS  \
 pudb ipython marabunta \
 wodoo debugpy psycopg2-binary \
 pyinotify python-magic wand \
@@ -97,7 +96,7 @@ RUN bash /usr/local/src/python_3.8.email.patch
 RUN apt-get install -y git
 RUN git clone https://github.com/OCA/openupgradelib /opt/openupgradelib
 WORKDIR /opt/openupgradelib
-RUN pip3 install --no-cache-dir /opt/openupgradelib
+RUN pip3 install $PIP_OPTIONS /opt/openupgradelib
 
 # --------------------------------------------------------------------
 # ODOO
@@ -109,6 +108,8 @@ ARG ODOO_REQUIREMENTS
 ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_INSTALL_LIBPOSTAL
 ARG CUSTOMS_SHA
+
+#___SNIPPET_APT_PROXY___
 
 
 ENV LANG=C.UTF-8
@@ -207,9 +208,9 @@ python3 -mpip install psycopg2-binary==2.8 && \
 python3 -mpip install gevent && \
 python3 -mpip install greenlet
 COPY config/12.0/requirements.txt requirements.txt
-RUN python3 -mpip install -r requirements.txt
-RUN python3 -mpip install babel ics pdf2image zxcvbn reportlab==3.6.12 odoorpc
-RUN pip3 install --no-cache-dir lxml[html_clean]==4.8.0
+RUN python3 -mpip install $PIP_OPTIONS -r requirements.txt
+RUN python3 -mpip install $PIP_OPTIONS babel ics pdf2image zxcvbn reportlab==3.6.12 odoorpc
+RUN pip3 install $PIP_OPTIONS lxml[html_clean]==4.8.0
 
 # install wodoo
 RUN \
@@ -223,13 +224,13 @@ PIPX_BIN_DIR=/usr/local/bin/pipxbin \
 pipx install wodoo && \
 echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
 
-RUN pip install --no-cache-dir pillow==6.1.0
-RUN pip install --no-cache-dir cachetools==2.0.1
-RUN pip install --no-cache-dir dicttoxml==1.7.4
-RUN pip install --no-cache-dir openpyxl==2.6.4
-RUN pip install --no-cache-dir xmltodict==0.12.0
-RUN pip install --no-cache-dir zeep==3.4.0
-RUN pip install --no-cache-dir sentry-sdk==0.19.5
+RUN pip install $PIP_OPTIONS pillow==6.1.0
+RUN pip install $PIP_OPTIONS cachetools==2.0.1
+RUN pip install $PIP_OPTIONS dicttoxml==1.7.4
+RUN pip install $PIP_OPTIONS openpyxl==2.6.4
+RUN pip install $PIP_OPTIONS xmltodict==0.12.0
+RUN pip install $PIP_OPTIONS zeep==3.4.0
+RUN pip install $PIP_OPTIONS sentry-sdk==0.19.5
 
 WORKDIR /opt/odoo
 

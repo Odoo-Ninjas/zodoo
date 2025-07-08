@@ -34,7 +34,7 @@ RUN install -m 0755 -d /etc/apt/keyrings
 #___SNIPPET_DOCKER___
 
 COPY webssh /root/webssh
-RUN pip install --no-cache-dir -e /root/webssh  --break-system-packages
+RUN pip install $PIP_OPTIONS -e /root/webssh  --break-system-packages
 
 COPY launch.sh /root
 RUN chmod a+x /root/launch.sh

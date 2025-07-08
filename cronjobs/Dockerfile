@@ -40,8 +40,9 @@ COPY requirements.txt requirements.txt
 
 RUN #___SNIPPET_APT_INSTALL___ \ 
 build-essential gcc python3-dev tmux && \
-python3 -mpip install -r requirements.txt && \
-pipx install wodoo==$WODOO_VERSION 
+python3 -mpip install $PIP_OPTIONS -r requirements.txt && \
+pipx install --pip-args="$PIP_OPTIONS" \
+wodoo==$WODOO_VERSION 
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod a+x /entrypoint.sh

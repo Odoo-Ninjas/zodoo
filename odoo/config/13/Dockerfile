@@ -89,17 +89,16 @@ RUN apt-get $APT_OPTIONS update && apt-get $APT_OPTIONS install -y \
 #___SNIPPET_PYPI_SERVER___
 
 
-RUN pip3 install --no-cache-dir wheel && \
-pip3 install --no-cache-dir pip -U && \
-pip3 install --no-cache-dir setuptools==57.5.0 -U && \
-pip3 install --no-cache-dir cython==0.29.35
+RUN pip3 install $PIP_OPTIONS wheel && \
+pip3 install $PIP_OPTIONS pip -U && \
+pip3 install $PIP_OPTIONS setuptools==57.5.0 -U && \
+pip3 install $PIP_OPTIONS cython==0.29.35
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 
-RUN pip3 install --no-cache-dir --no-build-isolation -r /root/pip_requirements.txt
+RUN pip3 install $PIP_OPTIONS --no-build-isolation -r /root/pip_requirements.txt
 
-RUN pip3 install \
---no-cache-dir \
+RUN pip3 install $PIP_OPTIONS \
 pudb ipython \
 debugpy psycopg2-binary \
 pyinotify python-magic wand \
@@ -113,7 +112,7 @@ RUN bash /usr/local/src/python_3.8.email.patch
 RUN apt-get install -y git
 RUN git clone https://github.com/OCA/openupgradelib /opt/openupgradelib
 WORKDIR /opt/openupgradelib
-RUN pip3 install --no-cache-dir /opt/openupgradelib
+RUN pip3 install $PIP_OPTIONS /opt/openupgradelib
 
 # --------------------------------------------------------------------
 # ODOO
@@ -246,9 +245,9 @@ RUN \
 export PIPX_HOME="${WODOO_PIPX_HOME}" && \
 export PIPX_BIN_DIR=/usr/local/bin && \
 PIPX_DEFAULT_PYTHON=/opt/venv/bin/python3 \
-pipx install --pip-args="--constraint /opt/constraints.txt" -e $WODOO_SRC && \
+pipx install --pip-args="$PIP_OPTIONS --constraint /opt/constraints.txt" -e $WODOO_SRC && \
 echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
-RUN pip3 install --no-cache-dir lxml==4.6.0
+RUN pip3 install $PIP_OPTIONS lxml==4.6.0
 
 
 
@@ -257,7 +256,7 @@ RUN pip3 install --no-cache-dir lxml==4.6.0
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
 apt-get $APT_OPTIONS update && \
 apt-get $APT_OPTIONS install -y libpq-dev && \
-pip3 install --no-cache-dir psycopg2-binary --no-binary psycopg2-binary --force-reinstall; \
+pip3 install $PIP_OPTIONS psycopg2-binary --no-binary psycopg2-binary --force-reinstall; \
 fi
 
 RUN apt $APT_OPTIONS install -y coreutils

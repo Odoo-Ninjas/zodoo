@@ -1,11 +1,14 @@
 ARG APT_PROXY_IP
+ARG PIP_PROXY_IP
 ARG APT_OPTIONS
+ARG PIP_OPTIONS
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Chatgpt: ports.ubuntu.com is not mirrored widely
 ENV APT_OPTIONS="$APT_OPTIONS"
 ENV APT_PROXY_IP="${APT_PROXY_IP}"
+ENV PIP_PROXY_IP="${PIP_PROXY_IP}"
 
 RUN if [ -n "$APT_PROXY_IP" ] && [ "$APT_PROXY_IP" != "ignore" ]; then \
       [ -z "$APT_PROXY_PORT" ] && export APT_PROXY_PORT=3142; \

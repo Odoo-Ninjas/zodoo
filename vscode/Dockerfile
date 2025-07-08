@@ -81,7 +81,7 @@ WORKDIR /home/$USERNAME
 RUN python3.11 -m venv venv && \
     . venv/bin/activate && \
     ./venv/bin/python -m pip install pipx && \
-    pipx install gimera
+    pipx install --pip-args="$PIP_OPTIONS" gimera
 RUN echo 'export PATH=$PATH:$HOME/.local/bin' >> $HOME/.bashrc
 
 

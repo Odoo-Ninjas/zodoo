@@ -7,9 +7,8 @@ TOTAL BROKEN
 
 # Pull base image.
 FROM ubuntu:24.04
-ARG  APT_PROXY_IP
 
-ENV DEBIAN_FRONTEND=noninteractive
+#___SNIPPET_APT_PROXY___
 
 # Install Chromium.
 RUN \

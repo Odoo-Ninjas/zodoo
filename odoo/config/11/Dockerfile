@@ -139,15 +139,15 @@ COPY config/$ODOO_VERSION/requirements.txt /root/requirements.txt
 ENV PIP_NO_CACHE_DIR=no
 # Set custom PyPI index
 #___SNIPPET_PYPI_SERVER___
-RUN pip3 install --no-cache-dir wheel
+RUN pip3 install $PIP_OPTIONS wheel
 RUN hash -r && \
-        pip3 install --no-cache-dir --upgrade pip && \
+        pip3 install $PIP_OPTIONS --upgrade pip && \
         hash -r && \
-    pip3 install --no-cache-dir cython==0.29.35
-RUN pip3 install --no-cache-dir 'setuptools<58.0'
-RUN pip3 install --no-cache-dir psycopg2 pyinotify python-magic wand pycups pudb numpy
-RUN pip3 install --no-cache-dir -r /root/odoo_requirements.txt 
-RUN pip3 install --no-cache-dir -r /root/requirements.txt
+    pip3 install $PIP_OPTIONS cython==0.29.35
+RUN pip3 install $PIP_OPTIONS 'setuptools<58.0'
+RUN pip3 install $PIP_OPTIONS psycopg2 pyinotify python-magic wand pycups pudb numpy
+RUN pip3 install $PIP_OPTIONS -r /root/odoo_requirements.txt 
+RUN pip3 install $PIP_OPTIONS -r /root/requirements.txt
 #p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3
 
 RUN echo "deb http://ftp.de.debian.org/debian buster main " >> /etc/apt/sources.list.d/dmtx && apt-get update && apt-get install -y libdmtx0b
@@ -177,10 +177,10 @@ export PIPX_BIN_DIR=/usr/local/bin && \
 PIPX_DEFAULT_PYTHON=/opt/venv/bin/python3 \
 pipx install --pip-args="--constraint /opt/constraints.txt" -e $WODOO_SRC && \
 echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
-RUN pip3 install --no-cache-dir lxml==4.6.0
+RUN pip3 install $PIP_OPTIONS lxml==4.6.0
 
 RUN apt-get update && apt-get install -y libodbc1 unixodbc-dev unixodbc
-RUN pip3 install --no-cache-dir requests-oauth2client faker requests_oauthlib 
+RUN pip3 install $PIP_OPTIONS requests-oauth2client faker requests_oauthlib 
 
 
 

@@ -4,6 +4,7 @@ services:
       context: ${ODOO_IMAGES}/webssh
       args: 
         APT_PROXY_IP: ${APT_PROXY_IP}
+        PIP_PROXY_IP: ${APT_PROXY_IP}
         PYPI_SERVER: ${PYPI_SERVER}
         APT_OPTIONS: ${APT_OPTIONS}
         DOCKER_GID: ${DOCKER_GID}

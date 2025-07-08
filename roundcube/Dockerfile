@@ -8,6 +8,8 @@ ARG     APT_PROXY_IP
 ARG     APT_OPTIONS
 ARG     PYPI_SERVER
 
+$___SNIPPET_APT_PROXY___
+
 RUN apt update
 
 WORKDIR /root
@@ -19,9 +21,9 @@ RUN apt $APT_OPTIONS install -y nginx wget composer
 
 RUN \
 apt $APT_OPTIONS install -y python3-pip && \
-pip3 install --no-cache-dir pip --upgrade && \
-pip3 install --no-cache-dir wheel && \
-pip3 install --no-cache-dir pathlib
+pip3 install $PIP_OPTIONS pip --upgrade && \
+pip3 install $PIP_OPTIONS wheel && \
+pip3 install $PIP_OPTIONS pathlib
 RUN ln -sf /dev/stdout /var/log/nginx/access.log && ln -sf /dev/stderr /var/log/nginx/error.log
 
 RUN rm -fr /usr/share/nginx/www && \

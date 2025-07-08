@@ -95,9 +95,9 @@ RUN #___SNIPPET_APT_INSTALL___ \
 ENV PIP_NO_CACHE_DIR=no
 # Set custom PyPI index
 #___SNIPPET_PYPI_SERVER___
-RUN pip3 install --no-cache-dir wheel -U && \
-pip3 --no-cache-dir install pip -U && \
-pip3 --no-cache-dir install setuptools -U
+RUN pip3 install $PIP_OPTIONS wheel -U && \
+pip3 $PIP_OPTIONS install pip -U && \
+pip3 $PIP_OPTIONS install setuptools -U
 
 ENV PIP_ONLY_BINARY=Pyyaml,python_tds
 
@@ -107,12 +107,12 @@ RUN xargs apt-get $APT_OPTIONS install -y < /root/deb_requirements.txt
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 RUN pip install "Cython<3"
 # no build isolation to use cython<3
-RUN pip3 install --no-cache-dir --no-build-isolation -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
+RUN pip3 install $PIP_OPTIONS --no-build-isolation -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
 
 RUN echo "$ODOO_FRAMEWORK_REQUIREMENTS"  | base64 --decode > /root/framework_requirements.txt
-RUN pip3 install --no-cache-dir -r /root/framework_requirements.txt
+RUN pip3 install $PIP_OPTIONS -r /root/framework_requirements.txt
 
-RUN pip3 install --no-cache-dir pudb ipython debugpy
+RUN pip3 install $PIP_OPTIONS pudb ipython debugpy
 
 #___SNIPPET_OPENUPGRADELIB___
 

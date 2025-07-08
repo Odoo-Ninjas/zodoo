@@ -8,8 +8,8 @@ postgresql-server-dev-14 python3-dev \
 build-essential git python3-pip procps sockstat pv
 
 ENV PGCLIRC=/var/lib/postgresql/.pgcli.config
-RUN pip3 install --no-cache-dir pip --upgrade && \
-pip3 install --no-cache-dir psycopg2 psutil setuptools pgcli pendulum tabulate pg_activity
+RUN pip3 install $PIP_OPTIONS pip --upgrade && \
+pip3 install $PIP_OPTIONS psycopg2 psutil setuptools pgcli pendulum tabulate pg_activity
 
 COPY pgcli.config "$PGCLIRC"
 COPY keyring.config /var/lib/postgresql/.local/share/python_keyring/keyringrc.cfg

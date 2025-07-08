@@ -1,4 +1,4 @@
 RUN apt-get $APT_OPTIONS install -y ca-certificates git && update-ca-certificates
 RUN git clone https://github.com/OCA/openupgradelib /opt/openupgradelib
 WORKDIR /opt/openupgradelib
-RUN pip3 install --no-cache-dir /opt/openupgradelib
+RUN pip3 install $PIP_OPTIONS /opt/openupgradelib
