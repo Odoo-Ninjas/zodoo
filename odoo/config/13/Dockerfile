@@ -306,5 +306,3 @@ ADD config/${ODOO_VERSION}/config ${ODOO_CONFIG_DIR}.template
 
 CMD ["sh", "-c", "/opt/wodoo_pipx/venvs/wodoo/bin/python3 /odoolib/run.py"]
 ENTRYPOINT ["/odoolib/entrypoint.sh"]
-
-RUN pip3 install pymssql==2.1.4
