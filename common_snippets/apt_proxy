@@ -11,7 +11,6 @@ ENV APT_PROXY_IP="${APT_PROXY_IP}"
 ENV PIP_PROXY_IP="${PIP_PROXY_IP}"
 
 RUN if [ -n "$APT_PROXY_IP" ] && [ "$APT_PROXY_IP" != "ignore" ]; then \
-      [ -z "$APT_PROXY_PORT" ] && export APT_PROXY_PORT=3142; \
-      echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}:${APT_PROXY_PORT}\";" > /etc/apt/apt.conf.d/01proxy; \
+      echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}\";" > /etc/apt/apt.conf.d/01proxy; \
     fi
 RUN apt-get $APT_OPTIONS update
