@@ -34,7 +34,6 @@ if [ "$ODOO_VERSION"  != '11' ]; then \
      || (echo "=== pipx install failed ===" && \
           cat $WODOO_PIPX_HOME/logs/*.log && \
           exit 1) \
-
 fi
 
 RUN echo 'export PATH=$PATH:$HOME/.local/bin' >> $HOME/.bashrc
