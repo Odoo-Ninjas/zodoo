@@ -96,7 +96,7 @@ pip3 install $PIP_OPTIONS cython==0.29.35
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 
-RUN pip3 install $PIP_OPTIONS --no-build-isolation -r /root/pip_requirements.txt
+RUN pip3 install $PIP_OPTIONS -r /root/pip_requirements.txt
 
 RUN pip3 install $PIP_OPTIONS \
 pudb ipython \

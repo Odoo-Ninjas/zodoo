@@ -101,12 +101,12 @@ pip3 install $PIP_OPTIONS setuptools -U
 
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
-RUN pip3 install $PIP_OPTIONS --no-build-isolation -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
+RUN pip3 install $PIP_OPTIONS -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
 
 RUN echo "$ODOO_FRAMEWORK_REQUIREMENTS"  | base64 --decode > /root/framework_requirements.txt
-RUN pip3 install $PIP_OPTIONS --no-build-isolation -r /root/framework_requirements.txt
+RUN pip3 install $PIP_OPTIONS -r /root/framework_requirements.txt
 
-RUN pip3 install $PIP_OPTIONS --no-build-isolation pudb ipython debugpy
+RUN pip3 install $PIP_OPTIONS pudb ipython debugpy
 
 #___SNIPPET_OPENUPGRADELIB___
 

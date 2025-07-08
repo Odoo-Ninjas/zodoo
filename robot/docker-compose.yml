@@ -21,8 +21,8 @@ services:
                 OWNER_UID: ${OWNER_UID}
                 DOCKER_GID: ${DOCKER_GID}
                 APT_PROXY_IP: ${APT_PROXY_IP}
+                PIP_PROXY_IP: ${PIP_PROXY_IP}
                 APT_OPTIONS: ${APT_OPTIONS}
-                PYPI_SERVER: ${PYPI_SERVER}
         links:
             - seleniumdriver
         cap_add:

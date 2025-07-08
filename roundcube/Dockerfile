@@ -8,7 +8,7 @@ ARG     APT_PROXY_IP
 ARG     APT_OPTIONS
 ARG     PYPI_SERVER
 
-$___SNIPPET_APT_PROXY___
+#___SNIPPET_APT_PROXY___
 
 RUN apt update
 

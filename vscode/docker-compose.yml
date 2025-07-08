@@ -7,6 +7,7 @@ services:
             DOCKER_GID: $DOCKER_GID
             APT_PROXY_IP: ${APT_PROXY_IP}
             APT_OPTIONS: ${APT_OPTIONS}
+            PIP_PROXY_IP: ${PIP_PROXY_IP}
         cap_add:
           # required by vscode
           - SYS_ADMIN
@@ -39,6 +40,7 @@ services:
           args:
             relpathname: wscode
             APT_PROXY_IP: ${APT_PROXY_IP}
+            PIP_PROXY_IP: ${PIP_PROXY_IP}
         restart: "unless-stopped"
         profiles:
           - manual
