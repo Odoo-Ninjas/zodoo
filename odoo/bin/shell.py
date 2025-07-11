@@ -9,6 +9,7 @@ from tools import prepare_run
 
 prepare_run()
 
+import pudb;pudb.set_trace()
 os.environ['PYTHONBREAKPOINT'] = 'pudb.set_trace'
 params = sys.argv
 

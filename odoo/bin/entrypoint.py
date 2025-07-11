@@ -15,6 +15,7 @@ os.system(f"chown '{owner}:{owner}' /opt/files")
 #print(f"Setting ownership of /home/odoo to {owner}")
 os.system(f"chown '{owner}:{owner}' /home/odoo")  # -R too heavy
 
+cmd, args = None, None
 try:
     if sys.argv[1].endswith('.py'):
         # If the first argument is a Python script, execute it with the Python interpreter
