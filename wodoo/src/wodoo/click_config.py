@@ -28,8 +28,6 @@ class Config(object):
     ):
         from .consts import YAML_VERSION
 
-        if project_name is None:
-            project_name = os.environ.get("project_name", None)
         from . import odoo_config  # NOQA
 
         from .tools import _get_customs_root
