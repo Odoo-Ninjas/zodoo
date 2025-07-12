@@ -5,4 +5,4 @@
     * run.py
 
   * open shell:
-    * shell.py
+    * shell

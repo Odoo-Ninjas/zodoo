@@ -1,0 +1,2 @@
+#!/bin/bash
+exec "$WODOO_PYTHON" /opt/wodoo_pipx/venvs/wodoo/bin/odoo "$@"

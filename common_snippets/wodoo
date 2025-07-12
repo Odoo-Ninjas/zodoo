@@ -30,6 +30,7 @@ if [ "$ODOO_VERSION"  != '11' ]; then \
      --pip-args="$PIP_OPTIONS" \
      --force \
      --verbose \
+     -e \
      "$WODOO_SRC" \
      || (echo "=== pipx install failed ===" && \
           cat $WODOO_PIPX_HOME/logs/*.log && \
