@@ -186,6 +186,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
             time \
             xfonts-75dpi \
             xfonts-base \
+            vim \
             libgeos-dev
 
 COPY liberation-sans /usr/share/fonts/
