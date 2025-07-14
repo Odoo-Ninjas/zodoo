@@ -192,7 +192,8 @@ RUN #___SNIPPET_APT_INSTALL___ \
             xfonts-75dpi \
             xfonts-base \
             libgeos-dev\
-	    fontconfig 
+            vim \
+            fontconfig 
 
 COPY liberation-sans /usr/share/fonts/
 # rebuild font cache
