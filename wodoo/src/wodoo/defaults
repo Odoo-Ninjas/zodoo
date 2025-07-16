@@ -1,0 +1,41 @@
+# db access (define if you dont use RUN_POSTGRES=1)
+
+# external directory where files are stored (when using file storage); is overwritten with --local-settings flag
+ODOO_FILES=~/.odoo/files
+
+NO_QWEB_DELETE=0
+VERBOSE=0
+DEVMODE=0
+DUMPS_PATH=~/odoo_dumps
+
+DB_ODOO_FILEFORMAT={project_name}.odoo.{date:%Y%m%d%H%M%S}.dump.gz
+DB_ODOO_DUMPTYPE=custom
+DB_ODOO_SEARCHFORMAT={project_name}.odoo.*.dump.gz
+DB_CALENDAR_FILEFORMAT={project_name}.calendar.{date:%Y%m%d%H%M%S}.dump.gz
+CRONJOB_BACKUP_DAILY=0 0 * * * ${JOB_BACKUP_ODOO_DB}
+#CRONJOB_KEEP_LAST_FILE_OF_DAY=0 */1 * * * ${JOB_KEEP_LAST_FILE_OF_DAY}
+#CRONJOB_DADDY_CLEANUP=0 */1 * * * ${JOB_DADDY_CLEANUP}
+
+# CRONJOB_VACUUM=0 0 * * 0 ${JOB_VACUUM}
+#CRONJOB_KILL_LONG_RUNNING=0 */15 * * 0 ${JOB_CLEAN_LONG_RUNNING_QUERIES}
+#CRONJOB_KILL_DB_LOCKS=* * * * * */3 ${JOB_KILL_DB_LOCKS}
+DOCKER_MACHINE=1
+USE_DOCKER=1
+SAFE_KILL=redis,postgres
+
+PSYCOPG_TIMEOUT=30
+
+
+USE_APT_MIRRORS=0
+
+# set customized docker label for identifying all containers
+DOCKER_LABEL_ODOOCOMPOSE=1
+RESTART_CONTAINERS=0
+IMAGES_URL=https://github.com/marcwimmer/wodoo-images
+IMAGES_BRANCH=master
+
+
+RUN_APT_CACHER=1
+APT_OPTIONS=-o Acquire::Retries=2
+PIP_OPTIONS=--no-cache-dir --no-build-isolation --index-url ${PYPI_SERVER} --trusted-host ${PYPI_SERVER}
+NO_SOFFICE=1
