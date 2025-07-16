@@ -40,10 +40,9 @@ if os.getenv("UPDATE_ON_STARTUP") == "1":
         with HTTPServer(("", PORT), OnlyIndexHandler) as httpd:
             print(f"Serving construction-site port {PORT}")
             httpd.serve_forever()
-    else:
-        exec_odoo(
-            None,
-            f'--log-level={LEVEL}',
-            f'--log-handler=:{LEVEL.upper()}',
-            touch_url=TOUCH_URL,
-        )
+exec_odoo(
+    None,
+    f'--log-level={LEVEL}',
+    f'--log-handler=:{LEVEL.upper()}',
+    touch_url=TOUCH_URL,
+)
