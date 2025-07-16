@@ -14,6 +14,7 @@ os.system(f"chown '{owner}:{owner}' /opt/files")
 # important is especially the .config folder, so that libreoffice works
 #print(f"Setting ownership of /home/odoo to {owner}")
 os.system(f"chown '{owner}:{owner}' /home/odoo")  # -R too heavy
+os.system("git config --global --add safe.directory /opt/src")
 
 cmd, args = None, None
 try:
