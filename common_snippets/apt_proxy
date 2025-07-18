@@ -10,6 +10,7 @@ ENV APT_OPTIONS="${APT_OPTIONS}"
 ENV APT_PROXY_IP="${APT_PROXY_IP}"
 ENV PIP_PROXY_IP="${PIP_PROXY_IP}"
 ENV PIP_OPTIONS="${PIP_OPTIONS}"
+RUN bash -c 'export PIP_OPTIONS="${PIP_OPTIONS//__PIP_PROXY_IP__/$PIP_PROXY_IP}"; echo "$PIP_OPTIONS"'
 
 RUN if [ -n "$APT_PROXY_IP" ] && [ "$APT_PROXY_IP" != "ignore" ]; then \
       echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}\";" > /etc/apt/apt.conf.d/01proxy; \
