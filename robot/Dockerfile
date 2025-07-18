@@ -48,7 +48,8 @@ USER root
 RUN find /opt/robot/.* -not -user robot -exec chown -R robot -Rv {} \;
 
 USER robot
-RUN pip install $PIP_OPTIONS debugpy pudb --break-system-packages
+RUN pip install setuptools==65.6.0 && \
+pip install $PIP_OPTIONS debugpy pudb --break-system-packages
 RUN mkdir -p /opt/robot/.ssh && \
 chmod 500 /opt/robot/.ssh
 #--------------------------------------------

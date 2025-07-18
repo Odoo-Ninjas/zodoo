@@ -96,8 +96,7 @@ ENV PIP_NO_CACHE_DIR=no
 # Set custom PyPI index
 #___SNIPPET_PYPI_SERVER___
 RUN pip3 install pip -U
-RUN pip3 install $PIP_OPTIONS wheel -U && \
-pip3 install $PIP_OPTIONS setuptools -U
+RUN pip3 install $PIP_OPTIONS wheel -U
 
 ENV PIP_ONLY_BINARY=Pyyaml,python_tds
 
@@ -112,7 +111,8 @@ RUN pip3 install $PIP_OPTIONS -r /root/pip_requirements.txt --force --force-rein
 RUN echo "$ODOO_FRAMEWORK_REQUIREMENTS"  | base64 --decode > /root/framework_requirements.txt
 RUN pip3 install $PIP_OPTIONS -r /root/framework_requirements.txt
 
-RUN pip3 install $PIP_OPTIONS pudb ipython debugpy
+RUN pip3 install $PIP_OPTIONS setuptools==65.5.0 && \
+pip3 install $PIP_OPTIONS pudb ipython debugpy
 
 #___SNIPPET_OPENUPGRADELIB___
 
