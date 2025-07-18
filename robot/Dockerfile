@@ -4,6 +4,7 @@ ARG OWNER_UID
 ARG DOCKER_GID
 ARG APT_PROXY_IP
 ARG APT_OPTIONS
+ARG PIP_OPTIONS
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV WORKDIR=/opt/robot
@@ -21,7 +22,8 @@ sudo curl software-properties-common pipx build-essential python3-dev \
 gnupg-agent
 
 COPY ./requirements.txt /tmp/requirements.txt
-RUN python3 -mpip install setuptools python-dotenv 
+RUN python3 -mpip install $PIP_OPTIONS -U pip
+RUN python3 -mpip install $PIP_OPTIONS setuptools python-dotenv 
 RUN python3 -mpip install $PIP_OPTIONS -r /tmp/requirements.txt 
 RUN rm -rf /tmp/requirements.txt
 
@@ -46,7 +48,7 @@ USER root
 RUN find /opt/robot/.* -not -user robot -exec chown -R robot -Rv {} \;
 
 USER robot
-RUN pip install --no-cache-dir debugpy pudb --break-system-packages
+RUN pip install $PIP_OPTIONS debugpy pudb --break-system-packages
 RUN mkdir -p /opt/robot/.ssh && \
 chmod 500 /opt/robot/.ssh
 #--------------------------------------------
