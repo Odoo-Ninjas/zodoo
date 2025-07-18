@@ -17,7 +17,7 @@ RUN if [ ! -e "$WODOO_ENV_DIR" ]; then \
      $WODOO_PYTHON -m pip install $PIP_OPTIONS setuptools --upgrade;  \
      $WODOO_PYTHON -m pip install $PIP_OPTIONS wheel --upgrade;  \
 fi
-RUN $WODOO_PYTHON -mpip install$PIP_OPTIONS lxml==4.9.3
+RUN $WODOO_PYTHON -mpip install $PIP_OPTIONS lxml==4.9.3
 
 RUN \
 if [ "$ODOO_VERSION"  != '11' ]; then \
