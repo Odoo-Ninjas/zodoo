@@ -1,0 +1,2 @@
+class NoProjectNameException(Exception):
+    pass
