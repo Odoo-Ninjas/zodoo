@@ -21,6 +21,7 @@ services:
           APT_OPTIONS: ${APT_OPTIONS}
           APT_PROXY_IP: ${APT_PROXY_IP}
           PIP_PROXY_IP: ${PIP_PROXY_IP}
+          PIP_OPTIONS: ${PIP_OPTIONS}
           DOCKER_GID: ${DOCKER_GID}
     restart: unless-stopped
     # depends_on:

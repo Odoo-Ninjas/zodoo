@@ -6,9 +6,10 @@ ARG PIP_OPTIONS
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Chatgpt: ports.ubuntu.com is not mirrored widely
-ENV APT_OPTIONS="$APT_OPTIONS"
+ENV APT_OPTIONS="${APT_OPTIONS}"
 ENV APT_PROXY_IP="${APT_PROXY_IP}"
 ENV PIP_PROXY_IP="${PIP_PROXY_IP}"
+ENV PIP_OPTIONS="${PIP_OPTIONS}"
 
 RUN if [ -n "$APT_PROXY_IP" ] && [ "$APT_PROXY_IP" != "ignore" ]; then \
       echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}\";" > /etc/apt/apt.conf.d/01proxy; \
