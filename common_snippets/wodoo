@@ -10,13 +10,10 @@ RUN chown -R $CURRENT_USER:$CURRENT_USER "$WODOO_SRC"
 
 
 
-RUN if [ ! -e "$WODOO_ENV_DIR" ]; then \
-     /usr/bin/python3.11 -m venv "$WODOO_ENV_DIR"; \
+RUN /usr/bin/python3.11 -m venv "$WODOO_ENV_DIR"; \
      $WODOO_PYTHON -m pip install $PIP_OPTIONS --upgrade pip; \
-     $WODOO_PYTHON -m pip install $PIP_OPTIONS pipx --upgrade;  \
-     $WODOO_PYTHON -m pip install $PIP_OPTIONS setuptools --upgrade;  \
-     $WODOO_PYTHON -m pip install $PIP_OPTIONS wheel --upgrade;  \
-fi
+     $WODOO_PYTHON -m pip install $PIP_OPTIONS pipx setuptools wheel --upgrade;  
+
 RUN $WODOO_PYTHON -mpip install $PIP_OPTIONS lxml==4.9.3
 
 RUN \
@@ -24,10 +21,10 @@ if [ "$ODOO_VERSION"  != '11' ]; then \
      PIPX_HOME="${WODOO_PIPX_HOME}" \
      PIPX_BIN_DIR=/usr/local/bin \ 
      PIP_VERBOSE=1 \
+     PIPX_DEFAULT_PYTHON=$WODOO_PYTHON \
      $WODOO_PYTHON \
      -mpipx \
      install  \
-     --pip-args="$PIP_OPTIONS" \
      --force \
      --verbose \
      -e \

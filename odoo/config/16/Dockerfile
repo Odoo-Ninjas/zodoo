@@ -94,8 +94,8 @@ RUN #___SNIPPET_APT_INSTALL___ \
 
 #___SNIPPET_PYPI_SERVER___
 
+RUN pip3 install pip -U
 RUN pip3 install $PIP_OPTIONS wheel && \
-pip3 install $PIP_OPTIONS pip -U && \
 pip3 install $PIP_OPTIONS setuptools -U
 
 

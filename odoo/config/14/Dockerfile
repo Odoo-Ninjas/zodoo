@@ -99,7 +99,8 @@ RUN #___SNIPPET_APT_INSTALL___ \
 #___SNIPPET_SETUP_PYTHON_VENV___
 
 #___SNIPPET_PYPI_SERVER___
-RUN python3 -mpip install pip --upgrade
+
+RUN python3 -mpip install pip -U
 RUN /usr/local/bin/python3 -m venv --copies /opt/venv
 
 

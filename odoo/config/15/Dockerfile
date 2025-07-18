@@ -95,9 +95,9 @@ RUN #___SNIPPET_APT_INSTALL___ \
 ENV PIP_NO_CACHE_DIR=no
 # Set custom PyPI index
 #___SNIPPET_PYPI_SERVER___
+RUN pip3 install pip -U
 RUN pip3 install $PIP_OPTIONS wheel -U && \
-pip3 $PIP_OPTIONS install pip -U && \
-pip3 $PIP_OPTIONS install setuptools -U
+pip3 install $PIP_OPTIONS setuptools -U
 
 ENV PIP_ONLY_BINARY=Pyyaml,python_tds
 

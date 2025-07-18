@@ -22,7 +22,7 @@ sudo curl software-properties-common pipx build-essential python3-dev \
 gnupg-agent
 
 COPY ./requirements.txt /tmp/requirements.txt
-RUN python3 -mpip install $PIP_OPTIONS -U pip
+RUN python3 -mpip install -U pip
 RUN python3 -mpip install $PIP_OPTIONS setuptools python-dotenv 
 RUN python3 -mpip install $PIP_OPTIONS -r /tmp/requirements.txt 
 RUN rm -rf /tmp/requirements.txt
