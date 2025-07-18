@@ -121,6 +121,7 @@ RUN pip3 install $PIP_OPTIONS pudb ipython debugpy
 # ODOO
 # --------------------------------------------------------------------
 FROM $BASE_IMAGE
+#FROM python:${ODOO_PYTHON_VERSION} AS build_python
 ARG TARGETARCH
 ARG ODOO_VERSION
 ARG ODOO_REQUIREMENTS
