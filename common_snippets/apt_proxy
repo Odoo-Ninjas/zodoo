@@ -17,4 +17,3 @@ RUN if [ -n "$APT_PROXY_IP" ] && [ "$APT_PROXY_IP" != "ignore" ]; then \
     fi
 RUN apt-get $APT_OPTIONS update
 
-RUN apt-get $APT_OPTIONS install -y python3-pip
