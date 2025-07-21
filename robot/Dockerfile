@@ -47,6 +47,7 @@ RUN usermod -aG $DOCKER_GID robot
 USER root
 #RUN find /opt/robot/.* -not -user robot -exec chown -R robot -Rv {} \; >/dev/null 2>&1
 
+RUN mkdir -p /opt/robot/.local && chown robot /opt/robot /opt/robot/.local
 USER robot
 RUN pip install setuptools==65.6.0 && \
 pip install $PIP_OPTIONS debugpy pudb --break-system-packages
