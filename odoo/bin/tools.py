@@ -107,6 +107,7 @@ def _replace_params_in_config(
     # exchange existing configurations
     return content
 
+
 def make_absolute_upgrade_paths(upgrade_path):
     res = []
     c = customs_dir()
@@ -495,7 +496,7 @@ def exec_odoo(
 
     MANIFEST = odoo_config.MANIFEST()
     manifest = MANIFEST._get_data()
-    os.environ['SERVER_DIR'] = str(Path(os.environ['CUSTOMS_DIR']) /  MANIFEST.odoo_dir)
+    os.environ["SERVER_DIR"] = str(Path(os.environ["CUSTOMS_DIR"]) / MANIFEST.odoo_dir)
 
     EXEC, _CONFIG = get_odoo_bin(for_shell=odoo_shell)
     CONFIG = get_config_file(CONFIG or _CONFIG)
@@ -608,19 +609,44 @@ def _get_server_wide_modules(server_wide_modules=None):
 
 
 def _touch():
-    def toucher():
-        while True:
-            try:
-                r = requests.get(
-                    "http://localhost:{}".format(os.environ["INTERNAL_ODOO_PORT"])
-                )
-                r.raise_for_status()
-                print("HTTP Get to odoo succeeded.")
-                break
-            finally:
-                time.sleep(2)
+    INTERNAL_ODOO_PORT = os.getenv("INTERNAL_ODOO_PORT", "8069")
+    ODOO_WORKERS_WEB = int(os.getenv("ODOO_WORKERS_WEB"))
+    faileds = set()
+    MAX_TRIES = 20
+    interval = 0.3
+    max_count = int(MAX_TRIES / interval) + 1
 
-    t = threading.Thread(target=toucher)
-    t.daemon = True
-    print("Touching odoo url to start it")
-    t.start()
+    def toucher(thread_id):
+        url = f"http://localhost:{INTERNAL_ODOO_PORT}"
+        last_ex = None
+        for i in range(max_count):
+            try:
+                print(f"Cache Warumup: Getting url {url} in thread {thread_id}")
+                r = requests.get(url)
+                r.raise_for_status()
+                print(f"[Thread {thread_id}] HTTP GET to Odoo succeeded.")
+                break
+            except Exception as e:
+                last_ex = e
+            time.sleep(interval)
+        else:
+            faileds.add(last_ex)
+
+    threads = []
+    for i in range(3):
+        print(f"Warming up cache for {ODOO_WORKERS_WEB}")
+        for i in range(ODOO_WORKERS_WEB):
+            t = threading.Thread(target=toucher, args=(i,))
+            t.daemon = True
+            t.start()
+            time.sleep(0.05)
+            threads.append(t)
+        [x.join() for x in threads]
+        if faileds:
+            print("failed to warm up cache in odoo")
+            if i == 2:
+                for ex in faileds:
+                    print(ex)
+                sys.exit(1)
+        while faileds: faileds.pop()
+    print("Successfully warmed up Odoo Cache.")
