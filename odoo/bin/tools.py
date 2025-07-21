@@ -609,6 +609,7 @@ def _get_server_wide_modules(server_wide_modules=None):
 
 
 def _touch():
+    print("Waiting...")
     INTERNAL_ODOO_PORT = os.getenv("INTERNAL_ODOO_PORT", "8069")
     ODOO_WORKERS_WEB = int(os.getenv("ODOO_WORKERS_WEB"))
     faileds = set()
@@ -632,13 +633,15 @@ def _touch():
         else:
             faileds.add(last_ex)
 
-    threads = []
     for i in range(3):
+        threads = []
         print(f"Warming up cache for {ODOO_WORKERS_WEB}")
         for i in range(ODOO_WORKERS_WEB):
             t = threading.Thread(target=toucher, args=(i,))
             t.daemon = True
             t.start()
+            if i == 0:
+                time.sleep(2)
             time.sleep(0.05)
             threads.append(t)
         [x.join() for x in threads]
