@@ -45,7 +45,7 @@ RUN usermod -aG $DOCKER_GID robot
 #___SNIPPET_WODOO___
 
 USER root
-RUN find /opt/robot/.* -not -user robot -exec chown -R robot -Rv {} \;
+RUN find /opt/robot/.* -not -user robot -exec chown -R robot -Rv {} \; >/devnull 2>&1
 
 USER robot
 RUN pip install setuptools==65.6.0 && \
@@ -55,7 +55,7 @@ chmod 500 /opt/robot/.ssh
 #--------------------------------------------
 USER root
 
-RUN find /opt/robot -not -user robot -exec chown robot {} \;
+RUN find /opt/robot -not -user robot -exec chown robot {} \; >/devnull 2>&1
 COPY ssh_config /opt/robot/.ssh/config
 RUN chown robot /opt/robot/.ssh/config  
 
