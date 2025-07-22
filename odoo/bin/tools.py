@@ -613,7 +613,7 @@ def _touch():
     INTERNAL_ODOO_PORT = os.getenv("INTERNAL_ODOO_PORT", "8069")
     ODOO_WORKERS_WEB = int(os.getenv("ODOO_WORKERS_WEB"))
     faileds = set()
-    MAX_TRIES = 20
+    MAX_TRIES = 200
     interval = 0.3
     max_count = int(MAX_TRIES / interval) + 1
 
@@ -622,7 +622,7 @@ def _touch():
         last_ex = None
         for i in range(max_count):
             try:
-                print(f"Cache Warumup: Getting url {url} in thread {thread_id}")
+                print(f"Cache Warmup: Getting url {url} in thread {thread_id}")
                 r = requests.get(url)
                 r.raise_for_status()
                 print(f"[Thread {thread_id}] HTTP GET to Odoo succeeded.")
