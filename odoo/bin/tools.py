@@ -534,7 +534,8 @@ def exec_odoo(
     cmd = " ".join(map(lambda x: f'"{x}"', cmd))
 
     if touch_url:
-        _touch()
+        t = threading.Thread(target=_touch)
+        t.start()
 
     filename = Path(tempfile.mktemp(suffix=".exitcode"))
     cmd += f" || echo $? > {filename}"
@@ -618,12 +619,12 @@ def _touch():
     max_count = int(MAX_TRIES / interval) + 1
 
     def toucher(thread_id):
-        url = f"http://localhost:{INTERNAL_ODOO_PORT}"
+        url = f"http://localhost:{INTERNAL_ODOO_PORT}/web/login"
         last_ex = None
         for i in range(max_count):
             try:
                 print(f"Cache Warmup: Getting url {url} in thread {thread_id}")
-                r = requests.get(url)
+                r = requests.get(url, timeout=1)
                 r.raise_for_status()
                 print(f"[Thread {thread_id}] HTTP GET to Odoo succeeded.")
                 break
