@@ -106,13 +106,13 @@ RUN xargs apt-get $APT_OPTIONS install -y < /root/deb_requirements.txt
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 RUN pip install "Cython<3"
 # no build isolation to use cython<3
+RUN pip3 install $PIP_OPTIONS -U setuptools==80.9.0
 RUN pip3 install $PIP_OPTIONS -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
 
 RUN echo "$ODOO_FRAMEWORK_REQUIREMENTS"  | base64 --decode > /root/framework_requirements.txt
 RUN pip3 install $PIP_OPTIONS -r /root/framework_requirements.txt
 
-RUN pip3 install $PIP_OPTIONS setuptools==65.5.0 && \
-pip3 install $PIP_OPTIONS pudb ipython debugpy
+RUN pip3 install $PIP_OPTIONS pudb ipython debugpy
 
 #___SNIPPET_OPENUPGRADELIB___
 
@@ -212,8 +212,6 @@ RUN locale-gen en_US.UTF-8 && dpkg-reconfigure locales
 #___SNIPPET_PYTHON_INSTALL___
 
 #___SNIPPET_TRANSFER_VENV___
-
-
 
 WORKDIR /opt/odoo
 
