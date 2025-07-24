@@ -11,7 +11,7 @@ ARG CUSTOMS_SHA
 ARG ODOO_CONFIG_DIR
 ARG APT_PROXY_IP
 ARG APT_OPTIONS
-ARG PYPI_SERVER
+ARG PIP_PROXY_IP
 ARG DOCKER_GID
 
 # --------------------------------------------------------------------
@@ -60,7 +60,7 @@ ARG ODOO_REQUIREMENTS
 ARG ODOO_FRAMEWORK_REQUIREMENTS
 ARG APT_PROXY_IP
 ARG APT_OPTIONS
-ARG PYPI_SERVER
+ARG PIP_PROXY_IP
 
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
@@ -303,6 +303,3 @@ ENV DOCKER_MACHINE=1
 ADD bin/ /odoolib/
 ENV ODOO_CONFIG_DIR=${ODOO_CONFIG_DIR}
 ADD config/${ODOO_VERSION}/config ${ODOO_CONFIG_DIR}.template
-
-CMD ["sh", "-c", "/opt/wodoo_pipx/venvs/wodoo/bin/python3 /odoolib/run.py"]
-ENTRYPOINT ["/odoolib/entrypoint.sh"]
