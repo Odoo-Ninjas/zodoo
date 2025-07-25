@@ -10,29 +10,33 @@ ARG PYPI_SERVER
 
 #RUN [[ -z "$CUSTOMS_REQUIREMENTS" && exit -1 ]]
 ENV LANG=C.UTF-8
+RUN sed -i 's|deb.debian.org|archive.debian.org|g' /etc/apt/sources.list && \
+    sed -i 's|security.debian.org|archive.debian.org|g' /etc/apt/sources.list && \
+    echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99no-check-valid-until && \
+    apt-get -o Acquire::Retries=3 update
 #___SNIPPET_APT_PROXY___
 
-RUN apt-get update --fix-missing && \
-apt-get install \
+RUN apt-get $APT_OPTIONS update --fix-missing && \
+apt-get $APT_OPTIONS install \
         -y \
         --no-install-recommends \
-                        software-properties-common \
-                        man \
+            software-properties-common \
+            man \
             cmake \
             ctags \
-                        build-essential \
+            build-essential \
             libtool \
             htop \
             ca-certificates \
             curl \
             node-less \
-                        node-clean-css \
-                        libpq-dev \
-                        libjpeg-dev \
+            node-clean-css \
+            libpq-dev \
+            libjpeg-dev \
             libcurl3-dev \
-                        libxml2-dev \
-                        libxslt1-dev \
-                        libffi-dev \
+            libxml2-dev \
+            libxslt1-dev \
+            libffi-dev \
             tmux \
             libfreetype6-dev \
             libpng-dev \
@@ -60,8 +64,8 @@ apt-get install \
             less \
             freetds-dev \
             libsasl2-dev \
-                        libldap2-dev \
-                        libssl-dev \
+            libldap2-dev \
+            libssl-dev \
             wget \
             cifs-utils \
             imagemagick \
@@ -69,7 +73,7 @@ apt-get install \
             libreoffice \
             libcairo2 libpango1.0-0 libgdk-pixbuf2.0-0 libffi-dev shared-mime-info \
             locales \
-                        libmagickwand-dev \
+            libmagickwand-dev \
             ffmpeg \
             zip \
             gpg-agent \
@@ -139,15 +143,15 @@ COPY config/$ODOO_VERSION/requirements.txt /root/requirements.txt
 ENV PIP_NO_CACHE_DIR=no
 # Set custom PyPI index
 #___SNIPPET_PYPI_SERVER___
-RUN pip3 install $PIP_OPTIONS wheel
+RUN pip3 install wheel
 RUN hash -r && \
-        pip3 install $PIP_OPTIONS --upgrade pip && \
+        pip3 install --upgrade pip && \
         hash -r && \
-    pip3 install $PIP_OPTIONS cython==0.29.35
-RUN pip3 install $PIP_OPTIONS 'setuptools<58.0'
-RUN pip3 install $PIP_OPTIONS psycopg2 pyinotify python-magic wand pycups pudb numpy
-RUN pip3 install $PIP_OPTIONS -r /root/odoo_requirements.txt 
-RUN pip3 install $PIP_OPTIONS -r /root/requirements.txt
+    pip3 install cython==0.29.35
+RUN pip3 install 'setuptools<58.0'
+RUN pip3 install psycopg2 pyinotify python-magic wand pycups pudb numpy
+RUN pip3 install -r /root/odoo_requirements.txt 
+RUN pip3 install -r /root/requirements.txt
 #p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3
 
 RUN echo "deb http://ftp.de.debian.org/debian buster main " >> /etc/apt/sources.list.d/dmtx && apt-get update && apt-get install -y libdmtx0b
