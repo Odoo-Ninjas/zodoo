@@ -323,14 +323,14 @@ def _clean_dir(path):
 
 def restart_selenium_driver():
     logger.info("Restarting seleniumdriver container")
+    SELENIUM_SERVICE_NAME = os.environ["SELENIUM_SERVICE_NAME"]
     subprocess.run(
-        ["odoo", "-p", os.environ["project_name"], "kill", "seleniumdriver", "--brutal"]
+        ["odoo", "-p", os.environ["project_name"], "kill", SELENIUM_SERVICE_NAME, "--brutal"]
     )
     subprocess.run(
-        ["odoo", "-p", os.environ["project_name"], "restart", "seleniumdriver"]
+        ["odoo", "-p", os.environ["project_name"], "restart", SELENIUM_SERVICE_NAME]
     )
     logger.info("Restarted seleniumdriver container")
-    SELENIUM_SERVICE_NAME = os.environ["SELENIUM_SERVICE_NAME"]
     wait_for_port(SELENIUM_SERVICE_NAME, 4444)
 
 
