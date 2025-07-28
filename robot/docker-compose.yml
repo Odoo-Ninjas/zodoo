@@ -4,7 +4,7 @@ volumes:
 
 services:
     seleniumdriver:
-        image: selenium/standalone-chromium:132.0-chromedriver-132.0-grid-4.28.1-20250202
+        image: selenium/standalone-chromium:138.0
         shm_size: 4gb
         # vnc possible at: http://localhost:7900/?autoconnect=1&password=secret⁠.
         # ports:
@@ -13,6 +13,9 @@ services:
             - 4444
         volumes:
             - robo_upload_files:/tmp/robo_upload_files
+        environment:
+            - SE_NODE_MAX_SESSIONS=1
+            - SE_SESSION_REQUEST_TIMEOUT=300
 
     robot:
         build:
