@@ -1,4 +1,5 @@
 import sys
+from copy import deepcopy
 import re
 import base64
 import click

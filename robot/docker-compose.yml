@@ -3,7 +3,7 @@ volumes:
     robo_upload_files:
 
 services:
-    seleniumdriver:
+    seleniumdriver_template:
         image: selenium/standalone-chromium:138.0
         shm_size: 4gb
         # vnc possible at: http://localhost:7900/?autoconnect=1&password=secret⁠.
@@ -27,11 +27,11 @@ services:
                 PIP_PROXY_IP: ${PIP_PROXY_IP}
                 APT_OPTIONS: ${APT_OPTIONS}
                 PIP_OPTIONS: ${PIP_OPTIONS}
-        links:
-            - seleniumdriver
+        # links:
+        #     - seleniumdriver
         cap_add:
-          # required by vscode
-          - SYS_ADMIN
+            # required by vscode
+            - SYS_ADMIN
         shm_size: 4gb
         privileged: true
         environment:
@@ -47,8 +47,6 @@ services:
             ROBO_UPLOAD_FILES_DIR_LOCAL: /tmp/robo_upload_files
             ROBO_UPLOAD_FILES_DIR_BROWSER_DRIVER: /tmp/robo_upload_files
             ROBO_WEBDRIVER_BROWSER: chrome
-            #ROBO_WEBDRIVER_HOST: 127.0.0.1:4444
-            ROBO_WEBDRIVER_HOST: seleniumdriver:4444
             ROBO_FORCE_HEADLESS: 0
             ROBO_PARAMS_FILE: /opt/robot/robo_params.json
             SETTINGS_FILE: /opt/robot/.odoo/run/${PROJECT_NAME}/settings

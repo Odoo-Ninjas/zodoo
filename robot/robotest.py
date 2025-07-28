@@ -330,7 +330,8 @@ def restart_selenium_driver():
         ["odoo", "-p", os.environ["project_name"], "restart", "seleniumdriver"]
     )
     logger.info("Restarted seleniumdriver container")
-    wait_for_port("seleniumdriver", 4444)
+    SELENIUM_SERVICE_NAME = os.environ["SELENIUM_SERVICE_NAME"]
+    wait_for_port(SELENIUM_SERVICE_NAME, 4444)
 
 
 def load_environment():
@@ -346,6 +347,9 @@ if __name__ == "__main__":
     params = json.loads(archive)
     del archive
 
+    SELENIUM_SERVICE_NAME = params.pop('SELENIUM_SERVICE_NAME')
+    os.environ["SELENIUM_SERVICE_NAME"] = SELENIUM_SERVICE_NAME
+    os.environ['ROBO_WEBDRIVER_HOST'] = f"{SELENIUM_SERVICE_NAME}:4444"
     os.environ["ROBOT_REMOTE_DEBUGGING"] = "1" if params.get("debug") else "0"
     if params["params"].get("headless"):
         os.environ["MOZ_HEADLESS"] = "1"
