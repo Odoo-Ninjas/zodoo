@@ -32,7 +32,7 @@ def check_queue_job_status(db_config):
         started = cursor.fetchone()
         if started:
             started = started[0]
-            if (datetime.now() - started[0]).total_seconds() > QUEUEJOBS_MAX_AGE_BEFORE_RESTART:
+            if (datetime.datetime.now() - started).total_seconds() > QUEUEJOBS_MAX_AGE_BEFORE_RESTART:
                 raise Exception(f"Queue jobs have been running for longer than QUEUEJOBS_MAX_AGE_BEFORE_RESTART_MINUTES= {QUEUEJOBS_MAX_AGE_BEFORE_RESTART}seconds, consider restarting the service.")
 
     finally:
