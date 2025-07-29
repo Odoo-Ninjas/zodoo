@@ -16,8 +16,8 @@ services:
         privileged: true
         profiles:
           - manual
-        # ports:
-        #     - "5900:5900"
+        ports:
+            - "5900:5900"
         volumes:
           - ${HOST_CUSTOMS_DIR}:/opt/src
           - ${HOST_CUSTOMS_DIR}:${HOST_CUSTOMS_DIR}

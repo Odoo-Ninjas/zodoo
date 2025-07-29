@@ -135,3 +135,10 @@ RUN $HOME/.local/bin/gimera completion -x
 
 
 RUN echo '. /tmp/envvars.sh' >> /home/$USERNAME/.bashrc
+USER root
+RUN #___SNIPPET_APT_INSTALL___ \
+    x11-xserver-utils \
+    x11-utils \
+    psmisc \
+    wmctrl \
+    xterm
