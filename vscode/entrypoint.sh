@@ -22,28 +22,6 @@ DISPLAY=:100
 
 # Clean up any stale X11/Xpra
 pkill -9 -f xpra || true
-pkill -9 -f fluxbox || true
-rm -rf /tmp/.X11-unix/X* /tmp/.X*-lock /run/user/*/xpra/* /tmp/*vscode* || true
-
-# Setup xauth
-COOKIE=$(mcookie)
-TEMP_XAUTH="/tmp/.Xauthority-$USERNAME"
-[[ -e "$TEMP_XAUTH" ]] && rm "$TEMP_XAUTH"
-[[ -f "$USER_HOME/.Xauthority" ]] && rm "$USER_HOME/.Xauthority"
-
-xauth -f "$TEMP_XAUTH" add "$DISPLAY" . "$COOKIE"
-mv "$TEMP_XAUTH" "$USER_HOME/.Xauthority"
-chown "$USERNAME:$USERNAME" "$USER_HOME/.Xauthority"
-cp "$USER_HOME/.Xauthority" /root/.Xauthority
-chown root:root /root/.Xauthority
-
-
-
-# # Fluxbox setup (toolbar/workspaces)
-# mkdir -p "$USER_HOME/.fluxbox"
-# touch "$USER_HOME/.fluxbox/init"
-# echo "session.screen0.toolbar.visible: workspace" >> "$USER_HOME/.fluxbox/init"
-# chown "$USERNAME:$USERNAME" "$USER_HOME/.fluxbox" -R
 
 # Permissions for Odoo
 chown "$USERNAME:$USERNAME" "$USER_HOME/.odoo" -R || true
@@ -74,13 +52,11 @@ fi
 
 echo "Git user is $GIT_USERNAME"
 
-# Start VS Code inside xpra session
-# gosu "$USERNAME" bash -c "DISPLAY=$DISPLAY /usr/bin/code --reuse-window \"$HOST_SRC_PATH\""
-# Start xpra (X11 server with HTML5 and VNC support)
-xpra start "$DISPLAY" \
+mkdir -p /run/user/1001/xpra
+chown "$USERNAME:$USERNAME" /run/user/1001/xpra
+gosu $USERNAME xpra start "$DISPLAY" \
     --bind-tcp=0.0.0.0:5900 \
-    --html=on \
-    --start-child=/usr/bin/code
+    --html=on 
 
 # # Optional: Maximize VSCode window
 # for i in {1..10}; do
@@ -91,5 +67,7 @@ xpra start "$DISPLAY" \
 #     fi
 #     sleep 1
 # done
+sleep 2
+gosu "$USERNAME" bash -c "DISPLAY=$DISPLAY /usr/bin/code \"$HOST_SRC_PATH\""
 
 sleep infinity
