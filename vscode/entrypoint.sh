@@ -18,18 +18,14 @@ REPO_AUTH_TYPE="$4"
 REPO_KEY="$5"
 USER_HOME=$(eval echo ~$USERNAME)
 SSHDIR="$USER_HOME/.ssh"
+DISPLAY=:100
 
-export DISPLAY=:1
+# Clean up any stale X11/Xpra
+pkill -9 -f xpra || true
+pkill -9 -f fluxbox || true
+rm -rf /tmp/.X11-unix/X* /tmp/.X*-lock /run/user/*/xpra/* /tmp/*vscode* || true
 
-pkill -9 -f vscode || true
-pkill -9 -f x11vnc || true
-pkill -9 -f Xvfb || true
-pkill -9 -f xhost || true
-
-# vorsichtige Bereinigung von temporären Dateien
-rm -rf /tmp/.X11-unix/X1 /tmp/.X1-lock /tmp/*vscode* || true
-
-# xauthority initialisieren
+# Setup xauth
 COOKIE=$(mcookie)
 TEMP_XAUTH="/tmp/.Xauthority-$USERNAME"
 [[ -e "$TEMP_XAUTH" ]] && rm "$TEMP_XAUTH"
@@ -40,52 +36,24 @@ mv "$TEMP_XAUTH" "$USER_HOME/.Xauthority"
 chown "$USERNAME:$USERNAME" "$USER_HOME/.Xauthority"
 cp "$USER_HOME/.Xauthority" /root/.Xauthority
 chown root:root /root/.Xauthority
-rsync "$USER_HOME/.vnc/" /root/.vnc/ -ar || true
 
-# Starte Xvfb
-Xvfb "$DISPLAY" -screen 0 "${DISPLAY_WIDTH}x${DISPLAY_HEIGHT}x${DISPLAY_COLOR}" &
-XVFB_PID=$!
 
-# Warte, bis DISPLAY bereit ist
-for i in {1..10}; do
-    if xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
-        break
-    fi
-    echo "Waiting for Xvfb to be ready..."
-    sleep 0.5
-done
 
-# Zugriff auf DISPLAY erlauben
-xhost +local:
+# # Fluxbox setup (toolbar/workspaces)
+# mkdir -p "$USER_HOME/.fluxbox"
+# touch "$USER_HOME/.fluxbox/init"
+# echo "session.screen0.toolbar.visible: workspace" >> "$USER_HOME/.fluxbox/init"
+# chown "$USERNAME:$USERNAME" "$USER_HOME/.fluxbox" -R
 
-# Starte VNC Server
-/usr/bin/x11vnc -display "$DISPLAY" -auth "$USER_HOME/.Xauthority" \
-    -forever \
-    -rfbport 5900 \
-    -noxdamage \
-    -ncache 10 \
-    -ncache_cr \
-    -nopw \
-    -shared \
-    -scale "${DISPLAY_WIDTH}x${DISPLAY_HEIGHT}" &
+# Permissions for Odoo
+chown "$USERNAME:$USERNAME" "$USER_HOME/.odoo" -R || true
 
-# Umgebungsvariablen exportieren
+# Export vars
 echo "export project_name=$project_name" > /tmp/envvars.sh
 echo "export CUSTOMS_DIR=$CUSTOMS_DIR" >> /tmp/envvars.sh
 echo "alias odoo=\"$USER_HOME/.local/bin/odoo --project-name=$project_name\"" >> "$USER_HOME/.bash_aliases"
 
-# Fluxbox starten
-mkdir -p "$USER_HOME/.fluxbox"
-touch "$USER_HOME/.fluxbox/init"
-echo "session.screen0.toolbar.visible: workspace" >> "$USER_HOME/.fluxbox/init"
-#echo session.screen0.iconbar.mode: none >> "$USER_HOME/.fluxbox/init"
-chown "$USERNAME:$USERNAME" "$USER_HOME/.fluxbox" -R
-gosu "$USERNAME" fluxbox &
-
-# Rechte für Odoo-Verzeichnis setzen
-chown "$USERNAME:$USERNAME" /home/user1/.odoo -R || true
-
-# Git konfigurieren
+# Git config
 cd "$HOST_SRC_PATH"
 if [[ -n "$GIT_USERNAME" && -n "$GIT_EMAIL" ]]; then
     git config --global user.email "$GIT_EMAIL"
@@ -106,17 +74,22 @@ fi
 
 echo "Git user is $GIT_USERNAME"
 
-# VSCode starten und maximieren
-gosu $USERNAME bash -c 'pgrep -x code > /dev/null || DISPLAY=:1 /usr/bin/code --reuse-window "$HOST_SRC_PATH"'
-sleep 2
-# Warte auf VSCode-Fenster
-for i in {1..10}; do
-    if wmctrl -l | grep -q "Visual Studio Code"; then
-        wmctrl -a "Visual Studio Code"
-        xdotool key --clearmodifiers alt+F10
-        break
-    fi
-    sleep 1
-done
+# Start VS Code inside xpra session
+# gosu "$USERNAME" bash -c "DISPLAY=$DISPLAY /usr/bin/code --reuse-window \"$HOST_SRC_PATH\""
+# Start xpra (X11 server with HTML5 and VNC support)
+xpra start "$DISPLAY" \
+    --bind-tcp=0.0.0.0:5900 \
+    --html=on \
+    --start-child=/usr/bin/code
+
+# # Optional: Maximize VSCode window
+# for i in {1..10}; do
+#     if wmctrl -l | grep -q "Visual Studio Code"; then
+#         wmctrl -a "Visual Studio Code"
+#         xdotool key --clearmodifiers alt+F10
+#         break
+#     fi
+#     sleep 1
+# done
 
 sleep infinity
