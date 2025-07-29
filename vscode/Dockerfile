@@ -142,6 +142,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
     psmisc \
     wmctrl \
     xterm \
-    xpra fluxbox xauth x11-utils wmctrl xdotool git rsync code \
+    xpra fluxbox \
+    xauth x11-utils wmctrl xdotool git rsync code \
     dbus-x11 \
     python3-pyinotify python3-pil python3-paramiko coreutils

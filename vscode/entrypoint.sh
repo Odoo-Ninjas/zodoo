@@ -20,18 +20,19 @@ USER_HOME=$(eval echo ~$USERNAME)
 SSHDIR="$USER_HOME/.ssh"
 DISPLAY=:100
 
-# Clean up any stale X11/Xpra
+# Clean up any stale Xpra sessions
 pkill -9 -f xpra || true
+rm -rf /run/user/1001/xpra /tmp/.X11-unix/X100 /tmp/.X100-lock
 
-# Permissions for Odoo
+# Set permissions for Odoo folder
 chown "$USERNAME:$USERNAME" "$USER_HOME/.odoo" -R || true
 
-# Export vars
+# Export environment variables
 echo "export project_name=$project_name" > /tmp/envvars.sh
 echo "export CUSTOMS_DIR=$CUSTOMS_DIR" >> /tmp/envvars.sh
 echo "alias odoo=\"$USER_HOME/.local/bin/odoo --project-name=$project_name\"" >> "$USER_HOME/.bash_aliases"
 
-# Git config
+# Configure Git
 cd "$HOST_SRC_PATH"
 if [[ -n "$GIT_USERNAME" && -n "$GIT_EMAIL" ]]; then
     git config --global user.email "$GIT_EMAIL"
@@ -52,22 +53,36 @@ fi
 
 echo "Git user is $GIT_USERNAME"
 
+# Create XPRA socket directory
 mkdir -p /run/user/1001/xpra
 chown "$USERNAME:$USERNAME" /run/user/1001/xpra
-gosu $USERNAME xpra start "$DISPLAY" \
+
+export XAUTHORITY="$USER_HOME/.Xauthority"
+
+# Create an Xauthority file for the user if missing
+
+rm -f "$XAUTHORITY" || true
+if [[ ! -f "$XAUTHORITY" ]]; then
+    gosu "$USERNAME" touch "$XAUTHORITY"
+    gosu "$USERNAME" xauth generate "$DISPLAY" . trusted
+    chown "$USERNAME:$USERNAME" "$XAUTHORITY"
+fi
+
+# remove start up annoying message
+echo '#!/bin/bash' > /etc/X11/Xsession
+echo 'exec "$@"' >> /etc/X11/Xsession
+chmod +x /etc/X11/Xsession
+
+# Start XPRA with VSCode as child
+mkdir -p /tmp/vscode-data
+chown "$USERNAME:$USERNAME" /tmp/vscode-data
+
+exec gosu "$USERNAME" xpra start "$DISPLAY" \
     --bind-tcp=0.0.0.0:5900 \
-    --html=on 
-
-# # Optional: Maximize VSCode window
-# for i in {1..10}; do
-#     if wmctrl -l | grep -q "Visual Studio Code"; then
-#         wmctrl -a "Visual Studio Code"
-#         xdotool key --clearmodifiers alt+F10
-#         break
-#     fi
-#     sleep 1
-# done
-sleep 2
-gosu "$USERNAME" bash -c "DISPLAY=$DISPLAY /usr/bin/code \"$HOST_SRC_PATH\""
-
-sleep infinity
+    --html=on \
+    --resize-display=yes \
+    --dpi=96 \
+    --start-via-proxy=no \
+    --start-child="/bin/bash /start.sh" \
+    --exit-with-children \
+    --no-daemon
