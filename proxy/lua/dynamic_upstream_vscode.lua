@@ -1,6 +1,6 @@
 local myngx = require("myngx")
-local hostname = "novnc_vscode"
-local port = "6080"
+local hostname = "vscode"
+local port = "5900"
 local varname = "target_vscode"
 
 ngx.log(ngx.INFO, "Redirecting to vscode")

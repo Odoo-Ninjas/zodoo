@@ -388,7 +388,7 @@ def _run_test(
 ):
     from .odoo_config import MANIFEST
 
-    headless = os.getenv("IS_COBOT_CONTAINER") != "1"
+    headless = False
 
     manifest = MANIFEST()
     if not browser:
@@ -458,24 +458,17 @@ def _run_test(
     os.chdir(workingdir)
 
     click.secho(f"Starting test: {params}")
-    if os.getenv("IS_COBOT_CONTAINER") == "1":
-        Path("/tmp/archive").write_text(data)
-        subprocess.run(
-            ["/usr/bin/python3", "/opt/robot/robotest.py"],
-            env=os.environ,
+    try:
+        Commands.invoke(ctx, "up", daemon=True, machines=[selenium_service_name])
+        __dcrun(config, params, pass_stdin=data, interactive=True)
+    finally:
+        # ensure that the seleniumdriver is stopped
+        Commands.invoke(ctx, "kill", machines=[selenium_service_name])
+        Commands.invoke(ctx, "rm", machines=[selenium_service_name])
+        click.secho(
+            f"Stopped seleniumdriver {selenium_service_name} container",
+            fg="yellow",
         )
-    else:
-        try:
-            Commands.invoke(ctx, "up", daemon=True, machines=[selenium_service_name])
-            __dcrun(config, params, pass_stdin=data, interactive=True)
-        finally:
-            # ensure that the seleniumdriver is stopped
-            Commands.invoke(ctx, "kill", machines=[selenium_service_name])
-            Commands.invoke(ctx, "rm", machines=[selenium_service_name])
-            click.secho(
-                f"Stopped seleniumdriver {selenium_service_name} container",
-                fg="yellow",
-            )
     del data
 
     output_path = config.HOST_RUN_DIR / "odoo_outdir" / "robot_output"

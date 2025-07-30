@@ -77,7 +77,6 @@ COPY openbox/menu.xml  /opt/robot/.config/openbox/menu.xml
 RUN touch /opt/robot/.hushlogin
 COPY robotest.py ./
 COPY entrypoint.sh ./
-COPY entrypoint_cobot.sh ./
 RUN chmod a+x entrypoint*.sh
 COPY openbox/welcome.txt /etc/welcome.txt
 

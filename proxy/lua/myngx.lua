@@ -41,6 +41,8 @@ function myngx.get_ip(hostname)
 		return nil
 	end
 
+	ngx.log(ngx.INFO, "Found IP address for " .. hostname .. ": " .. ip)
+
 	return ip
 end
 

@@ -76,6 +76,8 @@ chmod +x /etc/X11/Xsession
 # Start XPRA with VSCode as child
 mkdir -p /tmp/vscode-data
 chown "$USERNAME:$USERNAME" /tmp/vscode-data
+mkdir -p /run/user/1001/xpra
+chown "$USERNAME:$USERNAME" /run/user/1001 -R
 
 exec gosu "$USERNAME" xpra start "$DISPLAY" \
     --bind-tcp=0.0.0.0:5900 \
@@ -85,4 +87,11 @@ exec gosu "$USERNAME" xpra start "$DISPLAY" \
     --start-via-proxy=no \
     --start-child="/bin/bash /start.sh" \
     --exit-with-children \
-    --no-daemon
+    --socket-dir=/run/user/1001/xpra \
+    --no-daemon \
+    --mdns=no \
+    --webcam=no \
+    --microphone=no \
+    --keyboard-raw=yes \
+    --speaker=no  \
+    --env=XPRA_HTML5_BASE=/code/

@@ -12,6 +12,7 @@ ARG APT_OPTIONS
 ENV DEBIAN_FRONTEND=noninteractive
 
 # --- Basic tools and core dependencies ---
+
 RUN #___SNIPPET_APT_INSTALL___ \
     curl \
     gpg \
@@ -33,7 +34,16 @@ RUN #___SNIPPET_APT_INSTALL___ \
     libpq-dev \
     software-properties-common \
     build-essential \
-    gnupg-agent 
+    gnupg-agent  \
+    x11-xserver-utils \
+    x11-utils \
+    psmisc \
+    wmctrl \
+    xterm \
+    fluxbox \
+    xauth x11-utils wmctrl xdotool git rsync \
+    dbus-x11 \
+    python3-pyinotify python3-pil python3-paramiko coreutils
 
 
 # --- COPY newer Python version ---
@@ -136,13 +146,5 @@ RUN $HOME/.local/bin/gimera completion -x
 
 RUN echo '. /tmp/envvars.sh' >> /home/$USERNAME/.bashrc
 USER root
-RUN #___SNIPPET_APT_INSTALL___ \
-    x11-xserver-utils \
-    x11-utils \
-    psmisc \
-    wmctrl \
-    xterm \
-    xpra fluxbox \
-    xauth x11-utils wmctrl xdotool git rsync code \
-    dbus-x11 \
-    python3-pyinotify python3-pil python3-paramiko coreutils
+
+#___SNIPPET_XPRA_INSTALL___
