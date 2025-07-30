@@ -3,7 +3,6 @@ ARG WODOO_VERSION
 ARG POSTGRES_VERSION
 ARG APT_PROXY_IP
 ARG APT_OPTIONS
-ARG PYPI_SERVER
 ARG DOCKER_GID
 ENV DEBIAN_FRONTEND=noninteractive
 ENV POSTGRES_VERSION=$POSTGRES_VERSION
@@ -18,9 +17,6 @@ pigz telnet libpq-dev wget lsb-release \
 libxml2-dev libxslt-dev pipx gosu git sudo \
 ca-certificates curl gnupg lsb-release \
 unzip
-
-# Set custom PyPI index
-# ___SNIPPET_PYPI_SERVER___
 
 # install docker
 #___SNIPPET_DOCKER___

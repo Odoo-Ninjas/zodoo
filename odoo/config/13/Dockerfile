@@ -86,8 +86,6 @@ RUN apt-get $APT_OPTIONS update && apt-get $APT_OPTIONS install -y \
 
 #___SNIPPET_SETUP_PYTHON_VENV___
 
-#___SNIPPET_PYPI_SERVER___
-
 
 RUN pip3 install $PIP_OPTIONS wheel && \
 pip3 install $PIP_OPTIONS pip -U && \

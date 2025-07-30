@@ -9,7 +9,6 @@ ARG CUSTOMS_SHA
 ARG ODOO_CONFIG_DIR
 ARG APT_PROXY_IP
 ARG APT_OPTIONS
-ARG PYPI_SERVER
 ARG DOCKER_GID
 
 # --------------------------------------------------------------------
@@ -98,8 +97,6 @@ RUN #___SNIPPET_APT_INSTALL___ \
 
 #___SNIPPET_SETUP_PYTHON_VENV___
 
-#___SNIPPET_PYPI_SERVER___
-
 RUN python3 -mpip install pip -U
 RUN /usr/local/bin/python3 -m venv --copies /opt/venv
 
@@ -139,7 +136,6 @@ ARG ODOO_INSTALL_LIBPOSTAL
 ARG CUSTOMS_SHA
 ARG APT_PROXY_IP
 ARG APT_OPTIONS
-ARG PYPI_SERVER
 
 #___SNIPPET_CHECK_SHA___
 

@@ -5,7 +5,6 @@ ARG ODOO_INSTALL_LIBPOSTAL
 ARG ODOO_CONFIG_DIR
 ARG APT_PROXY_IP
 ARG APT_OPTIONS
-ARG PYPI_SERVER
 #ARG CUSTOMS_REQUIREMENTS
 
 #RUN [[ -z "$CUSTOMS_REQUIREMENTS" && exit -1 ]]
@@ -142,7 +141,6 @@ COPY config/$ODOO_VERSION/requirements.txt /root/requirements.txt
 # Optional: speed up installs
 ENV PIP_NO_CACHE_DIR=no
 # Set custom PyPI index
-#___SNIPPET_PYPI_SERVER___
 RUN pip3 install wheel
 RUN hash -r && \
         pip3 install --upgrade pip && \
