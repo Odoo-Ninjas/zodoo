@@ -56,29 +56,40 @@ RUN #___SNIPPET_APT_INSTALL___ \
     wget \
     x11-utils
 
-RUN wget https://xpra.org/stable/jammy/main/binary-arm64/xpra-common_6.2.1-r0-1_arm64.deb
-RUN dpkg -i xpra-common_6.2.1-r0-1_arm64.deb
 
-RUN wget https://xpra.org/stable/jammy/main/binary-arm64/xpra-server_6.2.1-r0-1_arm64.deb
-RUN dpkg -i xpra-server_6.2.1-r0-1_arm64.deb
+ENV XPRA_VERSION=6.2.1-r0-1
+ENV HTML5_VERSION=16.2-r0-1
+ENV XPRA_BASE_URL=https://xpra.org/stable/jammy/main/binary-${TARGETARCH}
 
-RUN wget https://xpra.org/stable/jammy/main/binary-arm64/xpra-client_6.2.1-r0-1_arm64.deb
-RUN dpkg -i xpra-client_6.2.1-r0-1_arm64.deb
+# xpra core packages
+RUN wget ${XPRA_BASE_URL}/xpra-common_${XPRA_VERSION}_${TARGETARCH}.deb
+RUN dpkg -i xpra-common_${XPRA_VERSION}_${TARGETARCH}.deb
 
-RUN wget https://xpra.org/stable/jammy/main/binary-arm64/xpra-codecs_6.2.1-r0-1_arm64.deb
-RUN dpkg -i xpra-codecs_6.2.1-r0-1_arm64.deb
+RUN wget ${XPRA_BASE_URL}/xpra-server_${XPRA_VERSION}_${TARGETARCH}.deb
+RUN dpkg -i xpra-server_${XPRA_VERSION}_${TARGETARCH}.deb
 
-RUN wget https://xpra.org/stable/jammy/main/binary-arm64/xpra-codecs-extras_6.2.1-r0-1_arm64.deb
-RUN dpkg -i xpra-codecs-extras_6.2.1-r0-1_arm64.deb
+RUN wget ${XPRA_BASE_URL}/xpra-client_${XPRA_VERSION}_${TARGETARCH}.deb
+RUN dpkg -i xpra-client_${XPRA_VERSION}_${TARGETARCH}.deb
 
-RUN wget https://xpra.org/stable/jammy/main/binary-arm64/xpra-client-gtk3_6.2.1-r0-1_arm64.deb
-RUN dpkg -i xpra-client-gtk3_6.2.1-r0-1_arm64.deb
+# codecs
+RUN wget ${XPRA_BASE_URL}/xpra-codecs_${XPRA_VERSION}_${TARGETARCH}.deb
+RUN dpkg -i xpra-codecs_${XPRA_VERSION}_${TARGETARCH}.deb
 
-RUN wget https://xpra.org/stable/jammy/main/binary-arm64/xpra-x11_6.2.1-r0-1_arm64.deb
-RUN dpkg -i xpra-x11_6.2.1-r0-1_arm64.deb
+RUN wget ${XPRA_BASE_URL}/xpra-codecs-extras_${XPRA_VERSION}_${TARGETARCH}.deb
+RUN dpkg -i xpra-codecs-extras_${XPRA_VERSION}_${TARGETARCH}.deb
 
-RUN wget https://xpra.org/stable/jammy/main/binary-arm64/xpra_6.2.1-r0-1_arm64.deb
-RUN dpkg -i xpra_6.2.1-r0-1_arm64.deb
+# GTK3 client
+RUN wget ${XPRA_BASE_URL}/xpra-client-gtk3_${XPRA_VERSION}_${TARGETARCH}.deb
+RUN dpkg -i xpra-client-gtk3_${XPRA_VERSION}_${TARGETARCH}.deb
 
-RUN wget https://xpra.org/stable/jammy/main/binary-arm64/xpra-html5-16.2-r0-1.deb
-RUN dpkg -i xpra-html5-16.2-r0-1.deb
+# X11 integration
+RUN wget ${XPRA_BASE_URL}/xpra-x11_${XPRA_VERSION}_${TARGETARCH}.deb
+RUN dpkg -i xpra-x11_${XPRA_VERSION}_${TARGETARCH}.deb
+
+# metapackage
+RUN wget ${XPRA_BASE_URL}/xpra_${XPRA_VERSION}_${TARGETARCH}.deb
+RUN dpkg -i xpra_${XPRA_VERSION}_${TARGETARCH}.deb
+
+# HTML5 client (arch-independent)
+RUN wget ${XPRA_BASE_URL}/xpra-html5-${HTML5_VERSION}.deb
+RUN dpkg -i xpra-html5-${HTML5_VERSION}.deb
