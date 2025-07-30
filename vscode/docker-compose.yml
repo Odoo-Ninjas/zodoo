@@ -16,8 +16,8 @@ services:
         privileged: true
         profiles:
           - manual
-        ports:
-            - "5900:5900"
+        # ports:
+        #     - "5900:5900"
         volumes:
           - ${HOST_CUSTOMS_DIR}:/opt/src
           - ${HOST_CUSTOMS_DIR}:${HOST_CUSTOMS_DIR}
@@ -33,3 +33,4 @@ services:
             - "host.docker.internal:host-gateway"
         environment:
             - XPRA_RESIZE_DISPLAY=1
+            - XPRA_HTML5_BASE=/code/

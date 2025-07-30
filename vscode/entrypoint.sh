@@ -93,5 +93,4 @@ exec gosu "$USERNAME" xpra start "$DISPLAY" \
     --webcam=no \
     --microphone=no \
     --keyboard-raw=yes \
-    --speaker=no  \
-    --env=XPRA_HTML5_BASE=/code/
+    --speaker=no  
