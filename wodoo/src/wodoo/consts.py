@@ -17,7 +17,7 @@ VERSIONS = [
 ]
 YAML_VERSION = "3.7"
 DEFAULT_IMAGES_REPO = "https://github.com/marcwimmer/wodoo-images"
-IMAGES_REPO_BRANCH = "2025-05b"
+IMAGES_REPO_BRANCH = "xpra"
 
 
 def resolve_profiles(profile):
