@@ -4,7 +4,7 @@ set -e
 
 REPO_URL="https://github.com/Odoo-Ninjas/zodoo"
 TARGET_DIR="$HOME/.odoo/images"
-SRC_DIR="$TARGET_DIR/src"
+SRC_DIR="$TARGET_DIR/wodoo/src"
 
 echo "🔍 Checking for git..."
 if ! command -v git >/dev/null 2>&1; then
