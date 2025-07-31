@@ -5,16 +5,12 @@ volumes:
 services:
     seleniumvnc:
         build:
-            context: ${ODOO_IMAGES}/vncviewer_xpra
+            context: ${ODOO_IMAGES}/selenium_customized
             args:
                 APT_PROXY_IP: ${APT_PROXY_IP}
                 PIP_PROXY_IP: ${PIP_PROXY_IP}
                 APT_OPTIONS: ${APT_OPTIONS}
                 PIP_OPTIONS: ${PIP_OPTIONS}
-        links:
-            - seleniumdriver
-        # ports:
-        #     - "5900:5900"
         shm_size: 4gb
         environment:
             - XPRA_RESIZE_DISPLAY=1

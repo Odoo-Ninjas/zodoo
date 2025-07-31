@@ -195,6 +195,7 @@ def up(
     options = [
         # '--remove-orphans', # lost data with that; postgres volume suddenly new after rm?
         #'--compatibility' # to support reousrce limit swarm mode
+        "--no-build",
     ]
     if daemon:
         options += ["-d"]

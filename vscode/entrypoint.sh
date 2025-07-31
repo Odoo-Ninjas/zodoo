@@ -51,7 +51,9 @@ echo "Git user is $GIT_USERNAME"
 
 # Create XPRA socket directory
 mkdir -p /run/user/1001/xpra
+mkdir -p /run/user/1000/xpra
 chown "$USERNAME:$USERNAME" /run/user/1001 -R
+chown "$USERNAME:$USERNAME" /run/user/1000 -R
 
 
 # remove start up annoying message
@@ -66,14 +68,14 @@ chown "$USERNAME:$USERNAME" /tmp/vscode-data
 # cleanup old
 # xpra stop $DISPLAY || true
 pkill -9 -f xpra || true
-rm /tmp/.X100-lock || true
+rm /tmp/.X100-lock >/dev/null 2>&1 || true
 exec gosu "$USERNAME" xpra start "$DISPLAY" \
     --bind-tcp=0.0.0.0:5900 \
     --html=on \
     --resize-display=yes \
     --dpi=96 \
     --start-via-proxy=no \
-    --start-child="/bin/bash /start.sh" \
+    --start-child="/usr/local/bin/start.sh" \
     --exit-with-children \
     --socket-dir=/run/user/1001/xpra \
     --no-daemon \

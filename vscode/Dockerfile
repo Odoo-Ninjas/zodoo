@@ -143,6 +143,10 @@ RUN $HOME/.local/bin/gimera completion -x
 RUN echo '. /tmp/envvars.sh' >> /home/$USERNAME/.bashrc
 USER root
 
+
 #___SNIPPET_INSTALL_PIPX___
 
 #___SNIPPET_XPRA_INSTALL___
+
+COPY start.sh /usr/local/bin/start.sh
+RUN chmod +x /usr/local/bin/start.sh
