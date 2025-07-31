@@ -64,7 +64,8 @@ mkdir -p /tmp/vscode-data
 chown "$USERNAME:$USERNAME" /tmp/vscode-data
 
 # cleanup old
-xpra stop $DISPLAY || true
+# xpra stop $DISPLAY || true
+pkill -9 -f xpra || true
 rm /tmp/.X100-lock || true
 exec gosu "$USERNAME" xpra start "$DISPLAY" \
     --bind-tcp=0.0.0.0:5900 \

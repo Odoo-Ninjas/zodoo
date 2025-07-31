@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -e
+set -x
 
 # Default VNC server or from ENV
 VNC_SERVER=${VNC_SERVER:-""}
@@ -14,7 +15,8 @@ fi
 echo "🟢 Starting xpra VNC viewer session to $VNC_SERVER ..."
 
 # Ensure xpra cleans up old sockets
-xpra stop $DISPLAY || true
+# xpra stop $DISPLAY || true
+pkill -9 -f xpra || true
 
 
 mkdir -p /run/user/1001/xpra 

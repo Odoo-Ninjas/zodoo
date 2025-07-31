@@ -1,13 +1,16 @@
 ENV WODOO_SRC=/opt/wodoo
+ENV WODOO_BRANCH=2025-05b
+ENV WODOO_BRANCH=xpra
 ENV WODOO_PIPX_HOME=/opt/wodoo_pipx
 ENV WODOO_ENV_DIR=/opt/wodoo_pipx/venvs/wodoo
 ENV WODOO_PYTHON=$WODOO_ENV_DIR/bin/python3
 
 #___SNIPPET_PYTHON311___
 
-COPY --from=wodoo_src:latest /opt/wodoo "$WODOO_SRC"
-RUN chown -R $CURRENT_USER:$CURRENT_USER "$WODOO_SRC"
-
+RUN git clone https://github.com/marcwimmer/wodoo-images $WODOO_SRC && \
+cd $WODOO_SRC && \
+git checkout $WODOO_BRANCH && \
+chown -R $CURRENT_USER:$CURRENT_USER "$WODOO_SRC"
 
 
 RUN /usr/bin/python3.11 -m venv "$WODOO_ENV_DIR"; \
@@ -28,7 +31,7 @@ if [ "$ODOO_VERSION"  != '11' ]; then \
      --force \
      --verbose \
      -e \
-     "$WODOO_SRC" \
+     "$WODOO_SRC/wodoo/src" \
      || (echo "=== pipx install failed ===" && \
           cat $WODOO_PIPX_HOME/logs/*.log && \
           exit 1) \

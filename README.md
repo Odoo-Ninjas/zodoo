@@ -1,5 +1,13 @@
-# wodoo-images
+# WODOO Framework
 
-These images are default images used in the wodoo package.
+## Requirements
 
-In wodoo you can configure to use another base url for the odoo images.
+* pipx
+* git
+* <=python3.11
+
+## Installation
+
+```
+bash <(curl -fsSL https://raw.githubusercontent.com/marcwimmer/wodoo-images/insta.sh)
+```

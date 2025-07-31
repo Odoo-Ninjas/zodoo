@@ -7,14 +7,15 @@ ENV TARGETARCH=${TARGETARCH}
 
 # Install packages
 RUN #___SNIPPET_APT_INSTALL___ \
-    tigervnc-viewer \
-    fluxbox \
     dbus-x11 \
     curl \
     net-tools \
     x11-utils \
     x11-xserver-utils \
-    ca-certificates  
+    ca-certificates \
+    fluxbox \
+    tigervnc-viewer \
+    tightvncserver
 
 #___SNIPPET_XPRA_INSTALL___
 
