@@ -9,5 +9,5 @@
 ## Installation
 
 ```
-bash <(curl -fsSL https://raw.githubusercontent.com/marcwimmer/wodoo-images/insta.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/Odoo-Ninjas/zodoo/install.sh)
 ```
