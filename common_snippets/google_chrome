@@ -1,0 +1,37 @@
+# ARG TARGETARCH
+# ENV DEBIAN_FRONTEND=noninteractive
+# RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | \
+#     gpg --dearmor -o /usr/share/keyrings/google-chrome-keyring.gpg
+
+# # Install required tools
+# RUN apt-get update && apt-get install -y \
+#     curl \
+#     gnupg \
+#     ca-certificates \
+#     apt-transport-https \
+#     lsb-release
+
+# Add Google Chrome repository and install Chrome
+# RUN SNIPPET_APT_INSTALL___ \
+# chromium
+# RUN case "$TARGETARCH" in \
+#     "amd64") \
+#         echo "Installing Chrome for amd64"; \
+#         curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome-keyring.gpg && \
+#         echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list && \
+#         apt-get $APT_OPTIONS update && \
+#         #___SNIPPET_APT_INSTALL___  google-chrome-stable; \
+#         ;; \
+#     "arm64") \
+#         echo "Chrome is not officially supported on arm64. Using Chromium instead."; \
+#         apt-get $APT_OPTIONS update && \
+#         #___SNIPPET_APT_INSTALL___ chromium; \
+#         ln -s /usr/bin/chromium /usr/bin/google-chrome-stable; \
+#         ;; \
+#     *) \
+#         echo "Unsupported architecture: $TARGETARCH" && exit 1; \
+#         ;; \
+#     esac
+
+# # Clean up
+# RUN apt-get clean && rm -rf /var/lib/apt/lists/*
