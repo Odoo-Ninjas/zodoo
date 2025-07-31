@@ -16,8 +16,7 @@ VERSIONS = [
     18.0,
 ]
 YAML_VERSION = "3.7"
-DEFAULT_IMAGES_REPO = "https://github.com/marcwimmer/wodoo-images"
-IMAGES_REPO_BRANCH = "xpra"
+DEFAULT_IMAGES_REPO = "https://github.com/Odoo-Ninjas/zodoo"
 
 
 def resolve_profiles(profile):

@@ -7,6 +7,8 @@ from .tools import _askcontinue
 from .tools import remove_webassets
 from .cli import cli, pass_config, Commands
 from .lib_clickhelpers import AliasedGroup
+from .tools import __try_to_set_owner
+from .tools import whoami
 
 
 @cli.group(cls=AliasedGroup)
@@ -110,14 +112,30 @@ def _status(config):
 
 
 @setup.command(help="Upgrade wodoo")
-def upgrade():
-    click.secho("This command is obsolete. With every 'reload' a pull habens in ~/.odoo/images and by that the latest wodoo version should be updated.", fg='red')
-    click.secho("Afterwards please execute: odoo reinstall", fg='yellow')
+@pass_config
+@click.pass_context
+def upgrade(ctx, config):
+    click.secho("Pulling wodoo from git repository...", fg='yellow')
+    subprocess.check_call(
+        [
+            "git",
+            "pull",
+            "--rebase=false",
+            "--autostash",
+            "--quiet",
+        ],
+        cwd=config.dirs["images"],
+    )
+    _reinstall()
+    __try_to_set_owner(whoami(), config.dirs['images'], abort_if_failed=False)
+
+def _reinstall():
+    path = os.path.expanduser("~/.odoo/images/wodoo/src")
+    subprocess.check_call(["pipx", "install", "--force", "-e", path], shell=False)
 
 @setup.command(help="Reinstall wodoo python")
 def reinstall():
-    path = os.path.expanduser("~/.odoo/images/wodoo/src")
-    subprocess.check_call(["pipx", "install", "--force", "-e", path], shell=False)
+    _reinstall()
 
 
 @setup.command()

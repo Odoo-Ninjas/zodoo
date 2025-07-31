@@ -39,4 +39,7 @@ fi
 echo "📦 Installing $SRC_DIR via pipx..."
 pipx install -e "$SRC_DIR" -f
 
+# Setting up completion
+odoo completion -x
+
 echo "✅ Done."

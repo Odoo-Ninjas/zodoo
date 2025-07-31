@@ -477,51 +477,14 @@ def _download_images(config, images_url):
     click.secho("--------------------------------------------------")
 
     if not config.dirs["images"].exists():
-        subprocess.check_call(
-            [
-                "git",
-                "clone",
-                images_url or consts.DEFAULT_IMAGES_REPO,
-                config.dirs["images"],
-            ]
-        )
-    current_branch = subprocess.check_output(
-        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-        encoding="utf8",
-        cwd=config.dirs["images"],
-    ).strip()
-    effective_branch = config.ODOO_IMAGES_BRANCH or consts.IMAGES_REPO_BRANCH
+        click.secho("Please install wodoo now with:", fg='red')
+        click.secho("bash <(curl -fsSL https://raw.githubusercontent.com/Odoo-Ninjas/zodoo/refs/heads/main/install.sh)")
+        sys.exit(-1)
+    if config.ODOO_IMAGES_BRANCH:
+        click.secho("The setting ODOO_IMAGES_BRANCH is obsolete.")
+        click.secho("Please remove it.")
+        sys.exit(-1)
 
-    if effective_branch and effective_branch != current_branch:
-        subprocess.check_call(["git", "fetch"], cwd=config.dirs["images"])
-        subprocess.check_call(
-            ["git", "checkout", effective_branch], cwd=config.dirs["images"]
-        )
-
-    if subprocess.check_output(
-        ["git", "remote"], encoding="utf8", cwd=config.dirs["images"]
-    ).strip():
-        trycount = 0
-        for _ in range(10):
-            trycount += 1
-            try:
-                subprocess.check_call(
-                    [
-                        "git",
-                        "pull",
-                        "--rebase=false",
-                        "--autostash",
-                        "--quiet",
-                    ],
-                    cwd=config.dirs["images"],
-                )
-            except Exception as ex:
-                if trycount < 5:
-                    time.sleep(random.randint(5, 30))
-                else:
-                    abort(str(ex))
-            else:
-                break
     branch = subprocess.check_output(
         ["git", "rev-parse", "--abbrev-ref", "HEAD"],
         cwd=config.dirs["images"],
