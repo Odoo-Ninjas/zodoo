@@ -2,7 +2,7 @@
 
 set -e
 
-REPO_URL="https://github.com/marcwimmer/wodoo-images"
+REPO_URL="https://github.com/Odoo-Ninjas/zodoo"
 TARGET_DIR="$HOME/.odoo/images"
 SRC_DIR="$TARGET_DIR/src"
 
@@ -23,6 +23,7 @@ fi
 
 # Checkout the desired branch
 cd "$TARGET_DIR"
+git remote set-url origin "$REPO_URL"
 
 # Check for pipx
 echo "🔍 Checking for pipx..."
