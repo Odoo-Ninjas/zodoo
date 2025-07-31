@@ -116,7 +116,7 @@ def _status(config):
 @click.pass_context
 def upgrade(ctx, config):
     click.secho("Pulling wodoo from git repository...", fg='yellow')
-    subprocess.check_call(
+    result = subprocess.run(
         [
             "git",
             "pull",
@@ -125,12 +125,28 @@ def upgrade(ctx, config):
             "--quiet",
         ],
         cwd=config.dirs["images"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        encoding="utf-8",
+        text=True,
+        env={**os.environ, "LANG": "C", "LC_ALL": "C"},
     )
-    _reinstall()
+
+    output = result.stdout.strip() + result.stderr.strip()
+
+    # Check for typical "no changes" messages
+    if "Already up to date." in output or "Already up-to-date." in output:
+        click.secho("No changes pulled; skipping reinstall.", fg='cyan')
+    else:
+        _reinstall()
     __try_to_set_owner(whoami(), config.dirs['images'], abort_if_failed=False)
 
 def _reinstall():
     path = os.path.expanduser("~/.odoo/images/wodoo/src")
+    try:
+        subprocess.check_call(["pipx", "uninstall", "wodoo"], shell=False)
+    except subprocess.CalledProcessError:
+        pass
     subprocess.check_call(["pipx", "install", "--force", "-e", path], shell=False)
 
 @setup.command(help="Reinstall wodoo python")
