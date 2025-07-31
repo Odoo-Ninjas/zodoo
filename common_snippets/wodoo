@@ -7,7 +7,7 @@ ENV WODOO_PYTHON=$WODOO_ENV_DIR/bin/python3
 
 #___SNIPPET_PYTHON311___
 
-RUN git clone https://github.com/Odoo-Ninjas/zodoo $WODOO_SRC && \
+RUN git clone https://raw.githubusercontent.com/Odoo-Ninjas/zodoo/refs/heads/main/install.sh $WODOO_SRC && \
 cd $WODOO_SRC && \
 git checkout $WODOO_BRANCH && \
 chown -R $CURRENT_USER:$CURRENT_USER "$WODOO_SRC"
