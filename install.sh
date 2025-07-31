@@ -6,11 +6,14 @@ REPO_URL="https://github.com/Odoo-Ninjas/zodoo"
 TARGET_DIR="$HOME/.odoo/images"
 SRC_DIR="$TARGET_DIR/wodoo/src"
 
+pipx uninstall wodoo || true  # remove any old version
+
 echo "🔍 Checking for git..."
 if ! command -v git >/dev/null 2>&1; then
     echo "❌ git is not installed. Please install Git and re-run this script."
     exit 1
 fi
+
 
 # Clone repo if not present
 if [ ! -d "$TARGET_DIR/.git" ]; then
