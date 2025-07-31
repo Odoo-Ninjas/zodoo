@@ -1,5 +1,5 @@
 local myngx = require("myngx")
-local hostname = "selenium_xpra"
+local hostname = "selenium_vncviewer"
 local port = "5900"
 local varname = "target_selenium_xpra"
 

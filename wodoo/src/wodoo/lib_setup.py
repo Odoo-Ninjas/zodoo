@@ -110,8 +110,7 @@ def _status(config):
 
 @setup.command(help="Upgrade wodoo")
 def upgrade():
-    cmd = [sys.executable, "-mpip", "install", "wodoo", "-U"]
-    subprocess.check_call(cmd)
+    click.secho("This command is obsolete. With every 'reload' a pull habens in ~/.odoo/images and by that the latest wodoo version should be updated.", fg='red')
 
 
 @setup.command()
