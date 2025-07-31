@@ -18,7 +18,7 @@ if [ ! -d "$TARGET_DIR/.git" ]; then
     mkdir -p "$(dirname "$TARGET_DIR")"
     git clone "$REPO_URL" "$TARGET_DIR"
 else
-    echo "✅ Git repo already exists at $TARGET_DIR"
+    echo "✅ Git repo already exists at $TARGET_DIR!"
 fi
 
 # Checkout the desired branch
