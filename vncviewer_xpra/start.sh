@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # Run wmctrl to maximize VS Code window after a short delay
 (
   sleep 5
@@ -12,6 +11,4 @@
     sleep 1
   done
 ) &
-
-# Now run VS Code in the foreground (last process)
-exec /usr/bin/code --verbose --no-sandbox --user-data-dir=/tmp/vscode-data "$HOST_SRC_PATH"
+vncviewer -passwd /run/user/1001/vncpasswd $VNC_SERVER 

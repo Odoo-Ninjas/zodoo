@@ -20,30 +20,27 @@ RUN #___SNIPPET_APT_INSTALL___ \
     gosu \
     rsync \
     net-tools \
-    x11vnc \
     xvfb \
-    xauth \
     wget \
     x11-apps \
     python3 \
     python3-dev \
     python3-pip \
     python3-venv \
+    python3-pyinotify \
+    python3-pil \
+    python3-paramiko \
+    coreutils \
     fluxbox \
     xdotool \
     libpq-dev \
     software-properties-common \
     build-essential \
     gnupg-agent  \
-    x11-xserver-utils \
-    x11-utils \
     psmisc \
     wmctrl \
-    xterm \
-    fluxbox \
-    xauth x11-utils wmctrl xdotool git rsync \
-    dbus-x11 \
-    python3-pyinotify python3-pil python3-paramiko coreutils
+    xauth \
+    dbus-x11 
 
 
 # --- COPY newer Python version ---
@@ -143,8 +140,9 @@ ENV SHELL=/bin/bash
 RUN /usr/local/bin/odoo completion -x
 RUN $HOME/.local/bin/gimera completion -x
 
-
 RUN echo '. /tmp/envvars.sh' >> /home/$USERNAME/.bashrc
 USER root
+
+#___SNIPPET_INSTALL_PIPX___
 
 #___SNIPPET_XPRA_INSTALL___

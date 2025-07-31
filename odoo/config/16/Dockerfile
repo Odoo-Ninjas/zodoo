@@ -45,7 +45,8 @@ RUN #___SNIPPET_APT_INSTALL___ \
     freetds-dev  \
     libbz2-dev \
     ncurses-dev \
-    rsync
+    rsync \
+    pkg-config 
 
 #___SNIPPET_BUILD_PYTHON___
 
@@ -81,7 +82,9 @@ RUN #___SNIPPET_APT_INSTALL___ \
     libffi-dev \
     libkrb5-dev \
     cmake \
-    git
+    git \
+    pkg-config
+
 
 #___SNIPPET_DEB_REQUIREMENTS___
 

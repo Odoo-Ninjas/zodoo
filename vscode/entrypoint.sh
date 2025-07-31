@@ -20,10 +20,6 @@ USER_HOME=$(eval echo ~$USERNAME)
 SSHDIR="$USER_HOME/.ssh"
 DISPLAY=:100
 
-# Clean up any stale Xpra sessions
-pkill -9 -f xpra || true
-rm -rf /run/user/1001/xpra /tmp/.X11-unix/X100 /tmp/.X100-lock
-
 # Set permissions for Odoo folder
 chown "$USERNAME:$USERNAME" "$USER_HOME/.odoo" -R || true
 
@@ -55,18 +51,8 @@ echo "Git user is $GIT_USERNAME"
 
 # Create XPRA socket directory
 mkdir -p /run/user/1001/xpra
-chown "$USERNAME:$USERNAME" /run/user/1001/xpra
+chown "$USERNAME:$USERNAME" /run/user/1001 -R
 
-export XAUTHORITY="$USER_HOME/.Xauthority"
-
-# Create an Xauthority file for the user if missing
-
-rm -f "$XAUTHORITY" || true
-if [[ ! -f "$XAUTHORITY" ]]; then
-    gosu "$USERNAME" touch "$XAUTHORITY"
-    gosu "$USERNAME" xauth generate "$DISPLAY" . trusted
-    chown "$USERNAME:$USERNAME" "$XAUTHORITY"
-fi
 
 # remove start up annoying message
 echo '#!/bin/bash' > /etc/X11/Xsession
@@ -76,9 +62,10 @@ chmod +x /etc/X11/Xsession
 # Start XPRA with VSCode as child
 mkdir -p /tmp/vscode-data
 chown "$USERNAME:$USERNAME" /tmp/vscode-data
-mkdir -p /run/user/1001/xpra
-chown "$USERNAME:$USERNAME" /run/user/1001 -R
 
+# cleanup old
+xpra stop $DISPLAY || true
+rm /tmp/.X100-lock || true
 exec gosu "$USERNAME" xpra start "$DISPLAY" \
     --bind-tcp=0.0.0.0:5900 \
     --html=on \
@@ -93,4 +80,4 @@ exec gosu "$USERNAME" xpra start "$DISPLAY" \
     --webcam=no \
     --microphone=no \
     --keyboard-raw=yes \
-    --speaker=no  
+    --speaker=no 

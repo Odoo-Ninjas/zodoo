@@ -1,3 +1,2 @@
-
 RUN ./configure --enable-optimizations >/dev/null && make -j4 > /dev/null && make install > /dev/null 2>&1
 RUN rsync /usr/local/src/Python-${ODOO_PYTHON_VERSION}/ /python -ar

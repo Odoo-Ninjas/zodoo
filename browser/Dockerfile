@@ -16,22 +16,8 @@ RUN \
   apt-utils wget openssh-server \
   libnspr4 libnss3 fonts-liberation \
   fonts-wqy-microhei tightvncserver  \
-  curl gnupg ca-certificates fluxbox
-
-# COPY Google's official GPG key securely
-RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | \
-    gpg --dearmor -o /usr/share/keyrings/google-chrome-keyring.gpg
-
-# COPY Google Chrome repository
-RUN echo "deb [signed-by=/usr/share/keyrings/google-chrome-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" | \
-    tee /etc/apt/sources.list.d/google-chrome.list > /dev/null
-
-# Update package lists and install Google Chrome
-RUN \
-  #___SNIPPET_APT_INSTALL___ \
-  google-chrome-stable
-
-
+  curl gnupg ca-certificates fluxbox \
+  chromium
 
 RUN \
   groupadd -g 1000 user1 && \
