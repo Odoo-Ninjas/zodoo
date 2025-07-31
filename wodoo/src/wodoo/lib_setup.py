@@ -1,3 +1,4 @@
+import os
 import click
 import sys
 import subprocess
@@ -111,6 +112,12 @@ def _status(config):
 @setup.command(help="Upgrade wodoo")
 def upgrade():
     click.secho("This command is obsolete. With every 'reload' a pull habens in ~/.odoo/images and by that the latest wodoo version should be updated.", fg='red')
+    click.secho("Afterwards please execute: odoo reinstall", fg='yellow')
+
+@setup.command(help="Reinstall wodoo python")
+def reinstall():
+    path = os.path.expanduser("~/.odoo/images/wodoo/src")
+    subprocess.check_call(["pipx", "install", "--force", "-e", path], shell=False)
 
 
 @setup.command()
