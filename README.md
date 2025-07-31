@@ -22,7 +22,7 @@ Provides functionalities:
 
 * pipx
 * git
-* <=python3.11
+* python3.13 not supported yet
 
 ```
 bash <(curl -fsSL https://raw.githubusercontent.com/Odoo-Ninjas/zodoo/refs/heads/main/install.sh)
