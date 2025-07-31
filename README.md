@@ -25,7 +25,7 @@ Provides functionalities:
 * <=python3.11
 
 ```
-bash <(curl -fsSL https://raw.githubusercontent.com/Odoo-Ninjas/zodoo/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/Odoo-Ninjas/zodoo/refs/heads/main/install.sh)
 ```
 
 
