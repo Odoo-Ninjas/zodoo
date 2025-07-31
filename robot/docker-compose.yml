@@ -3,7 +3,7 @@ volumes:
     robo_upload_files:
 
 services:
-    selenium_vncviewer:
+    seleniumvnc:
         build:
             context: ${ODOO_IMAGES}/vncviewer_xpra
             args:

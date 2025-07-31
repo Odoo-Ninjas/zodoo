@@ -1,9 +1,9 @@
 local myngx = require("myngx")
-local hostname = "selenium_vncviewer"
+local hostname = "seleniumvnc"
 local port = "5900"
-local varname = "target_selenium_xpra"
+local varname = "target_seleniumvnc"
 
-ngx.log(ngx.INFO, "Redirecting to selenium_xpra")
+ngx.log(ngx.INFO, "Redirecting to seleniumvnc")
 
 if os.getenv("RUN_ROBOT") == "1" then
     local ip = myngx.get_ip(hostname)
