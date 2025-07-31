@@ -1,7 +1,5 @@
 FROM debian:stretch
 
-#___SNIPPET_APT_PROXY___
-
 # Install cups
 RUN \
 apt-get update && \
