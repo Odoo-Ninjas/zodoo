@@ -1,6 +1,6 @@
 ENV WODOO_SRC=/opt/wodoo
 ENV WODOO_BRANCH=2025-05b
-ENV WODOO_BRANCH=xpra
+ENV WODOO_BRANCH=main
 ENV WODOO_PIPX_HOME=/opt/wodoo_pipx
 ENV WODOO_ENV_DIR=/opt/wodoo_pipx/venvs/wodoo
 ENV WODOO_PYTHON=$WODOO_ENV_DIR/bin/python3
