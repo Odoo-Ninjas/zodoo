@@ -473,7 +473,7 @@ def _download_images(config, images_url):
     from . import consts
 
     click.secho("--------------------------------------------------")
-    click.secho("Downloading Odoo Images", fg="green", bold=True)
+    click.secho("Wodoo Status", fg="green", bold=True)
     click.secho("--------------------------------------------------")
 
     if not config.dirs["images"].exists():
@@ -496,8 +496,8 @@ def _download_images(config, images_url):
         encoding="utf-8",
     ).strip()
     click.secho("--------------------------------------------------")
-    click.secho(f"Images Branch: {branch}", fg="yellow")
-    click.secho(f"Images SHA: {sha}", fg="yellow")
+    click.secho(f"Branch: {branch}", fg="yellow")
+    click.secho(f"SHA: {sha}", fg="yellow")
     if subprocess.check_output(
         ["git", "diff", "--stat"], cwd=config.dirs["images"]
     ).strip():
