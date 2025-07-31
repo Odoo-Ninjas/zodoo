@@ -5,7 +5,6 @@ set -e
 REPO_URL="https://github.com/marcwimmer/wodoo-images"
 TARGET_DIR="$HOME/.odoo/images"
 SRC_DIR="$TARGET_DIR/src"
-BRANCH_NAME="xpra"
 
 echo "🔍 Checking for git..."
 if ! command -v git >/dev/null 2>&1; then
@@ -24,9 +23,6 @@ fi
 
 # Checkout the desired branch
 cd "$TARGET_DIR"
-echo "🌿 Checking out branch '$BRANCH_NAME'..."
-git checkout "$BRANCH_NAME"
-git pull origin "$BRANCH_NAME"
 
 # Check for pipx
 echo "🔍 Checking for pipx..."
