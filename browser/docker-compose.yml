@@ -20,8 +20,8 @@ services:
         #     - $VNC_PORT_LARGE:8081
     browser:
         build: $ODOO_IMAGES/browser
-        ports:
-            - "5901:5901"
+        # ports:
+        #     - "5901:5901"
         cap_add:
             - SYS_ADMIN
         shm_size: 4gb
