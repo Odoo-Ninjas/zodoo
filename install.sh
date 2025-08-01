@@ -27,6 +27,11 @@ fi
 # Checkout the desired branch
 cd "$TARGET_DIR"
 git remote set-url origin "$REPO_URL"
+git fetch
+if [ "$(git rev-parse --abbrev-ref HEAD)" = "2025-05b" ]; then
+  echo "Switching from 2025-05b to main..."
+  git checkout main
+fi
 
 # Check for pipx
 echo "🔍 Checking for pipx..."
