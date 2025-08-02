@@ -126,7 +126,7 @@ ENV SHELL=/bin/bash
 ENV CURRENT_USER=${USERNAME}
 #___SNIPPET_WODOO___
 USER $USERNAME
-#___SNIPPET_WODOO___
+#___SNIPPET_WODOO_USER___
 ENV SHELL=/bin/bash
 
 RUN /usr/local/bin/odoo completion -x
