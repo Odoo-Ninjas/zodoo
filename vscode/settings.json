@@ -1,0 +1,12 @@
+// ~/.config/Code/User/settings.json
+{
+    "robot.pythonPath": "/home/user1/.pyenv/versions/robotcode/bin/python",
+    "ROBO_WEBDRIVER_HOST": "seleniumvnc:4444",
+    "ROBO_WEBDRIVER_BROWSER": "firefox",
+    "ROBO_ODOO_HOST": "http://proxy",
+    "ROBO_UPLOAD_FILES_DIR_LOCAL": "/media/psf/browser.share",
+    "ROBO_UPLOAD_FILES_DIR_BROWSER_DRIVER": "/Users/browser/shared.files/browser.share",
+    "ROBO_NO_UI_HIGHLIGHTING": "0",
+    "SELENIUM_TIMEOUT": "5",
+    "SNIPPET_MODE": "1"
+}

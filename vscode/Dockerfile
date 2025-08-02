@@ -40,7 +40,10 @@ RUN #___SNIPPET_APT_INSTALL___ \
     psmisc \
     wmctrl \
     xauth \
-    dbus-x11 
+    dbus-x11  \
+    git curl make build-essential libssl-dev zlib1g-dev libbz2-dev \
+    libreadline-dev libsqlite3-dev wget llvm libncursesw5-dev xz-utils tk-dev libxml2-dev \
+    libxmlsec1-dev libffi-dev liblzma-dev 
 
 
 # --- COPY newer Python version ---
@@ -50,21 +53,17 @@ RUN #___SNIPPET_APT_INSTALL___ \
     python3.11 \
     python3.11-dev \
     python3.11-distutils \
-    python3.11-venv
+    python3.11-venv 
 
 # --- Determine VSCode download link and install ---
+COPY artefacts /opt/artefacts
 RUN python3 <<'EOF'
 import os
-from pathlib import Path
-downloadlink = Path("/tmp/downloadlink")
-link = "https://artefacts.zebroo.de/simplicissimus_agatha_christie/code-"
-link += "x64" if os.getenv("TARGETARCH") == "amd64" else os.getenv("TARGETARCH")
-downloadlink.write_text(link)
+import shutil
+suffix = "x64" if os.getenv("TARGETARCH") == "amd64" else os.getenv("TARGETARCH")
+shutil.copy("/opt/artefacts/code-" + suffix, "/tmp/vscode.deb")
 EOF
-
-RUN echo "Download link: $(cat /tmp/downloadlink)" && \
-    wget --progress=dot:giga -O /tmp/vscode.deb "$(cat /tmp/downloadlink)" && \
-    #___SNIPPET_APT_INSTALL___ \
+RUN #___SNIPPET_APT_INSTALL___ \
     /tmp/vscode.deb
 
 # --- COPY welcome message ---
@@ -77,14 +76,14 @@ RUN userdel -r $(getent passwd $OWNER_UID | cut -d: -f1) || true && \
     groupadd $USERNAME && \
     useradd -u $OWNER_UID -g $USERNAME -m $USERNAME
 
+USER $USERNAME
+WORKDIR /home/$USERNAME
+
 # --- User home prep ---
 RUN mkdir -p /home/$USERNAME/.vnc && \
     chown -R $USERNAME:$USERNAME /home/$USERNAME/.vnc
 
 # --- Setup Python tools as user ---
-USER $USERNAME
-WORKDIR /home/$USERNAME
-
 RUN python3.11 -m venv venv && \
     . venv/bin/activate && \
     ./venv/bin/python -m pip install pipx && \
@@ -102,10 +101,11 @@ RUN mv /tmp/settings /home/$USERNAME/.config/Code/User/settings.json && \
 
 # --- VSCode Extensions ---
 USER $USERNAME
-RUN /usr/bin/code --install-extension ms-python.python || true && \
-    /usr/bin/code --install-extension robocorp.robotframework-lsp || true && \
-    /usr/bin/code --install-extension vscodevim.vim || true && \
-    /usr/bin/code --install-extension MarcWimmerITE.odoobrowserITE || true
+RUN /usr/bin/code --install-extension ms-python.python && \
+    /usr/bin/code --install-extension robocorp.robotframework-lsp && \
+    /usr/bin/code --install-extension d-biehl.robotcode && \
+    /usr/bin/code --install-extension vscodevim.vim && \
+    /usr/bin/code --install-extension MarcWimmerITE.odoobrowserITE 
 
 # --- Docker CLI ---
 USER root
@@ -117,24 +117,16 @@ RUN usermod -aG docker $USERNAME && \
     cp /etc/skel/.bashrc /home/$USERNAME/.bashrc && \
     chown -R $USERNAME:$USERNAME /home/$USERNAME/.vnc
 
-# --- Install Google Chrome ---
-USER root
-RUN wget --progress=dot:giga https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
-    dpkg -i google-chrome-stable_current_amd64.deb || true && \
-    apt-get install -y -f
 
-# --- Entrypoint ---
-ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
 
 USER root
 ENV SHELL=/bin/bash
 
 
+ENV CURRENT_USER=${USERNAME}
 #___SNIPPET_WODOO___
 USER $USERNAME
-#___SNIPPET_WODOO_USER___
-
-USER $USERNAME
+#___SNIPPET_WODOO___
 ENV SHELL=/bin/bash
 
 RUN /usr/local/bin/odoo completion -x
@@ -147,6 +139,19 @@ USER root
 #___SNIPPET_INSTALL_PIPX___
 
 #___SNIPPET_XPRA_INSTALL___
+USER root
+
+USER $USERNAME
 
 COPY start.sh /usr/local/bin/start.sh
 RUN chmod +x /usr/local/bin/start.sh
+
+COPY robot.requirements.txt /opt/robot.requirements.txt
+COPY make_robotcode_pyenv.sh /usr/local/bin/make_robotcode_pyenv.sh
+RUN bash /usr/local/bin/make_robotcode_pyenv.sh
+
+COPY --chown=$USERNAME:$USERNAME settings.json /home/$USERNAME/.config/Code/User/settings.json
+
+
+# --- Entrypoint ---
+ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]

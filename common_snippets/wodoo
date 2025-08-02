@@ -5,9 +5,7 @@ ENV WODOO_PYTHON=$WODOO_ENV_DIR/bin/python3
 
 #___SNIPPET_PYTHON311___
 
-COPY --from=wodoo_src:latest /opt/wodoo "$WODOO_SRC"
-RUN chown -R $CURRENT_USER:$CURRENT_USER "$WODOO_SRC"
-
+COPY --chown=$CURRENT_USER:$CURRENT_USER --from=wodoo_src:latest /opt/wodoo "$WODOO_SRC"
 
 
 RUN /usr/bin/python3.11 -m venv "$WODOO_ENV_DIR"; \

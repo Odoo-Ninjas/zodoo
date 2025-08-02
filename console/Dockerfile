@@ -41,14 +41,13 @@ WORKDIR /root
 ENV PIP_NO_CACHE_DIR=no
 # Set custom PyPI index
 
+ENV CURRENT_USER=root
 #___SNIPPET_WODOO___
 
 RUN #___SNIPPET_APT_INSTALL___ \
 tmux silversearcher-ag && \
 useradd -l -m -s /bin/bash -G sudo,docker -p $(openssl passwd -1 odoo) -u ${OWNER_UID} odoo && \
 echo 'odoo:odoo' | chpasswd
-
-#___SNIPPET_WODOO_USER___
 
 RUN mkdir ~/.ssh && chmod 700 ~/.ssh
 COPY console.key.pub /home/odoo/.ssh/authorized_keys 

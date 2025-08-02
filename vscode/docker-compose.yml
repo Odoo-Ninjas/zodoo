@@ -29,6 +29,7 @@ services:
           - "${ODOO_IMAGES}:/home/user1/.odoo/images"
           - "${HOST_RUN_DIR}:/home/user1/.odoo/run/$PROJECT_NAME"
           - "${HOST_RUN_DIR}/gimera/cache:/home/user1/.cache/gimera"
+          - "${ODOO_IMAGES}/vscode/settings.json:/home/user1/.config/Code/User/settings.json"
         extra_hosts:
             - "host.docker.internal:host-gateway"
         environment:
