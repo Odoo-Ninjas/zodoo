@@ -1,39 +1,10 @@
-ENV WODOO_SRC=/opt/wodoo
-ENV WODOO_PIPX_HOME=/opt/wodoo_pipx
-ENV WODOO_ENV_DIR=/opt/wodoo_pipx/venvs/wodoo
-ENV WODOO_PYTHON=$WODOO_ENV_DIR/bin/python3
+#___SNIPPET__WODOO_ENVS___
 
 #___SNIPPET_PYTHON311___
 
-COPY --chown=$CURRENT_USER:$CURRENT_USER --from=wodoo_src:latest /opt/wodoo "$WODOO_SRC"
+RUN /usr/bin/python3.11 -m venv "$WODOO_ENV_DIR" && \
+     $WODOO_PYTHON -m pip install $PIP_OPTIONS --upgrade pip && \
+     $WODOO_PYTHON -m pip install $PIP_OPTIONS pipx setuptools wheel --upgrade && \
+     $WODOO_PYTHON -mpip install $PIP_OPTIONS lxml==4.9.3
 
-
-RUN /usr/bin/python3.11 -m venv "$WODOO_ENV_DIR"; \
-     $WODOO_PYTHON -m pip install $PIP_OPTIONS --upgrade pip; \
-     $WODOO_PYTHON -m pip install $PIP_OPTIONS pipx setuptools wheel --upgrade;  
-
-RUN $WODOO_PYTHON -mpip install $PIP_OPTIONS lxml==4.9.3
-
-RUN \
-if [ "$ODOO_VERSION"  != '11' ]; then \
-     PIPX_HOME="${WODOO_PIPX_HOME}" \
-     PIPX_BIN_DIR=/usr/local/bin \ 
-     PIP_VERBOSE=1 \
-     PIPX_DEFAULT_PYTHON=$WODOO_PYTHON \
-     $WODOO_PYTHON \
-     -mpipx \
-     install  \
-     --force \
-     --verbose \
-     -e \
-     "$WODOO_SRC" \
-     || (echo "=== pipx install failed ===" && \
-          cat $WODOO_PIPX_HOME/logs/*.log && \
-          exit 1) \
-fi
-
-RUN echo 'export PATH=$PATH:$HOME/.local/bin' >> $HOME/.bashrc
-#RUN chmod a+rw -R "$WODOO_SRC" "$WODOO_PIPX_HOME" "$WODOO_ENV_DIR"
-RUN echo "export WODOO_PYTHON=$WODOO_PYTHON" >> /etc/bash.bashrc
-RUN echo "export WODOO_PYTHON=$WODOO_PYTHON" >> /etc/profile.d/wodoo_python.sh && \
-    chmod +x /etc/profile.d/wodoo_python.sh
+#___SNIPPET__WODOO_INSTALL___
