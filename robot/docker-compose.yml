@@ -69,7 +69,7 @@ services:
             OUTPUT_DIR: /opt/output
             OWNER_UID: ${OWNER_UID}
             ODOO_HOME: /opt/src
-            ODOO_CMD: /opt/robot/.local/pipx/venvs/wodoo/bin/odoo
+            #ODOO_CMD: /opt/robot/.local/pipx/venvs/wodoo/bin/odoo
             BROWSER_WIDTH: 1920
             BROWSER_HEIGHT: 1080
             ROBO_NO_UI_HIGHLIGHTING: 0

@@ -66,6 +66,7 @@ RUN chown robot /opt/robot/.ssh/config
 USER robot
 #___SNIPPET_VSCODE_EXTENSIONS___
 
+#___SNIPPET_WODOO___
 
 USER root
 COPY openbox/rc.xml  /opt/robot/.config/openbox/rc.xml

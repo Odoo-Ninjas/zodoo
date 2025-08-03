@@ -3,7 +3,6 @@ services:
     build:
       context: $ODOO_IMAGES/cronjobs
       args:
-        WODOO_VERSION: $WODOO_VERSION
         POSTGRES_VERSION: $POSTGRES_VERSION
         APT_PROXY_IP: ${APT_PROXY_IP}
         PIP_PROXY_IP: ${PIP_PROXY_IP}

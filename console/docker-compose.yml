@@ -22,7 +22,6 @@ services:
     build:
       context: $ODOO_IMAGES/console
       args:
-        WODOO_VERSION: $WODOO_VERSION
         OWNER_UID: $OWNER_UID
         DOCKER_GID: $DOCKER_GID
         POSTGRES_VERSION: $POSTGRES_VERSION

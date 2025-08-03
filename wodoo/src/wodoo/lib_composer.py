@@ -325,7 +325,6 @@ def _set_defaults(config, defaults):
     defaults["HOST_RUN_DIR"] = config.HOST_RUN_DIR
     defaults["NETWORK_NAME"] = config.project_name
     defaults["project_name"] = config.project_name
-    defaults["WODOO_VERSION"] = _get_version()
     m = MANIFEST()
     defaults["ODOO_VERSION_INT"] = int(float(m["version"]))
 
