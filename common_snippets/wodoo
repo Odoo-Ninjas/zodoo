@@ -1,4 +1,13 @@
-#___SNIPPET__WODOO_ENVS___
+# Check if build-time user is root
+RUN if [ "$(id -u)" -ne 0 ]; then \
+      echo "ERROR: This Dockerfile must be built as root!" >&2; \
+      exit 1; \
+    fi
+ENV WODOO_SRC=/opt/wodoo
+ENV WODOO_PIPX_HOME=/opt/wodoo_pipx
+ENV WODOO_ENV_DIR=/opt/wodoo_pipx/venvs/wodoo
+ENV WODOO_PYTHON=$WODOO_ENV_DIR/bin/python3
+COPY --chown=$CURRENT_USER:$CURRENT_USER --from=wodoo_src:latest /opt/wodoo "$WODOO_SRC"
 
 #___SNIPPET_PYTHON311___
 
@@ -7,4 +16,27 @@ RUN /usr/bin/python3.11 -m venv "$WODOO_ENV_DIR" && \
      $WODOO_PYTHON -m pip install $PIP_OPTIONS pipx setuptools wheel --upgrade && \
      $WODOO_PYTHON -mpip install $PIP_OPTIONS lxml==4.9.3
 
-#___SNIPPET__WODOO_INSTALL___
+RUN \
+if [ "$ODOO_VERSION"  != '11' ]; then \
+     PIPX_HOME="${WODOO_PIPX_HOME}" \
+     PIPX_BIN_DIR=/usr/local/bin \ 
+     PIP_VERBOSE=1 \
+     PIPX_DEFAULT_PYTHON=$WODOO_PYTHON \
+     $WODOO_PYTHON \
+     -mpipx \
+     install  \
+     --force \
+     --verbose \
+     -e \
+     "$WODOO_SRC" \
+     || (echo "=== pipx install failed ===" && \
+          cat $WODOO_PIPX_HOME/logs/*.log && \
+          exit 1) \
+fi
+
+RUN \
+export HOME=/root && \
+echo 'export PATH=$PATH:$HOME/.local/bin' >> $HOME/.bashrc && \
+echo "export WODOO_PYTHON=$WODOO_PYTHON" >> /etc/bash.bashrc && \
+echo "export WODOO_PYTHON=$WODOO_PYTHON" >> /etc/profile.d/wodoo_python.sh && \
+chmod +x /etc/profile.d/wodoo_python.sh

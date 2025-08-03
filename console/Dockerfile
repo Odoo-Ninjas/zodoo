@@ -41,7 +41,6 @@ WORKDIR /root
 ENV PIP_NO_CACHE_DIR=no
 # Set custom PyPI index
 
-ENV CURRENT_USER=root
 #___SNIPPET_WODOO___
 
 RUN #___SNIPPET_APT_INSTALL___ \

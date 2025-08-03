@@ -1,8 +1,6 @@
-RUN python3.11 --version || ( \
-     #___SNIPPET_APT_INSTALL___ \
+RUN #___SNIPPET_APT_INSTALL___ \
      software-properties-common libxml2-dev libxslt1-dev zlib1g-dev python3-dev build-essential && \
-     add-apt-repository -y ppa:deadsnakes/ppa --no-update && \
-     #___SNIPPET_APT_INSTALL___ \
+     add-apt-repository -y ppa:deadsnakes/ppa --no-update
+RUN #___SNIPPET_APT_INSTALL___ \
      python3.11 python3.11-venv python3.11-dev && \
-     curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11 \
-)
+     curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11 

@@ -123,10 +123,9 @@ USER root
 ENV SHELL=/bin/bash
 
 
-ENV CURRENT_USER=${USERNAME}
 #___SNIPPET_WODOO___
+
 USER $USERNAME
-#___SNIPPET_WODOO_USER___
 ENV SHELL=/bin/bash
 
 RUN /usr/local/bin/odoo completion -x
@@ -140,11 +139,11 @@ USER root
 
 #___SNIPPET_XPRA_INSTALL___
 USER root
+COPY start.sh /usr/local/bin/start.sh
+RUN chmod +x /usr/local/bin/start.sh
 
 USER $USERNAME
 
-COPY start.sh /usr/local/bin/start.sh
-RUN chmod +x /usr/local/bin/start.sh
 
 COPY robot.requirements.txt /opt/robot.requirements.txt
 COPY make_robotcode_pyenv.sh /usr/local/bin/make_robotcode_pyenv.sh

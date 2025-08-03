@@ -4,6 +4,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
 build-essential python3-dev
 RUN python3 -mpip install $PIP_OPTIONS pipx --upgrade
 USER root
+
 #___SNIPPET_WODOO___
 
 USER root
@@ -43,7 +44,7 @@ ADD bin/ /odoolib/
 ENV ODOO_CONFIG_DIR=${ODOO_CONFIG_DIR}
 ADD config/${ODOO_VERSION}/config ${ODOO_CONFIG_DIR}.template
 
-CMD ["sh", "-c", "/opt/wodoo_pipx/venvs/wodoo/bin/python3 /odoolib/run.py"]
+CMD ["sh", "-c", "$WODOO_PYTHON /odoolib/run.py"]
 ENTRYPOINT ["/odoolib/entrypoint.sh"]
 WORKDIR /opt/src
 

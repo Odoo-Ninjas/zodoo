@@ -268,5 +268,5 @@ time sudo -E pytest
 
 ```python
 pipx runpip wodoo install line_profiler
-~/.local/pipx/venvs/wodoo/bin/python3 -mkernprof -l -v odoo reload
+$WODOO_PYTHON -mkernprof -l -v odoo reload
 ```
