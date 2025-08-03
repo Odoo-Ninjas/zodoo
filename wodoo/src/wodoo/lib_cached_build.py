@@ -1,6 +1,8 @@
 from .tools import create_network
 
+import arrow
 import click
+import json
 from .cli import cli, pass_config
 from .lib_clickhelpers import AliasedGroup
 import subprocess
@@ -17,39 +19,71 @@ PROXPI_CONTAINER_NAME = "proxpi-cacher"
 def cache(config):
     pass
 
+def _image_timestamp_stamp(image_name):
+    out = subprocess.check_output(["docker", "image", "inspect", f"{image_name}:latest", "--format", "'{{.Created}}'"], text=True, encoding="utf-8")
+    out = out.strip()
+    return arrow.get(out).datetime
 
 def start_container(
-    config, container_name, image_name, build_path, network, port_mapping
+    config,
+    container_name,
+    image_name,
+    build_path,
+    network,
+    port_mapping,
+    stored_settings,
 ):
-    # Check if container is already running
-    result = subprocess.run(
-        ["docker", "ps", "-q", "-f", f"name={container_name}"],
-        capture_output=True,
-        text=True,
-    )
+    """
+    Start a Docker container with the specified parameters.
 
-    if result.stdout.strip():
-        click.secho(f"Container '{container_name}' is already running.")
-        return
+    :param stored_settings: put some settings inside the docker container to avoid build arguments for
+        APT_PROXY_IP and PIP_PROXY_IP which scheduled permanent rebuild otherwise
+    """
 
+    def _get_container_id():
+        # Check if container is already running
+        result = subprocess.run(
+            ["docker", "ps", "-q", "-f", f"name={container_name}"],
+            capture_output=True,
+            text=True,
+        )
+
+        if result.stdout.strip():
+            return result.stdout.splitlines()[0].split(" ")[0]
+        return None
     create_network(network)
+    image_was_updated = False
+
     if build_path:
+        image_timestamp = _image_timestamp_stamp(image_name)
+        sf = []
+        for k, v in stored_settings.items():
+            sf.append(f"export {k}='{v}'")
+        (build_path / "container_settings").write_text(
+            '\n'.join(sf + [""])
+        )
+
         cmd = ["docker", "build", "-t", image_name, "."]
         subprocess.run(cmd, check=True, cwd=build_path)
+        image_timestamp2 = _image_timestamp_stamp(image_name)
 
-    # If not running, start it
-    result = subprocess.run(
-        ["docker", "ps", "-q", "-a", "-f", f"name={container_name}"],
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-    if result:
-        cmd = [
-            "docker",
-            "start",
-            result,
-        ]
-    else:
+        if image_timestamp != image_timestamp2:
+            image_was_updated = True
+
+    def find_container(container_name, all=True):
+        cmd = ["docker", "ps", "-q", "-f", f"name={container_name}"]
+        if all:
+            cmd += ["-a"]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        if result:
+            return result
+        return None
+
+    def _start_container(image_name, container_name):
         cmd = [
             "docker",
             "run",
@@ -62,16 +96,32 @@ def start_container(
             port_mapping,
             image_name,
         ]
-    click.secho(f"Starting container '{container_name}'...", fg="blue")
-
-    try:
-        subprocess.run(cmd, check=True)
+        click.secho(f"Starting container '{container_name}'...", fg="blue")
+        try:
+            subprocess.run(cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            abort(str(e))
         click.secho(
             f"Container '{container_name}' started on port {port_mapping}.",
             fg="green",
         )
-    except subprocess.CalledProcessError as e:
-        abort(str(e))
+
+    def rm(id):
+        id = find_container(container_name, all=True)
+        if id:
+            cmd = ["docker", "rm", "-f", id]
+            subprocess.run(cmd, check=True)
+
+    if image_was_updated:
+        rm(container_name)
+
+    running_container = find_container(container_name, all=False)
+    if not running_container:
+        rm(container_name)
+        _start_container(image_name, container_name)
+
+    return _get_container_id()
+
 
 def start_squid_proxy(config):
     image_name = "squid-deb-cacher-wodoo"
@@ -82,6 +132,12 @@ def start_squid_proxy(config):
         config.dirs["images"] / "apt_cacher",
         network="aptcache-net",
         port_mapping=config.APT_PROXY_IP + ":8000",
+        stored_settings={
+            "APT_PROXY_IP": config.APT_PROXY_IP,
+            "PIP_PROXY_IP": config.PIP_PROXY_IP,
+            "APT_OPTIONS": config.APT_OPTIONS,
+            "PIP_OPTIONS": config.PIP_OPTIONS.replace("$PIP_PROXY_IP", config.PIP_PROXY_IP),
+        },
     )
 
 
@@ -94,6 +150,7 @@ def start_proxpi(config):
         None,
         network="proxpi-net",
         port_mapping=config.PIP_PROXY_IP + ":5000",
+        stored_settings=None,
     )
 
 
@@ -101,9 +158,7 @@ def start_proxpi(config):
 @pass_config
 @click.pass_context
 def apt_attach(ctx, config):
-    subprocess.run(
-        ["docker", "exec", "-it", APT_CACHER_CONTAINER_NAME, "bash"]
-    )
+    subprocess.run(["docker", "exec", "-it", APT_CACHER_CONTAINER_NAME, "bash"])
 
 
 @cache.command()

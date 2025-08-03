@@ -1,6 +1,4 @@
 FROM postgres:12-bullseye
-ARG APT_PROXY_IP
-ARG APT_OPTIONS
 CMD ["postgres"]
 
 

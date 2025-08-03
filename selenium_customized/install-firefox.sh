@@ -13,11 +13,11 @@ if [[ "$ARCH" == "amd64" || "$FIREFOX_VERSION" == "latest" || "${FIREFOX_VERSION
     CLEAN_VER="${FIREFOX_VERSION/-latest/}"
     CLEAN_VER="${FIREFOX_VERSION/latest/}"
     #apt-get $APT_OPTIONS install -y "firefox${CLEAN_VER}"
-    apt-get $APT_OPTIONS install -y "firefox${CLEAN_VER}"
+    apt-get $(cat /etc/apt_options) install -y "firefox${CLEAN_VER}"
     INSTALL_VIA_APT="true"
     [[ "$CLEAN_VER" =~ ^(beta|nightly|devedition|esr)$ ]] && ln -fs "$(which firefox${CLEAN_VER})" /usr/bin/firefox
   else
-	exit 1  # not tested yet
+    exit 1  # not tested yet
     FIREFOX_DOWNLOAD_URL="https://download-installer.cdn.mozilla.net/pub/firefox/releases/$FIREFOX_VERSION/linux-$ARCH_NAME/en-US/firefox-$FIREFOX_VERSION.deb"
     CODE=$(curl -s -o /dev/null -w "%{http_code}" "$FIREFOX_DOWNLOAD_URL")
     [[ "$CODE" == "404" ]] && FIREFOX_DOWNLOAD_URL="https://download-installer.cdn.mozilla.net/pub/firefox/releases/$FIREFOX_VERSION/linux-$ARCH_NAME/en-US/firefox-$FIREFOX_VERSION.tar.bz2"
@@ -32,10 +32,6 @@ else
     INSTALL_VIA_APT="true"
     [[ "$CLEAN_VER" == "nightly" ]] && ln -fs "$(which firefox${CLEAN_VER})" /usr/bin/firefox
   fi
-fi
-
-if [[ "$INSTALL_VIA_APT" != "true" ]]; then
-  bash /opt/bin/install-firefox-package.sh "$FIREFOX_DOWNLOAD_URL" "$FIREFOX_VERSION"
 fi
 
 apt-get update -qqy

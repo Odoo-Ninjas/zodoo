@@ -4,8 +4,6 @@ ENV     DEBIAN_FRONTEND=noninteractive
 ENV     TERM=xterm
 ENV     ROUNDCUBE_VERSION=1.6.6
 ENV     MAIL_SERVER=mail
-ARG     APT_PROXY_IP
-ARG     APT_OPTIONS
 
 #___SNIPPET_APT_PROXY___
 
@@ -13,11 +11,14 @@ RUN apt update
 
 WORKDIR /root
 RUN mkdir -p /rc
-RUN apt upgrade -y && apt $APT_OPTIONS install -y php-net-ldap2 php-net-ldap3 php-imagick php7.4-common php7.4-gd php7.4-imap php7.4-json php7.4-curl php7.4-zip php7.4-xml php7.4-mbstring php7.4-bz2 php7.4-intl php7.4-gmp php7.4-fpm php7.4-sqlite3
-RUN apt $APT_OPTIONS install -y nginx wget composer
+RUN #___SNIPPET_APT_INSTALL___ \
+php-net-ldap2 php-net-ldap3 php-imagick php7.4-common php7.4-gd php7.4-imap php7.4-json php7.4-curl php7.4-zip php7.4-xml php7.4-mbstring php7.4-bz2 php7.4-intl php7.4-gmp php7.4-fpm php7.4-sqlite3
+RUN #___SNIPPET_APT_INSTALL___ \
+nginx wget composer
 
 RUN \
-apt $APT_OPTIONS install -y python3-pip && \
+#___SNIPPET_APT_INSTALL___ \
+python3-pip && \
 pip3 install $PIP_OPTIONS pip --upgrade && \
 pip3 install $PIP_OPTIONS wheel && \
 pip3 install $PIP_OPTIONS pathlib

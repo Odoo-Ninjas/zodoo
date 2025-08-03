@@ -3,8 +3,6 @@ ARG TARGETARCH
 ARG ODOO_VERSION
 ARG ODOO_INSTALL_LIBPOSTAL
 ARG ODOO_CONFIG_DIR
-ARG APT_PROXY_IP
-ARG APT_OPTIONS
 #ARG CUSTOMS_REQUIREMENTS
 
 #RUN [[ -z "$CUSTOMS_REQUIREMENTS" && exit -1 ]]
@@ -15,94 +13,91 @@ RUN sed -i 's|deb.debian.org|archive.debian.org|g' /etc/apt/sources.list && \
     apt-get -o Acquire::Retries=3 update
 #___SNIPPET_APT_PROXY___
 
-RUN apt-get $APT_OPTIONS update --fix-missing && \
-apt-get $APT_OPTIONS install \
-        -y \
-        --no-install-recommends \
-            software-properties-common \
-            man \
-            cmake \
-            ctags \
-            build-essential \
-            libtool \
-            htop \
-            ca-certificates \
-            curl \
-            node-less \
-            node-clean-css \
-            libpq-dev \
-            libjpeg-dev \
-            libcurl3-dev \
-            libxml2-dev \
-            libxslt1-dev \
-            libffi-dev \
-            tmux \
-            libfreetype6-dev \
-            libpng-dev \
-            libjpeg-dev \
-            automake \
-            pkg-config \
-            libpcre3-dev \
-            zlib1g-dev \
-            liblzma-dev \
-            make \
-            ssh \
-            mc \
-            libxml2-utils \
-            libxrender1 \
-            libxext6 \
-            libfontconfig \
-            htop \
-            rsync \
-            vim \
-            psmisc \
-            lsof \
-            git \
-            tig \
-            sudo \
-            less \
-            freetds-dev \
-            libsasl2-dev \
-            libldap2-dev \
-            libssl-dev \
-            wget \
-            cifs-utils \
-            imagemagick \
-            cups \
-            libreoffice \
-            libcairo2 libpango1.0-0 libgdk-pixbuf2.0-0 libffi-dev shared-mime-info \
-            locales \
-            libmagickwand-dev \
-            ffmpeg \
-            zip \
-            gpg-agent \
-            pdftk \
-            python3-gi \
-            python3-click \
-            python3-gi-cairo \
-            python3-cairo \
-            gir1.2-gtk-3.0 \
-            libmagickwand-dev \
-            libmagic-dev \
-            libcups2-dev \
-            python3-pip \
-            python3-dev \
-            python3 \
-            locales-all \
-            libpoppler-cpp-dev \
-            default-jre \
-            libreoffice-java-common \
-            postgresql-client \
-            git \
-            libpq-dev \
-            autoconf \
-            python-dev \
-            pkg-config \
-            curl \
-            python3-venv \
-            libcurl4-openssl-dev \
-            zlib1g-dev \
-            libkrb5-dev
+#___SNIPPET_APT_INSTALL___ \
+    software-properties-common \
+    man \
+    cmake \
+    ctags \
+    build-essential \
+    libtool \
+    htop \
+    ca-certificates \
+    curl \
+    node-less \
+    node-clean-css \
+    libpq-dev \
+    libjpeg-dev \
+    libcurl3-dev \
+    libxml2-dev \
+    libxslt1-dev \
+    libffi-dev \
+    tmux \
+    libfreetype6-dev \
+    libpng-dev \
+    libjpeg-dev \
+    automake \
+    pkg-config \
+    libpcre3-dev \
+    zlib1g-dev \
+    liblzma-dev \
+    make \
+    ssh \
+    mc \
+    libxml2-utils \
+    libxrender1 \
+    libxext6 \
+    libfontconfig \
+    htop \
+    rsync \
+    vim \
+    psmisc \
+    lsof \
+    git \
+    tig \
+    sudo \
+    less \
+    freetds-dev \
+    libsasl2-dev \
+    libldap2-dev \
+    libssl-dev \
+    wget \
+    cifs-utils \
+    imagemagick \
+    cups \
+    libreoffice \
+    libcairo2 libpango1.0-0 libgdk-pixbuf2.0-0 libffi-dev shared-mime-info \
+    locales \
+    libmagickwand-dev \
+    ffmpeg \
+    zip \
+    gpg-agent \
+    pdftk \
+    python3-gi \
+    python3-click \
+    python3-gi-cairo \
+    python3-cairo \
+    gir1.2-gtk-3.0 \
+    libmagickwand-dev \
+    libmagic-dev \
+    libcups2-dev \
+    python3-pip \
+    python3-dev \
+    python3 \
+    locales-all \
+    libpoppler-cpp-dev \
+    default-jre \
+    libreoffice-java-common \
+    postgresql-client \
+    git \
+    libpq-dev \
+    autoconf \
+    python-dev \
+    pkg-config \
+    curl \
+    python3-venv \
+    libcurl4-openssl-dev \
+    zlib1g-dev \
+    libkrb5-dev
 
 
 COPY liberation-sans /usr/share/fonts/

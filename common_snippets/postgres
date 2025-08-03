@@ -1,12 +1,12 @@
 RUN $(mv /etc/apt/apt.conf.d/01proxy /tmp || true) && \
-    apt-get $APT_OPTIONS update && \
-    apt-get $APT_OPTIONS install -y postgresql postgresql-contrib && \
+    #___SNIPPET_APT_INSTALL___ \
+    postgresql postgresql-contrib && \
     mkdir -p /etc/apt/keyrings && \
     curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /etc/apt/keyrings/pgdg.gpg && \
     echo "deb [signed-by=/etc/apt/keyrings/pgdg.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
         > /etc/apt/sources.list.d/pgdg.list && \
-    apt-get $APT_OPTIONS update && \
-    apt-get $APT_OPTIONS -y install --no-install-recommends postgresql-17 && \
+    #___SNIPPET_APT_INSTALL___ \
+    postgresql-17 && \
     $(mv /tmp/01proxy /etc/apt/apt.conf.d || true)
 RUN \
 set -x && \
@@ -14,20 +14,24 @@ if [ "$POSTGRES_VERSION" = "17" ]; then \
   apt purge -y postgresql-14 postgresql-client-14 postgresql-contrib-14 || true; \
   apt purge -y postgresql-14 postgresql-client-14 postgresql-contrib-15 || true; \
   apt purge -y postgresql-16 postgresql-client-16 postgresql-contrib-16 || true; \
-  apt-get $APT_OPTIONS install -y --no-install-recommends postgresql-client-17; \
+  #___SNIPPET_APT_INSTALL___ \
+  postgresql-client-17; \
 elif [ "$POSTGRES_VERSION" = "16" ]; then \
   apt purge -y postgresql-14 postgresql-client-14 postgresql-contrib-17 || true; \
   apt purge -y postgresql-14 postgresql-client-14 postgresql-contrib-15 || true; \
   apt purge -y postgresql-16 postgresql-client-16 postgresql-contrib-14 || true; \
-  apt-get $APT_OPTIONS install -y --no-install-recommends postgresql-client-16; \
+  #___SNIPPET_APT_INSTALL___ \
+  postgresql-client-16; \
 elif [ "$POSTGRES_VERSION" = "15" ]; then \
   apt purge -y postgresql-14 postgresql-client-14 postgresql-contrib-17 || true; \
   apt purge -y postgresql-14 postgresql-client-14 postgresql-contrib-16 || true; \
   apt purge -y postgresql-16 postgresql-client-16 postgresql-contrib-14 || true; \
-  apt-get $APT_OPTIONS install -y --no-install-recommends postgresql-client-15; \
+  #___SNIPPET_APT_INSTALL___ \
+  postgresql-client-15; \
 else \
   apt purge -y postgresql-14 postgresql-client-14 postgresql-contrib-17 || true; \
   apt purge -y postgresql-14 postgresql-client-14 postgresql-contrib-16 || true; \
   apt purge -y postgresql-16 postgresql-client-16 postgresql-contrib-15 || true; \
-  apt-get $APT_OPTIONS install -y --no-install-recommends postgresql-client-14; \
+  #___SNIPPET_APT_INSTALL___ \
+  postgresql-client-14; \
 fi

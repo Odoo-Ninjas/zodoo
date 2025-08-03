@@ -9,9 +9,6 @@ ARG ODOO_PYTHON_VERSION
 ARG ODOO_INSTALL_LIBPOSTAL
 ARG CUSTOMS_SHA
 ARG ODOO_CONFIG_DIR
-ARG APT_PROXY_IP
-ARG APT_OPTIONS
-ARG PIP_PROXY_IP
 ARG DOCKER_GID
 
 # --------------------------------------------------------------------
@@ -23,7 +20,7 @@ ADD python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
 WORKDIR /usr/local/src/python/Python-${ODOO_PYTHON_VERSION}
 
 #___SNIPPET_APT_PROXY___
-RUN apt-get $APT_OPTIONS update && apt-get $APT_OPTIONS install -y \
+RUN #___SNIPPET_APT_INSTALL___ \
     software-properties-common \
     cmake \
     exuberant-ctags \
@@ -46,7 +43,7 @@ RUN apt-get $APT_OPTIONS update && apt-get $APT_OPTIONS install -y \
 
 RUN ./configure --enable-optimizations && make -j4 && make install
 
-RUN apt-get $APT_OPTIONS install -y rsync
+RUN #___SNIPPET_APT_INSTALL___ rsync
 RUN rsync /usr/local/src/python/Python-${ODOO_PYTHON_VERSION}/ /python -ar
 
 
@@ -58,14 +55,11 @@ FROM $BASE_IMAGE AS build_pip
 ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_REQUIREMENTS
 ARG ODOO_FRAMEWORK_REQUIREMENTS
-ARG APT_PROXY_IP
-ARG APT_OPTIONS
-ARG PIP_PROXY_IP
 
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
 
-RUN apt-get $APT_OPTIONS update && apt-get $APT_OPTIONS install -y \
+RUN #___SNIPPET_APT_INSTALL___ \
     build-essential \
     libxml2-dev \
     libxslt1-dev \
@@ -253,12 +247,13 @@ RUN pip3 install $PIP_OPTIONS lxml==4.6.0
 
 # There is a BUG with M1 and SCRAM authentication
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
-apt-get $APT_OPTIONS update && \
-apt-get $APT_OPTIONS install -y libpq-dev && \
+#___SNIPPET_APT_INSTALL___ \
+libpq-dev && \
 pip3 install $PIP_OPTIONS psycopg2-binary --no-binary psycopg2-binary --force-reinstall; \
 fi
-
-RUN apt $APT_OPTIONS install -y coreutils
+ 
+RUN #___SNIPPET_APT_INSTALL___ \
+coreutils
 
 
 

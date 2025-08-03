@@ -7,8 +7,6 @@ ARG ODOO_INSTALL_LIBPOSTAL
 ARG ODOO_PYTHON_VERSION
 ARG CUSTOMS_SHA
 ARG ODOO_CONFIG_DIR
-ARG APT_PROXY_IP
-ARG APT_OPTIONS
 ARG DOCKER_GID
 
 # --------------------------------------------------------------------
@@ -17,8 +15,6 @@ ARG DOCKER_GID
 FROM $BASE_IMAGE AS libpostal_builder
 ARG TARGETARCH
 ARG ODOO_INSTALL_LIBPOSTAL
-ARG APT_PROXY_IP
-ARG APT_OPTIONS
 COPY install_libpostal.sh install_libpostal.sh
 RUN bash install_libpostal.sh
 
@@ -67,8 +63,6 @@ FROM $BASE_IMAGE AS build_pip
 ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_REQUIREMENTS
 ARG ODOO_FRAMEWORK_REQUIREMENTS
-ARG APT_PROXY_IP
-ARG APT_OPTIONS
 
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
@@ -109,7 +103,7 @@ RUN /opt/venv/bin/python3 -mpip install wheel
 
 
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
-RUN xargs apt-get $APT_OPTIONS install -y < /root/deb_requirements.txt
+RUN #___SNIPPET_DEB_REQUIERMENTS___
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 RUN cat /root/pip_requirements.txt | grep -v postal > /root/pip_requirements.filtered.txt
@@ -134,8 +128,6 @@ ARG ODOO_REQUIREMENTS
 ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_INSTALL_LIBPOSTAL
 ARG CUSTOMS_SHA
-ARG APT_PROXY_IP
-ARG APT_OPTIONS
 
 #___SNIPPET_CHECK_SHA___
 

@@ -17,10 +17,6 @@ services:
           INSTALL_DOCKER_CLIENTS: ${INSTALL_DOCKER_CLIENTS}
           DOCKER_GROUP_ID: ${DOCKER_GROUP_ID}
           ODOO_INSTALL_LIBPOSTAL: ${ODOO_INSTALL_LIBPOSTAL}
-          APT_OPTIONS: ${APT_OPTIONS}
-          APT_PROXY_IP: ${APT_PROXY_IP}
-          PIP_PROXY_IP: ${PIP_PROXY_IP}
-          PIP_OPTIONS: ${PIP_OPTIONS}
           DOCKER_GID: ${DOCKER_GID}
     restart: unless-stopped
     # depends_on:

@@ -3,9 +3,6 @@ services:
     build: 
       context: ${ODOO_IMAGES}/webssh
       args: 
-        APT_PROXY_IP: ${APT_PROXY_IP}
-        PIP_PROXY_IP: ${APT_PROXY_IP}
-        APT_OPTIONS: ${APT_OPTIONS}
         DOCKER_GID: ${DOCKER_GID}
     restart: unless-stopped
     profiles:
@@ -26,9 +23,6 @@ services:
         DOCKER_GID: $DOCKER_GID
         POSTGRES_VERSION: $POSTGRES_VERSION
         project_name: $project_name
-        APT_PROXY_IP: ${APT_PROXY_IP}
-        PIP_PROXY_IP: ${PIP_PROXY_IP}
-        APT_OPTIONS: ${APT_OPTIONS}
         # Dont do: if images used, then not compatible
         # OWNER_UID: $OWNER_UID
     privileged: true

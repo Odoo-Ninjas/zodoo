@@ -8,10 +8,6 @@ services:
   mail:
     build: 
       context: $ODOO_IMAGES/mail
-      args:
-        APT_PROXY_IP: ${APT_PROXY_IP}
-        PIP_PROXY_IP: ${PIP_PROXY_IP}
-        APT_OPTIONS: ${APT_OPTIONS}
 
     profiles:
       - auto
@@ -23,10 +19,6 @@ services:
   roundcube:
     build: 
       context: $ODOO_IMAGES/roundcube
-      args:
-        APT_PROXY_IP: ${APT_PROXY_IP}
-        APT_OPTIONS: ${APT_OPTIONS}
-        PIP_PROXY_IP: ${PIP_PROXY_IP}
     # ports:
     #    - "8282:80"
     profiles:

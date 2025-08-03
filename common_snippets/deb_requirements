@@ -1,4 +1,4 @@
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
 RUN #___SNIPPET_APT_INSTALL___
-RUN xargs apt-get $APT_OPTIONS install -y < /root/deb_requirements.txt
+RUN xargs /etc/apt_install < /root/deb_requirements.txt
 RUN apt -y autoremove

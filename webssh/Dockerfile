@@ -1,6 +1,4 @@
 FROM ubuntu:24.04
-ARG  APT_PROXY_IP
-ARG  APT_OPTIONS
 ARG  DOCKER_GID
 CMD [ "bash", "/root/launch.sh" ]
 ENV DEBIAN_FRONTEND=noninteractive

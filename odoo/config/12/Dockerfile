@@ -195,7 +195,7 @@ RUN make install
 RUN rm /usr/local/bin/python3 /usr/bin/python3
 
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
-RUN apt-get update && xargs apt-get install -y < /root/deb_requirements.txt
+#___SNIPPET_DEB_REQUIERMENTS___
 
 # RUN python3 -mpip install cython
 RUN apt-get update; apt-get install -y \

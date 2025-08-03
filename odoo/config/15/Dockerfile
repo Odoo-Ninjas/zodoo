@@ -7,8 +7,6 @@ ARG ODOO_INSTALL_LIBPOSTAL
 ARG ODOO_PYTHON_VERSION
 ARG ODOO_CONFIG_DIR
 ARG CUSTOMS_SHA
-ARG APT_PROXY_IP
-ARG APT_OPTIONS
 ARG DOCKER_GID
 
 # --------------------------------------------------------------------
@@ -16,8 +14,6 @@ ARG DOCKER_GID
 # --------------------------------------------------------------------
 FROM $BASE_IMAGE AS python_builder
 ARG ODOO_PYTHON_VERSION
-ARG APT_PROXY_IP
-ARG APT_OPTIONS
 COPY python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
 WORKDIR /usr/local/src
 RUN tar xfz /usr/local/src/python
@@ -58,8 +54,6 @@ FROM $BASE_IMAGE AS build_pip
 ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_REQUIREMENTS
 ARG ODOO_FRAMEWORK_REQUIREMENTS
-ARG APT_PROXY_IP
-ARG APT_OPTIONS
 
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
@@ -97,7 +91,7 @@ RUN pip3 install $PIP_OPTIONS wheel -U
 ENV PIP_ONLY_BINARY=Pyyaml,python_tds
 
 RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
-RUN xargs apt-get $APT_OPTIONS install -y < /root/deb_requirements.txt
+#___SNIPPET_DEB_REQUIREMENTS___
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 RUN pip install "Cython<3"
@@ -127,8 +121,6 @@ ARG DOCKER_GROUP_ID
 ARG INSTALL_DOCKER_CLIENTS
 ARG ODOO_INSTALL_LIBPOSTAL
 ARG CUSTOMS_SHA
-ARG APT_PROXY_IP
-ARG APT_OPTIONS
 ARG DOCKER_GID
 
 #___SNIPPET_CHECK_SHA___

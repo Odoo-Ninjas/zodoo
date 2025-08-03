@@ -2,11 +2,10 @@ FROM ubuntu:22.04
 ARG OWNER_UID
 ARG DOCKER_GID
 ARG project_name
-ARG APT_PROXY_IP
-ARG APT_OPTIONS
 ENV DEBIAN_FRONTEND=noninteractive
 
 #___SNIPPET_APT_PROXY___
+
 RUN #___SNIPPET_APT_INSTALL___ \
 python3-pip python3 curl rsync locales pv \
 pigz telnet libpq-dev wget lsb-release \
@@ -76,4 +75,3 @@ RUN chown odoo:odoo /home/odoo/.profile && chmod a+x /home/odoo/.profile
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod a+x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
-

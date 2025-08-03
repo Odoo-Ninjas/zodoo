@@ -3,7 +3,6 @@ FROM ubuntu:22.04
 ARG OWNER_UID
 ARG DOCKER_GID
 ARG TARGETARCH
-ARG APT_OPTIONS
 
 # --- APT: Mirror & Proxy Configuration ---
 
