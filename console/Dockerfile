@@ -1,6 +1,5 @@
 FROM ubuntu:22.04
 ARG OWNER_UID
-ARG DOCKER_GID
 ARG project_name
 ENV DEBIAN_FRONTEND=noninteractive
 

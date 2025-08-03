@@ -1,7 +1,6 @@
 FROM ubuntu:22.04
 ARG TARGETARCH
 ARG OWNER_UID
-ARG DOCKER_GID
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV WORKDIR=/opt/robot
@@ -34,10 +33,7 @@ RUN userdel -r $(getent passwd $OWNER_UID | cut -d: -f1) || true
 RUN useradd -rm -s /bin/bash -d /opt/robot -g root -G sudo -u $OWNER_UID robot
 RUN echo 'robot ALL=NOPASSWD:SETENV: ALL' > /etc/sudoers.d/robot
 
-
-	
 #___SNIPPET_DOCKER___
-RUN usermod -aG $DOCKER_GID robot
 
 #___SNIPPET_WODOO___
 

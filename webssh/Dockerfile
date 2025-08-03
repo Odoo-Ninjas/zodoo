@@ -1,8 +1,6 @@
 FROM ubuntu:24.04
-ARG  DOCKER_GID
 CMD [ "bash", "/root/launch.sh" ]
 ENV DEBIAN_FRONTEND=noninteractive
-ENV DOCKER_GID=$DOCKER_GID
 
 
 #___SNIPPET_APT_PROXY___
@@ -69,3 +67,7 @@ echo 'export PATH' >> /root/.bash_profile && \
 chmod a+x /root/programs/*  && \
 chsh -s /usr/bin/rbash && \
 ln -s /usr/bin/ssh /root/programs/ssh
+
+ENTRYPOINT ["/entrypoint.sh"]
+COPY entrypoint.sh /entrypoint.sh
+COPY set_docker_group.sh /usr/local/bin/set_docker_group.sh

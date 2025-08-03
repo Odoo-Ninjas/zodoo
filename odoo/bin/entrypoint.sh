@@ -10,4 +10,5 @@
 # 	chmod a+x "$path"
 # fi
 set -x
+bash /usr/local/bin/set_docker_group.sh
 exec "$WODOO_PYTHON" /odoolib/entrypoint.py "$@"

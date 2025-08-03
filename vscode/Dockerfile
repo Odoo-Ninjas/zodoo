@@ -1,7 +1,6 @@
 FROM ubuntu:22.04
 
 ARG OWNER_UID
-ARG DOCKER_GID
 ARG TARGETARCH
 
 # --- APT: Mirror & Proxy Configuration ---
@@ -153,3 +152,4 @@ COPY --chown=$USERNAME:$USERNAME settings.json /home/$USERNAME/.config/Code/User
 
 # --- Entrypoint ---
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
+COPY  set_docker_group.sh /usr/local/bin/set_docker_group.sh

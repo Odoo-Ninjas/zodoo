@@ -1,6 +1,5 @@
 FROM ubuntu:22.04
 ARG POSTGRES_VERSION
-ARG DOCKER_GID
 ENV DEBIAN_FRONTEND=noninteractive
 ENV POSTGRES_VERSION=$POSTGRES_VERSION
 ENV PIP_NO_CACHE_DIR=no
@@ -36,7 +35,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
 build-essential gcc python3-dev tmux && \
 python3 -mpip install $PIP_OPTIONS -r requirements.txt
 
-#___SNIPPET_WODOO___ \
+#___SNIPPET_WODOO___ 
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod a+x /entrypoint.sh
@@ -45,5 +44,6 @@ ENTRYPOINT ["/entrypoint.sh"]
 COPY bin/ /usr/local/bin/
 RUN chmod a+x /usr/local/bin/*.py
 
+COPY set_docker_group.sh /usr/local/bin/set_docker_group.sh
 
 #___SNIPPET_CLEANUP___

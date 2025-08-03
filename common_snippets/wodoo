@@ -36,6 +36,7 @@ fi
 
 RUN \
 export HOME=/root && \
+mkdir -p $HOME/.local/bin && \
 echo 'export PATH=$PATH:$HOME/.local/bin' >> $HOME/.bashrc && \
 echo "export WODOO_PYTHON=$WODOO_PYTHON" >> /etc/bash.bashrc && \
 echo "export WODOO_PYTHON=$WODOO_PYTHON" >> /etc/profile.d/wodoo_python.sh && \

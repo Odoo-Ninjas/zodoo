@@ -5,7 +5,6 @@ services:
       context: $ODOO_IMAGES/pgtools
       args:
         POSTGRES_VERSION: $POSTGRES_VERSION
-        DOCKER_GID: ${DOCKER_GID}
     stdin_open: true
     volumes:
       - $HOST_RUN_DIR/pgcli_history:/tmp/pgcli_history

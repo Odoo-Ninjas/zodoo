@@ -1,6 +1,8 @@
 #!/bin/bash
 set -x
 
+/bin/bash /usr/local/bin/set_docker_group.sh
+
 if [[ "$DEVMODE" != "1" ]]; then
     echo "DEVMODE is not set"
     exit 0

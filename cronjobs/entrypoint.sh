@@ -1,4 +1,6 @@
 #!/bin/bash
+/bin/bash /usr/local/bin/set_docker_group.sh
+
 if [[ "$1" == "sleep" ]]; then
 	while true;
 		do sleep 10000

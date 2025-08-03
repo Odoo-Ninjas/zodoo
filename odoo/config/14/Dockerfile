@@ -7,7 +7,6 @@ ARG ODOO_INSTALL_LIBPOSTAL
 ARG ODOO_PYTHON_VERSION
 ARG CUSTOMS_SHA
 ARG ODOO_CONFIG_DIR
-ARG DOCKER_GID
 
 # --------------------------------------------------------------------
 # COMPILE LIBPOSTAL
