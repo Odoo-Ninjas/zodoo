@@ -1,5 +1,12 @@
 FROM debian:stretch
 
+# Setze neue sources.list und deaktiviere Release-Checks
+RUN echo "deb http://archive.debian.org/debian stretch main contrib non-free\n\
+deb http://archive.debian.org/debian-security stretch/updates main contrib non-free" \
+    > /etc/apt/sources.list && \
+    echo 'Acquire::Check-Valid-Until "0";' > /etc/apt/apt.conf.d/99no-check-valid-until && \
+    apt-get update
+
 # Install cups
 RUN \
 apt-get update && \
