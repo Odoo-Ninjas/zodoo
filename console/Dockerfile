@@ -42,7 +42,7 @@ ENV PIP_NO_CACHE_DIR=no
 
 RUN #___SNIPPET_APT_INSTALL___ \
 tmux silversearcher-ag && \
-useradd -l -m -s /bin/bash -G sudo,docker -p $(openssl passwd -1 odoo) -u ${OWNER_UID} odoo && \
+useradd -l -m -s /bin/bash -G sudo -p $(openssl passwd -1 odoo) -u ${OWNER_UID} odoo && \
 echo 'odoo:odoo' | chpasswd
 
 RUN mkdir ~/.ssh && chmod 700 ~/.ssh
@@ -68,7 +68,6 @@ COPY welcome.txt /usr/share/welcome.txt
 RUN ln -s /opt/src /home/odoo/$project_name
 RUN chmod -x /etc/update-motd.d/* && rm /etc/update-motd.d -Rf 
 RUN truncate -s 0 /etc/legal /etc/bash.bashrc
-RUN usermod -aG docker odoo
 COPY profile.d /home/odoo/.profile
 RUN chown odoo:odoo /home/odoo/.profile && chmod a+x /home/odoo/.profile
 COPY entrypoint.sh /entrypoint.sh

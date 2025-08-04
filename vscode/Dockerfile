@@ -84,8 +84,8 @@ RUN mkdir -p /home/$USERNAME/.vnc && \
 # --- Setup Python tools as user ---
 RUN python3.11 -m venv venv && \
     . venv/bin/activate && \
-    ./venv/bin/python -m pip install pipx && \
-    pipx install --pip-args="$PIP_OPTIONS" gimera
+    ./venv/bin/python -m pip install $(cat /etc/pip_options) pipx
+RUN ./venv/bin/python -mpipx install --pip-args="$(< cat /etc/pip_options)" gimera
 RUN echo 'export PATH=$PATH:$HOME/.local/bin' >> $HOME/.bashrc
 
 
@@ -109,13 +109,11 @@ RUN /usr/bin/code --install-extension ms-python.python && \
 USER root
 #___SNIPPET_DOCKER___
 
-# --- Group fix and user shell ---
-RUN usermod -aG docker $USERNAME && \
-    chsh -s /bin/bash $USERNAME && \
-    cp /etc/skel/.bashrc /home/$USERNAME/.bashrc && \
-    chown -R $USERNAME:$USERNAME /home/$USERNAME/.vnc
 
-
+RUN \
+chsh -s /bin/bash $USERNAME && \
+cp /etc/skel/.bashrc /home/$USERNAME/.bashrc && \
+chown -R $USERNAME:$USERNAME /home/$USERNAME/.vnc
 
 USER root
 ENV SHELL=/bin/bash

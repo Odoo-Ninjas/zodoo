@@ -85,7 +85,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
 ENV PIP_NO_CACHE_DIR=no
 # Set custom PyPI index
 RUN pip3 install pip -U
-RUN pip3 install $PIP_OPTIONS wheel -U
+RUN pip3 install $(cat /etc/pip_options) wheel -U
 
 ENV PIP_ONLY_BINARY=Pyyaml,python_tds
 
@@ -95,13 +95,13 @@ RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.tx
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 RUN pip install "Cython<3"
 # no build isolation to use cython<3
-RUN pip3 install $PIP_OPTIONS -U setuptools==80.9.0
-RUN pip3 install $PIP_OPTIONS -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
+RUN pip3 install $(cat /etc/pip_options) -U setuptools==80.9.0
+RUN pip3 install $(cat /etc/pip_options) -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
 
 RUN echo "$ODOO_FRAMEWORK_REQUIREMENTS"  | base64 --decode > /root/framework_requirements.txt
-RUN pip3 install $PIP_OPTIONS -r /root/framework_requirements.txt
+RUN pip3 install $(cat /etc/pip_options) -r /root/framework_requirements.txt
 
-RUN pip3 install $PIP_OPTIONS pudb ipython debugpy
+RUN pip3 install $(cat /etc/pip_options) pudb ipython debugpy
 
 #___SNIPPET_OPENUPGRADELIB___
 

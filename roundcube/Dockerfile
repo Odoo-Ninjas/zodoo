@@ -7,8 +7,6 @@ ENV     MAIL_SERVER=mail
 
 #___SNIPPET_APT_PROXY___
 
-RUN apt update
-
 WORKDIR /root
 RUN mkdir -p /rc
 RUN #___SNIPPET_APT_INSTALL___ \
@@ -19,9 +17,9 @@ nginx wget composer
 RUN \
 #___SNIPPET_APT_INSTALL___ \
 python3-pip && \
-pip3 install $PIP_OPTIONS pip --upgrade && \
-pip3 install $PIP_OPTIONS wheel && \
-pip3 install $PIP_OPTIONS pathlib
+pip3 install $(cat /etc/pip_options) pip --upgrade && \
+pip3 install $(cat /etc/pip_options) wheel && \
+pip3 install $(cat /etc/pip_options) pathlib
 RUN ln -sf /dev/stdout /var/log/nginx/access.log && ln -sf /dev/stderr /var/log/nginx/error.log
 
 RUN rm -fr /usr/share/nginx/www && \

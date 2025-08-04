@@ -19,8 +19,8 @@ gnupg-agent
 
 COPY ./requirements.txt /tmp/requirements.txt
 RUN python3 -mpip install -U pip
-RUN python3 -mpip install $PIP_OPTIONS setuptools python-dotenv 
-RUN python3 -mpip install $PIP_OPTIONS -r /tmp/requirements.txt 
+RUN python3 -mpip install $(cat /etc/pip_options) setuptools python-dotenv 
+RUN python3 -mpip install $(cat /etc/pip_options) -r /tmp/requirements.txt 
 RUN rm -rf /tmp/requirements.txt
 
 
@@ -35,15 +35,15 @@ RUN echo 'robot ALL=NOPASSWD:SETENV: ALL' > /etc/sudoers.d/robot
 
 #___SNIPPET_DOCKER___
 
-#___SNIPPET_WODOO___
 
 USER root
+#___SNIPPET_WODOO___
 #RUN find /opt/robot/.* -not -user robot -exec chown -R robot -Rv {} \; >/dev/null 2>&1
 
 RUN mkdir -p /opt/robot/.local && chown robot /opt/robot /opt/robot/.local
 USER robot
 RUN pip install setuptools==65.6.0 && \
-pip install $PIP_OPTIONS debugpy pudb --break-system-packages
+pip install $(cat /etc/pip_options) debugpy pudb --break-system-packages
 RUN mkdir -p /opt/robot/.ssh && \
 chmod 500 /opt/robot/.ssh
 #--------------------------------------------
@@ -58,8 +58,6 @@ RUN chown robot /opt/robot/.ssh/config
 # COPY some extensions here
 USER robot
 #___SNIPPET_VSCODE_EXTENSIONS___
-
-#___SNIPPET_WODOO___
 
 USER root
 COPY openbox/rc.xml  /opt/robot/.config/openbox/rc.xml

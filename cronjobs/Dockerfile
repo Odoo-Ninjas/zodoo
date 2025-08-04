@@ -33,7 +33,7 @@ COPY requirements.txt requirements.txt
 
 RUN #___SNIPPET_APT_INSTALL___ \ 
 build-essential gcc python3-dev tmux && \
-python3 -mpip install $PIP_OPTIONS -r requirements.txt
+python3 -mpip install $(cat /etc/pip_options) -r requirements.txt
 
 #___SNIPPET_WODOO___ 
 

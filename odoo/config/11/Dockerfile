@@ -174,10 +174,10 @@ export PIPX_BIN_DIR=/usr/local/bin && \
 PIPX_DEFAULT_PYTHON=/opt/venv/bin/python3 \
 pipx install --pip-args="--constraint /opt/constraints.txt" -e $WODOO_SRC && \
 echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
-RUN pip3 install $PIP_OPTIONS lxml==4.6.0
+RUN pip3 install $(cat /etc/pip_options) lxml==4.6.0
 
 RUN apt-get update && apt-get install -y libodbc1 unixodbc-dev unixodbc
-RUN pip3 install $PIP_OPTIONS requests-oauth2client faker requests_oauthlib 
+RUN pip3 install $(cat /etc/pip_options) requests-oauth2client faker requests_oauthlib 
 
 
 

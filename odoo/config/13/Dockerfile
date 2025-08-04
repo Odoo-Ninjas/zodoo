@@ -80,17 +80,17 @@ RUN #___SNIPPET_APT_INSTALL___ \
 #___SNIPPET_SETUP_PYTHON_VENV___
 
 
-RUN pip3 install $PIP_OPTIONS wheel && \
-pip3 install $PIP_OPTIONS pip -U && \
-pip3 install $PIP_OPTIONS setuptools==57.5.0 -U
-RUN pip3 install $PIP_OPTIONS "Cython<3"
+RUN pip3 install $(cat /etc/pip_options) wheel && \
+pip3 install $(cat /etc/pip_options) pip -U && \
+pip3 install $(cat /etc/pip_options) setuptools==57.5.0 -U
+RUN pip3 install $(cat /etc/pip_options) "Cython<3"
 RUN pip3 install --only-binary :all: pymssql
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 
-RUN pip3 install --only-binary pymssql $PIP_OPTIONS -r /root/pip_requirements.txt
+RUN pip3 install --only-binary pymssql $(cat /etc/pip_options) -r /root/pip_requirements.txt
 
-RUN pip3 install $PIP_OPTIONS \
+RUN pip3 install $(cat /etc/pip_options) \
 pudb ipython \
 debugpy psycopg2-binary \
 pyinotify python-magic wand \
@@ -104,7 +104,7 @@ RUN bash /usr/local/src/python_3.8.email.patch
 RUN apt-get install -y git
 RUN git clone https://github.com/OCA/openupgradelib /opt/openupgradelib
 WORKDIR /opt/openupgradelib
-RUN pip3 install $PIP_OPTIONS /opt/openupgradelib
+RUN pip3 install $(cat /etc/pip_options) /opt/openupgradelib
 
 # --------------------------------------------------------------------
 # ODOO
@@ -237,9 +237,9 @@ RUN \
 export PIPX_HOME="${WODOO_PIPX_HOME}" && \
 export PIPX_BIN_DIR=/usr/local/bin && \
 PIPX_DEFAULT_PYTHON=/opt/venv/bin/python3 \
-pipx install --pip-args="$PIP_OPTIONS --constraint /opt/constraints.txt" -e $WODOO_SRC && \
+pipx install --pip-args="$(cat /etc/pip_options) --constraint /opt/constraints.txt" -e $WODOO_SRC && \
 echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
-RUN pip3 install $PIP_OPTIONS lxml==4.6.0
+RUN pip3 install $(cat /etc/pip_options) lxml==4.6.0
 
 
 
@@ -248,7 +248,7 @@ RUN pip3 install $PIP_OPTIONS lxml==4.6.0
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
 #___SNIPPET_APT_INSTALL___ \
 libpq-dev && \
-pip3 install $PIP_OPTIONS psycopg2-binary --no-binary psycopg2-binary --force-reinstall; \
+pip3 install $(cat /etc/pip_options) psycopg2-binary --no-binary psycopg2-binary --force-reinstall; \
 fi
  
 RUN #___SNIPPET_APT_INSTALL___ \

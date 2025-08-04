@@ -12,6 +12,7 @@ if [[ "$ARCH" == "amd64" || "$FIREFOX_VERSION" == "latest" || "${FIREFOX_VERSION
     bash /opt/bin/install-firefox-apt.sh
     CLEAN_VER="${FIREFOX_VERSION/-latest/}"
     CLEAN_VER="${FIREFOX_VERSION/latest/}"
+    . /etc/proxy_settings
     #apt-get $APT_OPTIONS install -y "firefox${CLEAN_VER}"
     apt-get $(cat /etc/apt_options) install -y "firefox${CLEAN_VER}"
     INSTALL_VIA_APT="true"
@@ -28,6 +29,7 @@ else
     FIREFOX_VERSION="nightly-latest"
     bash /opt/bin/install-firefox-apt.sh
     CLEAN_VER="${FIREFOX_VERSION/-latest/}"
+    . /etc/proxy_settings
     apt-get $APT_OPTIONS install -y "firefox${CLEAN_VER}"
     INSTALL_VIA_APT="true"
     [[ "$CLEAN_VER" == "nightly" ]] && ln -fs "$(which firefox${CLEAN_VER})" /usr/bin/firefox

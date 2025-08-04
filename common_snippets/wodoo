@@ -12,9 +12,9 @@ COPY --from=wodoo_src:latest /opt/wodoo "$WODOO_SRC"
 #___SNIPPET_PYTHON311___
 
 RUN /usr/bin/python3.11 -m venv "$WODOO_ENV_DIR" && \
-     $WODOO_PYTHON -m pip install $PIP_OPTIONS --upgrade pip && \
-     $WODOO_PYTHON -m pip install $PIP_OPTIONS pipx setuptools wheel --upgrade && \
-     $WODOO_PYTHON -mpip install $PIP_OPTIONS lxml==4.9.3
+     $WODOO_PYTHON -m pip install $(cat /etc/pip_options) --upgrade pip && \
+     $WODOO_PYTHON -m pip install $(cat /etc/pip_options) pipx setuptools wheel --upgrade && \
+     $WODOO_PYTHON -mpip install $(cat /etc/pip_options) lxml==4.9.3
 
 RUN \
 if [ "$ODOO_VERSION"  != '11' ]; then \

@@ -2,7 +2,7 @@
 # install wodoo
 RUN #___SNIPPET_APT_INSTALL___ \
 build-essential python3-dev
-RUN python3 -mpip install $PIP_OPTIONS pipx --upgrade
+RUN python3 -mpip install $(cat /etc/pip_options) pipx --upgrade
 USER root
 
 #___SNIPPET_WODOO___
