@@ -294,7 +294,6 @@ def internal_reload(
 
     before_reload(config)
 
-    _find_suitable_python_version(defaults, int(ODOO_VERSION))
 
     # assuming we are in the odoo directory
     _do_compose(
@@ -302,6 +301,7 @@ def internal_reload(
         additional_docker_configuration_files=additional_docker_configuration_files,
         no_gimera_apply=no_gimera_apply,
         ctx=ctx,
+        ODOO_VERSION=ODOO_VERSION
     )
 
     _execute_after_reload(config)
@@ -316,29 +316,44 @@ def internal_reload(
         ):
             abort("Invalid python version - needs at least 3.10")
 
-def _tweak_config(config):
+def _tweak_config(ODOO_VERSION, config):
     from .myconfigparser import MyConfigParser
     settings = MyConfigParser(config.files["settings"])
     if settings.get('PIP_PROXY_IP') == 'ignore' or not config.get('PIP_PROXY_IP'):
         settings['PIP_OPTIONS'] = ""
     else:
         settings['PIP_OPTIONS'] = config.PIP_OPTIONS.replace("$PIP_PROXY_IP", config.PIP_PROXY_IP)
+
+    m = MANIFEST()
+    if not settings.get("ODOO_PYTHON_VERSION"):
+        if m.get("python_version", None):
+            settings["ODOO_PYTHON_VERSION"] = m["python_version"]
+
+    if not settings.get("ODOO_PYTHON_VERSION"):
+        _find_suitable_python_version(ODOO_VERSION, settings)
+
+
+
     settings.write()
 
-def _find_suitable_python_version(defaults, ODOO_VERSION):
-    if ODOO_VERSION == 16:
-        defaults.setdefault("ODOO_PYTHON_VERSION", "3.10.12")
-    elif ODOO_VERSION == 17:
-        defaults.setdefault("ODOO_PYTHON_VERSION", "3.12.11")
-    elif ODOO_VERSION == 18:
-        defaults.setdefault("ODOO_PYTHON_VERSION", "3.12.11")
-    elif ODOO_VERSION == 15:
-        defaults.setdefault("ODOO_PYTHON_VERSION", "3.9.17")
-    elif ODOO_VERSION in [11, 12, 13]:
-        pass
-    else:
-        raise NotImplementedError(ODOO_VERSION)
-
+def _find_suitable_python_version(ODOO_VERSION, settings):
+    ODOO_VERSION = int(ODOO_VERSION)
+    if settings.get("ODOO_PYTHON_VERSION"):
+        return
+    def _get():
+        if ODOO_VERSION == 16:
+            return "3.10.12"
+        elif ODOO_VERSION == 17:
+            return "3.12.11"
+        elif ODOO_VERSION == 18:
+            return "3.12.11"
+        elif ODOO_VERSION == 15:
+            return "3.9.17"
+        elif ODOO_VERSION in [11, 12, 13]:
+            pass
+        else:
+            raise NotImplementedError(ODOO_VERSION)
+    settings['ODOO_PYTHON_VERSION'] =  _get()
 
 def _execute_after_reload(config):
     execute_script(
@@ -364,6 +379,7 @@ def _do_compose(
     no_gimera_apply=False,
     include_src=False,
     ctx=None,
+    ODOO_VERSION=None,
     **forced_values,
 ):
     """
@@ -387,11 +403,14 @@ def _do_compose(
 
     defaults = {}
     _set_defaults(config, defaults)
-    setup_settings_file(ctx, config, db, demo, **defaults)
+    setup_settings_file(ctx, config, db, demo, ODOO_VERSION=ODOO_VERSION, **defaults)
     _export_settings(config, forced_values)
+
+
+
     _prepare_filesystem(config)
+    _tweak_config(ODOO_VERSION , config)
     _execute_after_settings(config)
-    _tweak_config(config)
 
     _prepare_yml_files_from_template_files(
         config, additional_docker_configuration_files
@@ -546,7 +565,7 @@ def get_db_name(db, project_name):
     return db
 
 
-def setup_settings_file(ctx, config, db, demo, **forced_values):
+def setup_settings_file(ctx, config, db, demo, ODOO_VERSION, **forced_values):
     """
     Cleans run/settings and sets minimal settings;
     Puts default values in settings.d to override any values
@@ -559,12 +578,8 @@ def setup_settings_file(ctx, config, db, demo, **forced_values):
     if demo:
         vals["ODOO_DEMO"] = "1" if demo else "0"
 
-    # take PYTHON VERSION from MANIFEST
+    # # take PYTHON VERSION from MANIFEST
     m = MANIFEST()
-    if not settings.get("ODOO_PYTHON_VERSION"):
-        if m.get("python_version", None):
-            settings["ODOO_PYTHON_VERSION"] = m["python_version"]
-
     for k, v in m.get("settings", {}).items():
         settings[k] = v
 
