@@ -33,7 +33,10 @@ echo "export project_name=$project_name" > /etc/profile.d/envvars.sh
 echo "export CUSTOMS_DIR=$CUSTOMS_DIR" >> /etc/profile.d/envvars.sh
 chmod a+x /etc/profile.d/envvars.sh
 
-echo "alias odoo=/usr/local/bin/odoo --project-name=$project_name\"" >> "$USER_HOME/.bash_aliases"
+echo "alias odoo=/usr/local/bin/odoo --project-name=\"$project_name\"" >> "$USER_HOME/.bash_aliases"
+gosu $USERNAME /usr/local/bin/odoo completion -x
+gosu $USERNAME gimera completion -x
+/bin/bash /usr/local/bin/setup_pyenv.sh
 
 # Configure Git
 cd "$HOST_SRC_PATH"

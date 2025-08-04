@@ -65,7 +65,7 @@ def composer(config):
 
 
 @composer.command()
-@click.option("--full", is_flag=True, help="Otherwise environment is shortened.")
+@click.option("-f", "--full", is_flag=True, help="Otherwise environment is shortened.")
 @click.argument("service-name", required=False, shell_complete=_shell_complete_services)
 @pass_config
 @click.pass_context
@@ -318,13 +318,13 @@ def internal_reload(
 def _find_suitable_python_version(defaults, ODOO_VERSION):
     if ODOO_VERSION == 16:
         defaults.setdefault("ODOO_PYTHON_VERSION", "3.10.12")
-    elif str(ODOO_VERSION) == 17:
+    elif ODOO_VERSION == 17:
         defaults.setdefault("ODOO_PYTHON_VERSION", "3.12.11")
-    elif str(ODOO_VERSION) == 18:
+    elif ODOO_VERSION == 18:
         defaults.setdefault("ODOO_PYTHON_VERSION", "3.12.11")
-    elif str(ODOO_VERSION) == 15:
+    elif ODOO_VERSION == 15:
         defaults.setdefault("ODOO_PYTHON_VERSION", "3.9.17")
-    elif str(ODOO_VERSION) in [11, 12, 13]:
+    elif ODOO_VERSION in [11, 12, 13]:
         pass
     else:
         raise NotImplementedError(ODOO_VERSION)

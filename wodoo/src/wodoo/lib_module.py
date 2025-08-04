@@ -1207,7 +1207,7 @@ def show_conflicting_modules(config):
 def _exec_update(
     config, params, non_interactive=False, stdout=False, write_to_console=True
 ):
-    if os.getenv("DOCKER_MACHINE") == "1":
+    if os.getenv("IS_ODOO_MACHINE") == "1":
         ret =  subprocess.run([os.getenv("WODOO_PYTHON")] + ["/odoolib/update_modules.py"] + params)
         yield ret.returncode
     else:

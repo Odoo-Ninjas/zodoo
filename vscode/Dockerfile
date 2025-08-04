@@ -88,6 +88,10 @@ RUN python3.11 -m venv venv && \
 RUN ./venv/bin/python -mpipx install --pip-args="$(< cat /etc/pip_options)" gimera
 RUN echo 'export PATH=$PATH:$HOME/.local/bin' >> $HOME/.bashrc
 
+# -- Robotframework requirements --
+COPY robot.requirements.txt /opt/robot.requirements.txt
+COPY make_robotcode_pyenv.sh /usr/local/bin/make_robotcode_pyenv.sh
+RUN bash /usr/local/bin/make_robotcode_pyenv.sh
 
 # --- Setup VSCode default config ---
 RUN mkdir -p /home/$USERNAME/.config/Code/User
@@ -119,23 +123,21 @@ ENV SHELL=/bin/bash
 USER $USERNAME
 ENV SHELL=/bin/bash
 
-RUN /usr/local/bin/odoo completion -x
-RUN $HOME/.local/bin/gimera completion -x
+# RUN /usr/local/bin/odoo completion -x
 
 USER root
-
-
+RUN mkdir -p /opt/xpra
+WORKDIR /opt/xpra
 #___SNIPPET_INSTALL_PIPX___
-
 #___SNIPPET_XPRA_INSTALL___
+
+WORKDIR /home
+
 COPY start.sh /usr/local/bin/start.sh
 RUN chmod +x /usr/local/bin/start.sh
 
 USER $USERNAME
 
-COPY robot.requirements.txt /opt/robot.requirements.txt
-COPY make_robotcode_pyenv.sh /usr/local/bin/make_robotcode_pyenv.sh
-RUN bash /usr/local/bin/make_robotcode_pyenv.sh
 
 COPY --chown=$USERNAME:$USERNAME settings.json /home/$USERNAME/.config/Code/User/settings.json
 
@@ -143,5 +145,6 @@ COPY --chown=$USERNAME:$USERNAME settings.json /home/$USERNAME/.config/Code/User
 # --- Entrypoint ---
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
 COPY  set_docker_group.sh /usr/local/bin/set_docker_group.sh
+COPY setup_pyenv.sh /usr/local/bin/setup_pyenv.sh
 
 USER root

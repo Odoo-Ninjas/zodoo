@@ -147,6 +147,9 @@ def bake(ctx, config, params, no_update_images):
           * UPDATE_PARAMS=--i18n  --> parameter for update command; e.g. in this case for force update translations
           * PERSIST_UPDATE_LOG=/path/to/persist/   <!-- update log will be put here
         """
+        "9. so that 'odoo update' works inside cloudshell/the container set environment variable:",
+        " * IS_ODOO_CONTAINER=1",
+        "",
     ]
     for tip in tips:
         click.secho(tip, fg="green")
