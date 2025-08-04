@@ -130,6 +130,8 @@ def start_container(
 
 def start_squid_proxy(config):
     image_name = "squid-deb-cacher-wodoo"
+    if not config.APT_PROXY_IP or config.APT_PROXY_IP == "ignore":
+        return
     start_container(
         config,
         APT_CACHER_CONTAINER_NAME,
@@ -148,6 +150,8 @@ def start_squid_proxy(config):
 
 def start_proxpi(config):
     image_name = "epicwink/proxpi"
+    if not config.PIP_PROXY_IP or config.PIP_PROXY_IP == "ignore":
+        return
     start_container(
         config,
         PROXPI_CONTAINER_NAME,
