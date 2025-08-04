@@ -56,19 +56,23 @@ def start_container(
 
     if build_path:
         image_timestamp = _image_timestamp_stamp(image_name)
-        sf = []
-        for k, v in stored_settings.items():
+        sf = ["#temporary file - do not edit -"]
+        for k, v in sorted(stored_settings.items(), key=lambda k: k[0]):
             sf.append(f"export {k}='{v}'")
-        (build_path / "container_settings").write_text(
-            '\n'.join(sf + [""])
-        )
-
+        filecontent = '\n'.join(sf + [""])
+        file = (build_path / "container_settings")
+        file.write_text(filecontent)
         cmd = ["docker", "build", "-t", image_name, "."]
         subprocess.run(cmd, check=True, cwd=build_path)
         image_timestamp2 = _image_timestamp_stamp(image_name)
 
         if image_timestamp != image_timestamp2:
             image_was_updated = True
+            click.secho(f"Settings are updated so container will be restarted: {container_name}", fg="green")
+            click.secho("New Settings:", fg="green")
+            click.secho("============================================", fg="yellow")
+            click.secho('\n'.join(sf + [""]), fg='yellow')
+            click.secho("============================================", fg="yellow")
 
     def find_container(container_name, all=True):
         cmd = ["docker", "ps", "-q", "-f", f"name={container_name}"]
@@ -117,6 +121,7 @@ def start_container(
 
     running_container = find_container(container_name, all=False)
     if not running_container:
+        click.secho(f"Did not find running container {container_name}.", fg="yellow")
         rm(container_name)
         _start_container(image_name, container_name)
 
