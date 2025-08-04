@@ -73,5 +73,6 @@ RUN chmod a+x entrypoint*.sh
 COPY openbox/welcome.txt /etc/welcome.txt
 
 COPY conky.txt /opt/robot/.conkyrc
+COPY set_docker_group.sh /usr/local/bin/set_docker_group.sh
 
 ENTRYPOINT ["/opt/robot/entrypoint.sh"]

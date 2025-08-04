@@ -151,3 +151,5 @@ COPY --chown=$USERNAME:$USERNAME settings.json /home/$USERNAME/.config/Code/User
 # --- Entrypoint ---
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
 COPY  set_docker_group.sh /usr/local/bin/set_docker_group.sh
+
+USER root
