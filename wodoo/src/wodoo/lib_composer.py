@@ -294,6 +294,8 @@ def internal_reload(
 
     before_reload(config)
 
+    _find_suitable_python_version(defaults, int(ODOO_VERSION))
+
     # assuming we are in the odoo directory
     _do_compose(
         **defaults,
@@ -312,6 +314,20 @@ def internal_reload(
             config.ODOO_PYTHON_VERSION.startswith(x) for x in ["3.9.", "3.8.", "3.7."]
         ):
             abort("Invalid python version - needs at least 3.10")
+
+def _find_suitable_python_version(defaults, ODOO_VERSION):
+    if ODOO_VERSION == 16:
+        defaults.setdefault("ODOO_PYTHON_VERSION", "3.10.12")
+    elif str(ODOO_VERSION) == 17:
+        defaults.setdefault("ODOO_PYTHON_VERSION", "3.12.11")
+    elif str(ODOO_VERSION) == 18:
+        defaults.setdefault("ODOO_PYTHON_VERSION", "3.12.11")
+    elif str(ODOO_VERSION) == 15:
+        defaults.setdefault("ODOO_PYTHON_VERSION", "3.9.17")
+    elif str(ODOO_VERSION) in [11, 12, 13]:
+        pass
+    else:
+        raise NotImplementedError(ODOO_VERSION)
 
 
 def _execute_after_reload(config):
