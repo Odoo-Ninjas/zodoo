@@ -32,6 +32,7 @@ def start_container(
     network,
     port_mapping,
     stored_settings,
+    startup=True
 ):
     """
     Start a Docker container with the specified parameters.
@@ -73,6 +74,10 @@ def start_container(
             click.secho("============================================", fg="yellow")
             click.secho('\n'.join(sf + [""]), fg='yellow')
             click.secho("============================================", fg="yellow")
+
+    if not startup:
+        # important that config files are written above
+        return
 
     def find_container(container_name, all=True):
         cmd = ["docker", "ps", "-q", "-f", f"name={container_name}"]
@@ -130,8 +135,6 @@ def start_container(
 
 def start_squid_proxy(config):
     image_name = "squid-deb-cacher-wodoo"
-    if not config.APT_PROXY_IP or config.APT_PROXY_IP == "ignore":
-        return
     start_container(
         config,
         APT_CACHER_CONTAINER_NAME,
@@ -145,13 +148,12 @@ def start_squid_proxy(config):
             "APT_OPTIONS": config.APT_OPTIONS,
             "PIP_OPTIONS": config.PIP_OPTIONS
         },
+        startup=config.APT_PROXY_IP and config.APT_PROXY_IP != "ignore"
     )
 
 
 def start_proxpi(config):
     image_name = "epicwink/proxpi"
-    if not config.PIP_PROXY_IP or config.PIP_PROXY_IP == "ignore":
-        return
     start_container(
         config,
         PROXPI_CONTAINER_NAME,
@@ -160,6 +162,7 @@ def start_proxpi(config):
         network="proxpi-net",
         port_mapping=config.PIP_PROXY_IP + ":5000",
         stored_settings=None,
+        startup=config.PIP_PROXY_IP and config.PIP_PROXY_IP != "ignore"
     )
 
 
