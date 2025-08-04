@@ -91,11 +91,7 @@ RUN echo 'export PATH=$PATH:$HOME/.local/bin' >> $HOME/.bashrc
 
 # --- Setup VSCode default config ---
 RUN mkdir -p /home/$USERNAME/.config/Code/User
-COPY default_vscode_settings.json /tmp/settings
-
-USER root
-RUN mv /tmp/settings /home/$USERNAME/.config/Code/User/settings.json && \
-    find /home/$USERNAME -not -user $USERNAME -exec chown -R $USERNAME:$USERNAME {} +
+COPY --chown=$USERNAME:USERNAME default_vscode_settings.json /home/$USERNAME/.config/Code/User/settings.json
 
 # --- VSCode Extensions ---
 USER $USERNAME
@@ -108,7 +104,6 @@ RUN /usr/bin/code --install-extension ms-python.python && \
 # --- Docker CLI ---
 USER root
 #___SNIPPET_DOCKER___
-
 
 RUN \
 chsh -s /bin/bash $USERNAME && \
@@ -127,19 +122,16 @@ ENV SHELL=/bin/bash
 RUN /usr/local/bin/odoo completion -x
 RUN $HOME/.local/bin/gimera completion -x
 
-RUN echo '. /tmp/envvars.sh' >> /home/$USERNAME/.bashrc
 USER root
 
 
 #___SNIPPET_INSTALL_PIPX___
 
 #___SNIPPET_XPRA_INSTALL___
-USER root
 COPY start.sh /usr/local/bin/start.sh
 RUN chmod +x /usr/local/bin/start.sh
 
 USER $USERNAME
-
 
 COPY robot.requirements.txt /opt/robot.requirements.txt
 COPY make_robotcode_pyenv.sh /usr/local/bin/make_robotcode_pyenv.sh

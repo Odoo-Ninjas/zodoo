@@ -29,9 +29,11 @@ DISPLAY=:100
 chown "$USERNAME:$USERNAME" "$USER_HOME/.odoo" -R || true
 
 # Export environment variables
-echo "export project_name=$project_name" > /tmp/envvars.sh
-echo "export CUSTOMS_DIR=$CUSTOMS_DIR" >> /tmp/envvars.sh
-echo "alias odoo=\"$USER_HOME/.local/bin/odoo --project-name=$project_name\"" >> "$USER_HOME/.bash_aliases"
+echo "export project_name=$project_name" > /etc/profile.d/envvars.sh
+echo "export CUSTOMS_DIR=$CUSTOMS_DIR" >> /etc/profile.d/envvars.sh
+chmod a+x /etc/profile.d/envvars.sh
+
+echo "alias odoo=/usr/local/bin/odoo --project-name=$project_name\"" >> "$USER_HOME/.bash_aliases"
 
 # Configure Git
 cd "$HOST_SRC_PATH"
