@@ -6,7 +6,6 @@ ARG ODOO_REQUIREMENTS
 ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_FRAMEWORK_REQUIREMENTS
 ARG ODOO_PYTHON_VERSION
-ARG ODOO_INSTALL_LIBPOSTAL
 ARG CUSTOMS_SHA
 
 # --------------------------------------------------------------------
@@ -106,71 +105,66 @@ ARG TARGETARCH
 ARG ODOO_VERSION
 ARG ODOO_REQUIREMENTS
 ARG ODOO_DEB_REQUIREMENTS
-ARG ODOO_INSTALL_LIBPOSTAL
 ARG CUSTOMS_SHA
 
 #___SNIPPET_APT_PROXY___
 
-
 ENV LANG=C.UTF-8
-RUN apt-get update
-RUN apt-get install \
-	-y \
-	--no-install-recommends \
-			man \
-            exuberant-ctags \
-            libtool \
-            htop \
-            ca-certificates \
-            curl \
-            node-less \
-			node-clean-css \
-            ssh \
-            libxml2-utils \
-            libxrender1 \
-            libxext6 \
-            libfontconfig \
-            rsync \
-            vim \
-            psmisc \
-            git \
-            sudo \
-            less \
-            freetds-dev \
-            wget \
-            cifs-utils \
-            imagemagick \
-            cups \
-            libreoffice \
-            libcairo2 libpango1.0-0 libgdk-pixbuf2.0-0 libffi-dev shared-mime-info \
-            locales \
-			libmagickwand-dev \
-            ffmpeg \
-            zip \
-            gpg-agent \
-            pdftk \
-            gir1.2-gtk-3.0 \
-            libmagickwand-dev \
-            libmagic-dev \
-            libcups2-dev \
-            python3-pip \
-            python3-dev \
-            python3 \
-            locales-all \
-            postgresql-client \
-            sassc \
-            libsqlite3-dev \
-            autoconf \
-            pkg-config \
-            curl \
-            time \
-            libpoppler-cpp-dev \
-            libncurses5 \
-            libncurses5-dev \
-            libncursesw5 \
-            libgeos-dev \
-            xfonts-75dpi \
-            xfonts-base
+RUN #___SNIPPET_APT_INSTALL___ \
+    man \
+    exuberant-ctags \
+    libtool \
+    htop \
+    ca-certificates \
+    curl \
+    node-less \
+    node-clean-css \
+    ssh \
+    libxml2-utils \
+    libxrender1 \
+    libxext6 \
+    libfontconfig \
+    rsync \
+    vim \
+    psmisc \
+    git \
+    sudo \
+    less \
+    freetds-dev \
+    wget \
+    cifs-utils \
+    imagemagick \
+    cups \
+    libreoffice \
+    libcairo2 libpango1.0-0 libgdk-pixbuf2.0-0 libffi-dev shared-mime-info \
+    locales \
+    libmagickwand-dev \
+    ffmpeg \
+    zip \
+    gpg-agent \
+    pdftk \
+    gir1.2-gtk-3.0 \
+    libmagickwand-dev \
+    libmagic-dev \
+    libcups2-dev \
+    python3-pip \
+    python3-dev \
+    python3 \
+    locales-all \
+    postgresql-client \
+    sassc \
+    libsqlite3-dev \
+    autoconf \
+    pkg-config \
+    curl \
+    time \
+    libpoppler-cpp-dev \
+    libncurses5 \
+    libncurses5-dev \
+    libncursesw5 \
+    libgeos-dev \
+    xfonts-75dpi \
+    xfonts-base
 
 COPY liberation-sans /usr/share/fonts/
 # rebuild font cache

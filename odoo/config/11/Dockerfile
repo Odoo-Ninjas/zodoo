@@ -1,7 +1,6 @@
 FROM debian:buster
 ARG TARGETARCH
 ARG ODOO_VERSION
-ARG ODOO_INSTALL_LIBPOSTAL
 ARG ODOO_CONFIG_DIR
 #ARG CUSTOMS_REQUIREMENTS
 
@@ -149,8 +148,6 @@ RUN pip3 install -r /root/requirements.txt
 
 RUN echo "deb http://ftp.de.debian.org/debian buster main " >> /etc/apt/sources.list.d/dmtx && apt-get update && apt-get install -y libdmtx0b
 # https://github.com/openvenues/pypostal postal lib for address checking
-COPY install_libpostal.sh /root/install_libpostal.sh
-RUN if [ "$TARGETARCH" = "amd64" ] && [ "$ODOO_INSTALL_LIBPOSTAL" == "1" ]; then bash /root/install_libpostal.sh; fi
 
 
 WORKDIR /opt/odoo

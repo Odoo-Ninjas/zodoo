@@ -14,18 +14,12 @@ services:
           ODOO_VERSION: "${ODOO_VERSION_INT}"
           ODOO_CONFIG_DIR: ${ODOO_CONFIG_DIR}
           ODOO_PYTHON_VERSION: ${ODOO_PYTHON_VERSION}
-          INSTALL_DOCKER_CLIENTS: ${INSTALL_DOCKER_CLIENTS}
-          DOCKER_GROUP_ID: ${DOCKER_GROUP_ID}
-          ODOO_INSTALL_LIBPOSTAL: ${ODOO_INSTALL_LIBPOSTAL}
     restart: unless-stopped
-    # depends_on:
-    #   - wodoo_src
     profiles:
       - auto
     volumes:
       - ${HOST_RUN_DIR}:/opt/run
       - ${HOST_RUN_DIR}/odoo_outdir:/opt/out_dir
       - ${HOST_RUN_DIR}/debug:/tmp/debug
-
       - ${ODOO_FILES}:/opt/files
 

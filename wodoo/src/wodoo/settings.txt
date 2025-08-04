@@ -51,7 +51,6 @@ DUMPS_PATH=/home/parallels/dumps
 HOST_RUN_DIR=/home/parallels/.odoo/run/zebroo-sync
 IMAGES_BRANCH=master
 IMAGES_URL=https://github.com/marcwimmer/wodoo-images
-INSTALL_DOCKER_CLIENTS=0
 INTERNAL_ODOO_HOST=odoo
 INTERNAL_ODOO_PORT=8069
 JOB_BACKUP_ODOO_DB=odoo backup odoo-db $DB_ODOO_FILEFORMAT --dumptype $DB_ODOO_DUMPTYPE
