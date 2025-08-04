@@ -19,11 +19,7 @@ services:
     build:
       context: $ODOO_IMAGES/console
       args:
-        OWNER_UID: $OWNER_UID
         POSTGRES_VERSION: $POSTGRES_VERSION
-        project_name: $project_name
-        # Dont do: if images used, then not compatible
-        # OWNER_UID: $OWNER_UID
     privileged: true
     links:
         - webssh_console

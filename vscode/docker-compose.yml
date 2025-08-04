@@ -2,8 +2,6 @@ services:
     vscode:
         build: 
           context: $ODOO_IMAGES/vscode
-          args:
-            OWNER_UID: $OWNER_UID
         cap_add:
           # required by vscode
           - SYS_ADMIN

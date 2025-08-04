@@ -5,6 +5,9 @@ set -x
 
 # --- Group fix and user shell ---
 usermod -aG "$(stat -c '%G' "/var/run/docker.sock")" $USERNAME
+userdel -r $(getent passwd $OWNER_UID | cut -d: -f1) || true && \
+usermod -u "${OWNER_UID}" $USERNAME
+chown $USERNAME:$USERNAME -R /home/$USERNAME
 
 if [[ "$DEVMODE" != "1" ]]; then
     echo "DEVMODE is not set"

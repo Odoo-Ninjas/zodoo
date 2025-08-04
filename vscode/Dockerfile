@@ -1,6 +1,5 @@
 FROM ubuntu:22.04
 
-ARG OWNER_UID
 ARG TARGETARCH
 
 # --- APT: Mirror & Proxy Configuration ---
@@ -69,10 +68,9 @@ COPY welcome.txt /root/welcome.txt
 
 # --- Create user ---
 ENV USERNAME=user1
-RUN userdel -r $(getent passwd $OWNER_UID | cut -d: -f1) || true && \
-    groupdel $USERNAME || true && \
+RUN groupdel $USERNAME || true && \
     groupadd $USERNAME && \
-    useradd -u $OWNER_UID -g $USERNAME -m $USERNAME
+    useradd -g $USERNAME -m $USERNAME
 
 USER $USERNAME
 WORKDIR /home/$USERNAME
