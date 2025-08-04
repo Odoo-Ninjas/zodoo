@@ -323,7 +323,7 @@ def _tweak_config(ODOO_VERSION, config):
     if settings.get('PIP_PROXY_IP') == 'ignore' or not settings.get('PIP_PROXY_IP'):
         settings['PIP_OPTIONS'] = PIP_OPTIONS_BASE
     else:
-        settings['PIP_OPTIONS'] = PIP_OPTIONS_BASE + f"---index-url http://{config.PIP_PROXY_IP}/index --trusted-host {config.PIP_PROXY_IP}"
+        settings['PIP_OPTIONS'] = PIP_OPTIONS_BASE + f"--index-url http://{config.PIP_PROXY_IP}/index --trusted-host {config.PIP_PROXY_IP}"
 
     m = MANIFEST()
     if not settings.get("ODOO_PYTHON_VERSION"):
