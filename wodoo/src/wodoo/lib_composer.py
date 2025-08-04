@@ -26,6 +26,7 @@ import copy
 import click
 from . import module_tools
 from . import tools
+from .tools import get_latest_python_patch_version
 from .tools import update_setting
 from .tools import __replace_all_envs_in_str
 from .tools import __running_as_root_or_sudo
@@ -1319,6 +1320,9 @@ def setting(ctx, config, name, value, no_reload):
             if name.lower() in k.lower():
                 click.secho(f"{k}={configparser[k]}")
     else:
+        if name == "ODOO_PYTHON_VERSION" and len(value.split(".")) == 2:
+            value = get_latest_python_patch_version(value)
+            click.secho(f"Version {value} will be used.", fg="yellow")
         update_setting(config, name, value)
         click.secho(f"{name}={value}", fg="green")
         if not no_reload:
