@@ -141,7 +141,7 @@ def start_squid_proxy(config):
             "APT_PROXY_IP": config.APT_PROXY_IP,
             "PIP_PROXY_IP": config.PIP_PROXY_IP,
             "APT_OPTIONS": config.APT_OPTIONS,
-            "PIP_OPTIONS": config.PIP_OPTIONS.replace("$PIP_PROXY_IP", config.PIP_PROXY_IP),
+            "PIP_OPTIONS": config.PIP_OPTIONS
         },
     )
 

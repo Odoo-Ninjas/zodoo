@@ -306,6 +306,7 @@ def internal_reload(
 
     _execute_after_reload(config)
 
+
     # update a possible robot file also
     Commands.invoke(ctx, "robot:make-var-file")
 
@@ -314,6 +315,15 @@ def internal_reload(
             config.ODOO_PYTHON_VERSION.startswith(x) for x in ["3.9.", "3.8.", "3.7."]
         ):
             abort("Invalid python version - needs at least 3.10")
+
+def _tweak_config(config):
+    from .myconfigparser import MyConfigParser
+    settings = MyConfigParser(config.files["settings"])
+    if settings.get('PIP_PROXY_IP') == 'ignore' or not config.get('PIP_PROXY_IP'):
+        settings['PIP_OPTIONS'] = ""
+    else:
+        settings['PIP_OPTIONS'] = config.PIP_OPTIONS.replace("$PIP_PROXY_IP", config.PIP_PROXY_IP)
+    settings.write()
 
 def _find_suitable_python_version(defaults, ODOO_VERSION):
     if ODOO_VERSION == 16:
@@ -381,6 +391,7 @@ def _do_compose(
     _export_settings(config, forced_values)
     _prepare_filesystem(config)
     _execute_after_settings(config)
+    _tweak_config(config)
 
     _prepare_yml_files_from_template_files(
         config, additional_docker_configuration_files
@@ -462,10 +473,10 @@ def _replace_docker_snippets(config, dockerfilecontent):
 def _redo_if_settings_missing(ctx, config):
     from .myconfigparser import MyConfigParser
 
-    settings = MyConfigParser(config.files["settings"])
-    if not settings.get("APT_PROXY_IP"):
-        if settings.get("RUN_APT_CACHER") in ["1", ""]:
-            abort("Please setup apt cacher host first. And pypi cacher.")
+    # settings = MyConfigParser(config.files["settings"])
+    # if not settings.get("APT_PROXY_IP"):
+    #     if settings.get("RUN_APT_CACHER") in ["1", ""]:
+    #         abort("Please setup apt cacher host first. And pypi cacher.")
 
 
 def _download_images(config, images_url):
