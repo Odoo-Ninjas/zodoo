@@ -1,7 +1,7 @@
 #!/bin/bash
 set -x
 
-/bin/bash /usr/local/bin/set_docker_group.sh
+/bin/bash /usr/local/bin/set_docker_group.sh || exit -1
 
 # --- Group fix and user shell ---
 usermod -aG "$(stat -c '%G' "/var/run/docker.sock")" $USERNAME

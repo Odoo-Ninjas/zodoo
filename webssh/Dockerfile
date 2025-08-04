@@ -68,6 +68,6 @@ chmod a+x /root/programs/*  && \
 chsh -s /usr/bin/rbash && \
 ln -s /usr/bin/ssh /root/programs/ssh
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
 COPY entrypoint.sh /entrypoint.sh
 COPY set_docker_group.sh /usr/local/bin/set_docker_group.sh

@@ -1,5 +1,5 @@
 #!/bin/bash
-/bin/bash /usr/local/bin/set_docker_group.sh
+/bin/bash /usr/local/bin/set_docker_group.sh || exit -1
 
 tee >/tmp/archive <&0
 

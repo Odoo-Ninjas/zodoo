@@ -49,4 +49,3 @@ ENTRYPOINT ["/odoolib/entrypoint.sh"]
 WORKDIR /opt/src
 
 ADD static /var/www/html
-COPY  set_docker_group.sh /usr/local/bin/set_docker_group.sh
