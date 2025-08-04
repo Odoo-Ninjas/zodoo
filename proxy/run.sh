@@ -6,5 +6,6 @@ done > /etc/envvars.conf
 
 # fix rights;- 
 chmod a+r -R /usr/local/openresty
+chown nobody:nobody /usr/local/openresty -R
 
 /usr/local/openresty/bin/openresty -g 'daemon off;'
