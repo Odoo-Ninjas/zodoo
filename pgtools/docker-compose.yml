@@ -5,10 +5,6 @@ services:
       context: $ODOO_IMAGES/pgtools
       args:
         POSTGRES_VERSION: $POSTGRES_VERSION
-        PIP_PROXY_IP: ${PIP_PROXY_IP}
-        APT_PROXY_IP: ${APT_PROXY_IP}
-        APT_OPTIONS: ${APT_OPTIONS}
-        DOCKER_GID: ${DOCKER_GID}
     stdin_open: true
     volumes:
       - $HOST_RUN_DIR/pgcli_history:/tmp/pgcli_history

@@ -6,13 +6,8 @@ ARG ODOO_REQUIREMENTS
 ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_FRAMEWORK_REQUIREMENTS
 ARG ODOO_PYTHON_VERSION
-ARG ODOO_INSTALL_LIBPOSTAL
 ARG CUSTOMS_SHA
 ARG ODOO_CONFIG_DIR
-ARG APT_PROXY_IP
-ARG APT_OPTIONS
-ARG PIP_PROXY_IP
-ARG DOCKER_GID
 
 # --------------------------------------------------------------------
 # COMPILE PYTHON
@@ -23,7 +18,7 @@ ADD python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
 WORKDIR /usr/local/src/python/Python-${ODOO_PYTHON_VERSION}
 
 #___SNIPPET_APT_PROXY___
-RUN apt-get $APT_OPTIONS update && apt-get $APT_OPTIONS install -y \
+RUN #___SNIPPET_APT_INSTALL___ \
     software-properties-common \
     cmake \
     exuberant-ctags \
@@ -46,7 +41,7 @@ RUN apt-get $APT_OPTIONS update && apt-get $APT_OPTIONS install -y \
 
 RUN ./configure --enable-optimizations && make -j4 && make install
 
-RUN apt-get $APT_OPTIONS install -y rsync
+RUN #___SNIPPET_APT_INSTALL___ rsync
 RUN rsync /usr/local/src/python/Python-${ODOO_PYTHON_VERSION}/ /python -ar
 
 
@@ -58,14 +53,11 @@ FROM $BASE_IMAGE AS build_pip
 ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_REQUIREMENTS
 ARG ODOO_FRAMEWORK_REQUIREMENTS
-ARG APT_PROXY_IP
-ARG APT_OPTIONS
-ARG PIP_PROXY_IP
 
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
 
-RUN apt-get $APT_OPTIONS update && apt-get $APT_OPTIONS install -y \
+RUN #___SNIPPET_APT_INSTALL___ \
     build-essential \
     libxml2-dev \
     libxslt1-dev \
@@ -87,17 +79,17 @@ RUN apt-get $APT_OPTIONS update && apt-get $APT_OPTIONS install -y \
 #___SNIPPET_SETUP_PYTHON_VENV___
 
 
-RUN pip3 install $PIP_OPTIONS wheel && \
-pip3 install $PIP_OPTIONS pip -U && \
-pip3 install $PIP_OPTIONS setuptools==57.5.0 -U
-RUN pip3 install $PIP_OPTIONS "Cython<3"
+RUN pip3 install $(cat /etc/pip_options) wheel && \
+pip3 install $(cat /etc/pip_options) pip -U && \
+pip3 install $(cat /etc/pip_options) setuptools==57.5.0 -U
+RUN pip3 install $(cat /etc/pip_options) "Cython<3"
 RUN pip3 install --only-binary :all: pymssql
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 
-RUN pip3 install --only-binary pymssql $PIP_OPTIONS -r /root/pip_requirements.txt
+RUN pip3 install --only-binary pymssql $(cat /etc/pip_options) -r /root/pip_requirements.txt
 
-RUN pip3 install $PIP_OPTIONS \
+RUN pip3 install $(cat /etc/pip_options) \
 pudb ipython \
 debugpy psycopg2-binary \
 pyinotify python-magic wand \
@@ -111,7 +103,7 @@ RUN bash /usr/local/src/python_3.8.email.patch
 RUN apt-get install -y git
 RUN git clone https://github.com/OCA/openupgradelib /opt/openupgradelib
 WORKDIR /opt/openupgradelib
-RUN pip3 install $PIP_OPTIONS /opt/openupgradelib
+RUN pip3 install $(cat /etc/pip_options) /opt/openupgradelib
 
 # --------------------------------------------------------------------
 # ODOO
@@ -121,7 +113,6 @@ ARG TARGETARCH
 ARG ODOO_VERSION
 ARG ODOO_REQUIREMENTS
 ARG ODOO_DEB_REQUIREMENTS
-ARG ODOO_INSTALL_LIBPOSTAL
 ARG CUSTOMS_SHA
 
 #___SNIPPET_CHECK_SHA___
@@ -244,21 +235,22 @@ RUN \
 export PIPX_HOME="${WODOO_PIPX_HOME}" && \
 export PIPX_BIN_DIR=/usr/local/bin && \
 PIPX_DEFAULT_PYTHON=/opt/venv/bin/python3 \
-pipx install --pip-args="$PIP_OPTIONS --constraint /opt/constraints.txt" -e $WODOO_SRC && \
+pipx install --pip-args="$(cat /etc/pip_options) --constraint /opt/constraints.txt" -e $WODOO_SRC && \
 echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
-RUN pip3 install $PIP_OPTIONS lxml==4.6.0
+RUN pip3 install $(cat /etc/pip_options) lxml==4.6.0
 
 
 
 
 # There is a BUG with M1 and SCRAM authentication
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
-apt-get $APT_OPTIONS update && \
-apt-get $APT_OPTIONS install -y libpq-dev && \
-pip3 install $PIP_OPTIONS psycopg2-binary --no-binary psycopg2-binary --force-reinstall; \
+#___SNIPPET_APT_INSTALL___ \
+libpq-dev && \
+pip3 install $(cat /etc/pip_options) psycopg2-binary --no-binary psycopg2-binary --force-reinstall; \
 fi
-
-RUN apt $APT_OPTIONS install -y coreutils
+ 
+RUN #___SNIPPET_APT_INSTALL___ \
+coreutils
 
 
 

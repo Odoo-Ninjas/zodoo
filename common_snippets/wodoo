@@ -1,20 +1,20 @@
+# Check if build-time user is root
+RUN if [ "$(id -u)" -ne 0 ]; then \
+      echo "ERROR: This Dockerfile must be built as root!" >&2; \
+      exit 1; \
+    fi
 ENV WODOO_SRC=/opt/wodoo
 ENV WODOO_PIPX_HOME=/opt/wodoo_pipx
 ENV WODOO_ENV_DIR=/opt/wodoo_pipx/venvs/wodoo
 ENV WODOO_PYTHON=$WODOO_ENV_DIR/bin/python3
+COPY --from=wodoo_src:latest /opt/wodoo "$WODOO_SRC"
 
 #___SNIPPET_PYTHON311___
 
-COPY --from=wodoo_src:latest /opt/wodoo "$WODOO_SRC"
-RUN chown -R $CURRENT_USER:$CURRENT_USER "$WODOO_SRC"
-
-
-
-RUN /usr/bin/python3.11 -m venv "$WODOO_ENV_DIR"; \
-     $WODOO_PYTHON -m pip install $PIP_OPTIONS --upgrade pip; \
-     $WODOO_PYTHON -m pip install $PIP_OPTIONS pipx setuptools wheel --upgrade;  
-
-RUN $WODOO_PYTHON -mpip install $PIP_OPTIONS lxml==4.9.3
+RUN /usr/bin/python3.11 -m venv "$WODOO_ENV_DIR" && \
+     $WODOO_PYTHON -m pip install $(cat /etc/pip_options) --upgrade pip && \
+     $WODOO_PYTHON -m pip install $(cat /etc/pip_options) pipx setuptools wheel --upgrade && \
+     $WODOO_PYTHON -mpip install $(cat /etc/pip_options) lxml==4.9.3
 
 RUN \
 if [ "$ODOO_VERSION"  != '11' ]; then \
@@ -34,8 +34,10 @@ if [ "$ODOO_VERSION"  != '11' ]; then \
           exit 1) \
 fi
 
-RUN echo 'export PATH=$PATH:$HOME/.local/bin' >> $HOME/.bashrc
-#RUN chmod a+rw -R "$WODOO_SRC" "$WODOO_PIPX_HOME" "$WODOO_ENV_DIR"
-RUN echo "export WODOO_PYTHON=$WODOO_PYTHON" >> /etc/bash.bashrc
-RUN echo "export WODOO_PYTHON=$WODOO_PYTHON" >> /etc/profile.d/wodoo_python.sh && \
-    chmod +x /etc/profile.d/wodoo_python.sh
+RUN \
+export HOME=/root && \
+mkdir -p $HOME/.local/bin && \
+echo 'export PATH=$PATH:$HOME/.local/bin' >> $HOME/.bashrc && \
+echo "export WODOO_PYTHON=$WODOO_PYTHON" >> /etc/bash.bashrc && \
+echo "export WODOO_PYTHON=$WODOO_PYTHON" >> /etc/profile.d/wodoo_python.sh && \
+chmod +x /etc/profile.d/wodoo_python.sh

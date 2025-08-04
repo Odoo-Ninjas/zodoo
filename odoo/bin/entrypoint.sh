@@ -9,5 +9,4 @@
 # 	EOT
 # 	chmod a+x "$path"
 # fi
-set -x
 exec "$WODOO_PYTHON" /odoolib/entrypoint.py "$@"

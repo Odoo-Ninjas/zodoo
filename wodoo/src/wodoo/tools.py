@@ -1,3 +1,4 @@
+import urllib.request
 import platform
 import netifaces
 import passlib
@@ -1930,6 +1931,7 @@ def start_postgres_if_local(ctx, config):
 def update_setting(config, name, value):
     from .myconfigparser import MyConfigParser
 
+
     configparser = MyConfigParser(config.files["project_settings"])
     configparser[name] = value
     configparser.write()
@@ -2116,3 +2118,27 @@ def _yamldump(content):
         content, default_flow_style=False, sort_keys=False
     )  # , Dumper=NoAliasDumper)
     return file_content
+
+def get_latest_python_patch_version(version_prefix: str) -> str:
+    """
+    Fetches the latest Python patch version for a given major.minor version (e.g. '3.12').
+
+    Args:
+        version_prefix (str): The major.minor version (e.g. '3.12')
+
+    Returns:
+        str: The latest full version string (e.g. '3.12.3')
+    """
+    base_url = 'https://www.python.org/ftp/python/'
+    html = urllib.request.urlopen(base_url).read().decode()
+    all_versions = re.findall(r'href="(\d+\.\d+\.\d+)/"', html)
+
+    matching_versions = [
+        v for v in all_versions if v.startswith(version_prefix + '.')
+    ]
+
+    if not matching_versions:
+        raise ValueError(f"No matching versions found for prefix '{version_prefix}'")
+
+    latest = sorted(matching_versions, key=lambda s: list(map(int, s.split('.'))))[-1]
+    return latest

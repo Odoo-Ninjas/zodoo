@@ -2,11 +2,6 @@ services:
   webssh_console:
     build: 
       context: ${ODOO_IMAGES}/webssh
-      args: 
-        APT_PROXY_IP: ${APT_PROXY_IP}
-        PIP_PROXY_IP: ${APT_PROXY_IP}
-        APT_OPTIONS: ${APT_OPTIONS}
-        DOCKER_GID: ${DOCKER_GID}
     restart: unless-stopped
     profiles:
       - auto
@@ -15,6 +10,8 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${ODOO_IMAGES}/webssh/programs:/root/programs
+    environment:
+      - DOCKER_GID=${DOCKER_GID}
   proxy:
     environment:
       WEBSSH_CONSOLE_HOST: http://webssh_console:8080
@@ -22,14 +19,9 @@ services:
     build:
       context: $ODOO_IMAGES/console
       args:
-        WODOO_VERSION: $WODOO_VERSION
         OWNER_UID: $OWNER_UID
-        DOCKER_GID: $DOCKER_GID
         POSTGRES_VERSION: $POSTGRES_VERSION
         project_name: $project_name
-        APT_PROXY_IP: ${APT_PROXY_IP}
-        PIP_PROXY_IP: ${PIP_PROXY_IP}
-        APT_OPTIONS: ${APT_OPTIONS}
         # Dont do: if images used, then not compatible
         # OWNER_UID: $OWNER_UID
     privileged: true

@@ -19,7 +19,7 @@ RUN ["gem", "install", "fluent-plugin-postgres", "--no-document"]
 RUN ["gem", "install", "fluent-plugin-rewrite-tag-filter", "--no-document"]
 #RUN ["gem", "install", "fluent-plugin-tail", "--no-document"]
 RUN ["gem", "install", "pg", "--no-document"]
-RUN pip install $PIP_OPTIONS fluent-logger --break-system-packages
+RUN pip install $(cat /etc/pip_options) fluent-logger --break-system-packages
 RUN ["gem", "install", "fluent-plugin-json", "--no-document"]
 RUN ["gem", "install", "fluent-plugin-docker-json", "--no-document"]
 RUN ["gem", "install", "fluent-plugin-multi-format-parser", "--no-document"]

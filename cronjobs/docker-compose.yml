@@ -3,11 +3,7 @@ services:
     build:
       context: $ODOO_IMAGES/cronjobs
       args:
-        WODOO_VERSION: $WODOO_VERSION
         POSTGRES_VERSION: $POSTGRES_VERSION
-        APT_PROXY_IP: ${APT_PROXY_IP}
-        PIP_PROXY_IP: ${PIP_PROXY_IP}
-        DOCKER_GID: ${DOCKER_GID}
         # Dont do: if images used, then not compatible
         # OWNER_UID: $OWNER_UID
     privileged: true

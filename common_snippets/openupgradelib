@@ -1,5 +1,6 @@
-RUN apt-get $APT_OPTIONS install -y ca-certificates git && update-ca-certificates
+RUN #___SNIPPET_APT_INSTALL___ \ 
+ca-certificates git && update-ca-certificates
 RUN git clone https://github.com/OCA/openupgradelib /opt/openupgradelib
 WORKDIR /opt/openupgradelib
 RUN pip3 install --upgrade setuptools wheel && \
-pip3 install $PIP_OPTIONS /opt/openupgradelib
+pip3 install $(cat /etc/pip_options) /opt/openupgradelib

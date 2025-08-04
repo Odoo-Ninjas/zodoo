@@ -1,12 +1,11 @@
 FROM postgres:16-bullseye
-ARG APT_PROXY_IP
-ARG APT_OPTIONS
 CMD ["postgres"]
 
 #___SNIPPET_APT_PROXY___
 RUN #___SNIPPET_APT_INSTALL___ \
 postgresql-server-dev-16 python-dev build-essential git python3-pip procps sockstat && \
-apt-get $APT_OPTIONS install -y postgresql-16-postgis-3
+#___SNIPPET_APT_INSTALL___ \
+postgresql-16-postgis-3
 
 
 COPY config* /

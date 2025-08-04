@@ -9,3 +9,4 @@ bootstrap_salt.sh
 
 squid/cache
 squid/log
+container_settings

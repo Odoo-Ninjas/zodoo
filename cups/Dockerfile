@@ -6,8 +6,8 @@ apt-get update && \
 apt-get install --no-install-recommends cups cups-pdf whois wget samba-client python3 python3-cups rsync python3-pip vim -y && \
 apt-get clean && \
 rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
-RUN pip3 install $PIP_OPTIONS pip --upgrade && \
-pip3 install $PIP_OPTIONS pathlib
+RUN pip3 install $(cat /etc/pip_options) pip --upgrade && \
+pip3 install $(cat /etc/pip_options) pathlib
 
 # Disbale some cups backend that are unusable within a container
 RUN mv /usr/lib/cups/backend/parallel /usr/lib/cups/backend-available/

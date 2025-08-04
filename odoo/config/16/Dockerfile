@@ -3,21 +3,15 @@ ARG BASE_IMAGE=ubuntu:22.04
 ARG ODOO_VERSION
 ARG ODOO_REQUIREMENTS
 ARG ODOO_DEB_REQUIREMENTS
-ARG ODOO_INSTALL_LIBPOSTAL
 ARG ODOO_PYTHON_VERSION
 ARG ODOO_CONFIG_DIR
 ARG CUSTOMS_SHA
-ARG APT_PROXY_IP
-ARG APT_OPTIONS
-ARG DOCKER_GID
 
 # --------------------------------------------------------------------
 # COMPILE PYTHON
 # --------------------------------------------------------------------
 FROM $BASE_IMAGE AS python_builder
 ARG ODOO_PYTHON_VERSION
-ARG APT_PROXY_IP
-ARG APT_OPTIONS
 COPY python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
 WORKDIR /usr/local/src
 RUN tar xfz /usr/local/src/python
@@ -58,8 +52,6 @@ FROM $BASE_IMAGE AS build_pip
 ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_REQUIREMENTS
 ARG ODOO_FRAMEWORK_REQUIREMENTS
-ARG APT_PROXY_IP
-ARG APT_OPTIONS
 
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
@@ -93,18 +85,18 @@ RUN #___SNIPPET_APT_INSTALL___ \
 #___SNIPPET_SETUP_PYTHON_VENV___
 
 RUN pip3 install pip -U
-RUN pip3 install $PIP_OPTIONS wheel && \
-pip3 install $PIP_OPTIONS setuptools -U
+RUN pip3 install $(cat /etc/pip_options) wheel && \
+pip3 install $(cat /etc/pip_options) setuptools -U
 
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 RUN pip install "Cython<3"
-RUN pip3 install $PIP_OPTIONS -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
+RUN pip3 install $(cat /etc/pip_options) -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
 
 RUN echo "$ODOO_FRAMEWORK_REQUIREMENTS"  | base64 --decode > /root/framework_requirements.txt
-RUN pip3 install $PIP_OPTIONS -r /root/framework_requirements.txt
+RUN pip3 install $(cat /etc/pip_options) -r /root/framework_requirements.txt
 
-RUN pip3 install $PIP_OPTIONS pudb ipython debugpy
+RUN pip3 install $(cat /etc/pip_options) pudb ipython debugpy
 
 #___SNIPPET_OPENUPGRADELIB___
 
@@ -117,12 +109,7 @@ ARG ODOO_VERSION
 ARG ODOO_REQUIREMENTS
 ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_PYTHON_VERSION
-ARG DOCKER_GROUP_ID
-ARG INSTALL_DOCKER_CLIENTS
 ARG CUSTOMS_SHA
-ARG APT_PROXY_IP
-ARG APT_OPTIONS
-ARG DOCKER_GID
 
 #___SNIPPET_CHECK_SHA___
 

@@ -1,6 +1,11 @@
 #!/bin/bash
 set -x
 
+/bin/bash /usr/local/bin/set_docker_group.sh || exit -1
+
+# --- Group fix and user shell ---
+usermod -aG "$(stat -c '%G' "/var/run/docker.sock")" $USERNAME
+
 if [[ "$DEVMODE" != "1" ]]; then
     echo "DEVMODE is not set"
     exit 0
@@ -24,9 +29,14 @@ DISPLAY=:100
 chown "$USERNAME:$USERNAME" "$USER_HOME/.odoo" -R || true
 
 # Export environment variables
-echo "export project_name=$project_name" > /tmp/envvars.sh
-echo "export CUSTOMS_DIR=$CUSTOMS_DIR" >> /tmp/envvars.sh
-echo "alias odoo=\"$USER_HOME/.local/bin/odoo --project-name=$project_name\"" >> "$USER_HOME/.bash_aliases"
+echo "export project_name=$project_name" > /etc/profile.d/envvars.sh
+echo "export CUSTOMS_DIR=$CUSTOMS_DIR" >> /etc/profile.d/envvars.sh
+chmod a+x /etc/profile.d/envvars.sh
+
+echo "alias odoo=/usr/local/bin/odoo --project-name=\"$project_name\"" >> "$USER_HOME/.bash_aliases"
+gosu $USERNAME /usr/local/bin/odoo completion -x
+gosu $USERNAME gimera completion -x
+/bin/bash /usr/local/bin/setup_pyenv.sh
 
 # Configure Git
 cd "$HOST_SRC_PATH"
@@ -51,7 +61,9 @@ echo "Git user is $GIT_USERNAME"
 
 # Create XPRA socket directory
 mkdir -p /run/user/1001/xpra
+mkdir -p /run/user/1000/xpra
 chown "$USERNAME:$USERNAME" /run/user/1001 -R
+chown "$USERNAME:$USERNAME" /run/user/1000 -R
 
 
 # remove start up annoying message
@@ -66,14 +78,14 @@ chown "$USERNAME:$USERNAME" /tmp/vscode-data
 # cleanup old
 # xpra stop $DISPLAY || true
 pkill -9 -f xpra || true
-rm /tmp/.X100-lock || true
+rm /tmp/.X100-lock >/dev/null 2>&1 || true
 exec gosu "$USERNAME" xpra start "$DISPLAY" \
     --bind-tcp=0.0.0.0:5900 \
     --html=on \
     --resize-display=yes \
     --dpi=96 \
     --start-via-proxy=no \
-    --start-child="/bin/bash /start.sh" \
+    --start-child="/usr/local/bin/start.sh" \
     --exit-with-children \
     --socket-dir=/run/user/1001/xpra \
     --no-daemon \

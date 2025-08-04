@@ -26,6 +26,7 @@ import copy
 import click
 from . import module_tools
 from . import tools
+from .tools import get_latest_python_patch_version
 from .tools import update_setting
 from .tools import __replace_all_envs_in_str
 from .tools import __running_as_root_or_sudo
@@ -64,7 +65,7 @@ def composer(config):
 
 
 @composer.command()
-@click.option("--full", is_flag=True, help="Otherwise environment is shortened.")
+@click.option("-f", "--full", is_flag=True, help="Otherwise environment is shortened.")
 @click.argument("service-name", required=False, shell_complete=_shell_complete_services)
 @pass_config
 @click.pass_context
@@ -293,6 +294,8 @@ def internal_reload(
 
     before_reload(config)
 
+    _find_suitable_python_version(defaults, int(ODOO_VERSION))
+
     # assuming we are in the odoo directory
     _do_compose(
         **defaults,
@@ -312,6 +315,20 @@ def internal_reload(
         ):
             abort("Invalid python version - needs at least 3.10")
 
+def _find_suitable_python_version(defaults, ODOO_VERSION):
+    if ODOO_VERSION == 16:
+        defaults.setdefault("ODOO_PYTHON_VERSION", "3.10.12")
+    elif ODOO_VERSION == 17:
+        defaults.setdefault("ODOO_PYTHON_VERSION", "3.12.11")
+    elif ODOO_VERSION == 18:
+        defaults.setdefault("ODOO_PYTHON_VERSION", "3.12.11")
+    elif ODOO_VERSION == 15:
+        defaults.setdefault("ODOO_PYTHON_VERSION", "3.9.17")
+    elif ODOO_VERSION in [11, 12, 13]:
+        pass
+    else:
+        raise NotImplementedError(ODOO_VERSION)
+
 
 def _execute_after_reload(config):
     execute_script(
@@ -325,7 +342,6 @@ def _set_defaults(config, defaults):
     defaults["HOST_RUN_DIR"] = config.HOST_RUN_DIR
     defaults["NETWORK_NAME"] = config.project_name
     defaults["project_name"] = config.project_name
-    defaults["WODOO_VERSION"] = _get_version()
     m = MANIFEST()
     defaults["ODOO_VERSION_INT"] = int(float(m["version"]))
 
@@ -1320,6 +1336,9 @@ def setting(ctx, config, name, value, no_reload):
             if name.lower() in k.lower():
                 click.secho(f"{k}={configparser[k]}")
     else:
+        if name == "ODOO_PYTHON_VERSION" and len(value.split(".")) == 2:
+            value = get_latest_python_patch_version(value)
+            click.secho(f"Version {value} will be used.", fg="yellow")
         update_setting(config, name, value)
         click.secho(f"{name}={value}", fg="green")
         if not no_reload:

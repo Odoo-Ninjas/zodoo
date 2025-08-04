@@ -1,13 +1,10 @@
 FROM ubuntu:22.04
-ARG WODOO_VERSION
 ARG OWNER_UID
-ARG DOCKER_GID
 ARG project_name
-ARG APT_PROXY_IP
-ARG APT_OPTIONS
 ENV DEBIAN_FRONTEND=noninteractive
 
 #___SNIPPET_APT_PROXY___
+
 RUN #___SNIPPET_APT_INSTALL___ \
 python3-pip python3 curl rsync locales pv \
 pigz telnet libpq-dev wget lsb-release \
@@ -45,10 +42,8 @@ ENV PIP_NO_CACHE_DIR=no
 
 RUN #___SNIPPET_APT_INSTALL___ \
 tmux silversearcher-ag && \
-useradd -l -m -s /bin/bash -G sudo,docker -p $(openssl passwd -1 odoo) -u ${OWNER_UID} odoo && \
+useradd -l -m -s /bin/bash -G sudo -p $(openssl passwd -1 odoo) -u ${OWNER_UID} odoo && \
 echo 'odoo:odoo' | chpasswd
-
-#___SNIPPET_WODOO_USER___
 
 RUN mkdir ~/.ssh && chmod 700 ~/.ssh
 COPY console.key.pub /home/odoo/.ssh/authorized_keys 
@@ -73,10 +68,8 @@ COPY welcome.txt /usr/share/welcome.txt
 RUN ln -s /opt/src /home/odoo/$project_name
 RUN chmod -x /etc/update-motd.d/* && rm /etc/update-motd.d -Rf 
 RUN truncate -s 0 /etc/legal /etc/bash.bashrc
-RUN usermod -aG docker odoo
 COPY profile.d /home/odoo/.profile
 RUN chown odoo:odoo /home/odoo/.profile && chmod a+x /home/odoo/.profile
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod a+x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
-

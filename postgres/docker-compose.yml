@@ -19,10 +19,6 @@ services:
   postgres:
     build: 
       context: $ODOO_IMAGES/postgres
-      args:
-        APT_PROXY_IP: ${APT_PROXY_IP}
-        APT_OPTIONS: ${APT_OPTIONS}
-        PIP_PROXY_IP: ${PIP_PROXY_IP}
     restart: unless-stopped
     stdin_open: true
     command: ["postgres"]

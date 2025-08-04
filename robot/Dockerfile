@@ -1,10 +1,6 @@
 FROM ubuntu:22.04
 ARG TARGETARCH
 ARG OWNER_UID
-ARG DOCKER_GID
-ARG APT_PROXY_IP
-ARG APT_OPTIONS
-ARG PIP_OPTIONS
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV WORKDIR=/opt/robot
@@ -23,8 +19,8 @@ gnupg-agent
 
 COPY ./requirements.txt /tmp/requirements.txt
 RUN python3 -mpip install -U pip
-RUN python3 -mpip install $PIP_OPTIONS setuptools python-dotenv 
-RUN python3 -mpip install $PIP_OPTIONS -r /tmp/requirements.txt 
+RUN python3 -mpip install $(cat /etc/pip_options) setuptools python-dotenv 
+RUN python3 -mpip install $(cat /etc/pip_options) -r /tmp/requirements.txt 
 RUN rm -rf /tmp/requirements.txt
 
 
@@ -37,20 +33,17 @@ RUN userdel -r $(getent passwd $OWNER_UID | cut -d: -f1) || true
 RUN useradd -rm -s /bin/bash -d /opt/robot -g root -G sudo -u $OWNER_UID robot
 RUN echo 'robot ALL=NOPASSWD:SETENV: ALL' > /etc/sudoers.d/robot
 
-
-	
 #___SNIPPET_DOCKER___
-RUN usermod -aG $DOCKER_GID robot
 
-#___SNIPPET_WODOO___
 
 USER root
+#___SNIPPET_WODOO___
 #RUN find /opt/robot/.* -not -user robot -exec chown -R robot -Rv {} \; >/dev/null 2>&1
 
 RUN mkdir -p /opt/robot/.local && chown robot /opt/robot /opt/robot/.local
 USER robot
 RUN pip install setuptools==65.6.0 && \
-pip install $PIP_OPTIONS debugpy pudb --break-system-packages
+pip install $(cat /etc/pip_options) debugpy pudb --break-system-packages
 RUN mkdir -p /opt/robot/.ssh && \
 chmod 500 /opt/robot/.ssh
 #--------------------------------------------
@@ -66,7 +59,6 @@ RUN chown robot /opt/robot/.ssh/config
 USER robot
 #___SNIPPET_VSCODE_EXTENSIONS___
 
-
 USER root
 COPY openbox/rc.xml  /opt/robot/.config/openbox/rc.xml
 COPY openbox/menu.xml  /opt/robot/.config/openbox/menu.xml
@@ -81,5 +73,6 @@ RUN chmod a+x entrypoint*.sh
 COPY openbox/welcome.txt /etc/welcome.txt
 
 COPY conky.txt /opt/robot/.conkyrc
+COPY set_docker_group.sh /usr/local/bin/set_docker_group.sh
 
 ENTRYPOINT ["/opt/robot/entrypoint.sh"]

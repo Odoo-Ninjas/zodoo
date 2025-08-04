@@ -1,19 +1,17 @@
-ARG APT_PROXY_IP
-ARG PIP_PROXY_IP
-ARG APT_OPTIONS
-ARG PIP_OPTIONS
-
 ENV DEBIAN_FRONTEND=noninteractive
+COPY --from=squid-deb-cacher-wodoo:latest /opt/container_settings /etc/proxy_settings
 
-# Chatgpt: ports.ubuntu.com is not mirrored widely
-ENV APT_OPTIONS="${APT_OPTIONS}"
-ENV APT_PROXY_IP="${APT_PROXY_IP}"
-ENV PIP_PROXY_IP="${PIP_PROXY_IP}"
-ENV PIP_OPTIONS="${PIP_OPTIONS}"
-RUN bash -c 'export PIP_OPTIONS="${PIP_OPTIONS//__PIP_PROXY_IP__/$PIP_PROXY_IP}"; echo "$PIP_OPTIONS"'
+RUN . /etc/proxy_settings && env | grep '^APT_OPTIONS=' | cut -d= -f2- > /etc/apt_options
+RUN . /etc/proxy_settings && env | grep '^PIP_OPTIONS=' | cut -d= -f2- > /etc/pip_options
 
-RUN if [ -n "$APT_PROXY_IP" ] && [ "$APT_PROXY_IP" != "ignore" ]; then \
+RUN . /etc/proxy_settings && ( if [ -n "$APT_PROXY_IP" ] && [ "$APT_PROXY_IP" != "ignore" ]; then \
       echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}\";" > /etc/apt/apt.conf.d/01proxy; \
-    fi
-RUN apt-get $APT_OPTIONS update
+    fi )
+RUN apt-get $(cat /etc/apt_options) update
 
+RUN \
+echo '#!/bin/bash' > /etc/apt_install && \
+echo 'set -x' >> /etc/apt_install && \
+echo '. /etc/proxy_settings' >> /etc/apt_install && \
+echo 'apt $APT_OPTIONS install "$@"' >> /etc/apt_install && \
+chmod a+x /etc/apt_install

@@ -10,6 +10,7 @@ RUN apt-get update -y && \
 # Copy init script
 COPY entrypoint.sh /data/entrypoint.sh
 COPY squid/etc/extra-sources.acl /data/squid/etc/extra-sources.acl
+COPY squid/etc/mirror-dstdomain.acl.d/* /data/squid/etc/mirror-dstdomain.acl.d
 RUN chmod +x /data/entrypoint.sh
 
 # Handle user and paths
@@ -22,3 +23,4 @@ RUN ln -sf /data/squid/etc/extra-sources.acl /etc/squid-deb-proxy/mirror-dstdoma
 EXPOSE 8000/tcp
 
 ENTRYPOINT ["/bin/bash", "/data/entrypoint.sh"]
+COPY container_settings /opt/container_settings

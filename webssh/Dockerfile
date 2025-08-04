@@ -1,10 +1,6 @@
 FROM ubuntu:24.04
-ARG  APT_PROXY_IP
-ARG  APT_OPTIONS
-ARG  DOCKER_GID
 CMD [ "bash", "/root/launch.sh" ]
 ENV DEBIAN_FRONTEND=noninteractive
-ENV DOCKER_GID=$DOCKER_GID
 
 
 #___SNIPPET_APT_PROXY___
@@ -34,7 +30,7 @@ RUN install -m 0755 -d /etc/apt/keyrings
 #___SNIPPET_DOCKER___
 
 COPY webssh /root/webssh
-RUN pip install $PIP_OPTIONS -e /root/webssh  --break-system-packages
+RUN pip install $(cat /etc/pip_options) -e /root/webssh  --break-system-packages
 
 COPY launch.sh /root
 RUN chmod a+x /root/launch.sh
@@ -71,3 +67,7 @@ echo 'export PATH' >> /root/.bash_profile && \
 chmod a+x /root/programs/*  && \
 chsh -s /usr/bin/rbash && \
 ln -s /usr/bin/ssh /root/programs/ssh
+
+ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
+COPY entrypoint.sh /entrypoint.sh
+COPY set_docker_group.sh /usr/local/bin/set_docker_group.sh

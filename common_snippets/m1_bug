@@ -2,7 +2,7 @@
 # There is a BUG with M1 and SCRAM authentication
 
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
-apt-get $APT_OPTIONS update && \
-apt-get $APT_OPTIONS install -y --no-install-recommends libpq-dev build-essential && \
+#___SNIPPET_APT_INSTALL___ \
+libpq-dev build-essential && \
 /opt/venv/bin/python3 -mpip install psycopg2-binary --no-binary psycopg2-binary --force-reinstall; \
 fi

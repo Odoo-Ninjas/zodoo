@@ -56,6 +56,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
     python3-pyqt5 \
     python3-dbus \
     python3-xdg \
+    python3-paramiko \
     wget \
     x11-utils \
 	xvfb \

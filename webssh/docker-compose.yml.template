@@ -4,9 +4,6 @@ services:
   # webssh:
   #   build: 
   #     context: ${ODOO_IMAGES}/webssh
-  #     args:
-  #       APT_PROXY_IP: ${APT_PROXY_IP}
-  #       DOCKER_GID: ${DOCKER_GID}
   #   restart: unless-stopped
   #   profiles:
   #     - auto

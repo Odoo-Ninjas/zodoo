@@ -1,11 +1,12 @@
 FROM node:12-bullseye
 ARG LOGIO_RELATIVE_PATH
+#___SNIPPET_APT_PROXY___
 RUN apt-get update && apt-get install -y build-essential python2 python3 python3-pip
 # in the application there is a PUBLIC_URL which is replaced by the relative part
 # of the homepage section *facepalm*; the host doesnt matter
 # ../ui/package.json "https://example.com$LOGIO_RELATIVE_PATH"
 COPY requirements.txt .
-RUN pip3 install $PIP_OPTIONS -r requirements.txt
+RUN pip3 install $(cat /etc/pip_options) -r requirements.txt
 RUN npm install -g typescript
 COPY log.io /usr/local/src/log.io
 WORKDIR /usr/local/src/log.io/server
