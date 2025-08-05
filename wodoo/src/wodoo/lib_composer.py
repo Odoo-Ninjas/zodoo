@@ -245,7 +245,7 @@ def internal_reload(
     additional_docker_configuration_files=None,
     no_gimera_apply=False,
 ):
-    threading.currentThread().config = config
+    threading.current_thread().config = config
     ensure_project_name(config)
     additional_docker_configuration_files = additional_docker_configuration_files or []
     defaults = {
