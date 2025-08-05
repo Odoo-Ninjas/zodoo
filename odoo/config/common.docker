@@ -39,6 +39,7 @@ ENV ODOO_FRAMEWORK_KEEP_SQL_CONNECTION=1
 ENV PATH=/odoolib:/opt/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ENV DOCKER_MACHINE=1
 ENV DOCKER_HOST_RUN_DIR=/opt/run
+ENV IS_ODOO_CONTAINER=1
 
 ADD bin/ /odoolib/
 ENV ODOO_CONFIG_DIR=${ODOO_CONFIG_DIR}

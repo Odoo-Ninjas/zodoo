@@ -261,7 +261,8 @@ def restart(ctx, config, machines, profile):
     ensure_project_name(config)
     from .lib_control_with_docker import restart as lib_restart
 
-    lib_restart(ctx, config, machines, profile=profile)
+    brutal = config.devmode
+    lib_restart(ctx, config, machines, profile=profile, brutal=brutal)
 
 
 @docker.command()
