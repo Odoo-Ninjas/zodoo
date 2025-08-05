@@ -255,14 +255,15 @@ def rebuild(ctx, config, machines):
 @docker.command()
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_machines)
 @click.option("-p", "--profile", default="auto")
+@click.option("-C", "--recreate", is_flag=True, help="Recreate containers")
 @pass_config
 @click.pass_context
-def restart(ctx, config, machines, profile):
+def restart(ctx, config, machines, profile, recreate):
     ensure_project_name(config)
     from .lib_control_with_docker import restart as lib_restart
 
     brutal = config.devmode
-    lib_restart(ctx, config, machines, profile=profile, brutal=brutal)
+    lib_restart(ctx, config, machines, profile=profile, brutal=brutal, recreate=recreate)
 
 
 @docker.command()

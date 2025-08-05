@@ -188,7 +188,7 @@ def recreate(ctx, config, machines=[]):
 
 
 def up(
-    ctx, config, machines=[], daemon=False, remove_orphans=True, profile="all"
+    ctx, config, machines=[], daemon=False, remove_orphans=True, profile="all", recreate=False
 ):
     machines = list(machines)
     from .consts import resolve_profiles
@@ -198,6 +198,8 @@ def up(
         #'--compatibility' # to support reousrce limit swarm mode
         "--no-build",
     ]
+    if recreate:
+        options += ["--force-recreate"]
     if daemon:
         options += ["-d"]
     if remove_orphans:
@@ -237,12 +239,12 @@ def rebuild(ctx, config, machines=[]):
     build(ctx, config, machines=machines, no_cache=True)
 
 
-def restart(ctx, config, machines=[], profile="auto", brutal=True):
+def restart(ctx, config, machines=[], profile="auto", brutal=True, recreate=False):
     machines = list(machines)
 
     # this is faster than docker restart: tested with normal project 6.75 seconds vs. 4.8 seconds
     do_kill(ctx, config, machines=machines, profile=profile, brutal=brutal)
-    up(ctx, config, machines=machines, daemon=True, profile=profile)
+    up(ctx, config, machines=machines, daemon=True, profile=profile, recreate=recreate)
 
 
 def rm(ctx, config, machines=[], profile="auto"):

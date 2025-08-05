@@ -1,6 +1,6 @@
 #!/bin/bash
 /bin/bash /usr/local/bin/set_docker_group.sh || exit -1
-userdel -r $(getent passwd $OWNER_UID | cut -d: -f1) || true
+# userdel -r $(getent passwd $OWNER_UID | cut -d: -f1) 1>/dev/null 2>&1 || true
 usermod -u "${OWNER_UID}" robot
 chown robot:robot -R /home/robot
 

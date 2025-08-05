@@ -21,7 +21,7 @@ print(f"Session started: {session_id}")
 
 # Step 2: Navigate to www.ard.de
 navigate_url = f"{GECKODRIVER_URL}/session/{session_id}/url"
-requests.post(navigate_url, json={"url": "https://www.ard.de"})
+requests.post(navigate_url, json={"url": "https://www.zebroo.de"})
 
 # Step 3: Sleep to let the page load visibly
 print("Page opened. Waiting 10 seconds...")

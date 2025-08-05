@@ -116,7 +116,6 @@ USER root
 ENV SHELL=/bin/bash
 
 
-#___SNIPPET_WODOO___
 
 USER $USERNAME
 ENV SHELL=/bin/bash
@@ -126,7 +125,9 @@ ENV SHELL=/bin/bash
 USER root
 RUN mkdir -p /opt/xpra
 WORKDIR /opt/xpra
+
 #___SNIPPET_INSTALL_PIPX___
+
 #___SNIPPET_XPRA_INSTALL___
 
 WORKDIR /home
@@ -134,11 +135,10 @@ WORKDIR /home
 COPY start.sh /usr/local/bin/start.sh
 RUN chmod +x /usr/local/bin/start.sh
 
-USER $USERNAME
-
 
 COPY --chown=$USERNAME:$USERNAME settings.json /home/$USERNAME/.config/Code/User/settings.json
 
+#___SNIPPET_WODOO___
 
 # --- Entrypoint ---
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]

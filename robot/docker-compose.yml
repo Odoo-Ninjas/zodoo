@@ -12,8 +12,11 @@ services:
             - XPRA_HTML5_BASE=/code/
             - VNC_SERVER=seleniumdriver:5900
             - VNC_PASSWORD=secret
+        # ports: 
+        #     - 5901:5900
         volumes:
-            - ${ODOO_IMAGES}/vncviewer_xpra/start.sh:/start.sh
+            - ${ODOO_IMAGES}/selenium_customized/start.sh:/usr/local/bin/start.sh
+            - ${ODOO_IMAGES}/selenium_customized/entrypoint.sh:/usr/local/bin/entrypoint.sh
 
     seleniumdriver:
         image: selenium/standalone-chromium:138.0
