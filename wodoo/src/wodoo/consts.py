@@ -1,4 +1,5 @@
 from .tools import _search_path
+import subprocess
 
 DOCKER_PROFILES = ["manual", "auto"]
 VERSIONS = [
@@ -79,8 +80,6 @@ default_files = {
     "pgcli_history": "${run}/pgcli_history",
 }
 
-import pudb;pudb.set_trace()
-import subprocess
 try:
     subprocess.run([_search_path("docker"), "compose"], check=True)
     default_files["docker_compose_bin"] = [_search_path("docker"), "compose"]
