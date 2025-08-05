@@ -343,7 +343,7 @@ def _find_suitable_python_version(ODOO_VERSION, settings):
         return
     def _get():
         if ODOO_VERSION == 16:
-            return "3.10.12"
+            return "3.11.10"
         elif ODOO_VERSION == 17:
             return "3.12.11"
         elif ODOO_VERSION == 18:
