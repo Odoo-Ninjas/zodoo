@@ -889,6 +889,7 @@ def __run_docker_compose_config(config, contents, env):
             content.append(f"export {k}={v}")
         content.append(" ".join(map(str, cmdline)))
         (temp_path / "cmd").write_text("\n".join(content))
+        import pudb;pudb.set_trace()
         try:
             proc = subprocess.run(
                 cmdline,
