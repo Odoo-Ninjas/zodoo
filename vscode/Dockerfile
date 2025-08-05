@@ -58,7 +58,7 @@ COPY artefacts /opt/artefacts
 RUN python3 <<'EOF'
 import os
 import shutil
-suffix = "x64" if os.getenv("TARGETARCH") == "amd64" else os.getenv("TARGETARCH")
+suffix = os.getenv("TARGETARCH")
 shutil.copy("/opt/artefacts/code-" + suffix, "/tmp/vscode.deb")
 EOF
 RUN #___SNIPPET_APT_INSTALL___ \
