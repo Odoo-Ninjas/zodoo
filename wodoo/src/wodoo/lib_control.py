@@ -88,7 +88,7 @@ def do_kill(ctx, config, machines, brutal, profile):
 @click.pass_context
 def remove_volumes(ctx, config, dry_run):
     """
-    Experience: docker-compose down -v lets leftovers since june/2023
+    Experience: docker compose down -v lets leftovers since june/2023
     At restore everything must be cleaned up.
     """
     ensure_project_name(config)
@@ -612,7 +612,7 @@ def docker_sizes(context, config):
     from tabulate import tabulate
 
     output = __dc_out(config, ["config"])
-    # docker-compose config | grep "image:" | awk '{print $2}'
+    # docker compose config | grep "image:" | awk '{print $2}'
     # docker images --format "{{.Repository}}:{{.Tag}} Size: {{.Size}}"
     import yaml
 

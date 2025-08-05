@@ -16,6 +16,7 @@ from .tools import __dc
 from .tools import __dc_out
 from .tools import _get_host_ip
 from .tools import __needs_docker
+from .tools import get_docker_version
 import subprocess
 from .cli import Commands
 
@@ -399,7 +400,7 @@ def logall(config, machines, follow, lines):
 
 
 def shell(config, command="", queuejobs=False):
-    if os.getenv("DOCKER_MACHINE") == "1":
+    if os.getenv("IS_ODOO_CONTAINER") == "1":
         cmdline = ["/odoolib/entrypoint.sh", "/odoolib/shell.py"]
         if command:
             cmdline += [command]
@@ -408,7 +409,11 @@ def shell(config, command="", queuejobs=False):
     cmd = [
         "run",
         "--rm",
-        "-it",
+    ]
+    if get_docker_version()[0] >= 26:
+        cmd += ["-it"]
+
+    cmd += [
         "-e",
         "TERM=xterm-256color",
         "-e",
