@@ -1,6 +1,4 @@
 FROM ubuntu:22.04
-ARG OWNER_UID
-ARG project_name
 ENV DEBIAN_FRONTEND=noninteractive
 
 #___SNIPPET_APT_PROXY___
@@ -41,8 +39,10 @@ ENV PIP_NO_CACHE_DIR=no
 #___SNIPPET_WODOO___
 
 RUN #___SNIPPET_APT_INSTALL___ \
-tmux silversearcher-ag && \
-useradd -l -m -s /bin/bash -G sudo -p $(openssl passwd -1 odoo) -u ${OWNER_UID} odoo && \
+tmux silversearcher-ag
+
+RUN \
+useradd -l -m -s /bin/bash -G sudo -p $(openssl passwd -1 odoo) odoo && \
 echo 'odoo:odoo' | chpasswd
 
 RUN mkdir ~/.ssh && chmod 700 ~/.ssh
@@ -65,7 +65,6 @@ export ODOO_BIN=/home/odoo/bin/odoo && \
 ln -s $WODOO_ENV_DIR/bin/odoo $ODOO_BIN
 
 COPY welcome.txt /usr/share/welcome.txt
-RUN ln -s /opt/src /home/odoo/$project_name
 RUN chmod -x /etc/update-motd.d/* && rm /etc/update-motd.d -Rf 
 RUN truncate -s 0 /etc/legal /etc/bash.bashrc
 COPY profile.d /home/odoo/.profile

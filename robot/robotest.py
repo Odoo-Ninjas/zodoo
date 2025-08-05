@@ -344,7 +344,11 @@ if __name__ == "__main__":
     load_environment()
     archive = Path("/tmp/archive")
     archive = base64.b64decode(archive.read_bytes())
-    params = json.loads(archive)
+    try:
+        params = json.loads(archive)
+    except:
+        logger.error("Invalid archive: {archive}")
+        raise
     del archive
 
     SELENIUM_SERVICE_NAME = params.pop('SELENIUM_SERVICE_NAME')

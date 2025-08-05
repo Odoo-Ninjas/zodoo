@@ -1348,7 +1348,7 @@ def _complete_setting_name(ctx, param, incomplete):
 @click.option("-R", "--no-reload", is_flag=True)
 def setting(ctx, config, name, value, no_reload):
     from .myconfigparser import MyConfigParser
-    if '=' in name and not value:
+    if name and '=' in name and not value:
         name, value = name.split("=", 1)
 
     if not name:

@@ -15,4 +15,7 @@
 
 # Now run VS Code in the foreground (last process)
 echo "Starting up vscode..."
-exec /usr/bin/code --verbose --no-sandbox --user-data-dir=/tmp/vscode-data "$HOST_SRC_PATH"
+
+echo $ROBO_ODOO_HOST > /tmp/123
+/usr/bin/code --verbose --no-sandbox --user-data-dir=/tmp/vscode-data "$HOST_SRC_PATH" &
+wait

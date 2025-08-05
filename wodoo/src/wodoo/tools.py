@@ -703,6 +703,8 @@ def __get_cmd(config, profile="auto"):
     if isinstance(profile, str):
         profile = [profile]
     for profile in profile or []:
+        if not profile:
+            continue
         cmd += ["--profile", profile]
     cmd = [os.path.expandvars(x) for x in cmd]
     return cmd
@@ -1311,7 +1313,7 @@ def search_env_path(executable_file):
     res = list(_search())
     if res:
         return res[0]
-    raise Exception(f"Not found: {executable_file}")
+    raise FileNotFoundError(f"Not found: {executable_file}")
 
 
 def download_file_and_move(url, dest):

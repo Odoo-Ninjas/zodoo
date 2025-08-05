@@ -12,8 +12,11 @@ services:
             - XPRA_HTML5_BASE=/code/
             - VNC_SERVER=seleniumdriver:5900
             - VNC_PASSWORD=secret
+        # ports: 
+        #     - 5901:5900
         volumes:
-            - ${ODOO_IMAGES}/vncviewer_xpra/start.sh:/start.sh
+            - ${ODOO_IMAGES}/selenium_customized/start.sh:/usr/local/bin/start.sh
+            - ${ODOO_IMAGES}/selenium_customized/entrypoint.sh:/usr/local/bin/entrypoint.sh
 
     seleniumdriver:
         image: selenium/standalone-chromium:138.0
@@ -45,10 +48,6 @@ services:
     robot:
         build:
             context: $ODOO_IMAGES/robot
-            args:
-                OWNER_UID: ${OWNER_UID}
-        # links:
-        #     - seleniumdriver
         cap_add:
             # required by vscode
             - SYS_ADMIN
@@ -59,9 +58,9 @@ services:
             OUTPUT_DIR: /opt/output
             OWNER_UID: ${OWNER_UID}
             ODOO_HOME: /opt/src
-            #ODOO_CMD: /opt/robot/.local/pipx/venvs/wodoo/bin/odoo
             BROWSER_WIDTH: 1920
             BROWSER_HEIGHT: 1080
+            SETTINGS_FILE: /opt/robot/.odoo/run/${PROJECT_NAME}/settings
             ROBO_NO_UI_HIGHLIGHTING: 0
             ROBO_ODOO_HOST: http://proxy:80
             ROBO_UPLOAD_FILES_DIR_LOCAL: /tmp/robo_upload_files
@@ -69,7 +68,6 @@ services:
             ROBO_WEBDRIVER_BROWSER: chrome
             ROBO_FORCE_HEADLESS: 0
             ROBO_PARAMS_FILE: /opt/robot/robo_params.json
-            SETTINGS_FILE: /opt/robot/.odoo/run/${PROJECT_NAME}/settings
             ROBO_NO_SCREENHOTS: "0"
         profiles:
             - auto

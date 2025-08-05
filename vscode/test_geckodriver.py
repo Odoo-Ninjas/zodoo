@@ -25,7 +25,7 @@ requests.post(navigate_url, json={"url": "https://www.zebroo.de"})
 
 # Step 3: Sleep to let the page load visibly
 print("Page opened. Waiting 10 seconds...")
-time.sleep(5)
+time.sleep(10000)
 
 # Step 4: Close the session
 delete_url = f"{GECKODRIVER_URL}/session/{session_id}"

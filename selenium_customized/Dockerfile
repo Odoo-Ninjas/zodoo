@@ -1,6 +1,5 @@
 FROM ubuntu:22.04
 ARG TARGETARCH
-ARG OWNER_UID
 ENV DEBIAN_FRONTEND=noninteractive
 ENV WORKDIR=/opt/robot
 ENV ROBOT_THREADS=1
@@ -60,17 +59,17 @@ COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 # Startup script
 COPY maximize_all_windows.py /usr/local/bin/maximize_all_windows.py
 COPY start.sh /usr/local/bin/start.sh
-COPY fluxbox_startup.sh /root/.fluxbox/startup
 
 RUN \
 chmod +x /usr/local/bin/entrypoint.sh && \
 chmod +x /usr/local/bin/maximize_all_windows.py && \
 chmod +x /usr/local/bin/start.sh 
-ENV DISPLAY=:0
+ENV DISPLAY=:100
 RUN mkdir -p /root/.fluxbox
 
 COPY test_geckodriver.py /opt/test_geckodriver.py
+COPY geckodriver_loop.sh /usr/local/bin/geckodriver_loop.sh
 
 
 
-CMD ["/usr/local/bin/entrypoint.sh"]
+CMD ["/bin/bash", "/usr/local/bin/entrypoint.sh"]

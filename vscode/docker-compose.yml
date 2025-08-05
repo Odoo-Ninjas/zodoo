@@ -2,8 +2,6 @@ services:
     vscode:
         build: 
           context: $ODOO_IMAGES/vscode
-          args:
-            OWNER_UID: $OWNER_UID
         cap_add:
           # required by vscode
           - SYS_ADMIN
@@ -14,6 +12,24 @@ services:
           - manual
         # ports:
         #     - "5900:5900"
+        environment:
+            XPRA_RESIZE_DISPLAY: 1
+            XPRA_HTML5_BASE: /code/
+            HOST_CUSTOMS_DIR: ${HOST_CUSTOMS_DIR}
+            BROWSER_WIDTH: 1920
+            BROWSER_HEIGHT: 1080
+            ROBO_NO_UI_HIGHLIGHTING: 0
+            ROBO_ODOO_HOST: http://proxy:80
+            ROBO_UPLOAD_FILES_DIR_LOCAL: /tmp/robo_upload_files
+            ROBO_UPLOAD_FILES_DIR_BROWSER_DRIVER: /tmp/robo_upload_files
+            ROBO_WEBDRIVER_BROWSER: firefox
+            ROBO_FORCE_HEADLESS: 0
+            ROBO_PARAMS_FILE: /opt/robot/robo_params.json
+            ROBO_NO_SCREENHOTS: "0"
+            ROBO_CLEAR_BROWSER_SESSIONS: "1"
+            ROBO_WEBDRIVER_HOST: seleniumvnc:4444
+
+            SELENIUM_TIMEOUT: 15
         volumes:
           - ${HOST_CUSTOMS_DIR}:/opt/src
           - ${HOST_CUSTOMS_DIR}:${HOST_CUSTOMS_DIR}
@@ -28,6 +44,3 @@ services:
           - "${ODOO_IMAGES}/vscode/settings.json:/home/user1/.config/Code/User/settings.json"
         extra_hosts:
             - "host.docker.internal:host-gateway"
-        environment:
-            - XPRA_RESIZE_DISPLAY=1
-            - XPRA_HTML5_BASE=/code/

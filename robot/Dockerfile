@@ -1,6 +1,5 @@
 FROM ubuntu:22.04
 ARG TARGETARCH
-ARG OWNER_UID
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV WORKDIR=/opt/robot
@@ -29,8 +28,7 @@ RUN rm -rf /tmp/requirements.txt
 
 WORKDIR $WORKDIR
 
-RUN userdel -r $(getent passwd $OWNER_UID | cut -d: -f1) || true
-RUN useradd -rm -s /bin/bash -d /opt/robot -g root -G sudo -u $OWNER_UID robot
+RUN useradd -rm -s /bin/bash -d /opt/robot -g root -G sudo robot
 RUN echo 'robot ALL=NOPASSWD:SETENV: ALL' > /etc/sudoers.d/robot
 
 #___SNIPPET_DOCKER___

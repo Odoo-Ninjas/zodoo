@@ -42,8 +42,6 @@ RUN chmod a+x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
 
 COPY bin/ /usr/local/bin/
-RUN chmod a+x /usr/local/bin/*.py
-
-COPY set_docker_group.sh /usr/local/bin/set_docker_group.sh
+RUN chmod a+x /usr/local/bin/*.py /usr/local/bin/*.sh
 
 #___SNIPPET_CLEANUP___

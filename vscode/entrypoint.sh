@@ -1,10 +1,16 @@
 #!/bin/bash
 set -x
 
+echo $ROBO_ODOO_HOST > /tmp/1234
+
 /bin/bash /usr/local/bin/set_docker_group.sh || exit -1
 
 # --- Group fix and user shell ---
 usermod -aG "$(stat -c '%G' "/var/run/docker.sock")" $USERNAME
+# userdel -r $(getent passwd $OWNER_UID | cut -d: -f1) 1>/dev/null 2>&1 || true
+usermod -u "${OWNER_UID}" $USERNAME
+rm /home/$USERNAME/.cache/pip || true
+find /home/$USERNAME -not -user $USERNAME -exec chown $USERNAME:$USERNAME {} \; || true
 
 if [[ "$DEVMODE" != "1" ]]; then
     echo "DEVMODE is not set"
