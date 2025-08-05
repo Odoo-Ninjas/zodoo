@@ -1,4 +1,5 @@
 from .tools import _search_path
+import subprocess
 
 DOCKER_PROFILES = ["manual", "auto"]
 VERSIONS = [
@@ -59,7 +60,7 @@ default_files = {
     "project_docker_compose.local": "${working_dir}/.odoo/docker-compose.${project_name}.yml",
     "docker_bin": _search_path("docker"),
     "docker_compose": "${run}/docker-compose.yml",
-    "docker_compose_bin": _search_path("docker-compose"),
+    "docker_compose_bin": None,
     "debugging_template_withports": "config/template_withports.yml",
     "debugging_template_onlyloop": "config/template_onlyloop.yml",
     "debugging_composer": "${run}/debugging.yml",
@@ -79,10 +80,11 @@ default_files = {
     "pgcli_history": "${run}/pgcli_history",
 }
 
-if not default_files["docker_compose_bin"]:
+try:
+    subprocess.run([_search_path("docker"), "compose"], check=True)
     default_files["docker_compose_bin"] = [_search_path("docker"), "compose"]
-else:
-    default_files["docker_compose_bin"] = [default_files["docker_compose_bin"]]
+except subprocess.CalledProcessError:
+    default_files["docker_compose_bin"] = [_search_path("docker-compose")]
 
 default_commands = {
     "dc": default_files["docker_compose_bin"]
