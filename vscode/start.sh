@@ -17,4 +17,5 @@
 echo "Starting up vscode..."
 
 echo $ROBO_ODOO_HOST > /tmp/123
-exec /usr/bin/code --verbose --no-sandbox --user-data-dir=/tmp/vscode-data "$HOST_SRC_PATH"
+/usr/bin/code --verbose --no-sandbox --user-data-dir=/tmp/vscode-data "$HOST_SRC_PATH" &
+wait

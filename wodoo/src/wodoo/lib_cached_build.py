@@ -56,7 +56,10 @@ def start_container(
     image_was_updated = False
 
     if build_path:
-        image_timestamp = _image_timestamp_stamp(image_name)
+        try:
+            image_timestamp = _image_timestamp_stamp(image_name).datetime
+        except:
+            image_timestamp = arrow.get("1980-04-04")
         sf = ["#temporary file - do not edit -"]
         for k, v in sorted(stored_settings.items(), key=lambda k: k[0]):
             sf.append(f"export {k}='{v}'")

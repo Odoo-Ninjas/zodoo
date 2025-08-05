@@ -98,7 +98,6 @@ COPY --chown=$USERNAME:USERNAME default_vscode_settings.json /home/$USERNAME/.co
 # --- VSCode Extensions ---
 USER $USERNAME
 RUN /usr/bin/code --install-extension ms-python.python && \
-    /usr/bin/code --install-extension robocorp.robotframework-lsp && \
     /usr/bin/code --install-extension d-biehl.robotcode && \
     /usr/bin/code --install-extension vscodevim.vim && \
     /usr/bin/code --install-extension MarcWimmerITE.odoobrowserITE 
