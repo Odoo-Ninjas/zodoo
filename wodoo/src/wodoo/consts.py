@@ -82,7 +82,7 @@ default_files = {
 import pudb;pudb.set_trace()
 import subprocess
 try:
-    subprocess.run[(_search_path("docker"), "compose"], check=True)
+    subprocess.run[_search_path("docker"), "compose"], check=True)
     default_files["docker_compose_bin"] = [_search_path("docker"), "compose"]
 except subprocess.CalledProcessError:
     ,
