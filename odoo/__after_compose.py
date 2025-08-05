@@ -83,8 +83,6 @@ def after_compose(config, settings, yml, globals):
         current_dir / "set_docker_group.sh",
     )
 
-    _eval_symlinks_in_root(config, settings, yml, globals)
-
     yml["services"].pop("odoo_base")
 
     # download python3.x version
@@ -368,25 +366,6 @@ def _get_dependencies(config, globals, PYTHON_VERSION, exclude=None, include=Non
     return external_dependencies
 
 
-def _eval_symlinks_in_root(config, settings, yml, globals):
-    from wodoo.odoo_config import customs_dir, MANIFEST
-
-    odoo_version = float(config.ODOO_VERSION)
-
-    for file in customs_dir().glob("*"):
-        if not file.is_symlink():
-            continue
-
-        rootdir = customs_dir()
-        abspath = file.resolve().absolute()
-
-        get_services = globals["tools"].get_services
-        odoo_machines = get_services(config, "odoo_base", yml=yml)
-        for machine in odoo_machines:
-            machine = yml["services"][machine]
-            machine.setdefault("volumes", {})
-            p2 = Path("/opt/src") / str(file.relative_to(rootdir))
-            machine["volumes"].append(f"{abspath}:{p2}")
 
 
 def append_odoo_requirements(config, external_dependencies, tools):
