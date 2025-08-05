@@ -1,6 +1,5 @@
 import urllib.request
 import platform
-import netifaces
 import passlib
 import csv
 import inspect
@@ -2075,6 +2074,7 @@ def docker_get_file_content(container_name, file_path):
 
 
 def get_local_ips():
+    import netifaces
     ips = []
     for iface in netifaces.interfaces():
         addrs = netifaces.ifaddresses(iface).get(netifaces.AF_INET, [])
