@@ -145,3 +145,4 @@ COPY  set_docker_group.sh /usr/local/bin/set_docker_group.sh
 COPY setup_pyenv.sh /usr/local/bin/setup_pyenv.sh
 
 USER root
+COPY test_geckodriver.py /home/$USERNAME

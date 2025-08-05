@@ -68,6 +68,7 @@ ENV DISPLAY=:100
 RUN mkdir -p /root/.fluxbox
 
 COPY test_geckodriver.py /opt/test_geckodriver.py
+COPY geckodriver_loop.sh /usr/local/bin/geckodriver_loop.sh
 
 
 
