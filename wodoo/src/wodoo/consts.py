@@ -81,7 +81,7 @@ default_files = {
 }
 
 try:
-    subprocess.run([_search_path("docker"), "compose"], check=True)
+    subprocess.run([_search_path("docker"), "compose"], check=True, capture_output=True)
     default_files["docker_compose_bin"] = [_search_path("docker"), "compose"]
 except subprocess.CalledProcessError:
     default_files["docker_compose_bin"] = [_search_path("docker-compose")]
