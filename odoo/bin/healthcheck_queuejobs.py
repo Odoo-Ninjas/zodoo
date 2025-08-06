@@ -26,7 +26,7 @@ def check_queue_job_status(db_config):
         if pending_count > 0 and running_count == 0:
             raise Exception("Pending jobs detected with no running jobs.")
         else:
-            print(f"ℹ️ Pending: {pending_count}, Running: {running_count}")
+            print(f"️Pending: {pending_count}, Running: {running_count}")
 
         cursor.execute("SELECT MIN(date_started) FROM queue_job WHERE state = 'started';")
         started = cursor.fetchone()
