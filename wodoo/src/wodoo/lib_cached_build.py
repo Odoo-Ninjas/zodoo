@@ -57,7 +57,7 @@ def start_container(
 
     if build_path:
         try:
-            image_timestamp = _image_timestamp_stamp(image_name).datetime
+            image_timestamp = _image_timestamp_stamp(image_name)
         except:
             image_timestamp = arrow.get("1980-04-04")
         sf = ["#temporary file - do not edit -"]
