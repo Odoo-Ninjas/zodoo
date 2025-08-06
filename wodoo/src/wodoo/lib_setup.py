@@ -111,10 +111,11 @@ def _status(config):
         click.secho(getattr(config, key))
 
 
+@click.option('-I', '--no-install', is_flag=True)
 @setup.command(help="Upgrade wodoo")
 @pass_config
 @click.pass_context
-def upgrade(ctx, config):
+def upgrade(ctx, config, no_install):
     click.secho("Pulling wodoo from git repository...", fg='yellow')
     result = subprocess.run(
         [
@@ -138,7 +139,8 @@ def upgrade(ctx, config):
     if "Already up to date." in output or "Already up-to-date." in output:
         click.secho("No changes pulled; skipping reinstall.", fg='cyan')
     else:
-        _reinstall()
+        if not no_install:
+            _reinstall()
     __try_to_set_owner(whoami(), config.dirs['images'], abort_if_failed=False)
 
 def _reinstall():
