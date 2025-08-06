@@ -2,6 +2,7 @@
 wmctrl -m
 /bin/bash /usr/local/bin/geckodriver_loop.sh &
 python3 /usr/local/bin/maximize_all_windows.py &
+python3 /usr/local/bin/http_kill_switch.py &
 
 
 # sleep 3

@@ -28,6 +28,7 @@ services:
             ROBO_NO_SCREENHOTS: "0"
             ROBO_CLEAR_BROWSER_SESSIONS: "1"
             ROBO_WEBDRIVER_HOST: seleniumvnc:4444
+            ROBO_WEBDRIVER_KILL_SWITCH: curl http://seleniumvnc:4445/restart
 
             SELENIUM_TIMEOUT: 15
         volumes:
