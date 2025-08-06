@@ -36,7 +36,15 @@ services:
       IS_ODOO_QUEUEJOB: 1
     restart: 'on-failure'
     healthcheck:
-      test: [CMD-SHELL, '/opt/venv/bin/python /odoolib/healthcheck_queuejobs.py || exit 1']
+      test:
+        - CMD-SHELL
+        - |
+          ver="${ODOO_VERSION:-0}"
+          if awk "BEGIN{exit !($ver>13.0)}"; then
+              /opt/venv/bin/python /odoolib/healthcheck_queuejobs.py
+          else
+              exit 0        # skip check → still reported HEALTHY
+          fi
       interval: 5s
       timeout: 10s
       retries: 1
