@@ -9,6 +9,8 @@ from .cli import cli, pass_config, Commands
 from .lib_clickhelpers import AliasedGroup
 from .tools import __try_to_set_owner
 from .tools import whoami
+from .tools import abort
+from .tools import is_git_clean
 
 
 @cli.group(cls=AliasedGroup)
@@ -116,6 +118,11 @@ def _status(config):
 @pass_config
 @click.pass_context
 def upgrade(ctx, config, no_install):
+
+    import pudb;pudb.set_trace()
+    if not is_git_clean(config.dirs["images"]):
+        abort(f"Directory {config.dirs['images']} is not clean, please commit or stash your changes before upgrading.")
+
     click.secho("Pulling wodoo from git repository...", fg='yellow')
     result = subprocess.run(
         [

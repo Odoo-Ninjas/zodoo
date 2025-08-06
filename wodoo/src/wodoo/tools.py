@@ -2144,3 +2144,32 @@ def get_latest_python_patch_version(version_prefix: str) -> str:
 
     latest = sorted(matching_versions, key=lambda s: list(map(int, s.split('.'))))[-1]
     return latest
+
+def has_unpushed_commits(repo: str = ".") -> bool:
+    """
+    Return True if *repo* contains commits that have not yet been pushed
+    to its configured upstream branch.
+
+    • Raises RuntimeError if the current branch has no upstream
+      or *repo* is not a Git working tree.
+    • Compatible with Python 3.7+ (uses standard subprocess & Path only).
+    """
+    repo_path = Path(repo).resolve()
+
+    # 1) Determine the upstream (fails if there is none)
+    upstream = subprocess.run(
+        ["git", "-C", str(repo_path), "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+        text=True,
+        capture_output=True,
+    )
+    if upstream.returncode != 0:
+        raise RuntimeError("Current branch has no upstream (git push -u …?)")
+
+    # 2) Count commits in HEAD that are not in the upstream
+    result = subprocess.run(
+        ["git", "-C", str(repo_path), "rev-list", "--count", "--left-only", "@{u}...HEAD"],
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    return int(result.stdout.strip()) > 0
