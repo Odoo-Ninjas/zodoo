@@ -12,7 +12,7 @@ RUN sed -i 's|deb.debian.org|archive.debian.org|g' /etc/apt/sources.list && \
     apt-get -o Acquire::Retries=3 update
 #___SNIPPET_APT_PROXY___
 
-#___SNIPPET_APT_INSTALL___ \
+RUN #___SNIPPET_APT_INSTALL___ \
     software-properties-common \
     man \
     cmake \
