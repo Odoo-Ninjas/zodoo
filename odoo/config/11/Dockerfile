@@ -218,5 +218,3 @@ ADD config/${ODOO_VERSION}/config ${ODOO_CONFIG_DIR}.template
 
 CMD ["sh", "-c", "/opt/wodoo_pipx/venvs/wodoo/bin/python3 /odoolib/run.py"]
 ENTRYPOINT ["/odoolib/entrypoint.sh"]
-
-RUN mkdir -p /opt/venv/bin && cd /opt/venv/bin && ln -s /usr/local/bin/python
