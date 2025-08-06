@@ -27,11 +27,6 @@ def after_settings(settings, config):
             )
             sys.exit(-1)
 
-    # Build Short version for packaging
-    settings["ODOO_PYTHON_VERSION_SHORT"] = ".".join(
-        settings["ODOO_PYTHON_VERSION"].split(".")[:2]
-    )
-
     m = odoo_config.MANIFEST()
     settings["SERVER_WIDE_MODULES"] = ",".join(
         m.get("server-wide-modules", None) or ["web"]
@@ -40,6 +35,12 @@ def after_settings(settings, config):
     # if odoo does not exist yet and version is given then we setup gimera and clone it
 
     settings["ODOO_VERSION"] = str(odoo_config.current_version())
+    # Build Short version for packaging
+    if float(settings["ODOO_VERSION"]) >= 13.0:
+        settings["ODOO_PYTHON_VERSION_SHORT"] = ".".join(
+            settings["ODOO_PYTHON_VERSION"].split(".")[:2]
+        )
+
     settings.write()
 
     # replace any env variable

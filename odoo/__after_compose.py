@@ -86,20 +86,23 @@ def after_compose(config, settings, yml, globals):
     yml["services"].pop("odoo_base")
 
     # download python3.x version
-    python_tgz = (
-        config.dirs["images"]
-        / "odoo"
-        / "python"
-        / f"Python-{settings['ODOO_PYTHON_VERSION']}.tgz"
-    )
-    if not python_tgz.exists():
-        v = settings["ODOO_PYTHON_VERSION"]
-        url = f"https://www.python.org/ftp/python/{v}/Python-{v}.tgz"
-        click.secho(f"Downloading {url}")
-        with globals["tools"].download_file(url) as filepath:
-            shutil.copy(filepath, python_tgz)
+    if float(settings["ODOO_VERSION"]) >= 13.0:
+        python_tgz = (
+            config.dirs["images"]
+            / "odoo"
+            / "python"
+            / f"Python-{settings['ODOO_PYTHON_VERSION']}.tgz"
+        )
+        if not python_tgz.exists():
+            v = settings["ODOO_PYTHON_VERSION"]
+            url = f"https://www.python.org/ftp/python/{v}/Python-{v}.tgz"
+            click.secho(f"Downloading {url}")
+            with globals["tools"].download_file(url) as filepath:
+                shutil.copy(filepath, python_tgz)
 
-    PYTHON_VERSION = tuple([int(x) for x in config.ODOO_PYTHON_VERSION.split(".")])
+        PYTHON_VERSION = tuple([int(x) for x in config.ODOO_PYTHON_VERSION.split(".")])
+    else:
+        PYTHON_VERSION = (3,8,3)
 
     # Add remote debugging possibility in devmode
     _setup_remote_debugging(config, yml)
