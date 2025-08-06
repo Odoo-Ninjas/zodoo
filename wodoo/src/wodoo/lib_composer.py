@@ -419,10 +419,26 @@ def _do_compose(
     _merge_odoo_dockerfile(config)
     _copy_all_dockerfiles_to_run_dir_and_set_dockerfile_in_dockercompose(config)
 
+    _fix_dockercompose_config(config)
+
     _redo_if_settings_missing(ctx, config)
 
     click.echo(f"Built the docker-compose file: {config.files['docker_compose']}")
 
+def _fix_dockercompose_config(config):
+    import yaml
+
+    content = config.files["docker_compose"].read_text()
+    content = yaml.safe_load(content)
+    for service_name in content["services"]:
+        service = content["services"][service_name]
+
+        # docker 23 makes repititions
+        if service.get("profiles"):
+            service['profiles'] = list(set(service["profiles"]))
+
+    content = _yamldump(content)
+    config.files["docker_compose"].write_text(content)
 
 def _copy_all_dockerfiles_to_run_dir_and_set_dockerfile_in_dockercompose(
     config,
