@@ -67,10 +67,10 @@ RUN #___SNIPPET_APT_INSTALL___ \
 COPY welcome.txt /root/welcome.txt
 
 # --- Create user ---
-ENV USERNAME=user1
+ENV USERNAME=usertemplate1
 RUN groupdel $USERNAME || true && \
     groupadd $USERNAME && \
-    useradd -g $USERNAME -m $USERNAME
+    useradd -g $USERNAME -m $USERNAME -u 400
 
 USER $USERNAME
 WORKDIR /home/$USERNAME
@@ -146,3 +146,4 @@ COPY setup_pyenv.sh /usr/local/bin/setup_pyenv.sh
 
 USER root
 COPY test_geckodriver.py /home/$USERNAME
+ENV USERNAME=user1

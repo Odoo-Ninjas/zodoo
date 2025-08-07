@@ -7,7 +7,7 @@ set -ex
 curl https://pyenv.run | bash
 
 # Add to path
-export PYENV_ROOT="/home/user1/.pyenv"
+export PYENV_ROOT="/home/$USERNAME/.pyenv"
 export PATH="$PYENV_ROOT/bin:$PATH"
 eval "$(pyenv init -)"
 eval "$(pyenv virtualenv-init -)"
