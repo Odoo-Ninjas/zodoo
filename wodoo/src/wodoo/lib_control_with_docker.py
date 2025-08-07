@@ -188,7 +188,7 @@ def recreate(ctx, config, machines=[]):
 
 
 def up(
-    ctx, config, machines=[], daemon=False, remove_orphans=True, profile="all", recreate=False
+    ctx, config, machines=[], daemon=False, remove_orphans=True, profile="all", force_recreate=False
 ):
     machines = list(machines)
     from .consts import resolve_profiles
@@ -198,7 +198,7 @@ def up(
         #'--compatibility' # to support reousrce limit swarm mode
         "--no-build",
     ]
-    if recreate:
+    if force_recreate:
         options += ["--force-recreate"]
     if daemon:
         options += ["-d"]
