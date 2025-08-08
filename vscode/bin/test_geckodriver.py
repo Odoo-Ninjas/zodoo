@@ -5,18 +5,12 @@ GECKODRIVER_URL = "http://127.0.0.1:4444"
 
 # Step 1: Start a new session
 session_url = f"{GECKODRIVER_URL}/session"
-payload = {
-    "capabilities": {
-        "alwaysMatch": {
-            "browserName": "firefox"
-        }
-    }
-}
+payload = {"capabilities": {"alwaysMatch": {"browserName": "firefox"}}}
 
 resp = requests.post(session_url, json=payload)
 resp.raise_for_status()
 
-session_id = resp.json()['value']['sessionId']
+session_id = resp.json()["value"]["sessionId"]
 print(f"Session started: {session_id}")
 
 # Step 2: Navigate to www.ard.de

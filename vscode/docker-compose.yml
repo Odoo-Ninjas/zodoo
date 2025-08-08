@@ -1,49 +1,48 @@
 services:
-    vscode:
-        build: 
-          context: $ODOO_IMAGES/vscode
-        cap_add:
-          # required by vscode
-          - SYS_ADMIN
-        shm_size: 4gb
-        restart: "unless-stopped"
-        privileged: true
-        # links:
-        #   -proxy
-        profiles:
-          - manual
-        # ports:
-        #     - "5900:5900"
-        environment:
-            XPRA_RESIZE_DISPLAY: 1
-            XPRA_HTML5_BASE: /code/
-            HOST_CUSTOMS_DIR: ${HOST_CUSTOMS_DIR}
-            BROWSER_WIDTH: 1920
-            BROWSER_HEIGHT: 1080
-            ROBO_NO_UI_HIGHLIGHTING: 0
-            ROBO_ODOO_HOST: http://proxy:80
-            ROBO_UPLOAD_FILES_DIR_LOCAL: /tmp/robo_upload_files
-            ROBO_UPLOAD_FILES_DIR_BROWSER_DRIVER: /tmp/robo_upload_files
-            ROBO_WEBDRIVER_BROWSER: firefox
-            ROBO_FORCE_HEADLESS: 0
-            ROBO_PARAMS_FILE: /opt/robot/robo_params.json
-            ROBO_NO_SCREENHOTS: "0"
-            ROBO_CLEAR_BROWSER_SESSIONS: "1"
-            ROBO_WEBDRIVER_HOST: seleniumvnc:4444
-            ROBO_WEBDRIVER_KILL_SWITCH: curl http://seleniumvnc:4445/restart
+  vscode:
+    build:
+      context: $ODOO_IMAGES/vscode
+    cap_add:
+      # required by vscode
+      - SYS_ADMIN
+    shm_size: 4gb
+    restart: "unless-stopped"
+    privileged: true
+    # links:
+    #   -proxy
+    profiles:
+      - manual
+    # ports:
+    #     - "5900:5900"
+    environment:
+      XPRA_RESIZE_DISPLAY: 1
+      XPRA_HTML5_BASE: /code/
+      HOST_CUSTOMS_DIR: ${HOST_CUSTOMS_DIR}
+      BROWSER_WIDTH: 1920
+      BROWSER_HEIGHT: 1080
+      ROBO_NO_UI_HIGHLIGHTING: 0
+      ROBO_ODOO_HOST: http://proxy:80
+      ROBO_UPLOAD_FILES_DIR_LOCAL: /tmp/robo_upload_files
+      ROBO_UPLOAD_FILES_DIR_BROWSER_DRIVER: /tmp/robo_upload_files
+      ROBO_WEBDRIVER_BROWSER: firefox
+      ROBO_FORCE_HEADLESS: 0
+      ROBO_PARAMS_FILE: /opt/robot/robo_params.json
+      ROBO_NO_SCREENHOTS: "0"
+      ROBO_CLEAR_BROWSER_SESSIONS: "1"
+      ROBO_WEBDRIVER_HOST: seleniumvnc:4444
+      ROBO_WEBDRIVER_KILL_SWITCH: curl http://seleniumvnc:4445/restart
 
-            SELENIUM_TIMEOUT: 15
-        volumes:
-          - ${HOST_CUSTOMS_DIR}:/opt/src
-          - ${HOST_CUSTOMS_DIR}:${HOST_CUSTOMS_DIR}
-          - ${ODOO_IMAGES}/vscode/user_data:/home/userdata
-          - ${ODOO_IMAGES}/vscode/entrypoint.sh:/entrypoint.sh
-          - ${ODOO_IMAGES}/vscode/start.sh:/usr/local/bin/start.sh
-          - /var/run/docker.sock:/var/run/docker.sock
-          - /var/lib/docker:/var/lib/docker
-          - "${ODOO_IMAGES}:/root/.odoo/images"
-          - "${HOST_RUN_DIR}:/home/user1/.odoo/run/$PROJECT_NAME"
-          - "${HOST_RUN_DIR}/gimera/cache:/home/user1/.cache/gimera"
-          - "${ODOO_IMAGES}/vscode/settings.json:/home/user1/.config/Code/User/settings.json"
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
+      SELENIUM_TIMEOUT: 15
+    volumes:
+      - ${HOST_CUSTOMS_DIR}:/opt/src
+      - ${HOST_CUSTOMS_DIR}:${HOST_CUSTOMS_DIR}
+      - ${ODOO_IMAGES}/vscode/bin/entrypoint.sh:/usr/local/bin/entrypoint.sh
+      - ${ODOO_IMAGES}/vscode/bin/start.sh:/usr/local/bin/start.sh
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker:/var/lib/docker
+      - "${ODOO_IMAGES}:/root/.odoo/images"
+      - "${HOST_RUN_DIR}:/home/user1/.odoo/run/$PROJECT_NAME"
+      - "${HOST_RUN_DIR}/gimera/cache:/home/user1/.cache/gimera"
+      - "${ODOO_IMAGES}/vscode/settings.json:/home/user1/.config/Code/User/settings.json"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

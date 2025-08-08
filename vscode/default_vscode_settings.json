@@ -1,5 +1,0 @@
-{
-	"workbench.startupEditor": "none",
-    "security.workspace.trust.enabled": false,
-    "security.workspace.trust.untrustedFiles": "open"
-}

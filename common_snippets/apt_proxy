@@ -3,6 +3,7 @@ COPY --from=squid-deb-cacher-wodoo:latest /opt/container_settings /etc/proxy_set
 
 RUN . /etc/proxy_settings && env | grep '^APT_OPTIONS=' | cut -d= -f2- > /etc/apt_options
 RUN . /etc/proxy_settings && env | grep '^PIP_OPTIONS=' | cut -d= -f2- > /etc/pip_options
+RUN . /etc/proxy_settings && env | grep '^PIP_OPTIONS_NO_BUILDISOLATION=' | cut -d= -f2- > /etc/pip_options_no_buildisolation
 
 RUN . /etc/proxy_settings && ( if [ -n "$APT_PROXY_IP" ] && [ "$APT_PROXY_IP" != "ignore" ]; then \
       echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}\";" > /etc/apt/apt.conf.d/01proxy; \

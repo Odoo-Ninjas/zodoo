@@ -40,17 +40,20 @@ RUN #___SNIPPET_APT_INSTALL___ \
     dbus-x11  \
     git curl make build-essential libssl-dev zlib1g-dev libbz2-dev \
     libreadline-dev libsqlite3-dev wget llvm libncursesw5-dev xz-utils tk-dev libxml2-dev \
-    libxmlsec1-dev libffi-dev liblzma-dev 
+    libxmlsec1-dev libffi-dev liblzma-dev  \
+    silversearcher-ag
 
 
 # --- COPY newer Python version ---
+# hadolint ignore=DL3059
 RUN add-apt-repository -y ppa:deadsnakes/ppa --no-update
+# hadolint ignore=DL3059
 RUN #___SNIPPET_APT_INSTALL___ \
     software-properties-common \
     python3.11 \
     python3.11-dev \
     python3.11-distutils \
-    python3.11-venv 
+    python3.11-venv
 
 # --- Determine VSCode download link and install ---
 COPY artefacts /opt/artefacts
@@ -60,6 +63,8 @@ import shutil
 suffix = os.getenv("TARGETARCH")
 shutil.copy("/opt/artefacts/code-" + suffix, "/tmp/vscode.deb")
 EOF
+
+# hadolint ignore=DL3059
 RUN #___SNIPPET_APT_INSTALL___ \
     /tmp/vscode.deb
 
@@ -80,29 +85,27 @@ RUN mkdir -p /home/$USERNAME/.vnc && \
     chown -R $USERNAME:$USERNAME /home/$USERNAME/.vnc
 
 # --- Setup Python tools as user ---
+# hadolint ignore=SC2046
 RUN python3.11 -m venv venv && \
     . venv/bin/activate && \
-    ./venv/bin/python -m pip install $(cat /etc/pip_options) pipx
-RUN ./venv/bin/python -mpipx install --pip-args="$(< cat /etc/pip_options)" gimera
+    ./venv/bin/python -m pip install $(cat /etc/pip_options) pipx wheel
+# hadolint ignore=SC2046
+RUN ./venv/bin/python -mpipx install $(cat /etc/pip_options_no_buildisolation) gimera
+# hadolint ignore=SC2086
 RUN echo 'export PATH=$PATH:$HOME/.local/bin' >> $HOME/.bashrc
-
-
-# --- Setup VSCode default config ---
-RUN mkdir -p /home/$USERNAME/.config/Code/User
-COPY --chown=$USERNAME:USERNAME default_vscode_settings.json /home/$USERNAME/.config/Code/User/settings.json
 
 # --- VSCode Extensions ---
 USER $USERNAME
 RUN /usr/bin/code --install-extension ms-python.python && \
     /usr/bin/code --install-extension d-biehl.robotcode && \
     /usr/bin/code --install-extension vscodevim.vim && \
-    /usr/bin/code --install-extension MarcWimmerITE.odoobrowserITE 
+    /usr/bin/code --install-extension MarcWimmerITE.odoobrowserITE
 
 # --- Docker CLI ---
 USER root
 # -- Robotframework requirements --
 COPY robot.requirements.txt /opt/robot.requirements.txt
-COPY make_robotcode_pyenv.sh /usr/local/bin/make_robotcode_pyenv.sh
+COPY bin/make_robotcode_pyenv.sh /usr/local/bin/make_robotcode_pyenv.sh
 RUN bash /usr/local/bin/make_robotcode_pyenv.sh
 #___SNIPPET_DOCKER___
 
@@ -131,20 +134,15 @@ WORKDIR /opt/xpra
 
 WORKDIR /home
 
-COPY start.sh /usr/local/bin/start.sh
-RUN chmod +x /usr/local/bin/start.sh
-
-
 COPY --chown=$USERNAME:$USERNAME settings.json /home/$USERNAME/.config/Code/User/settings.json
 
 #___SNIPPET_WODOO___
 
 # --- Entrypoint ---
-ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
-COPY set_docker_group.sh /usr/local/bin/set_docker_group.sh
-COPY replace_in_files.sh /usr/local/bin/replace_in_files.sh
+ENTRYPOINT ["/bin/bash", "/usr/local/bin/entrypoint.sh"]
+COPY bin/ /usr/local/bin/
+RUN chmod a+x /usr/local/bin/*.sh /usr/local/bin/*.py
 
+# hadolint ignore=DL3002
 USER root
-COPY test_geckodriver.py /home/$USERNAME
 ENV USERNAME=user1
-RUN apt install -y silversearcher-ag

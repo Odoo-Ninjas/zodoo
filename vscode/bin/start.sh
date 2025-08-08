@@ -17,17 +17,15 @@
 echo "Starting up vscode..."
 
 (
-set -x
 while true;
 do
-  echo Copying
   dest_path=$CODE_DATADIR/User/settings.json
   if ! grep -q ROBO  $dest_path; then
+    echo Updating settings.json
     cp /home/$USERNAME/.config/Code/User/settings.json $dest_path
   fi
   sleep 1
 done
 ) &
-echo $BLABLABLU > /tmp/14444
 /usr/bin/code --verbose --no-sandbox --user-data-dir=/tmp/vscode-data "$HOST_SRC_PATH" &
 wait
