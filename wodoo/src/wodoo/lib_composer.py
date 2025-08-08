@@ -333,21 +333,19 @@ def _tweak_config(ODOO_VERSION, config):
 
     settings = MyConfigParser(config.files["settings"])
     PIP_OPTIONS_BASE = "--no-cache-dir --no-build-isolation "
+    PIP_OPTION_NO_BUILDISOL = "--no-cache-dir --no-build-isolation "
+    PIP_OPTION_INDEX_URL = f" --index-url http://{config.PIP_PROXY_IP}/index --trusted-host {config.PIP_PROXY_IP} "
     if settings.get("PIP_PROXY_IP") == "ignore" or not settings.get(
         "PIP_PROXY_IP"
     ):
-        settings["PIP_OPTIONS"] = PIP_OPTIONS_BASE
-        settings["PIP_OPTIONS_NO_BUILDISOLATION"] = PIP_OPTIONS_BASE.replace(
-            "--no-build-isolation", ""
-        )
+        settings["PIP_OPTIONS"] = PIP_OPTIONS_BASE + PIP_OPTION_NO_BUILDISOL
+        settings["PIP_OPTIONS_NO_BUILDISOLATION"] = PIP_OPTIONS_BASE
     else:
         settings["PIP_OPTIONS"] = (
-            PIP_OPTIONS_BASE
-            + f"--index-url http://{config.PIP_PROXY_IP}/index --trusted-host {config.PIP_PROXY_IP}"
+            PIP_OPTIONS_BASE + PIP_OPTION_NO_BUILDISOL + PIP_OPTION_INDEX_URL
         )
         settings["PIP_OPTIONS_NO_BUILDISOLATION"] = (
-            PIP_OPTIONS_BASE.replace("--no-build-isolation", "")
-            + f"--index-url http://{config.PIP_PROXY_IP}/index --trusted-host {config.PIP_PROXY_IP}"
+            PIP_OPTIONS_BASE + PIP_OPTION_INDEX_URL
         )
 
     m = MANIFEST()

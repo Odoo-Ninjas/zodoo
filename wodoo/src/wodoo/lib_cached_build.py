@@ -2,7 +2,6 @@ from .tools import create_network
 
 import arrow
 import click
-import json
 from .cli import cli, pass_config
 from .lib_clickhelpers import AliasedGroup
 import subprocess
@@ -19,10 +18,23 @@ PROXPI_CONTAINER_NAME = "proxpi-cacher"
 def cache(config):
     pass
 
+
 def _image_timestamp_stamp(image_name):
-    out = subprocess.check_output(["docker", "image", "inspect", f"{image_name}:latest", "--format", "'{{.Created}}'"], text=True, encoding="utf-8")
+    out = subprocess.check_output(
+        [
+            "docker",
+            "image",
+            "inspect",
+            f"{image_name}:latest",
+            "--format",
+            "'{{.Created}}'",
+        ],
+        text=True,
+        encoding="utf-8",
+    )
     out = out.strip()
     return arrow.get(out).datetime
+
 
 def start_container(
     config,
@@ -32,7 +44,7 @@ def start_container(
     network,
     port_mapping,
     stored_settings,
-    startup=True
+    startup=True,
 ):
     """
     Start a Docker container with the specified parameters.
@@ -52,6 +64,7 @@ def start_container(
         if result.stdout.strip():
             return result.stdout.splitlines()[0].split(" ")[0]
         return None
+
     create_network(network)
     image_was_updated = False
 
@@ -63,8 +76,8 @@ def start_container(
         sf = ["#temporary file - do not edit -"]
         for k, v in sorted(stored_settings.items(), key=lambda k: k[0]):
             sf.append(f"export {k}='{v}'")
-        filecontent = '\n'.join(sf + [""])
-        file = (build_path / "container_settings")
+        filecontent = "\n".join(sf + [""])
+        file = build_path / "container_settings"
         file.write_text(filecontent)
         cmd = ["docker", "build", "-t", image_name, "."]
         subprocess.run(cmd, check=True, cwd=build_path)
@@ -72,11 +85,18 @@ def start_container(
 
         if image_timestamp != image_timestamp2:
             image_was_updated = True
-            click.secho(f"Settings are updated so container will be restarted: {container_name}", fg="green")
+            click.secho(
+                f"Settings are updated so container will be restarted: {container_name}",
+                fg="green",
+            )
             click.secho("New Settings:", fg="green")
-            click.secho("============================================", fg="yellow")
-            click.secho('\n'.join(sf + [""]), fg='yellow')
-            click.secho("============================================", fg="yellow")
+            click.secho(
+                "============================================", fg="yellow"
+            )
+            click.secho("\n".join(sf + [""]), fg="yellow")
+            click.secho(
+                "============================================", fg="yellow"
+            )
 
     if not startup:
         # important that config files are written above
@@ -129,7 +149,9 @@ def start_container(
 
     running_container = find_container(container_name, all=False)
     if not running_container:
-        click.secho(f"Did not find running container {container_name}.", fg="yellow")
+        click.secho(
+            f"Did not find running container {container_name}.", fg="yellow"
+        )
         rm(container_name)
         _start_container(image_name, container_name)
 
@@ -149,9 +171,10 @@ def start_squid_proxy(config):
             "APT_PROXY_IP": config.APT_PROXY_IP,
             "PIP_PROXY_IP": config.PIP_PROXY_IP,
             "APT_OPTIONS": config.APT_OPTIONS,
-            "PIP_OPTIONS": config.PIP_OPTIONS
+            "PIP_OPTIONS": config.PIP_OPTIONS,
+            "PIP_OPTIONS_NO_BUILDISOLATION": config.PIP_OPTIONS_NO_BUILDISOLATION,
         },
-        startup=config.APT_PROXY_IP and config.APT_PROXY_IP != "ignore"
+        startup=config.APT_PROXY_IP and config.APT_PROXY_IP != "ignore",
     )
 
 
@@ -165,7 +188,7 @@ def start_proxpi(config):
         network="proxpi-net",
         port_mapping=config.PIP_PROXY_IP + ":5000",
         stored_settings=None,
-        startup=config.PIP_PROXY_IP and config.PIP_PROXY_IP != "ignore"
+        startup=config.PIP_PROXY_IP and config.PIP_PROXY_IP != "ignore",
     )
 
 
@@ -173,7 +196,9 @@ def start_proxpi(config):
 @pass_config
 @click.pass_context
 def apt_attach(ctx, config):
-    subprocess.run(["docker", "exec", "-it", APT_CACHER_CONTAINER_NAME, "bash"])
+    subprocess.run(
+        ["docker", "exec", "-it", APT_CACHER_CONTAINER_NAME, "bash"]
+    )
 
 
 @cache.command()
