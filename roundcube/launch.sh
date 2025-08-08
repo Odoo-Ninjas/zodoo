@@ -14,5 +14,10 @@ phpenmod mcrypt
 service nginx start
 service php7.4-fpm start
 
+if [[ "$MAIL_AUTOLOGIN" != "1" ]]; then
+	rm /usr/share/nginx/www/plugins/autologon/autologon.php || true
+fi
+
 tail -F /var/log/nginx/access.log &
 tail -F /var/log/nginx/error.log
+
