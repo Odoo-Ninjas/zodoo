@@ -119,7 +119,6 @@ def _status(config):
 @click.pass_context
 def upgrade(ctx, config, no_install):
 
-    import pudb;pudb.set_trace()
     if not is_git_clean(config.dirs["images"]):
         abort(f"Directory {config.dirs['images']} is not clean, please commit or stash your changes before upgrading.")
 
