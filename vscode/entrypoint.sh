@@ -1,6 +1,7 @@
 #!/bin/bash
 set -x
 
+export USERNAME=user1
 echo $ROBO_ODOO_HOST > /tmp/1234
 
 /bin/bash /usr/local/bin/set_docker_group.sh || exit -1
@@ -11,6 +12,8 @@ useradd -g $USERNAME -m $USERNAME -u $OWNER_UID
 usermod -aG "$(stat -c '%G' "/var/run/docker.sock")" $USERNAME
 rm /home/$USERNAME/.cache/pip || true
 rsync --chown $USERNAME:$USERNAME /home/usertemplate1/ /home/$USERNAME/ -ar
+
+
 
 if [[ "$DEVMODE" != "1" ]]; then
     echo "DEVMODE is not set"
@@ -42,7 +45,17 @@ chmod a+x /etc/profile.d/envvars.sh
 echo "alias odoo=/usr/local/bin/odoo --project-name=\"$project_name\"" >> "$USER_HOME/.bash_aliases"
 gosu $USERNAME /usr/local/bin/odoo completion -x
 gosu $USERNAME gimera completion -x
-/bin/bash /usr/local/bin/setup_pyenv.sh
+
+rsync --chown $USERNAME:$USERNAME /home/usertemplate1/.pyenv/ /home/$USERNAME/.pyenv/ -ar
+find /home/user1 -type l -lname '/home/usertemplate1/*' | while read link; do
+    target=$(readlink "$link")
+    new_target="${target/\/home\/usertemplate1/\/home\/user1}"
+    echo "Relinking $link → $new_target"
+    ln -snf "$new_target" "$link"
+done
+/bin/bash /usr/local/bin/replace_in_files.sh /home/$USERNAME usertemplate1 user1
+cd /home/user1/.pyenv/versions && rm robotcode && ln -s /home/$USERNAME/.pyenv/versions/3.12.3/envs/robotcode
+. /usr/local/bin/setup_pyenv.sh
 
 # Configure Git
 cd "$HOST_SRC_PATH"
@@ -80,6 +93,8 @@ chmod +x /etc/X11/Xsession
 # Start XPRA with VSCode as child
 mkdir -p /tmp/vscode-data
 chown "$USERNAME:$USERNAME" /tmp/vscode-data
+cp /home/$USERNAME/.config/Code/User/settings.json /tmp/vscode-data/User/settings.json || true
+
 
 # cleanup old
 # xpra stop $DISPLAY || true

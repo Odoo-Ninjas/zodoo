@@ -141,9 +141,11 @@ COPY --chown=$USERNAME:$USERNAME settings.json /home/$USERNAME/.config/Code/User
 
 # --- Entrypoint ---
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
-COPY  set_docker_group.sh /usr/local/bin/set_docker_group.sh
+COPY set_docker_group.sh /usr/local/bin/set_docker_group.sh
 COPY setup_pyenv.sh /usr/local/bin/setup_pyenv.sh
+COPY replace_in_files.sh /usr/local/bin/replace_in_files.sh
 
 USER root
 COPY test_geckodriver.py /home/$USERNAME
 ENV USERNAME=user1
+RUN apt install -y silversearcher-ag

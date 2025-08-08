@@ -239,12 +239,12 @@ def rebuild(ctx, config, machines=[]):
     build(ctx, config, machines=machines, no_cache=True)
 
 
-def restart(ctx, config, machines=[], profile="auto", brutal=True, recreate=False):
+def restart(ctx, config, machines=[], profile="auto", brutal=True, force_recreate=False):
     machines = list(machines)
 
     # this is faster than docker restart: tested with normal project 6.75 seconds vs. 4.8 seconds
     do_kill(ctx, config, machines=machines, profile=profile, brutal=brutal)
-    up(ctx, config, machines=machines, daemon=True, profile=profile, recreate=recreate)
+    up(ctx, config, machines=machines, daemon=True, profile=profile, force_recreate=force_recreate)
 
 
 def rm(ctx, config, machines=[], profile="auto"):
@@ -276,6 +276,7 @@ def build(
     push=False,
     include_source=False,
     platform=None,
+    no_wodoo_update=False,
 ):
     """
     no parameter all machines, first parameter machine name and passes other params; e.g. ./odoo build asterisk --no-cache"
@@ -303,11 +304,12 @@ def build(
     # options += ["--platform", platform]
 
     # update wodoo src before:
-    subprocess.run(
-        ["docker", "buildx", "build", "-t", "wodoo_src", "."],
-        cwd=config.dirs["images"] / "wodoo",
-        check=True,
-    )
+    if not no_wodoo_update:
+        subprocess.run(
+            ["docker", "buildx", "build", "-t", "wodoo_src", "."],
+            cwd=config.dirs["images"] / "wodoo",
+            check=True,
+        )
 
     # if platform:
     #     import pudb;pudb.set_trace()

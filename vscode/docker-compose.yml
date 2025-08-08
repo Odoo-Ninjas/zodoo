@@ -8,6 +8,8 @@ services:
         shm_size: 4gb
         restart: "unless-stopped"
         privileged: true
+        # links:
+        #   -proxy
         profiles:
           - manual
         # ports:
