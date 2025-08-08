@@ -1,16 +1,20 @@
 #!/bin/bash
 set -x
 
-echo $ROBO_ODOO_HOST > /tmp/1234
+export TEMPLATE_USERNAME=usertemplate1
+export USERNAME=user1
+export CODE_DATADIR=/tmp/vscode-data
 
 /bin/bash /usr/local/bin/set_docker_group.sh || exit -1
 
 # --- Group fix and user shell ---
+groupadd $USERNAME && \
+useradd -g $USERNAME -m $USERNAME -u $OWNER_UID
 usermod -aG "$(stat -c '%G' "/var/run/docker.sock")" $USERNAME
-# userdel -r $(getent passwd $OWNER_UID | cut -d: -f1) 1>/dev/null 2>&1 || true
-usermod -u "${OWNER_UID}" $USERNAME
 rm /home/$USERNAME/.cache/pip || true
-find /home/$USERNAME -not -user $USERNAME -exec chown $USERNAME:$USERNAME {} \; || true
+rsync --chown $USERNAME:$USERNAME /home/$TEMPLATE_USERNAME/ /home/$USERNAME/ -ar
+
+
 
 if [[ "$DEVMODE" != "1" ]]; then
     echo "DEVMODE is not set"
@@ -42,7 +46,15 @@ chmod a+x /etc/profile.d/envvars.sh
 echo "alias odoo=/usr/local/bin/odoo --project-name=\"$project_name\"" >> "$USER_HOME/.bash_aliases"
 gosu $USERNAME /usr/local/bin/odoo completion -x
 gosu $USERNAME gimera completion -x
-/bin/bash /usr/local/bin/setup_pyenv.sh
+
+rsync --chown $USERNAME:$USERNAME /home/$TEMPLATE_USERNAME/.pyenv/ /home/$USERNAME/.pyenv/ -ar
+find /home/$USERNAME -type l -lname '/home/$TEMPLATE_USERNAME/*' | while read link; do
+    target=$(readlink "$link")
+    new_target="${target/\/home\/$TEMPLATE_USERNAME/\/home\/$USERNAME}"
+    echo "Relinking $link → $new_target"
+    ln -snf "$new_target" "$link"
+done
+/bin/bash /usr/local/bin/replace_in_files.sh /home/$USERNAME $TEMPLATE_USERNAME $USERNAME
 
 # Configure Git
 cd "$HOST_SRC_PATH"
@@ -78,13 +90,16 @@ echo 'exec "$@"' >> /etc/X11/Xsession
 chmod +x /etc/X11/Xsession
 
 # Start XPRA with VSCode as child
-mkdir -p /tmp/vscode-data
-chown "$USERNAME:$USERNAME" /tmp/vscode-data
+mkdir -p $CODE_DATADIR
+chown "$USERNAME:$USERNAME" $CODE_DATADIR
+
 
 # cleanup old
 # xpra stop $DISPLAY || true
 pkill -9 -f xpra || true
 rm /tmp/.X100-lock >/dev/null 2>&1 || true
+chmod a+x /usr/local/bin/start.sh
+cp /home/$USERNAME/.config/Code/User/settings.json $CODE_DATADIR/User/settings.json
 exec gosu "$USERNAME" xpra start "$DISPLAY" \
     --bind-tcp=0.0.0.0:5900 \
     --html=on \
@@ -99,4 +114,4 @@ exec gosu "$USERNAME" xpra start "$DISPLAY" \
     --webcam=no \
     --microphone=no \
     --keyboard-raw=yes \
-    --speaker=no 
+    --speaker=no

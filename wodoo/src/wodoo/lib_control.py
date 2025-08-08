@@ -179,14 +179,22 @@ def recreate(ctx, config, machines, shell_complete=_shell_complete_services):
 @docker.command()
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_services)
 @click.option("-d", "--daemon", is_flag=True)
+@click.option("--force-recreate", is_flag=True)
 @pass_config
 @click.pass_context
-def up(ctx, config, machines, daemon):
+def up(ctx, config, machines, daemon, force_recreate):
     ensure_project_name(config)
     from .lib_setup import _status
     from .lib_control_with_docker import up as lib_up
 
-    lib_up(ctx, config, machines, daemon, remove_orphans=True)
+    lib_up(
+        ctx,
+        config,
+        machines,
+        daemon,
+        remove_orphans=True,
+        force_recreate=force_recreate,
+    )
     execute_script(
         config,
         config.files["after_up_script"],
@@ -255,15 +263,24 @@ def rebuild(ctx, config, machines):
 @docker.command()
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_machines)
 @click.option("-p", "--profile", default="auto")
-@click.option("-C", "--recreate", is_flag=True, help="Recreate containers")
+@click.option(
+    "-C", "--force-recreate", is_flag=True, help="Recreate containers"
+)
 @pass_config
 @click.pass_context
-def restart(ctx, config, machines, profile, recreate):
+def restart(ctx, config, machines, profile, force_recreate):
     ensure_project_name(config)
     from .lib_control_with_docker import restart as lib_restart
 
     brutal = config.devmode
-    lib_restart(ctx, config, machines, profile=profile, brutal=brutal, recreate=recreate)
+    lib_restart(
+        ctx,
+        config,
+        machines,
+        profile=profile,
+        brutal=brutal,
+        force_recreate=force_recreate,
+    )
 
 
 @docker.command()
@@ -299,6 +316,12 @@ def attach(ctx, config, machine):
 @click.option("-p", "--plain", is_flag=True)
 @click.option("-s", "--include-source", is_flag=True)
 @click.option(
+    "-W",
+    "--no-wodoo-update",
+    is_flag=True,
+    help="If set, latest wodoo not put inside built containers. Reduces build time if you know what you are doing.",
+)
+@click.option(
     "--platform",
     type=click.Choice(["linux/amd64", "linux/arm64"], case_sensitive=False),
     default=None,
@@ -316,6 +339,7 @@ def build(
     plain,
     include_source,
     platform,
+    no_wodoo_update,
 ):
     import yaml
     from .lib_cached_build import start_squid_proxy, start_proxpi
@@ -349,6 +373,7 @@ def build(
         push,
         include_source,
         platform=platform,
+        no_wodoo_update=no_wodoo_update,
     )
 
 
