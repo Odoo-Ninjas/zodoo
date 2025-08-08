@@ -1,8 +1,9 @@
 #!/bin/bash
 set -x
 
+export TEMPLATE_USERNAME=usertemplate1
 export USERNAME=user1
-echo $ROBO_ODOO_HOST > /tmp/1234
+export CODE_DATADIR=/tmp/vscode-data
 
 /bin/bash /usr/local/bin/set_docker_group.sh || exit -1
 
@@ -11,7 +12,7 @@ groupadd $USERNAME && \
 useradd -g $USERNAME -m $USERNAME -u $OWNER_UID
 usermod -aG "$(stat -c '%G' "/var/run/docker.sock")" $USERNAME
 rm /home/$USERNAME/.cache/pip || true
-rsync --chown $USERNAME:$USERNAME /home/usertemplate1/ /home/$USERNAME/ -ar
+rsync --chown $USERNAME:$USERNAME /home/$TEMPLATE_USERNAME/ /home/$USERNAME/ -ar
 
 
 
@@ -46,16 +47,14 @@ echo "alias odoo=/usr/local/bin/odoo --project-name=\"$project_name\"" >> "$USER
 gosu $USERNAME /usr/local/bin/odoo completion -x
 gosu $USERNAME gimera completion -x
 
-rsync --chown $USERNAME:$USERNAME /home/usertemplate1/.pyenv/ /home/$USERNAME/.pyenv/ -ar
-find /home/user1 -type l -lname '/home/usertemplate1/*' | while read link; do
+rsync --chown $USERNAME:$USERNAME /home/$TEMPLATE_USERNAME/.pyenv/ /home/$USERNAME/.pyenv/ -ar
+find /home/$USERNAME -type l -lname '/home/$TEMPLATE_USERNAME/*' | while read link; do
     target=$(readlink "$link")
-    new_target="${target/\/home\/usertemplate1/\/home\/user1}"
+    new_target="${target/\/home\/$TEMPLATE_USERNAME/\/home\/$USERNAME}"
     echo "Relinking $link → $new_target"
     ln -snf "$new_target" "$link"
 done
-/bin/bash /usr/local/bin/replace_in_files.sh /home/$USERNAME usertemplate1 user1
-cd /home/user1/.pyenv/versions && rm robotcode && ln -s /home/$USERNAME/.pyenv/versions/3.12.3/envs/robotcode
-. /usr/local/bin/setup_pyenv.sh
+/bin/bash /usr/local/bin/replace_in_files.sh /home/$USERNAME $TEMPLATE_USERNAME $USERNAME
 
 # Configure Git
 cd "$HOST_SRC_PATH"
@@ -91,15 +90,16 @@ echo 'exec "$@"' >> /etc/X11/Xsession
 chmod +x /etc/X11/Xsession
 
 # Start XPRA with VSCode as child
-mkdir -p /tmp/vscode-data
-chown "$USERNAME:$USERNAME" /tmp/vscode-data
-cp /home/$USERNAME/.config/Code/User/settings.json /tmp/vscode-data/User/settings.json || true
+mkdir -p $CODE_DATADIR
+chown "$USERNAME:$USERNAME" $CODE_DATADIR
 
 
 # cleanup old
 # xpra stop $DISPLAY || true
 pkill -9 -f xpra || true
 rm /tmp/.X100-lock >/dev/null 2>&1 || true
+chmod a+x /usr/local/bin/start.sh
+cp /home/$USERNAME/.config/Code/User/settings.json $CODE_DATADIR/User/settings.json
 exec gosu "$USERNAME" xpra start "$DISPLAY" \
     --bind-tcp=0.0.0.0:5900 \
     --html=on \

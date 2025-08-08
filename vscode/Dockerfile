@@ -86,10 +86,6 @@ RUN python3.11 -m venv venv && \
 RUN ./venv/bin/python -mpipx install --pip-args="$(< cat /etc/pip_options)" gimera
 RUN echo 'export PATH=$PATH:$HOME/.local/bin' >> $HOME/.bashrc
 
-# -- Robotframework requirements --
-COPY robot.requirements.txt /opt/robot.requirements.txt
-COPY make_robotcode_pyenv.sh /usr/local/bin/make_robotcode_pyenv.sh
-RUN bash /usr/local/bin/make_robotcode_pyenv.sh
 
 # --- Setup VSCode default config ---
 RUN mkdir -p /home/$USERNAME/.config/Code/User
@@ -104,6 +100,10 @@ RUN /usr/bin/code --install-extension ms-python.python && \
 
 # --- Docker CLI ---
 USER root
+# -- Robotframework requirements --
+COPY robot.requirements.txt /opt/robot.requirements.txt
+COPY make_robotcode_pyenv.sh /usr/local/bin/make_robotcode_pyenv.sh
+RUN bash /usr/local/bin/make_robotcode_pyenv.sh
 #___SNIPPET_DOCKER___
 
 RUN \
@@ -142,7 +142,6 @@ COPY --chown=$USERNAME:$USERNAME settings.json /home/$USERNAME/.config/Code/User
 # --- Entrypoint ---
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
 COPY set_docker_group.sh /usr/local/bin/set_docker_group.sh
-COPY setup_pyenv.sh /usr/local/bin/setup_pyenv.sh
 COPY replace_in_files.sh /usr/local/bin/replace_in_files.sh
 
 USER root

@@ -1,6 +1,7 @@
 // ~/.config/Code/User/settings.json
 {
-    "robot.pythonPath": "/home/user1/.pyenv/versions/robotcode/bin/python",
+    "python.defaultInterpreterPath": "/opt/robotcode/bin/python",
+    "robot.pythonPath": "/opt/robotcode/bin/python",
     "ROBO_WEBDRIVER_HOST": "seleniumvnc:4444",
     "ROBO_WEBDRIVER_BROWSER": "firefox",
     "ROBO_ODOO_HOST": "http://proxy",
