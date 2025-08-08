@@ -127,6 +127,9 @@ def upgrade(ctx, config, no_install):
         [
             "git",
             "pull",
+            "--ff-only",
+            "--no-edit",
+            "--progress",
             "--rebase=false",
             "--autostash",
             "--quiet",
