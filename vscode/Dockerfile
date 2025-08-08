@@ -90,7 +90,7 @@ RUN python3.11 -m venv venv && \
     . venv/bin/activate && \
     ./venv/bin/python -m pip install $(cat /etc/pip_options) pipx wheel
 # hadolint ignore=SC2046
-RUN ./venv/bin/python -mpipx install $(cat /etc/pip_options_no_buildisolation) gimera
+RUN ./venv/bin/python -mpipx install --pip-args="$(cat /etc/pip_options_no_buildisolation)" gimera
 # hadolint ignore=SC2086
 RUN echo 'export PATH=$PATH:$HOME/.local/bin' >> $HOME/.bashrc
 
