@@ -93,7 +93,6 @@ chmod +x /etc/X11/Xsession
 mkdir -p $CODE_DATADIR
 chown "$USERNAME:$USERNAME" $CODE_DATADIR
 
-
 # cleanup old
 # xpra stop $DISPLAY || true
 pkill -9 -f xpra || true

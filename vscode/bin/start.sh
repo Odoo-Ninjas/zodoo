@@ -27,5 +27,10 @@ do
   sleep 1
 done
 ) &
-/usr/bin/code --verbose --no-sandbox --user-data-dir=/tmp/vscode-data "$HOST_SRC_PATH" &
+/usr/bin/code \
+  --verbose \
+  --no-sandbox \
+  --user-data-dir=/tmp/vscode-data \
+  --disable-gpu \
+  "$HOST_SRC_PATH" &
 wait

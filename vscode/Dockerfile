@@ -98,8 +98,10 @@ RUN echo 'export PATH=$PATH:$HOME/.local/bin' >> $HOME/.bashrc
 USER $USERNAME
 RUN /usr/bin/code --install-extension ms-python.python && \
     /usr/bin/code --install-extension d-biehl.robotcode && \
-    /usr/bin/code --install-extension vscodevim.vim && \
     /usr/bin/code --install-extension MarcWimmerITE.odoobrowserITE
+
+#/usr/bin/code --install-extension vscodevim.vim && \
+#RUN /usr/bin/code --disable-extension vscodevim.vim
 
 # --- Docker CLI ---
 USER root
