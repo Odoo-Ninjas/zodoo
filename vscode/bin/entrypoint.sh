@@ -114,4 +114,5 @@ exec gosu "$USERNAME" xpra start "$DISPLAY" \
     --webcam=no \
     --microphone=no \
     --keyboard-raw=yes \
+    --swap-keys=no \
     --speaker=no
