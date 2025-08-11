@@ -27,26 +27,21 @@ do
   sleep 1
 done
 ) &
-# /usr/bin/code \
-#   --verbose \
-#   --no-sandbox \
-#   --user-data-dir=/tmp/vscode-data \
-#   --disable-gpu &
-# --folder-uri "file:///${HOST_SRC_PATH}" \
-# &
-#--folder-uri "file:///${HOST_SRC_PATH}" \
-# --without-connection-token \
-# --accept-server-license-terms \
-cd "${HOST_SRC_PATH}"
 /usr/bin/code \
+  --verbose \
+  --no-sandbox \
+  --user-data-dir=/tmp/vscode-data \
+  --disable-gpu \
   "${HOST_SRC_PATH}" \
+  &
+/usr/bin/code  \
   --no-sandbox \
   --user-data-dir=/tmp/vscode-data \
   serve-web \
-  --disable-gpu \
-  --user-data-dir=/tmp/vscode-data \
   --host 0.0.0.0 \
   --port 8080 \
   --server-base-path=/webcode/ \
+  --without-connection-token \
+  --accept-server-license-terms \
   &
 wait
