@@ -1,4 +1,7 @@
 {
+  "extensions.disabled": [
+        "vscodevim.vim"
+  ],
   "python.defaultInterpreterPath": "/opt/robotcode/bin/python",
   "workbench.startupEditor": "none",
   "security.workspace.trust.enabled": false,
