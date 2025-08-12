@@ -41,7 +41,8 @@ RUN #___SNIPPET_APT_INSTALL___ \
     git curl make build-essential libssl-dev zlib1g-dev libbz2-dev \
     libreadline-dev libsqlite3-dev wget llvm libncursesw5-dev xz-utils tk-dev libxml2-dev \
     libxmlsec1-dev libffi-dev liblzma-dev  \
-    silversearcher-ag
+    silversearcher-ag \
+    ssh
 
 
 # --- COPY newer Python version ---
@@ -66,7 +67,7 @@ EOF
 
 # hadolint ignore=DL3059
 RUN #___SNIPPET_APT_INSTALL___ \
-    /tmp/vscode.deb
+    /tmp/vscode.deb && rm /tmp/vscode.deb
 
 # --- COPY welcome message ---
 COPY welcome.txt /root/welcome.txt
@@ -89,8 +90,6 @@ RUN mkdir -p /home/$USERNAME/.vnc && \
 RUN python3.11 -m venv venv && \
     . venv/bin/activate && \
     ./venv/bin/python -m pip install $(cat /etc/pip_options) pipx wheel
-# hadolint ignore=SC2046
-RUN ./venv/bin/python -mpipx install gimera
 # hadolint ignore=SC2086
 RUN echo 'export PATH=$PATH:$HOME/.local/bin' >> $HOME/.bashrc
 
@@ -103,8 +102,11 @@ RUN /usr/bin/code --install-extension ms-python.python && \
 #/usr/bin/code --install-extension vscodevim.vim && \
 #RUN /usr/bin/code --disable-extension vscodevim.vim
 
-# --- Docker CLI ---
 USER root
+
+# --- Install gimera ---
+RUN ./venv/bin/python -mpip install gimera
+
 # -- Robotframework requirements --
 COPY robot.requirements.txt /opt/robot.requirements.txt
 COPY bin/make_robotcode_pyenv.sh /usr/local/bin/make_robotcode_pyenv.sh

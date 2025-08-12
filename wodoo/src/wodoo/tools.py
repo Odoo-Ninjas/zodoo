@@ -543,13 +543,15 @@ def __dc_out(config, cmd, env={}, profile="auto"):
     )
 
 
-def __dcexec(config, cmd, interactive=True, env=None):
+def __dcexec(config, cmd, interactive=True, env=None, user=None):
     ensure_project_name(config)
     env = _set_default_envs(env)
     c = __get_cmd(config)
     c += ["exec"]
     if not interactive:
         c += ["-T"]
+    if user:
+        c += ["--user", user]
     if env:
         for k, v in env.items():
             c += ["-e", f"{k}={v}"]
@@ -557,7 +559,7 @@ def __dcexec(config, cmd, interactive=True, env=None):
     if interactive:
         subprocess.call(c)
     else:
-        return subprocess.check_output(cmd)
+        return subprocess.run(c, check=True)
 
 
 def __dcrun(
@@ -1932,7 +1934,6 @@ def start_postgres_if_local(ctx, config):
 def update_setting(config, name, value):
     from .myconfigparser import MyConfigParser
 
-
     configparser = MyConfigParser(config.files["project_settings"])
     configparser[name] = value
     configparser.write()
@@ -2077,6 +2078,7 @@ def docker_get_file_content(container_name, file_path):
 
 def get_local_ips():
     import netifaces
+
     ips = []
     for iface in netifaces.interfaces():
         addrs = netifaces.ifaddresses(iface).get(netifaces.AF_INET, [])
@@ -2121,6 +2123,7 @@ def _yamldump(content):
     )  # , Dumper=NoAliasDumper)
     return file_content
 
+
 def get_latest_python_patch_version(version_prefix: str) -> str:
     """
     Fetches the latest Python patch version for a given major.minor version (e.g. '3.12').
@@ -2131,19 +2134,24 @@ def get_latest_python_patch_version(version_prefix: str) -> str:
     Returns:
         str: The latest full version string (e.g. '3.12.3')
     """
-    base_url = 'https://www.python.org/ftp/python/'
+    base_url = "https://www.python.org/ftp/python/"
     html = urllib.request.urlopen(base_url).read().decode()
     all_versions = re.findall(r'href="(\d+\.\d+\.\d+)/"', html)
 
     matching_versions = [
-        v for v in all_versions if v.startswith(version_prefix + '.')
+        v for v in all_versions if v.startswith(version_prefix + ".")
     ]
 
     if not matching_versions:
-        raise ValueError(f"No matching versions found for prefix '{version_prefix}'")
+        raise ValueError(
+            f"No matching versions found for prefix '{version_prefix}'"
+        )
 
-    latest = sorted(matching_versions, key=lambda s: list(map(int, s.split('.'))))[-1]
+    latest = sorted(
+        matching_versions, key=lambda s: list(map(int, s.split(".")))
+    )[-1]
     return latest
+
 
 def has_unpushed_commits(repo: str = ".") -> bool:
     """
@@ -2158,7 +2166,15 @@ def has_unpushed_commits(repo: str = ".") -> bool:
 
     # 1) Determine the upstream (fails if there is none)
     upstream = subprocess.run(
-        ["git", "-C", str(repo_path), "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+        [
+            "git",
+            "-C",
+            str(repo_path),
+            "rev-parse",
+            "--abbrev-ref",
+            "--symbolic-full-name",
+            "@{u}",
+        ],
         text=True,
         capture_output=True,
     )
@@ -2167,7 +2183,15 @@ def has_unpushed_commits(repo: str = ".") -> bool:
 
     # 2) Count commits in HEAD that are not in the upstream
     result = subprocess.run(
-        ["git", "-C", str(repo_path), "rev-list", "--count", "--left-only", "@{u}...HEAD"],
+        [
+            "git",
+            "-C",
+            str(repo_path),
+            "rev-list",
+            "--count",
+            "--left-only",
+            "@{u}...HEAD",
+        ],
         text=True,
         capture_output=True,
         check=True,

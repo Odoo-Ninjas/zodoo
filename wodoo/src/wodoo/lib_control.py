@@ -57,12 +57,18 @@ def ps(config):
     "machine", required=True, shell_complete=_shell_complete_machines
 )
 @click.argument("args", nargs=-1)
+@click.option("-u", "--user")
+@click.option(
+    "-I", "--non-interactive", is_flag=True, help="Run in interactive mode"
+)
 @pass_config
-def execute(config, machine, args):
+def execute(config, machine, user, non_interactive, args):
     ensure_project_name(config)
     if config.use_docker:
         from .lib_control_with_docker import execute as lib_execute
-    lib_execute(config, machine, args)
+    lib_execute(
+        config, machine, args, user=user, interactive=not non_interactive
+    )
 
 
 @docker.command(name="kill")

@@ -32,5 +32,17 @@ done
   --no-sandbox \
   --user-data-dir=/tmp/vscode-data \
   --disable-gpu \
-  "$HOST_SRC_PATH" &
+  "${HOST_SRC_PATH}" \
+  &
+/usr/bin/code  \
+  --no-sandbox \
+  --user-data-dir=/tmp/vscode-data \
+  serve-web \
+  --host 0.0.0.0 \
+  --port 8080 \
+  --server-base-path=/webcode/ \
+  --without-connection-token \
+  --accept-server-license-terms \
+  --assets-path /vscode-cdn/ \
+  &
 wait

@@ -45,5 +45,6 @@ services:
       - "${HOST_RUN_DIR}/gimera/cache:/home/user1/.cache/gimera"
       - "${ODOO_IMAGES}/vscode/settings.json:/home/user1/.config/Code/User/settings.json"
       - "${ODOO_IMAGES}:/home/user1/.odoo/images"
+      - "${ODOO_IMAGES}/vscode/bin/set_git_infos.sh:/usr/local/bin/set_git_infos.sh"
     extra_hosts:
       - "host.docker.internal:host-gateway"
