@@ -96,13 +96,15 @@ def _setup_robot_env(config, ctx):
 
 @robot.command(name="new")
 @click.argument("name", required=True)
+@click.option("-I", "--no-install-pip", is_flag=True)
 @pass_config
 @click.pass_context
-def do_new(ctx, config, name):
+def do_new(ctx, config, name, no_install_pip):
     from .odoo_config import customs_dir
 
     os.environ["SILENT_ROBOT_SETUP"] = "1"
-    ctx.invoke(setup)
+    if not no_install_pip:
+        ctx.invoke(setup)
 
     testdir = customs_dir() / "tests"
     testdir.mkdir(exist_ok=True)
