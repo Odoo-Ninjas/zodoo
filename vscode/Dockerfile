@@ -42,9 +42,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
     libreadline-dev libsqlite3-dev wget llvm libncursesw5-dev xz-utils tk-dev libxml2-dev \
     libxmlsec1-dev libffi-dev liblzma-dev  \
     silversearcher-ag \
-    ssh \
-    vim \
-    jq
+    ssh
 
 
 # --- COPY newer Python version ---
@@ -93,9 +91,15 @@ RUN python3.11 -m venv venv && \
 RUN echo 'export PATH=$PATH:$HOME/.local/bin' >> $HOME/.bashrc
 
 # --- VSCode Extensions ---
+USER $USERNAME
+RUN /usr/bin/code --install-extension ms-python.python && \
+    /usr/bin/code --install-extension d-biehl.robotcode && \
+    /usr/bin/code --install-extension MarcWimmerITE.odoobrowserITE
+
+#/usr/bin/code --install-extension vscodevim.vim && \
+#RUN /usr/bin/code --disable-extension vscodevim.vim
+
 USER root
-ENV EXTENSIONS_DIR=/opt/vscode-extensions
-ENV CODE_DATADIR=/opt/datadir
 
 # --- Install gimera ---
 RUN ./venv/bin/python -mpip install gimera
@@ -112,6 +116,7 @@ cp /etc/skel/.bashrc /home/$USERNAME/.bashrc && \
 chown -R $USERNAME:$USERNAME /home/$USERNAME/.vnc
 
 USER root
+ENV SHELL=/bin/bash
 
 
 
@@ -130,7 +135,7 @@ WORKDIR /opt/xpra
 
 WORKDIR /home
 
-COPY --chown=$USERNAME:$USERNAME settings.json /opt/settings.json.template
+COPY --chown=$USERNAME:$USERNAME settings.json /home/$USERNAME/.config/Code/User/settings.json
 
 #___SNIPPET_WODOO___
 

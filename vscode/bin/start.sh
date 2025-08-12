@@ -1,5 +1,4 @@
 #!/bin/bash
-export USERNAME=user1
 
 # Run wmctrl to maximize VS Code window after a short delay
 (
@@ -20,12 +19,10 @@ echo "Starting up vscode..."
 ( # provide default settings.json
 while true;
 do
-  if [[ -e $CODE_DATADIR/User/settings.json ]]; then
-    dest_path=$CODE_DATADIR/User/settings.json
-    if ! grep -q ROBO  $dest_path; then
-      echo Updating settings.json
-      cp /opt/settings.json.template $dest_path
-    fi
+  dest_path=$CODE_DATADIR/User/settings.json
+  if ! grep -q ROBO  $dest_path; then
+    echo Updating settings.json
+    cp /home/$USERNAME/.config/Code/User/settings.json $dest_path
   fi
 
   sleep 1
@@ -43,20 +40,19 @@ done
 /usr/bin/code \
   --verbose \
   --no-sandbox \
-  --extensions-dir=$EXTENSIONS_DIR \
-  --user-data-dir=$CODE_DATADIR \
+  --user-data-dir=/tmp/vscode-data \
   --disable-gpu \
   "${HOST_SRC_PATH}" \
   &
-# /usr/bin/code  \
-#   --no-sandbox \
-#   --extensions-dir=$EXTENSIONS_DIR \
-#   --user-data-dir=$CODE_DATADIR \
-#   serve-web \
-#   --host 0.0.0.0 \
-#   --port 8080 \
-#   --server-base-path=/webcode/ \
-#   --without-connection-token \
-#   --accept-server-license-terms \
-#   &
+/usr/bin/code  \
+  --no-sandbox \
+  --user-data-dir=/tmp/vscode-data \
+  serve-web \
+  --host 0.0.0.0 \
+  --port 8080 \
+  --server-base-path=/webcode/ \
+  --without-connection-token \
+  --accept-server-license-terms \
+  --assets-path /vscode-cdn/ \
+  &
 wait
