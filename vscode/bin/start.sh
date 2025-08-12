@@ -43,5 +43,6 @@ done
   --server-base-path=/webcode/ \
   --without-connection-token \
   --accept-server-license-terms \
+  --assets-path /vscode-cdn/ \
   &
 wait

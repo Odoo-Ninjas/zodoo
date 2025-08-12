@@ -18,8 +18,8 @@ gnupg-agent
 
 COPY ./requirements.txt /tmp/requirements.txt
 RUN python3 -mpip install -U pip
-RUN python3 -mpip install $(cat /etc/pip_options) setuptools python-dotenv 
-RUN python3 -mpip install $(cat /etc/pip_options) -r /tmp/requirements.txt 
+RUN python3 -mpip install $(cat /etc/pip_options) setuptools python-dotenv
+RUN python3 -mpip install $(cat /etc/pip_options) -r /tmp/requirements.txt
 RUN rm -rf /tmp/requirements.txt
 
 
@@ -49,13 +49,8 @@ USER root
 
 #RUN find /opt/robot -not -user robot -exec chown robot {} \; >/dev/null 2>&1
 COPY ssh_config /opt/robot/.ssh/config
-RUN chown robot /opt/robot/.ssh/config  
+RUN chown robot /opt/robot/.ssh/config
 
-
-#___SNIPPET_VSCODE___
-# COPY some extensions here
-USER robot
-#___SNIPPET_VSCODE_EXTENSIONS___
 
 USER root
 COPY openbox/rc.xml  /opt/robot/.config/openbox/rc.xml

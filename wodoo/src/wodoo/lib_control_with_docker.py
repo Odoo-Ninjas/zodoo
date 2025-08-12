@@ -117,9 +117,10 @@ def ps(config):
     __dc(config, args)
 
 
-def execute(config, machine, args):
-    args = [machine] + list(args)
-    __dcexec(config, args)
+def execute(config, machine, args, user=None, interactive=True):
+    args2 = []
+    args2 += [machine] + list(args)
+    __dcexec(config, args2, user=user, interactive=interactive)
 
 
 def get_all_running_containers(config, profiles=None):
