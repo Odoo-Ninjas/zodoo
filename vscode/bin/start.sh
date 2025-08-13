@@ -1,4 +1,5 @@
 #!/bin/bash
+export USERNAME=user1
 
 # Run wmctrl to maximize VS Code window after a short delay
 (
@@ -19,26 +20,29 @@ echo "Starting up vscode..."
 (
 while true;
 do
-  dest_path=$CODE_DATADIR/User/settings.json
-  if ! grep -q ROBO  $dest_path; then
-    echo Updating settings.json
-    cp /home/$USERNAME/.config/Code/User/settings.json $dest_path
+  if [[ -e $CODE_DATADIR/User/settings.json ]]; then
+    dest_path=$CODE_DATADIR/User/settings.json
+    if ! grep -q ROBO  $dest_path; then
+      echo Updating settings.json
+      cp /opt/settings.json.template $dest_path
+    fi
   fi
   sleep 1
 done
 ) &
+
 /usr/bin/code \
   --verbose \
   --no-sandbox \
-  --extensions-dir=/tmp/extensions \
-  --user-data-dir=/tmp/vscode-data \
+  --extensions-dir=$EXTENSIONS_DIR \
+  --user-data-dir=$CODE_DATADIR \
   --disable-gpu \
   "${HOST_SRC_PATH}" \
   &
 /usr/bin/code  \
   --no-sandbox \
-  --user-data-dir=/tmp/vscode-data \
-  --extensions-dir=/tmp/extensions \
+  --extensions-dir=$EXTENSIONS_DIR \
+  --user-data-dir=$CODE_DATADIR \
   serve-web \
   --host 0.0.0.0 \
   --port 8080 \

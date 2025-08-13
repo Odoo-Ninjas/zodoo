@@ -43,7 +43,7 @@ services:
       - "${ODOO_IMAGES}:/root/.odoo/images"
       - "${HOST_RUN_DIR}:/home/user1/.odoo/run/$PROJECT_NAME"
       - "${HOST_RUN_DIR}/gimera/cache:/home/user1/.cache/gimera"
-      - "${ODOO_IMAGES}/vscode/settings.json:/home/user1/.config/Code/User/settings.json"
+      - "${ODOO_IMAGES}/vscode/settings.json:/opt/settings.json.template"
       - "${ODOO_IMAGES}:/home/user1/.odoo/images"
       - "${ODOO_IMAGES}/vscode/bin/set_git_infos.sh:/usr/local/bin/set_git_infos.sh"
     extra_hosts:
