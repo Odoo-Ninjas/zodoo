@@ -3,7 +3,6 @@ set -x
 
 export TEMPLATE_USERNAME=usertemplate1
 export USERNAME=user1
-export CODE_DATADIR=/tmp/vscode-data
 
 /bin/bash /usr/local/bin/set_docker_group.sh || exit -1
 
@@ -14,7 +13,30 @@ usermod -aG "$(stat -c '%G' "/var/run/docker.sock")" $USERNAME
 rm /home/$USERNAME/.cache/pip || true
 rsync --chown $USERNAME:$USERNAME /home/$TEMPLATE_USERNAME/ /home/$USERNAME/ -ar
 
-
+quick_chown() {
+    [[ -e "$1.bak" ]] && rm -Rf "$1.bak"
+    [[ ! -e "$1" ]] && exit 0
+    mv "$1" "$1.bak"
+    rsync --chown $USERNAME:$USERNAME "$1.bak/" "$1/" -ar || exit 1
+    rm -Rf $1.bak
+}
+install_extensions() {
+    mkdir -p "$EXTENSIONS_DIR" "$CODE_DATADIR" 
+    mkdir -p "$CODE_DATADIR/User"
+    chown -R "$USERNAME:$USERNAME" "$EXTENSIONS_DIR" "$CODE_DATADIR"
+    cp /opt/settings.json.template "$CODE_DATADIR/User/settings.json"
+    local name
+    for name in "$@"; do
+        gosu $USERNAME \
+            /usr/bin/code \
+                --no-sandbox \
+                --disable-gpu \
+                --verbose \
+                --extensions-dir="$EXTENSIONS_DIR" \
+                --user-data-dir="$CODE_DATADIR" \
+                --install-extension "$name" || exit 1
+    done
+}
 
 if [[ "$DEVMODE" != "1" ]]; then
     echo "DEVMODE is not set"
@@ -68,16 +90,27 @@ echo '#!/bin/bash' > /etc/X11/Xsession
 echo 'exec "$@"' >> /etc/X11/Xsession
 chmod +x /etc/X11/Xsession
 
-# Start XPRA with VSCode as child
-mkdir -p $CODE_DATADIR
-chown "$USERNAME:$USERNAME" $CODE_DATADIR
-
 # cleanup old
 # xpra stop $DISPLAY || true
 pkill -9 -f xpra || true
 rm /tmp/.X100-lock >/dev/null 2>&1 || true
 chmod a+x /usr/local/bin/start.sh
-cp /home/$USERNAME/.config/Code/User/settings.json $CODE_DATADIR/User/settings.json
+
+
+
+install_extensions d-biehl.robotcode
+
+# install_extensions \
+#     d-biehl.robotcode \
+#     MarcWimmerITE.odoobrowserITE \
+#     ms-python.python
+
+#/usr/bin/code --install-extension vscodevim.vim && \
+#RUN /usr/bin/code --disable-extension vscodevim.vim
+
+quick_chown "$EXTENSIONS_DIR"
+quick_chown "$CODE_DATADIR"
+
 exec gosu "$USERNAME" xpra start "$DISPLAY" \
     --bind-tcp=0.0.0.0:5900 \
     --html=on \

@@ -96,15 +96,9 @@ RUN python3.11 -m venv venv && \
 RUN echo 'export PATH=$PATH:$HOME/.local/bin' >> $HOME/.bashrc
 
 # --- VSCode Extensions ---
-USER $USERNAME
-ENV SHELL=/bin/bash
-RUN for name in d-biehl.robotcode MarcWimmerITE.odoobrowserITE ms-python.python; do \
-    /usr/bin/code --extensions-dir=/tmp/extensions --install-extension $name; \
-done
-#/usr/bin/code --install-extension vscodevim.vim && \
-#RUN /usr/bin/code --disable-extension vscodevim.vim
-
 USER root
+ENV EXTENSIONS_DIR=/opt/vscode-extensions
+ENV CODE_DATADIR=/opt/datadir
 
 # --- Install gimera ---
 RUN ./venv/bin/python -mpip install gimera
@@ -139,7 +133,7 @@ WORKDIR /opt/xpra
 
 WORKDIR /home
 
-COPY --chown=$USERNAME:$USERNAME settings.json /home/$USERNAME/.config/Code/User/settings.json
+COPY --chown=$USERNAME:$USERNAME settings.json /opt/settings.json.template
 
 #___SNIPPET_WODOO___
 
