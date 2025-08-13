@@ -97,12 +97,10 @@ RUN echo 'export PATH=$PATH:$HOME/.local/bin' >> $HOME/.bashrc
 
 # --- VSCode Extensions ---
 USER $USERNAME
-RUN /usr/bin/code \
-    --extensions-dir=/tmp/extensions \
-    --install-extension ms-python.python && \
-    --install-extension d-biehl.robotcode && \
-    --install-extension MarcWimmerITE.odoobrowserITE
-
+ENV SHELL=/bin/bash
+RUN for name in d-biehl.robotcode MarcWimmerITE.odoobrowserITE ms-python.python; do \
+    /usr/bin/code --extensions-dir=/tmp/extensions --install-extension $name; \
+done
 #/usr/bin/code --install-extension vscodevim.vim && \
 #RUN /usr/bin/code --disable-extension vscodevim.vim
 
@@ -123,7 +121,6 @@ cp /etc/skel/.bashrc /home/$USERNAME/.bashrc && \
 chown -R $USERNAME:$USERNAME /home/$USERNAME/.vnc
 
 USER root
-ENV SHELL=/bin/bash
 
 
 
