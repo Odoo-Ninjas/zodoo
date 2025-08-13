@@ -59,16 +59,13 @@ RUN #___SNIPPET_APT_INSTALL___ \
     python3.11-venv
 
 # --- Determine VSCode download link and install ---
-COPY artefacts /opt/artefacts
-RUN python3 <<'EOF'
-import os
-import shutil
-suffix = os.getenv("TARGETARCH")
-shutil.copy("/opt/artefacts/code-" + suffix, "/tmp/vscode.deb")
-EOF
-
-# hadolint ignore=DL3059
-RUN #___SNIPPET_APT_INSTALL___ \
+RUN export SHELL=/bin/bash && \
+arch="$TARGETARCH"; \
+if [ "$TARGETARCH" = "amd64" ]; then arch="x64"; fi; \
+url="https://code.visualstudio.com/sha/download?build=stable&os=linux-deb-${arch}"; \
+echo "Downloading VS Code for ${arch} from: $url"; \
+wget -O /tmp/vscode.deb "$url" && \
+#___SNIPPET_APT_INSTALL___ \
     /tmp/vscode.deb && rm /tmp/vscode.deb
 
 # --- COPY welcome message ---
