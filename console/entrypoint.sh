@@ -1,5 +1,4 @@
 #!/bin/bash
-ln -s /opt/src /home/odoo/$project_name
 usermod -u "${OWNER_UID}" odoo
 usermod -aG "$(stat -c '%G' "/var/run/docker.sock")" odoo
 echo "export project_name=$project_name" > /home/odoo/env
