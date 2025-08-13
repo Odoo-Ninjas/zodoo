@@ -31,7 +31,6 @@ install_extensions() {
             /usr/bin/code \
                 --no-sandbox \
                 --disable-gpu \
-                --verbose \
                 --extensions-dir="$EXTENSIONS_DIR" \
                 --user-data-dir="$CODE_DATADIR" \
                 --install-extension "$name" || exit 1

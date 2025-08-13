@@ -39,15 +39,15 @@ done
   --disable-gpu \
   "${HOST_SRC_PATH}" \
   &
-/usr/bin/code  \
-  --no-sandbox \
-  --extensions-dir=$EXTENSIONS_DIR \
-  --user-data-dir=$CODE_DATADIR \
-  serve-web \
-  --host 0.0.0.0 \
-  --port 8080 \
-  --server-base-path=/webcode/ \
-  --without-connection-token \
-  --accept-server-license-terms \
-  &
+# /usr/bin/code  \
+#   --no-sandbox \
+#   --extensions-dir=$EXTENSIONS_DIR \
+#   --user-data-dir=$CODE_DATADIR \
+#   serve-web \
+#   --host 0.0.0.0 \
+#   --port 8080 \
+#   --server-base-path=/webcode/ \
+#   --without-connection-token \
+#   --accept-server-license-terms \
+#   &
 wait
