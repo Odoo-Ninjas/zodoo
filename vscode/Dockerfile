@@ -42,7 +42,9 @@ RUN #___SNIPPET_APT_INSTALL___ \
     libreadline-dev libsqlite3-dev wget llvm libncursesw5-dev xz-utils tk-dev libxml2-dev \
     libxmlsec1-dev libffi-dev liblzma-dev  \
     silversearcher-ag \
-    ssh
+    ssh \
+    vim \
+    jq
 
 
 # --- COPY newer Python version ---
@@ -95,9 +97,11 @@ RUN echo 'export PATH=$PATH:$HOME/.local/bin' >> $HOME/.bashrc
 
 # --- VSCode Extensions ---
 USER $USERNAME
-RUN /usr/bin/code --install-extension ms-python.python && \
-    /usr/bin/code --install-extension d-biehl.robotcode && \
-    /usr/bin/code --install-extension MarcWimmerITE.odoobrowserITE
+RUN /usr/bin/code \
+    --extensions-dir=/tmp/extensions \
+    --install-extension ms-python.python && \
+    --install-extension d-biehl.robotcode && \
+    --install-extension MarcWimmerITE.odoobrowserITE
 
 #/usr/bin/code --install-extension vscodevim.vim && \
 #RUN /usr/bin/code --disable-extension vscodevim.vim
