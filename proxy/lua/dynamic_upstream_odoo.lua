@@ -1,6 +1,8 @@
 local incoming_headers = ngx.req.get_headers()
-local request_proto = incoming_headers["X-Forwarded-Proto"] or "http"  -- default fallback
-ngx.req.set_header("X-Forwarded-Proto", request_proto)
+local request_proto = incoming_headers["x-forwarded-proto"]
+                      or ngx.var.http_x_forwarded_proto   -- Nginx var (if set by previous hop)
+                      or "http"     
+ngx.req.set_header("x-forwarded-proto", request_proto)
 
 
 local myngx = require("myngx")
