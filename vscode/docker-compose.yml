@@ -33,6 +33,8 @@ services:
       ROBO_WEBDRIVER_KILL_SWITCH: curl http://seleniumvnc:4445/restart
 
       SELENIUM_TIMEOUT: 15
+      CURRENT_HOST_RUN_DIR: /home/user1/.odoo/run/current 
+      VSCODE_PERMA_EXTENSIONS_FOLDER: /home/user1/.odoo/run/current/vscode-perma-extensions
     volumes:
       - ${HOST_CUSTOMS_DIR}:/opt/src
       - ${HOST_CUSTOMS_DIR}:${HOST_CUSTOMS_DIR}
@@ -42,6 +44,7 @@ services:
       - /var/lib/docker:/var/lib/docker
       - "${ODOO_IMAGES}:/root/.odoo/images"
       - "${HOST_RUN_DIR}:/home/user1/.odoo/run/$PROJECT_NAME"
+      - "${HOST_RUN_DIR}:/home/user1/.odoo/run/current"
       - "${HOST_RUN_DIR}/gimera/cache:/home/user1/.cache/gimera"
       - "${ODOO_IMAGES}/vscode/settings.json:/opt/settings.json.template"
       - "${ODOO_IMAGES}:/home/user1/.odoo/images"

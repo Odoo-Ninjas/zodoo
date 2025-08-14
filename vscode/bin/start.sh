@@ -17,7 +17,7 @@ export USERNAME=user1
 # Now run VS Code in the foreground (last process)
 echo "Starting up vscode..."
 
-(
+( # provide default settings.json
 while true;
 do
   if [[ -e $CODE_DATADIR/User/settings.json ]]; then
@@ -27,8 +27,17 @@ do
       cp /opt/settings.json.template $dest_path
     fi
   fi
+
   sleep 1
 done
+) &
+
+( # backup installed extensions for faster startup
+  while true;
+  do
+    rsync "$EXTENSIONS_DIR/" "$VSCODE_PERMA_EXTENSIONS_FOLDER/" -ar
+    sleep 60
+  done
 ) &
 
 /usr/bin/code \
