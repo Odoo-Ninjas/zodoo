@@ -96,13 +96,17 @@ rm /tmp/.X100-lock >/dev/null 2>&1 || true
 chmod a+x /usr/local/bin/start.sh
 
 
+if [[ -e $VSCODE_PERMA_EXTENSIONS_FOLDER/.notempty ]]; then
+    rsync --chown $USERNAME:$USERNAME $VSCODE_PERMA_EXTENSIONS_FOLDER/ "$EXTENSIONS_DIR/" -ar || exit 1
+fi
+VSCODE_PERMA_EXTENSIONS_FOLDER
 
-install_extensions d-biehl.robotcode
-
-# install_extensions \
-#     d-biehl.robotcode \
-#     MarcWimmerITE.odoobrowserITE \
-#     ms-python.python
+install_extensions \
+    d-biehl.robotcode \
+    MarcWimmerITE.odoobrowserITE \
+    ms-python.python
+rsync "$EXTENSIONS_DIR/" "$VSCODE_PERMA_EXTENSIONS_FOLDER/" -ar
+touch "$VSCODE_PERMA_EXTENSIONS_FOLDER/.notempty"
 
 #/usr/bin/code --install-extension vscodevim.vim && \
 #RUN /usr/bin/code --disable-extension vscodevim.vim
