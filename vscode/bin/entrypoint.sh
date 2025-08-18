@@ -21,9 +21,10 @@ quick_chown() {
     rm -Rf $1.bak
 }
 install_extensions() {
-    mkdir -p "$EXTENSIONS_DIR" "$CODE_DATADIR" 
+    mkdir -p "$EXTENSIONS_DIR" "$CODE_DATADIR"
     mkdir -p "$CODE_DATADIR/User"
     chown -R "$USERNAME:$USERNAME" "$EXTENSIONS_DIR" "$CODE_DATADIR"
+    chown -R "$USERNAME:$USERNAME" /usr/share/code/resources -R
     cp /opt/settings.json.template "$CODE_DATADIR/User/settings.json"
     local name
     for name in "$@"; do
@@ -33,7 +34,7 @@ install_extensions() {
                 --disable-gpu \
                 --extensions-dir="$EXTENSIONS_DIR" \
                 --user-data-dir="$CODE_DATADIR" \
-                --install-extension "$name" || exit 1
+                --install-extension "$name" || exit 5
     done
 }
 
@@ -110,9 +111,12 @@ touch "$VSCODE_PERMA_EXTENSIONS_FOLDER/.notempty"
 
 #/usr/bin/code --install-extension vscodevim.vim && \
 #RUN /usr/bin/code --disable-extension vscodevim.vim
+# install_extensions vscodevim.vim
 
 quick_chown "$EXTENSIONS_DIR"
 quick_chown "$CODE_DATADIR"
+
+/bin/bash /usr/local/bin/set_assets_path_vscode_web.sh || true
 
 exec gosu "$USERNAME" xpra start "$DISPLAY" \
     --bind-tcp=0.0.0.0:5900 \
