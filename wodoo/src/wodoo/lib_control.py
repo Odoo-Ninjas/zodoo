@@ -333,6 +333,7 @@ def attach(ctx, config, machine):
     default=None,
     help="Build for a specific platform",
 )
+@click.option("-r", "--reload", is_flag=True, help="Reload the wodoo code")
 @pass_config
 @click.pass_context
 def build(
@@ -346,11 +347,15 @@ def build(
     include_source,
     platform,
     no_wodoo_update,
+    reload,
 ):
     import yaml
     from .lib_cached_build import start_squid_proxy, start_proxpi
 
     from .myconfigparser import MyConfigParser
+
+    if reload:
+        Commands.invoke(ctx, "reload")
 
     settings = MyConfigParser(config.files["settings"])
 

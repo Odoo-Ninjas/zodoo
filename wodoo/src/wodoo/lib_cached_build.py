@@ -84,6 +84,9 @@ def start_container(
         image_timestamp2 = _image_timestamp_stamp(image_name)
 
         if image_timestamp != image_timestamp2:
+            click.secho(
+                f"Timestamp differ: {image_timestamp} != {image_timestamp2}"
+            )
             image_was_updated = True
             click.secho(
                 f"Settings are updated so container will be restarted: {container_name}",
