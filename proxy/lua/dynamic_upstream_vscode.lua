@@ -11,4 +11,3 @@ if os.getenv("RUN_VSCODE") == "1" then
         ngx.var[varname] = "http://" .. ip .. ":" .. port
     end
 end
-
