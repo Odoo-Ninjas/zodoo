@@ -920,6 +920,8 @@ def _try_to_recover_view_error(config, output):
     """
     if isinstance(output, str):
         lines = output.splitlines()
+    else:
+        lines = output
     assert isinstance(lines, list)
 
     for i, line in enumerate(lines):
