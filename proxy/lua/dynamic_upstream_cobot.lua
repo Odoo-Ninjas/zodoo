@@ -9,4 +9,3 @@ if os.getenv("RUN_ROBOT") == "1" then
         ngx.var[varname] = "http://" .. ip .. ":" .. port
     end
 end
-

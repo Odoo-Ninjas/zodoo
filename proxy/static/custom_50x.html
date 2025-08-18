@@ -1,81 +1,81 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>We'll Be Back Soon!</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background: #f9f9f9;
-            color: #333;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            text-align: center;
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background: #f9f9f9;
+        color: #333;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        text-align: center;
+      }
+      .container {
+        max-width: 600px;
+        padding: 20px;
+        border: 2px solid #e6e6e6;
+        border-radius: 10px;
+        background: #fff;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        font-size: 2.5rem;
+        margin: 0;
+        color: #555;
+      }
+      p {
+        font-size: 1.1rem;
+        margin: 20px 0;
+        color: #666;
+      }
+      .loader {
+        width: 50px;
+        height: 50px;
+        margin: 20px auto;
+        border: 5px solid #ddd;
+        border-top-color: #3498db;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
         }
-        .container {
-            max-width: 600px;
-            padding: 20px;
-            border: 2px solid #e6e6e6;
-            border-radius: 10px;
-            background: #fff;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        h1 {
-            font-size: 2.5rem;
-            margin: 0;
-            color: #555;
-        }
-        p {
-            font-size: 1.1rem;
-            margin: 20px 0;
-            color: #666;
-        }
-        .loader {
-            width: 50px;
-            height: 50px;
-            margin: 20px auto;
-            border: 5px solid #ddd;
-            border-top-color: #3498db;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-        .contact {
-            margin-top: 20px;
-        }
-        a {
-            color: #3498db;
-            text-decoration: none;
-            font-weight: bold;
-        }
-        a:hover {
-            text-decoration: underline;
-        }
+      }
+      .contact {
+        margin-top: 20px;
+      }
+      a {
+        color: #3498db;
+        text-decoration: none;
+        font-weight: bold;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="container">
-        <h1>We're Under Construction</h1>
-        <div class="loader"></div>
+      <h1>We're Under Construction</h1>
+      <div class="loader"></div>
+      <p>
+        Our Odoo system is currently under maintenance.<br />
+        Please check back soon!
+      </p>
+      <div class="contact">
         <p>
-            Our Odoo system is currently under maintenance.<br>
-            Please check back soon!
+          Need help?
+          <!-- Contact us at <a href="mailto:support@yourdomain.com">support@yourdomain.com</a>. -->
         </p>
-        <div class="contact">
-            <p>
-                Need help? 
-                <!-- Contact us at <a href="mailto:support@yourdomain.com">support@yourdomain.com</a>. -->
-            </p>
-        </div>
+      </div>
     </div>
-</body>
+  </body>
 </html>
