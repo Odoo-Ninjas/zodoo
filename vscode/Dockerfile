@@ -64,7 +64,7 @@ arch="$TARGETARCH"; \
 if [ "$TARGETARCH" = "amd64" ]; then arch="x64"; fi; \
 url="https://code.visualstudio.com/sha/download?build=stable&os=linux-deb-${arch}"; \
 echo "Downloading VS Code for ${arch} from: $url"; \
-wget -O /tmp/vscode.deb "$url" && \
+wget --progress=dot:giga -O /tmp/vscode.deb "$url" && \
 #___SNIPPET_APT_INSTALL___ \
     /tmp/vscode.deb && rm /tmp/vscode.deb
 
