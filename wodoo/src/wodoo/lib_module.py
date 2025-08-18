@@ -918,7 +918,9 @@ def _try_to_recover_view_error(config, output):
     Caution: this view is just the one that updates; the conflicting view is not listed.
     Just a select statement is created by the other view.
     """
-    lines = output.splitlines()
+    if isinstance(output, str):
+        lines = output.splitlines()
+    assert isinstance(lines, list)
 
     for i, line in enumerate(lines):
         match = re.findall(
