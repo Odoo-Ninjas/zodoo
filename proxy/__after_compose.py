@@ -28,15 +28,16 @@ def collect_proxy_config(yml):
         if service_name in proxy_backends:
             continue
 
-        files = []
+        files = {}
         for label, content in service.get("labels", {}).items():
             if label.startswith("proxy_config"):
-                files.append(Path(content))
-        for file in files:
+                suffix = label.replace("proxy_config", "")
+                files[service_name + suffix] = Path(content)
+        for upstream_name, file in files.items():
             if not file.is_file():
                 continue
             conf_content = file.read_text(encoding='utf-8')
-            proxy_backends[service_name] = {
+            proxy_backends[upstream_name] = {
                 "nginx_conf": conf_content.strip() + "\n"
             }
 
