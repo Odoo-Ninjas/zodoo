@@ -5,6 +5,3 @@ services:
         compose.merge: 'proxy_abstract'
     environment:
         ODOO_HOST: ${project_name}_odoo
-        ROUNDCUBE_HOST: ${project_name}_roundcube
-        THEIA_HOST: ${project_name}_theia_rewriter
-        LOGS_HOST: ${project_name}_logs

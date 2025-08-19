@@ -1,4 +1,4 @@
-proxy/lua/dynamic_upstream_odoo.lualocal myngx = require("myngx")
+local myngx = require("myngx")
 local varname = "target_console"
 local websshhost = os.getenv("WEBSSH_CONSOLE_HOST") -- "http://webssh:8080"
 local devmode = os.getenv("DEVMODE")

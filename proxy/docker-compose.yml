@@ -7,6 +7,10 @@ services:
       - auto
     networks:
       - default
+    environment:
+      - LUA_DIR=/usr/local/openresty/nginx/lua
+      - CONF_DIR=/usr/local/openresty/nginx/conf.d
+      - LUA_TEMPLATE=/opt/template.lua
     volumes:
       - $HOST_RUN_DIR/proxy:/etc/proxy
       - $HOST_RUN_DIR/run/intercom:/intercom
@@ -14,9 +18,9 @@ services:
       - ${HOST_RUN_DIR}/proxy_logs:/root/.npm/_logs
       - $ODOO_IMAGES/proxy/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf
       - $ODOO_IMAGES/proxy/static:/usr/local/openresty/nginx/static
-      - $ODOO_IMAGES/proxy/lua:/usr/local/openresty/nginx/lua
-      - $ODOO_IMAGES/proxy/conf.d:/usr/local/openresty/nginx/conf.d
+      - $ODOO_IMAGES/proxy/lua/template.lua:/opt/template.lua
       - ${ODOO_IMAGES}/proxy/lua/myngx.lua:/usr/local/openresty/luajit/share/lua/5.1/myngx.lua
+      - ${ODOO_IMAGES}/proxy/bin/setup_config_files.py:/usr/local/bin/setup_config_files.py
 
     logging:
       driver: "json-file"
