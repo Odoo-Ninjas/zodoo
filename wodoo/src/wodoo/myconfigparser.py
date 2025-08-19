@@ -30,19 +30,23 @@ class MyConfigParser:
                 self._open()
         del fileName
         self.debug = debug
+        self.remove_keys = set()
 
     def apply(self, other):
         for k in other.keys():
             self[k] = other[k]
+            if k in self.remove_keys:
+                self.remove_keys.remove(k)
 
     def clear(self):
         self.configOptions.clear()
         if self.fileName:
             self.fileName.parent.mkdir(exist_ok=True, parents=True)
             self.fileName.write_text("")
+        self.remove_keys.clear()
 
     def keys(self):
-        return self.configOptions.keys()
+        return self.configOptions.keys() - self.remove_keys
 
     def _open(self):
         if not self.fileName or not self.fileName.exists():
@@ -90,6 +94,11 @@ class MyConfigParser:
                     continue
                 (key, val) = line.rstrip("\n").split("=", 1)
                 key = key.strip()
+                if key in self.remove_keys:
+                    self.remove_keys.remove(key)
+                    if key in self.configOptions.keys():
+                        self.configOptions.pop(key, None)
+                    continue
                 if key in self.configOptions:
                     newVal = self.configOptions[key]
 
@@ -107,6 +116,8 @@ class MyConfigParser:
 
     def __getitem__(self, key):
         for data in (self.configOptions, os.environ):
+            if key in self.remove_keys and data == self.configOptions:
+                continue
             try:
                 return _get_ignore_case_item(data, key)
             except KeyError:
@@ -119,6 +130,8 @@ class MyConfigParser:
                     )
 
     def __setitem__(self, key, value):
+        if key in self.remove_keys:
+            self.remove_keys.remove(key)
         if isinstance(value, list):
             value_list = "("
             for item in value:
@@ -135,4 +148,5 @@ class MyConfigParser:
             return default_value
 
     def pop(self, key, default=None):
+        self.remove_keys.add(key)
         return self.configOptions.pop(key, default)
