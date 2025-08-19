@@ -1,3 +1,4 @@
+// proxy_host: webssh:8080
 location = /shell {
     return 303 $scheme://$http_host/console;
 }
@@ -19,9 +20,9 @@ location /console/ {
 
     add_header Cache-Control "no-cache, no-store, must-revalidate";
 
-    set $target_console $default_target;
-    access_by_lua_file "/usr/local/openresty/nginx/lua/dynamic_upstream_console.lua";
-    proxy_pass $target_console;
+    set $backend $default_target;
+    access_by_lua_file "{lua_resolve_host}";
+    proxy_pass $backend;
 
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "upgrade";
