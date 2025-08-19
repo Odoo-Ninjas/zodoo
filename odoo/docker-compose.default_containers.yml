@@ -6,7 +6,7 @@ services:
       odoo.web_container: '1'
       compose.merge: 'odoo_base'
       proxy_config: ${ODOO_IMAGES}/odoo/proxy/odoo.conf
-      proxy_config_chat: ${ODOO_IMAGES}/odoo/proxy/odoo.conf
+      proxy_config_chat: ${ODOO_IMAGES}/odoo/proxy/odoo_chat.conf
     environment:
       IS_ODOO_WEBSERVER: 1
     environment:

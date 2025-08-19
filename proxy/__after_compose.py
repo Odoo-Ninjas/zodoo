@@ -11,16 +11,21 @@ def after_compose(config, settings, yml, globals):
     if 'proxy_abstract' in yml['services']:
         yml['services'].pop('proxy_abstract')
 
+    globals['load_proxy_backends'] = _load_backends
+    globals['apply_proxy_backends'] = _apply_backends
 
     collect_proxy_config(yml)
 
 def collect_proxy_config(yml):
-    proxy_backends = {}
+    proxy_backends = _load_backends(yml)
     for service_name, service in yml['services'].items():
         if not service.get("build"):
             continue
 
         if service.get("labels", {}).get("proxy_config") == "0":
+            continue
+
+        if service_name in proxy_backends:
             continue
 
         files = []
@@ -35,8 +40,17 @@ def collect_proxy_config(yml):
                 "nginx_conf": conf_content.strip() + "\n"
             }
 
-    proxy_backends_encoded = base64.b64encode(
-        json.dumps(proxy_backends).encode('utf-8')
+    _apply_backends(yml, proxy_backends)
+
+def _load_backends(yml):
+    backends = yml['services']['proxy']['environment'].get('PROXY_BACKENDS', {})
+    if backends:
+        backends =  json.loads(base64.b64decode(backends))
+    return backends
+
+def _apply_backends(yml, backends):
+    backends = base64.b64encode(
+        json.dumps(backends).encode('utf-8')
     ).decode('utf-8')
 
-    yml['services']['proxy']['environment']['PROXY_BACKENDS'] = proxy_backends_encoded
+    yml['services']['proxy']['environment']['PROXY_BACKENDS'] = backends

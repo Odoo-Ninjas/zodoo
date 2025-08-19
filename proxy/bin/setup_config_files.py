@@ -27,29 +27,18 @@ location /mailer {
 
 def parse_host_port(value):
     """Parse 'host:port' into (host, port) strings."""
-    if ":" not in value:
-        # if e.g. https://kubenernetescontainer.odoo  
-        return value
     host, port = value.split(":", 1)
     return host.strip(), port.strip()
 
 PROXY_LINE_RE = re.compile(r'^\s*#proxy_host:\s*(.+?)\s*$', re.IGNORECASE | re.MULTILINE)
-def resolve_proxy_host(nginx_conf):
-    m = PROXY_LINE_RE.search(nginx_conf)
+def resolve_proxy_host(backend):
+    if backend.get('external'):
+        return backend['external'], None
+    config  = backend['nginx_conf']
+    m = PROXY_LINE_RE.search(config)
     if not m:
         return None, None
     expr = m.group(1).strip()
-
-    if expr.lower().startswith("python:"):
-        py_expr = expr[len("python:"):].strip()
-        try:
-            val = eval(py_expr, {"__builtins__": {}}, {"os": os})
-        except Exception as e:
-            raise ValueError(f"Failed to eval proxy_host expression {py_expr!r}: {e}") from e
-        if not isinstance(val, str):
-            raise ValueError(f"proxy_host python expr must return 'host:port' string, got {type(val)} {val!r}")
-        return parse_host_port(val)
-
     # Otherwise treat as literal
     host, port = parse_host_port(expr)
     host = os.getenv("project_name") + "_" + host
@@ -66,18 +55,23 @@ CONF_DIR.mkdir(parents=True, exist_ok=True)
 
 for name, cfg in proxy_backends.items():
     print("Processing backend:", name)
-    conf = cfg["nginx_conf"]
-    host, port = resolve_proxy_host(conf)
+    host, port = resolve_proxy_host(cfg)
+    if not host:
+        continue
 
-    # Lua file
-    lua_filename = LUA_DIR / f"dynamic_upstream_{name}.lua"
-    with open(lua_filename, "w") as f:
-        f.write(LUA_TEMPLATE.format(hostname=host, port=port))
+    lua_filename = None
+    if not cfg.get('external'):
+        # Lua file
+        lua_filename = LUA_DIR / f"dynamic_upstream_{name}.lua"
+        with open(lua_filename, "w") as f:
+            f.write(LUA_TEMPLATE.format(hostname=host, port=port))
 
     # Nginx conf file
     conf_filename = CONF_DIR / f"{name}.conf"
+    conf = cfg['nginx_conf']
     with open(conf_filename, "w") as f:
-        conf_content = conf.replace("{lua_resolve_host}", str(lua_filename))
-        f.write(conf_content.strip() + "\n")
+        if lua_filename:
+            conf = conf.replace("{lua_resolve_host}", str(lua_filename))
+        f.write(conf.strip() + "\n")
 
-    print(f"Generated {lua_filename} and {conf_filename}")
+    print(f"Generated {lua_filename or '<no luafilename because external host>'} and {conf_filename}")

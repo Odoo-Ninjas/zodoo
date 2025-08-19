@@ -13,8 +13,6 @@ current_dir = Path(
 
 
 def after_compose(config, settings, yml, globals):
-    dirs = config.dirs
-
     # set postgres version
     V = settings["POSTGRES_VERSION"]
     if "postgres" in yml["services"] and yml["services"]["postgres"].get("build"):
