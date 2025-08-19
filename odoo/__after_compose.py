@@ -428,12 +428,23 @@ def setup_external_odoo_eg_kubernetes(config, yml, globals):
     PROXY_ODOO_HOST = config.PROXY_ODOO_HOST or ''
     if not PROXY_ODOO_HOST:
         return
+    PROXY_ODOO_HOST_CHAT = config.PROXY_ODOO_HOST_CHAT or PROXY_ODOO_HOST
     
     backends = globals['load_proxy_backends'](yml)
 
     parent = current_dir.parent / 'odoo' / 'proxy'
-    odoo_conf = (parent / 'odoo.conf').read_text()
-    odoo_chat_conf = (parent / 'odoo_chat.conf').read_text()
+    odoo_conf = (parent / 'odoo_external.conf').read_text()
+    odoo_chat_conf = (parent / 'odoo_chat_external.conf').read_text()
+
+    for k , v in {
+        "upstream": PROXY_ODOO_HOST,
+        "upstream_chat": PROXY_ODOO_HOST or PROXY_ODOO_HOST_CHAT,
+    }.items():
+        def r(t):
+            return t.replace(f"{{{k}}}", v)
+        if not isinstance(v, bool):
+            odoo_conf = r(odoo_conf)
+            odoo_chat_conf = r(odoo_chat_conf)
 
     backends['odoo'] = {
         "nginx_conf": odoo_conf,
@@ -441,7 +452,7 @@ def setup_external_odoo_eg_kubernetes(config, yml, globals):
     }
     backends['odoo_chat'] = {
         "nginx_conf": odoo_chat_conf,
-        "external": PROXY_ODOO_HOST,
+        "external": PROXY_ODOO_HOST_CHAT,
     }
 
     globals['apply_proxy_backends'](yml, backends)

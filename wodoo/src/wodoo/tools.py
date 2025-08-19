@@ -1931,11 +1931,14 @@ def start_postgres_if_local(ctx, config):
         Commands.invoke(ctx, "wait_for_container_postgres", missing_ok=True)
 
 
-def update_setting(config, name, value):
+def update_setting(config, name, value, null=None):
     from .myconfigparser import MyConfigParser
 
     configparser = MyConfigParser(config.files["project_settings"])
-    configparser[name] = value
+    if null:
+        configparser.pop(name)
+    else:
+        configparser[name] = value
     configparser.write()
 
 

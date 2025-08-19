@@ -74,4 +74,5 @@ for name, cfg in proxy_backends.items():
             conf = conf.replace("{lua_resolve_host}", str(lua_filename))
         f.write(conf.strip() + "\n")
 
-    print(f"Generated {lua_filename or '<no luafilename because external host>'} and {conf_filename}")
+    external = cfg['external']
+    print(f"Generated {lua_filename or f'<no luafilename because external host: {external}>'} and {conf_filename}")

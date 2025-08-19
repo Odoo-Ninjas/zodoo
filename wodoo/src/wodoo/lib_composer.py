@@ -1453,7 +1453,8 @@ def _complete_setting_name(ctx, param, incomplete):
 @click.argument("name", required=False, shell_complete=_complete_setting_name)
 @click.argument("value", required=False, default="")
 @click.option("-R", "--no-reload", is_flag=True)
-def setting(ctx, config, name, value, no_reload):
+@click.option("-n", "--null", is_flag=True)
+def setting(ctx, config, name, value, no_reload, null):
     from .myconfigparser import MyConfigParser
 
     if name and "=" in name and not value:
@@ -1466,7 +1467,7 @@ def setting(ctx, config, name, value, no_reload):
     name = name.replace(":", "=")
     if "=" in name:
         name, value = name.split("=", 1)
-    if not value:
+    if not value and not null:
         for k in sorted(configparser.keys()):
             if name.lower() in k.lower():
                 click.secho(f"{k}={configparser[k]}")
@@ -1474,7 +1475,7 @@ def setting(ctx, config, name, value, no_reload):
         if name == "ODOO_PYTHON_VERSION" and len(value.split(".")) == 2:
             value = get_latest_python_patch_version(value)
             click.secho(f"Version {value} will be used.", fg="yellow")
-        update_setting(config, name, value)
+        update_setting(config, name, value, null=null)
         click.secho(f"{name}={value}", fg="green")
         if not no_reload:
             ctx.invoke(do_reload)

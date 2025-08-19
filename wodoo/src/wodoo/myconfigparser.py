@@ -133,3 +133,6 @@ class MyConfigParser:
             return self[key]
         except Exception:
             return default_value
+
+    def pop(self, key, default=None):
+        return self.configOptions.pop(key, default)
