@@ -2,6 +2,8 @@ services:
   console:
     labels:
       proxy_config: ${ODOO_IMAGES}/console/proxy/console.conf
+    links:
+        - webssh_console
   webssh_console:
     build: 
       context: ${ODOO_IMAGES}/webssh

@@ -6,7 +6,6 @@ services:
         POSTGRES_VERSION: $POSTGRES_VERSION
     privileged: true
     links:
-        - webssh_console
         - proxy
     restart: "unless-stopped"
     profiles:

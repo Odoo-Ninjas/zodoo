@@ -844,7 +844,7 @@ def __get_sorted_contents(paths):
 
         yaml_content = yaml.safe_load(content)
         # apply the first order as label do sort after compose by that
-        for service_name, service in yaml_content['services'].items():
+        for service_name, service in (yaml_content or {}).get('services', {}).items():
             service.setdefault("labels", {})
             service['labels'].setdefault('compose.order', int(order))
         contents.append((order, yaml_content, path))
