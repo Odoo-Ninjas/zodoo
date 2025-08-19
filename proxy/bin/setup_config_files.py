@@ -30,7 +30,7 @@ def parse_host_port(value):
     host, port = value.split(":", 1)
     return host.strip(), port.strip()
 
-PROXY_LINE_RE = re.compile(r'^\s*#proxy_host:\s*(.+?)\s*$', re.IGNORECASE | re.MULTILINE)
+PROXY_LINE_RE = re.compile(r'^\s*#.*?proxy_host:\s*(.+?)\s*$', re.IGNORECASE | re.MULTILINE)
 def resolve_proxy_host(backend):
     if backend.get('external'):
         return backend['external'], None
@@ -45,8 +45,8 @@ def resolve_proxy_host(backend):
     return host, port
 
 # Directories from ENV with fallback defaults
-LUA_DIR = Path(os.environ.get("LUA_DIR", "/usr/local/openresty/nginx/lua"))
-CONF_DIR = Path(os.environ.get("CONF_DIR", "/usr/local/openresty/nginx/conf.d"))
+LUA_DIR = Path(os.environ['LUA_DIR'])
+CONF_DIR = Path(os.environ['CONF_DIR'])
 LUA_TEMPLATE = Path(os.environ['LUA_TEMPLATE']).read_text()
 
 # Ensure dirs exist
@@ -57,6 +57,7 @@ for name, cfg in proxy_backends.items():
     print("Processing backend:", name)
     host, port = resolve_proxy_host(cfg)
     if not host:
+        print(f"no # proxy_host: declaration found for {name} in {cfg['nginx_conf']}, skipping")
         continue
 
     lua_filename = None
@@ -74,5 +75,5 @@ for name, cfg in proxy_backends.items():
             conf = conf.replace("{lua_resolve_host}", str(lua_filename))
         f.write(conf.strip() + "\n")
 
-    external = cfg['external']
+    external = cfg.get('external')
     print(f"Generated {lua_filename or f'<no luafilename because external host: {external}>'} and {conf_filename}")

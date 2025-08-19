@@ -10,5 +10,9 @@ COPY lua/ /usr/local/openresty/nginx/lua/
 COPY conf.d/ /usr/local/openresty/nginx/conf.d/
 COPY lua/myngx.lua /usr/local/openresty/luajit/share/lua/5.1/myngx.lua
 
+RUN \
+chmod a+rw -R /usr/local/openresty && \
+chown nobody:nobody -R /usr/local/openresty
+
 
 CMD ["/bin/sh", "/run.sh"]

@@ -9,12 +9,7 @@ done > /etc/envvars.conf
 python3 /usr/local/bin/setup_config_files.py || exit 1
 
 # fix rights;-
-chmod a+r -R /usr/local/openresty
-chown nobody:nobody /usr/local/openresty -R
-set -x
-if [[ "$DEVMODE" == "1" ]]; then
-    chmod a+rw -R /usr/local/openresty
-    find /usr/local/openresty -exec chmod a+x {} \;
-fi
+chmod a+r -R "$CONF_DIR" "$LUA_DIR" /usr/local/openresty/nginx/static
+chown nobody:nobody -R "$CONF_DIR" "$LUA_DIR" /usr/local/openresty/nginx/static
 
 /usr/local/openresty/bin/openresty -g 'daemon off;'
