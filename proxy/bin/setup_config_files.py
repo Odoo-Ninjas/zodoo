@@ -28,7 +28,8 @@ location /mailer {
 def parse_host_port(value):
     """Parse 'host:port' into (host, port) strings."""
     if ":" not in value:
-        raise ValueError(f"proxy_host must be 'host:port', got: {value!r}")
+        # if e.g. https://kubenernetescontainer.odoo  
+        return value
     host, port = value.split(":", 1)
     return host.strip(), port.strip()
 
