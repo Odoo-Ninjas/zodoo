@@ -1,0 +1,19 @@
+services:
+  console:
+    labels:
+      proxy_config: ${ODOO_IMAGES}/console/proxy/console.conf
+    links:
+        - webssh_console
+  webssh_console:
+    build: 
+      context: ${ODOO_IMAGES}/webssh
+    restart: unless-stopped
+    profiles:
+      - auto
+    labels:
+      odoo_framework.apply_env: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${ODOO_IMAGES}/webssh/programs:/root/programs
+    environment:
+      - DOCKER_GID=${DOCKER_GID}

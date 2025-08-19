@@ -1,5 +1,8 @@
 services:
   vscode:
+    labels:
+      proxy_config: ${ODOO_IMAGES}/vscode/proxy/vscode.conf
+      proxy_config_web: ${ODOO_IMAGES}/vscode/proxy/vscode_web.conf
     build:
       context: $ODOO_IMAGES/vscode
     cap_add:

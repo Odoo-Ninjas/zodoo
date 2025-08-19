@@ -639,6 +639,14 @@ def setup_settings_file(ctx, config, db, demo, ODOO_VERSION, **forced_values):
             settings.write()
 
 
+def _iterate_services(config, yml):
+    def sort(value):
+        order = int(value[1].get("labels", {}).get("compose.order", 99999999))
+        return order
+
+    for service_name, service in sorted(yml['services'].items(), key=sort):
+        yield service_name, service
+
 def _execute_after_compose(config, yml):
     """
     execute local __oncompose.py scripts
@@ -648,38 +656,52 @@ def _execute_after_compose(config, yml):
 
     settings = MyConfigParser(config.files["settings"])
     modules = Modules()
-    for module in config.dirs["images"].glob("*/__after_compose.py"):
-        if module.is_dir():
-            continue
-        spec = importlib.util.spec_from_file_location(
-            "dynamic_loaded_module",
-            str(module),
-        )
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        started = arrow.get()
-        try:
-            module.after_compose(
-                config,
-                settings,
-                yml,
-                dict(
-                    Modules=modules,
-                    tools=tools,
-                    module_tools=module_tools,
-                    Module=Module,
-                ),
+    visited = set()
+    globals = dict(
+                Modules=modules,
+                tools=tools,
+                module_tools=module_tools,
+                Module=None,
             )
 
-        except Exception as ex:
-            msg = traceback.format_exc()
-            click.secho(f"Failed: {module.__file__}", fg="red")
-            click.secho(msg)
-            sys.exit(-1)
+    for service_name, service in _iterate_services(config, yml):
+        buildcontext = service.get("build", {}).get("context")
+        if not buildcontext:
+            continue
+        buildcontext = Path(buildcontext)
+        if not buildcontext.exists():
+            continue
+        for module in buildcontext.rglob("__after_compose.py"):
+            if module.is_dir():
+                continue
+            if module in visited:
+                continue
+            visited.add(module)
+            spec = importlib.util.spec_from_file_location(
+                "dynamic_loaded_module",
+                str(module),
+            )
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            started = arrow.get()
+            globals['Module'] = Module
+            try:
+                module.after_compose(
+                    config,
+                    settings,
+                    yml,
+                    globals,
+                )
 
-        duration = (arrow.get() - started).total_seconds()
-        if duration > 2 and config.verbose:
-            click.secho(f"Processing took {module} seconds", fg="yellow")
+            except Exception as ex:
+                msg = traceback.format_exc()
+                click.secho(f"Failed: {module.__file__}", fg="red")
+                click.secho(msg)
+                sys.exit(-1)
+
+            duration = (arrow.get() - started).total_seconds()
+            if duration > 2 and config.verbose:
+                click.secho(f"Processing took {module} seconds", fg="yellow")
 
     settings.write()
     return yml
@@ -820,7 +842,13 @@ def __get_sorted_contents(paths):
             )
         order = int(order)
 
-        contents.append((order, yaml.safe_load(content), path))
+        yaml_content = yaml.safe_load(content)
+        # apply the first order as label do sort after compose by that
+        for service_name, service in (yaml_content or {}).get('services', {}).items():
+            service.setdefault("labels", {})
+            service['labels'].setdefault('compose.order', int(order))
+        contents.append((order, yaml_content, path))
+
 
     contents = list(map(lambda x: x[1], sorted(contents, key=lambda x: x[0])))
     return contents
@@ -1425,7 +1453,8 @@ def _complete_setting_name(ctx, param, incomplete):
 @click.argument("name", required=False, shell_complete=_complete_setting_name)
 @click.argument("value", required=False, default="")
 @click.option("-R", "--no-reload", is_flag=True)
-def setting(ctx, config, name, value, no_reload):
+@click.option("-n", "--null", is_flag=True)
+def setting(ctx, config, name, value, no_reload, null):
     from .myconfigparser import MyConfigParser
 
     if name and "=" in name and not value:
@@ -1438,7 +1467,7 @@ def setting(ctx, config, name, value, no_reload):
     name = name.replace(":", "=")
     if "=" in name:
         name, value = name.split("=", 1)
-    if not value:
+    if not value and not null:
         for k in sorted(configparser.keys()):
             if name.lower() in k.lower():
                 click.secho(f"{k}={configparser[k]}")
@@ -1446,7 +1475,7 @@ def setting(ctx, config, name, value, no_reload):
         if name == "ODOO_PYTHON_VERSION" and len(value.split(".")) == 2:
             value = get_latest_python_patch_version(value)
             click.secho(f"Version {value} will be used.", fg="yellow")
-        update_setting(config, name, value)
+        update_setting(config, name, value, null=null)
         click.secho(f"{name}={value}", fg="green")
         if not no_reload:
             ctx.invoke(do_reload)

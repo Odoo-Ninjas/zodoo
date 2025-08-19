@@ -1,3 +1,4 @@
+import json
 import time
 import hashlib
 from packaging.requirements import Requirement
@@ -75,43 +76,6 @@ def _setup_remote_debugging(config, yml):
             f"0.0.0.0:{config.ODOO_PYTHON_DEBUG_PORT}:5678"
         )
 
-
-def after_compose(config, settings, yml, globals):
-    # store also in clear text the requirements
-    shutil.copy(
-        current_dir.parent / "common_snippets" / "set_docker_group.sh",
-        current_dir / "set_docker_group.sh",
-    )
-
-    yml["services"].pop("odoo_base")
-
-    # download python3.x version
-    if float(settings["ODOO_VERSION"]) >= 13.0:
-        python_tgz = (
-            config.dirs["images"]
-            / "odoo"
-            / "python"
-            / f"Python-{settings['ODOO_PYTHON_VERSION']}.tgz"
-        )
-        if not python_tgz.exists():
-            v = settings["ODOO_PYTHON_VERSION"]
-            url = f"https://www.python.org/ftp/python/{v}/Python-{v}.tgz"
-            click.secho(f"Downloading {url}")
-            with globals["tools"].download_file(url) as filepath:
-                shutil.copy(filepath, python_tgz)
-
-        PYTHON_VERSION = tuple([int(x) for x in config.ODOO_PYTHON_VERSION.split(".")])
-    else:
-        PYTHON_VERSION = (3,8,3)
-
-    # Add remote debugging possibility in devmode
-    _setup_remote_debugging(config, yml)
-
-    _determine_requirements(config, yml, PYTHON_VERSION, settings, globals)
-
-    _determine_odoo_configuration(config, yml, PYTHON_VERSION, settings, globals)
-
-    _apply_fluentd_logging(config, yml, settings, globals)
 
 
 def store_sha_of_external_deps(deps, PYTHON_VERSION, file):
@@ -459,3 +423,76 @@ def get_string_hash(input_string: str) -> str:
     """
     hash_object = hashlib.sha256(input_string.encode("utf-8"))
     return hash_object.hexdigest()
+
+def setup_external_odoo_eg_kubernetes(config, yml, globals):
+    PROXY_ODOO_HOST = config.PROXY_ODOO_HOST or ''
+    if not PROXY_ODOO_HOST:
+        return
+    PROXY_ODOO_HOST_CHAT = config.PROXY_ODOO_HOST_CHAT or PROXY_ODOO_HOST
+    
+    backends = globals['load_proxy_backends'](yml)
+
+    parent = current_dir.parent / 'odoo' / 'proxy'
+    odoo_conf = (parent / 'odoo_external.conf').read_text()
+    odoo_chat_conf = (parent / 'odoo_chat_external.conf').read_text()
+
+    for k , v in {
+        "upstream": PROXY_ODOO_HOST,
+        "upstream_chat": PROXY_ODOO_HOST or PROXY_ODOO_HOST_CHAT,
+    }.items():
+        def r(t):
+            return t.replace(f"{{{k}}}", v)
+        if not isinstance(v, bool):
+            odoo_conf = r(odoo_conf)
+            odoo_chat_conf = r(odoo_chat_conf)
+
+    backends['odoo'] = {
+        "nginx_conf": odoo_conf,
+        "external": PROXY_ODOO_HOST,
+    }
+    backends['odoo_chat'] = {
+        "nginx_conf": odoo_chat_conf,
+        "external": PROXY_ODOO_HOST_CHAT,
+    }
+
+    globals['apply_proxy_backends'](yml, backends)
+
+def after_compose(config, settings, yml, globals):
+    # store also in clear text the requirements
+    shutil.copy(
+        current_dir.parent / "common_snippets" / "set_docker_group.sh",
+        current_dir / "set_docker_group.sh",
+    )
+
+    yml["services"].pop("odoo_base")
+
+    # download python3.x version
+    if float(settings["ODOO_VERSION"]) >= 13.0:
+        python_tgz = (
+            config.dirs["images"]
+            / "odoo"
+            / "python"
+            / f"Python-{settings['ODOO_PYTHON_VERSION']}.tgz"
+        )
+        if not python_tgz.exists():
+            v = settings["ODOO_PYTHON_VERSION"]
+            url = f"https://www.python.org/ftp/python/{v}/Python-{v}.tgz"
+            click.secho(f"Downloading {url}")
+            with globals["tools"].download_file(url) as filepath:
+                shutil.copy(filepath, python_tgz)
+
+        PYTHON_VERSION = tuple([int(x) for x in config.ODOO_PYTHON_VERSION.split(".")])
+    else:
+        PYTHON_VERSION = (3,8,3)
+
+    # Add remote debugging possibility in devmode
+    _setup_remote_debugging(config, yml)
+
+    _determine_requirements(config, yml, PYTHON_VERSION, settings, globals)
+
+    _determine_odoo_configuration(config, yml, PYTHON_VERSION, settings, globals)
+
+    _apply_fluentd_logging(config, yml, settings, globals)
+
+    if config.RUN_PROXY:
+        setup_external_odoo_eg_kubernetes(config, yml, globals)

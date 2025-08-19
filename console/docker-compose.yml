@@ -1,20 +1,4 @@
 services:
-  webssh_console:
-    build: 
-      context: ${ODOO_IMAGES}/webssh
-    restart: unless-stopped
-    profiles:
-      - auto
-    labels:
-      odoo_framework.apply_env: 0
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ${ODOO_IMAGES}/webssh/programs:/root/programs
-    environment:
-      - DOCKER_GID=${DOCKER_GID}
-  proxy:
-    environment:
-      WEBSSH_CONSOLE_HOST: http://webssh_console:8080
   console:
     build:
       context: $ODOO_IMAGES/console
@@ -22,7 +6,6 @@ services:
         POSTGRES_VERSION: $POSTGRES_VERSION
     privileged: true
     links:
-        - webssh_console
         - proxy
     restart: "unless-stopped"
     profiles:
