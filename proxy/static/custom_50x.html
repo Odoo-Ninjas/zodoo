@@ -2,80 +2,166 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta http-equiv="refresh" content="10" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>We'll Be Back Soon!</title>
     <style>
+      :root {
+        --accent: #3498db;
+        --fg: #333;
+        --muted: #666;
+        --panel: #fff;
+        --bg: #f9f9f9;
+        --border: #e6e6e6;
+      }
+      * { box-sizing: border-box; }
       body {
         font-family: Arial, sans-serif;
         margin: 0;
         padding: 0;
-        background: #f9f9f9;
-        color: #333;
+        background: linear-gradient(180deg, #fafafa, var(--bg));
+        color: var(--fg);
         display: flex;
         justify-content: center;
         align-items: center;
-        height: 100vh;
+        min-height: 100vh;
         text-align: center;
       }
       .container {
-        max-width: 600px;
-        padding: 20px;
-        border: 2px solid #e6e6e6;
-        border-radius: 10px;
-        background: #fff;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        max-width: 640px;
+        padding: 28px 24px;
+        border: 2px solid var(--border);
+        border-radius: 14px;
+        background: var(--panel);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
       }
       h1 {
-        font-size: 2.5rem;
-        margin: 0;
+        font-size: 2.2rem;
+        margin: 0 0 6px;
         color: #555;
       }
+      .subtitle {
+        font-size: 1rem;
+        color: var(--muted);
+        margin: 0 0 10px;
+      }
       p {
-        font-size: 1.1rem;
-        margin: 20px 0;
-        color: #666;
+        font-size: 1.05rem;
+        margin: 16px 0;
+        color: var(--muted);
       }
       .loader {
-        width: 50px;
-        height: 50px;
-        margin: 20px auto;
+        width: 56px;
+        height: 56px;
+        margin: 18px auto 8px;
         border: 5px solid #ddd;
-        border-top-color: #3498db;
+        border-top-color: var(--accent);
         border-radius: 50%;
         animation: spin 1s linear infinite;
       }
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
-        }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      .timer {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+        padding: 8px 12px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: #fbfbfb;
+        color: #444;
+        font-weight: 600;
       }
-      .contact {
-        margin-top: 20px;
+      .pill {
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: rgba(52, 152, 219, 0.1);
+        color: var(--accent);
+        font-variant-numeric: tabular-nums;
+        min-width: 2ch;
       }
+
+      .actions { margin-top: 16px; }
+      .btn {
+        appearance: none;
+        border: none;
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-weight: 700;
+        cursor: pointer;
+        background: var(--accent);
+        color: white;
+        box-shadow: 0 4px 12px rgba(52, 152, 219, 0.25);
+      }
+      .btn:active { transform: translateY(1px); }
+
+      .contact { margin-top: 18px; }
       a {
-        color: #3498db;
+        color: var(--accent);
         text-decoration: none;
         font-weight: bold;
       }
-      a:hover {
-        text-decoration: underline;
-      }
+      a:hover { text-decoration: underline; }
+
+      /* accessibility helper for screen readers */
+      .sr-live { position: absolute; left: -9999px; top: auto; width: 1px; height: 1px; overflow: hidden; }
     </style>
   </head>
   <body>
     <div class="container">
       <h1>We're Under Construction</h1>
+      <p class="subtitle">Thanks for your patience while we perform maintenance.</p>
+
       <div class="loader"></div>
+
       <p>
         Our Odoo system is currently under maintenance.<br />
-        Please check back soon!
+        This page will auto-refresh when we're ready.
       </p>
+
+      <div class="timer" aria-live="polite" aria-atomic="true">
+        Refreshing in <span id="countdown" class="pill">10</span>s
+      </div>
+
+      <div class="actions">
+        <button class="btn" onclick="location.reload()">Refresh now</button>
+      </div>
+
       <div class="contact">
         <p>
           Need help?
           <!-- Contact us at <a href="mailto:support@yourdomain.com">support@yourdomain.com</a>. -->
         </p>
       </div>
+
+      <!-- Screen reader live region -->
+      <div id="sr" class="sr-live" aria-live="assertive"></div>
     </div>
+
+    <script>
+      (function () {
+        var seconds = 10;
+        var el = document.getElementById('countdown');
+        var sr = document.getElementById('sr');
+
+        function tick() {
+          seconds = Math.max(0, seconds - 1);
+          if (el) el.textContent = String(seconds);
+          if (sr) sr.textContent = 'Refreshing in ' + seconds + ' seconds';
+          if (seconds <= 0) {
+            // In case the meta refresh is blocked or delayed
+            window.location.reload();
+          }
+        }
+
+        // Update immediately so JS and meta refresh stay in sync
+        if (el) el.textContent = String(seconds);
+        var interval = setInterval(tick, 1000);
+
+        // Safety: stop the interval after 15s to avoid runaway timers
+        setTimeout(function () { clearInterval(interval); }, 15000);
+      })();
+    </script>
   </body>
 </html>
