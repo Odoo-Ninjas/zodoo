@@ -19,6 +19,8 @@ services:
   roundcube:
     build: 
       context: $ODOO_IMAGES/roundcube
+    labels:
+      proxy_config: ${ODOO_IMAGES}/roundcube/proxy/roundcube.conf
     # ports:
     #    - "8282:80"
     profiles:

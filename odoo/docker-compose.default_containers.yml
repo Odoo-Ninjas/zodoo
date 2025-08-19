@@ -3,8 +3,10 @@ version: '3'
 services:
   odoo:
     labels:
-        odoo.web_container: '1'
-        compose.merge: 'odoo_base'
+      odoo.web_container: '1'
+      compose.merge: 'odoo_base'
+      proxy_config: ${ODOO_IMAGES}/odoo/proxy/odoo.conf
+      proxy_config_chat: ${ODOO_IMAGES}/odoo/proxy/odoo.conf
     environment:
       IS_ODOO_WEBSERVER: 1
     environment:
@@ -14,7 +16,7 @@ services:
   odoo_debug:
     restart: 'no'
     labels:
-        compose.merge: 'odoo_base'
+      compose.merge: 'odoo_base'
     environment:
       ENDLESS_LOOP: 1
       DEBUGGER_WATCH: /opt/src/.debug
@@ -23,15 +25,15 @@ services:
 
   odoo_cronjobs:
     labels:
-        compose.merge: 'odoo_base'
-        odoo.queuejob_container: '1'
+      compose.merge: 'odoo_base'
+      odoo.queuejob_container: '1'
     environment:
       IS_ODOO_CRONJOB: 1
 
   odoo_queuejobs:
     labels:
-        compose.merge: 'odoo_base'
-        odoo.queuejob_container: '1'
+      compose.merge: 'odoo_base'
+      odoo.queuejob_container: '1'
     environment:
       IS_ODOO_QUEUEJOB: 1
     restart: 'on-failure'
@@ -52,6 +54,6 @@ services:
 
   odoo_update:
     labels:
-        compose.merge: 'odoo_base'
+      compose.merge: 'odoo_base'
     restart: 'no'
     command: echo 'good bye - it is ok!'

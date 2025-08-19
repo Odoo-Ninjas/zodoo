@@ -9,6 +9,8 @@ services:
         # must match proxy
         LOGIO_RELATIVE_PATH: '/logs'
         # LOGIO_SERVER_UI_BUILD_PATH: '/logs'
+    labels:
+      proxy_config: ${ODOO_IMAGES}/logsio_web/proxy/logs.conf
     environment:
       TIMEZONE: Europe/Berlin
       # LOG_CONTAINER: odoo

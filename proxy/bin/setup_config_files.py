@@ -1,29 +1,58 @@
 #!/usr/bin/env python3
+import re
 import os
+import base64
+import json
 from pathlib import Path
 
 # Example JSON/dict input (replace with json.load if reading from file)
-proxy_backends = {
-    "mail": {
-        "host": "roundcube",
-        "port": 80,
-        "nginx_conf": """
-            location /mailer {{
-                rewrite ^/mailer$ /mailer/ break;
-                set $backend $default_target;
-                access_by_lua_file "{lua_resolve_host}";
-                proxy_pass $backend;
-                proxy_set_header Host $host;
-                proxy_set_header X-Real-IP $remote_addr;
-                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-                proxy_set_header X-Forwarded-Proto $scheme;
-                # proxy_set_header X-Forwarded-Path /mailer/;
+proxy_backends = json.loads(base64.b64decode(os.environ.get("PROXY_BACKENDS", "{}")))
+sample = """
+# proxy_host: odoo:8069
+# proxy_host: os.getenv("PROXY_ODOO_HOST") or "odoo:8069"
+location /mailer {
+    rewrite ^/mailer$ /mailer/ break;
+    set $backend $default_target;
+    access_by_lua_file "{lua_resolve_host}";
+    proxy_pass $backend;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    # proxy_set_header X-Forwarded-Path /mailer/;
 
-                error_page 502 503 504 = @fallback;
-            }}
-        """
-    },
+    error_page 502 503 504 = @fallback;
 }
+"""
+
+def parse_host_port(value):
+    """Parse 'host:port' into (host, port) strings."""
+    if ":" not in value:
+        raise ValueError(f"proxy_host must be 'host:port', got: {value!r}")
+    host, port = value.split(":", 1)
+    return host.strip(), port.strip()
+
+PROXY_LINE_RE = re.compile(r'^\s*#proxy_host:\s*(.+?)\s*$', re.IGNORECASE | re.MULTILINE)
+def resolve_proxy_host(nginx_conf):
+    m = PROXY_LINE_RE.search(nginx_conf)
+    if not m:
+        return None, None
+    expr = m.group(1).strip()
+
+    if expr.lower().startswith("python:"):
+        py_expr = expr[len("python:"):].strip()
+        try:
+            val = eval(py_expr, {"__builtins__": {}}, {"os": os})
+        except Exception as e:
+            raise ValueError(f"Failed to eval proxy_host expression {py_expr!r}: {e}") from e
+        if not isinstance(val, str):
+            raise ValueError(f"proxy_host python expr must return 'host:port' string, got {type(val)} {val!r}")
+        return parse_host_port(val)
+
+    # Otherwise treat as literal
+    host, port = parse_host_port(expr)
+    host = os.getenv("project_name") + "_" + host
+    return host, port
 
 # Directories from ENV with fallback defaults
 LUA_DIR = Path(os.environ.get("LUA_DIR", "/usr/local/openresty/nginx/lua"))
@@ -35,9 +64,9 @@ LUA_DIR.mkdir(parents=True, exist_ok=True)
 CONF_DIR.mkdir(parents=True, exist_ok=True)
 
 for name, cfg in proxy_backends.items():
-    host = cfg["host"]
-    port = cfg["port"]
+    print("Processing backend:", name)
     conf = cfg["nginx_conf"]
+    host, port = resolve_proxy_host(conf)
 
     # Lua file
     lua_filename = LUA_DIR / f"dynamic_upstream_{name}.lua"
@@ -47,7 +76,7 @@ for name, cfg in proxy_backends.items():
     # Nginx conf file
     conf_filename = CONF_DIR / f"{name}.conf"
     with open(conf_filename, "w") as f:
-        conf_content = conf.format(lua_resolve_host=lua_filename)
+        conf_content = conf.replace("{lua_resolve_host}", str(lua_filename))
         f.write(conf_content.strip() + "\n")
 
     print(f"Generated {lua_filename} and {conf_filename}")

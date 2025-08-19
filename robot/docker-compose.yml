@@ -6,6 +6,8 @@ services:
     seleniumvnc:
         build:
             context: ${ODOO_IMAGES}/selenium_customized
+        labels:
+            proxy_config: ${ODOO_IMAGES}/robot/proxy/selenium.conf
         shm_size: 4gb
         environment:
             - XPRA_RESIZE_DISPLAY=1
@@ -88,6 +90,8 @@ services:
             - robo_upload_files:/tmp/robo_upload_files
 
     robot_file_browser:
+        labels:
+            proxy_config: ${ODOO_IMAGES}/robot/proxy/output.conf
         build: $ODOO_IMAGES/static_file_browser
         restart: unless-stopped
         profiles:
