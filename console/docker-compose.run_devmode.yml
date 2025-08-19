@@ -1,4 +1,7 @@
 services:
+  console:
+    labels:
+      proxy_config: ${ODOO_IMAGES}/console/proxy/console.conf
   webssh_console:
     build: 
       context: ${ODOO_IMAGES}/webssh
@@ -7,7 +10,6 @@ services:
       - auto
     labels:
       odoo_framework.apply_env: 0
-      proxy_config: ${ODOO_IMAGES}/console/proxy/console.conf
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${ODOO_IMAGES}/webssh/programs:/root/programs
