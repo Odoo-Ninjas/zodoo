@@ -148,7 +148,7 @@ def start_container(
         rm(container_name)
 
     running_container = find_container(container_name, all=False)
-    if not running_container:
+    if not running_container and not config.NO_START_APT_PROXY:
         click.secho(
             f"Did not find running container {container_name}.", fg="yellow"
         )
