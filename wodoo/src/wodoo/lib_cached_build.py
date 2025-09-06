@@ -12,6 +12,7 @@ import inquirer
 APT_CACHER_CONTAINER_NAME = "squid-deb-proxy"
 APT_VOLNAME = APT_CACHER_CONTAINER_NAME + "-data"
 PROXPI_CONTAINER_NAME = "proxpi-cacher"
+PROXPI_VOLNAME = PROXPI_CONTAINER_NAME + "-data"
 
 
 @cli.group(cls=AliasedGroup)
@@ -199,12 +200,14 @@ def start_squid_proxy(config):
 
 def start_proxpi(config):
     image_name = "epicwink/proxpi"
+    create_named_volume(PROXPI_VOLNAME)
     start_container(
         config,
         PROXPI_CONTAINER_NAME,
         image_name,
         None,
         network="proxpi-net",
+        volmappings={PROXPI_VOLNAME: "/tmp"},
         port_mapping=config.PIP_PROXY_IP + ":5000",
         stored_settings=None,
         startup=config.PIP_PROXY_IP and config.PIP_PROXY_IP != "ignore",
@@ -256,6 +259,7 @@ def apt_reset(ctx, config):
 def pypi_reset(ctx, config):
     click.secho("Removing proxpi with volumes.")
     subprocess.run(["docker", "rm", "-f", PROXPI_CONTAINER_NAME])
+    subprocess.run(["docker", "volume", "rm", PROXPI_VOLNAME])
 
 
 @cache.command()
