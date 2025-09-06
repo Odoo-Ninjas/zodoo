@@ -10,6 +10,7 @@ import inquirer
 
 
 APT_CACHER_CONTAINER_NAME = "squid-deb-proxy"
+APT_VOLNAME = APT_CACHER_CONTAINER_NAME + "-data"
 PROXPI_CONTAINER_NAME = "proxpi-cacher"
 
 
@@ -45,6 +46,7 @@ def start_container(
     port_mapping,
     stored_settings,
     startup=True,
+    volmappings=None,
 ):
     """
     Start a Docker container with the specified parameters.
@@ -126,6 +128,11 @@ def start_container(
             network,
             "-p",
             port_mapping,
+        ]
+        for named_vol, dir in (volmappings or {}).items():
+            cmd += ["-v", f"{named_vol}:{dir}"]
+
+        cmd += [
             image_name,
         ]
         click.secho(f"Starting container '{container_name}'...", fg="blue")
@@ -158,8 +165,19 @@ def start_container(
     return _get_container_id()
 
 
+def create_named_volume(volume_name):
+    result = subprocess.run(
+        ["docker", "volume", "ls", "-q", "-f", f"name={volume_name}"],
+        capture_output=True,
+        text=True,
+    )
+
+    if not result.stdout.strip():
+        subprocess.run(["docker", "volume", "create", volume_name], check=True)
+
 def start_squid_proxy(config):
     image_name = "squid-deb-cacher-wodoo"
+    create_named_volume(APT_VOLNAME)
     start_container(
         config,
         APT_CACHER_CONTAINER_NAME,
@@ -167,6 +185,7 @@ def start_squid_proxy(config):
         config.dirs["images"] / "apt_cacher",
         network="aptcache-net",
         port_mapping=config.APT_PROXY_IP + ":8000",
+        volmappings={APT_VOLNAME: "/data"},
         stored_settings={
             "APT_PROXY_IP": config.APT_PROXY_IP,
             "PIP_PROXY_IP": config.PIP_PROXY_IP,
@@ -228,6 +247,7 @@ def pypi_restart(ctx, config):
 def apt_reset(ctx, config):
     click.secho("Removing squid deb proxy with volumes.")
     subprocess.run(["docker", "rm", "-f", APT_CACHER_CONTAINER_NAME])
+    subprocess.run(["docker", "volume", "rm", APT_VOLNAME])
 
 
 @cache.command()
