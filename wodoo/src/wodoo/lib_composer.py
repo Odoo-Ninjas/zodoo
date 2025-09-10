@@ -844,7 +844,7 @@ def __get_sorted_contents(paths):
 
         yaml_content = yaml.safe_load(content)
         # apply the first order as label do sort after compose by that
-        for service_name, service in (yaml_content or {}).get('services', {}).items():
+        for service_name, service in ((yaml_content or {}).get('services', {}) or {}).items():
             service.setdefault("labels", {})
             service['labels'].setdefault('compose.order', int(order))
         contents.append((order, yaml_content, path))
@@ -932,7 +932,7 @@ def __run_docker_compose_config(config, contents, env):
         all_profiles = []
         for i, content in enumerate(contents):
             file_path = temp_path / f"docker-compose-{str(i).zfill(5)}.yml"
-            for service in content.get("services", []):
+            for service in (content.get("services", []) or {}):
                 if not content["services"][service].get("profiles"):
                     content["services"][service]["profiles"] = ["auto"]
                 for profile in content["services"][service].get(
@@ -1098,6 +1098,11 @@ def _fix_contents(contents):
             if "env_file" in service:
                 if isinstance(service["env_file"], dict):
                     service["env_file"] = list(service["env_file"].keys())
+
+            if not service.get('image') and not service.get('build'):
+                service['image'] = 'hello-world'
+
+    
 
 
 def _explode_referenced_machines(contents):
