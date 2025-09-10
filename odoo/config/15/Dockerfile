@@ -39,10 +39,10 @@ RUN #___SNIPPET_APT_INSTALL___ \
     freetds-dev  \
     libbz2-dev \
     ncurses-dev \
-    rsync
+    rsync \
+    pkg-config 
 
 #___SNIPPET_BUILD_PYTHON___
-
 
 
 # --------------------------------------------------------------------
@@ -55,6 +55,7 @@ ARG ODOO_FRAMEWORK_REQUIREMENTS
 
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
+
 #___SNIPPET_APT_PROXY___
 RUN #___SNIPPET_APT_INSTALL___ \
     build-essential \
@@ -69,32 +70,33 @@ RUN #___SNIPPET_APT_INSTALL___ \
     libpoppler-cpp-dev \
     pkg-config \
     libfreetype6-dev \
+    freetds-dev \
     libffi-dev \
     libkrb5-dev \
-    freetds-dev \
     cmake \
-    git
+    git \
+    pkg-config
+
+
+#___SNIPPET_DEB_REQUIREMENTS___
 
 # install python from compiled binaries
 #___SNIPPET_PYTHON_INSTALL___
 
 #___SNIPPET_SETUP_PYTHON_VENV___
 
-# Optional: speed up installs
-ENV PIP_NO_CACHE_DIR=no
-# Set custom PyPI index
 RUN pip3 install pip -U
-RUN pip3 install $(cat /etc/pip_options) wheel -U
+RUN pip3 install $(cat /etc/pip_options) wheel && \
+pip3 install $(cat /etc/pip_options) setuptools -U
 
 ENV PIP_ONLY_BINARY=Pyyaml,python_tds
 
-RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
+#RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
 #___SNIPPET_DEB_REQUIREMENTS___
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 RUN pip install "Cython<3"
-# no build isolation to use cython<3
-RUN pip3 install $(cat /etc/pip_options) -U setuptools==80.9.0
+#RUN pip3 install $(cat /etc/pip_options) -U setuptools==80.9.0
 RUN pip3 install $(cat /etc/pip_options) -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
 
 RUN echo "$ODOO_FRAMEWORK_REQUIREMENTS"  | base64 --decode > /root/framework_requirements.txt
@@ -104,12 +106,10 @@ RUN pip3 install $(cat /etc/pip_options) pudb ipython debugpy
 
 #___SNIPPET_OPENUPGRADELIB___
 
-
 # --------------------------------------------------------------------
 # ODOO
 # --------------------------------------------------------------------
 FROM $BASE_IMAGE
-#FROM python:${ODOO_PYTHON_VERSION} AS build_python
 ARG TARGETARCH
 ARG ODOO_VERSION
 ARG ODOO_REQUIREMENTS
@@ -121,6 +121,8 @@ ARG CUSTOMS_SHA
 
 
 ENV LANG=C.UTF-8
+ENV PIP_NO_CACHE_DIR=no
+
 #___SNIPPET_APT_PROXY___
 RUN #___SNIPPET_APT_INSTALL___ \
             man \
@@ -128,7 +130,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
             ca-certificates \
             curl \
             node-less \
-			node-clean-css \
+            node-clean-css \
             tmux \
             libfreetype6-dev \
             libpng-dev \
@@ -152,7 +154,6 @@ RUN #___SNIPPET_APT_INSTALL___ \
             cifs-utils \
             imagemagick \
             cups \
-            libreoffice \
             locales \
             libmagickwand-dev \
             ffmpeg \
@@ -160,6 +161,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
             gpg-agent \
             pdftk \
             python3-gi \
+            python3-click \
             python3-gi-cairo \
             python3-cairo \
             gir1.2-gtk-3.0 \
@@ -168,13 +170,13 @@ RUN #___SNIPPET_APT_INSTALL___ \
             libcups2-dev \
             locales-all \
             libpoppler-cpp-dev \
-            python3-click \
             locales \
             postgresql-client \
             sassc \
             time \
             xfonts-75dpi \
             xfonts-base \
+            vim \
             libgeos-dev
 
 COPY liberation-sans /usr/share/fonts/
@@ -186,12 +188,22 @@ RUN locale-gen en_US.UTF-8 && dpkg-reconfigure locales
 
 #___SNIPPET_NODEJS___
 
-#___SNIPPET_DEB_REQUIREMENTS___
+RUN \
+chown odoo:odoo /home/odoo -R && \
+rm -Rf /usr/local/man && mkdir -p /usr/local/man/man1
+
 
 #___SNIPPET_PYTHON_INSTALL___
 
 #___SNIPPET_TRANSFER_VENV___
 
+#___SNIPPET_DEB_REQUIREMENTS___
+
+WORKDIR /usr/local/bin
+RUN rm python3 && ln -s /opt/venv/bin/python3
+
 WORKDIR /opt/odoo
+
+#___SNIPPET_COPY_OPENUPGRADE_LIB___
 
 #___SNIPPET_M1_BUG___
