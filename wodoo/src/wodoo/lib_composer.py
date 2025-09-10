@@ -482,7 +482,6 @@ def _copy_all_dockerfiles_to_run_dir_and_set_dockerfile_in_dockercompose(
 
     content = config.files["docker_compose"].read_text()
     content = yaml.safe_load(content)
-    dockerfile1 = None
     images_dir = config.dirs["images"]
     to_del = set()
     for service_name in content["services"]:
@@ -663,6 +662,9 @@ def _execute_after_compose(config, yml):
                 module_tools=module_tools,
                 Module=None,
             )
+    for service_name, service in _iterate_services(config, yml):
+        if not service.get('image') and not service.get('build'):
+            service['image'] = 'hello-world'
 
     for service_name, service in _iterate_services(config, yml):
         buildcontext = service.get("build", {}).get("context")
@@ -1098,9 +1100,6 @@ def _fix_contents(contents):
             if "env_file" in service:
                 if isinstance(service["env_file"], dict):
                     service["env_file"] = list(service["env_file"].keys())
-
-            if not service.get('image') and not service.get('build'):
-                service['image'] = 'hello-world'
 
     
 
