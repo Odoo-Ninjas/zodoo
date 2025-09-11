@@ -16,7 +16,7 @@ conf = list(filter(lambda x: bool((x or '').strip()) and not (x or '').strip().s
 
 print("Applying configuration:\n" + '\n'.join(conf))
 
-conf = list(map(lambda x: f"-c {x}", conf))
+conf = list(map(lambda x: f"-c {x}", map(lambda x1: x1.replace(" = ", "="), conf)))
 
 with open('/start.sh', 'w') as f:
     f.write('/usr/local/bin/docker-entrypoint.sh postgres ' + ' '.join(conf))
