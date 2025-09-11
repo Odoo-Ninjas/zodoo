@@ -38,6 +38,7 @@ services:
       # /.s.PGSQL.5432
       - $HOST_RUN_DIR/postgres.socket:/var/run/postgresql
       - $HOST_RUN_DIR/postgres.logs:/logs
+      - ${ODOO_IMAGES}/postgres/run.sh:/run.sh:ro
     environment:
       POSTGRES_HOST_AUTH_METHOD: password
 

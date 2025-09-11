@@ -664,43 +664,44 @@ def _execute_after_compose(config, yml):
             )
 
     for service_name, service in _iterate_services(config, yml):
-        buildcontext = service.get("build", {}).get("context")
-        if not buildcontext:
-            continue
-        buildcontext = Path(buildcontext)
-        if not buildcontext.exists():
-            continue
-        for module in buildcontext.rglob("__after_compose.py"):
-            if module.is_dir():
+        ignored_paths = list(map(Path, map(os.path.expanduser, ["~/.odoo"])))
+        for label in service['labels'].keys():
+            if not label.startswith('source.path.'):
                 continue
-            if module in visited:
+            path = Path(service['labels'][label]).parent
+            if path in ignored_paths:
                 continue
-            visited.add(module)
-            spec = importlib.util.spec_from_file_location(
-                "dynamic_loaded_module",
-                str(module),
-            )
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            started = arrow.get()
-            globals['Module'] = Module
-            try:
-                module.after_compose(
-                    config,
-                    settings,
-                    yml,
-                    globals,
+            for module in path.rglob("__after_compose.py"):
+                if module.is_dir():
+                    continue
+                if module in visited:
+                    continue
+                visited.add(module)
+                spec = importlib.util.spec_from_file_location(
+                    "dynamic_loaded_module",
+                    str(module),
                 )
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                started = arrow.get()
+                globals['Module'] = Module
+                try:
+                    module.after_compose(
+                        config,
+                        settings,
+                        yml,
+                        globals,
+                    )
 
-            except Exception as ex:
-                msg = traceback.format_exc()
-                click.secho(f"Failed: {module.__file__}", fg="red")
-                click.secho(msg)
-                sys.exit(-1)
+                except Exception as ex:
+                    msg = traceback.format_exc()
+                    click.secho(f"Failed: {module.__file__}", fg="red")
+                    click.secho(msg)
+                    sys.exit(-1)
 
-            duration = (arrow.get() - started).total_seconds()
-            if duration > 2 and config.verbose:
-                click.secho(f"Processing took {module} seconds", fg="yellow")
+                duration = (arrow.get() - started).total_seconds()
+                if duration > 2 and config.verbose:
+                    click.secho(f"Processing took {module} seconds", fg="yellow")
 
     settings.write()
     return yml
@@ -846,6 +847,7 @@ def __get_sorted_contents(paths):
         for service_name, service in ((yaml_content or {}).get('services', {}) or {}).items():
             service.setdefault("labels", {})
             service['labels'].setdefault('compose.order', int(order))
+            service['labels'][f'source.path.{path}'] = str(path)
         contents.append((order, yaml_content, path))
 
 

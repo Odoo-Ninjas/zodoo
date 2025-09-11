@@ -6,7 +6,8 @@ DB_USER=odoo
 DB_PWD=odoo
 DB_MAXCONN=5000
 POSTGRES_SHM_SIZE=1gb
-POSTGRES_CONFIG=shared_buffers=1000MB
-POSTGRES_VERSION=16
+POSTGRES_CONFIG=shared_preload_libraries='pg_stat_statements,auto_explain';
+#POSTGRES_CONFIG_LOGGING_DEMO=logging_collector=on;log_directory=/logs;log_filename=postgresql.log;log_statement=all
+POSTGRES_VERSION=17
 
 NAMED_ODOO_POSTGRES_VOLUME=
