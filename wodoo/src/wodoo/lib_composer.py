@@ -1089,6 +1089,7 @@ def _prepare_docker_compose_files(config, dest_file, paths):
 
 
 def _fix_contents(contents):
+    services_with_build = set()
     for content in contents:
         services = content.get("services", []) or []
         for servicename in list(services):
@@ -1098,12 +1099,15 @@ def _fix_contents(contents):
                 if isinstance(service["env_file"], dict):
                     service["env_file"] = list(service["env_file"].keys())
 
-            # remove services with no image or build context--> perhaps configurations in ~/.odoo/docker-compose.yml
-            if not service.get('image') and not service.get('build'):
-                services.pop(servicename)
-
+            if service.get('image') or service.get('build'):
+                services_with_build.add(servicename)
 
     
+    for content in contents:
+        services = content.get("services", []) or []
+        for servicename in list(services):
+            if servicename not in services_with_build:
+                services.pop(servicename, None)
 
 
 def _explode_referenced_machines(contents):
