@@ -662,9 +662,6 @@ def _execute_after_compose(config, yml):
                 module_tools=module_tools,
                 Module=None,
             )
-    for service_name, service in _iterate_services(config, yml):
-        if not service.get('image') and not service.get('build'):
-            service['image'] = 'hello-world'
 
     for service_name, service in _iterate_services(config, yml):
         buildcontext = service.get("build", {}).get("context")
@@ -1094,12 +1091,17 @@ def _prepare_docker_compose_files(config, dest_file, paths):
 def _fix_contents(contents):
     for content in contents:
         services = content.get("services", []) or []
-        for service in services:
-            service = services[service]
+        for servicename in list(services):
+            service = services[servicename]
             # turn {"env_file": {"FILE1": null} --> ["FILE1"]
             if "env_file" in service:
                 if isinstance(service["env_file"], dict):
                     service["env_file"] = list(service["env_file"].keys())
+
+            # remove services with no image or build context--> perhaps configurations in ~/.odoo/docker-compose.yml
+            if not service.get('image') and not service.get('build'):
+                services.pop(servicename)
+
 
     
 
