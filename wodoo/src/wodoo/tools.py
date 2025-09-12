@@ -686,7 +686,10 @@ def __safeget(array, index, exception_on_missing, file_options=None):
 
 
 def get_docker_version():
-    docker = search_env_path("docker")
+    try:
+        docker = search_env_path("docker")
+    except FileNotFoundError:
+        return None
     version = subprocess.check_output(
         [docker, "--version"], encoding="utf8"
     ).strip()
