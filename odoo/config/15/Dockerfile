@@ -80,7 +80,6 @@ RUN #___SNIPPET_APT_INSTALL___ \
 
 #___SNIPPET_DEB_REQUIREMENTS___
 
-# install python from compiled binaries
 #___SNIPPET_PYTHON_INSTALL___
 
 #___SNIPPET_SETUP_PYTHON_VENV___
