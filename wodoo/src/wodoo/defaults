@@ -34,5 +34,5 @@ IMAGES_BRANCH=master
 
 
 RUN_APT_CACHER=1
-APT_OPTIONS=-o Acquire::Retries=2 -y --no-install-recommends
+APT_OPTIONS=-o Acquire::Retries=1 -y --no-install-recommends
 NO_SOFFICE=1
