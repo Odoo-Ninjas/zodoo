@@ -996,37 +996,37 @@ def remove_webassets(conn):
     conn = conn.get_psyco_connection()
     cr = conn.cursor()
 
+    queries = []
     if current_version() >= 17.0:
-        queries = ["delete from ir_asset;"]
-    else:
-        urls_to_ignore = [
-            "/website/static/src/scss/options/user_values.custom.web.assets_common.scss",
-            "/website/static/src/scss/options/colors/user_color_palette.custom.web.assets_common.scss",
-            "/website/static/src/scss/options/colors/user_theme_color_palette.custom.web.assets_common.scss",
-            "/website/static/src/scss/options/colors/user_gray_color_palette.scss",
-            "/website/static/src/scss/options/user_values.scss",
-            "/web/static/src/scss/asset_styles_company_report.scss",
-        ]
-        ignore_url_str = ""
-        for url in urls_to_ignore:
-            ignore_url_str += f" and url != '{url}'"
+        queries += ["delete from ir_asset;"]
+    urls_to_ignore = [
+        "/website/static/src/scss/options/user_values.custom.web.assets_common.scss",
+        "/website/static/src/scss/options/colors/user_color_palette.custom.web.assets_common.scss",
+        "/website/static/src/scss/options/colors/user_theme_color_palette.custom.web.assets_common.scss",
+        "/website/static/src/scss/options/colors/user_gray_color_palette.scss",
+        "/website/static/src/scss/options/user_values.scss",
+        "/web/static/src/scss/asset_styles_company_report.scss",
+    ]
+    ignore_url_str = ""
+    for url in urls_to_ignore:
+        ignore_url_str += f" and url != '{url}'"
 
-        queries = [
-            f"delete from ir_attachment where res_model = 'ir.ui.view' and name ilike '%assets_%' {ignore_url_str};",
-            f"delete from ir_attachment where res_model = 'ir.ui.view' and name ilike '%web_editor.summernote%' {ignore_url_str};",
-            f"delete from ir_attachment where res_model = 'ir.ui.view' and name ilike '%.less%' {ignore_url_str};",
-            f"delete from ir_attachment where res_model = 'ir.ui.view' and name ilike '%.scss%' {ignore_url_str};",
-            f"delete from ir_attachment where name ilike '/web/%web%asset%' {ignore_url_str}",
-            f"delete from ir_attachment where name ilike 'import_bootstrap.less' {ignore_url_str}",
-            f"delete from ir_attachment where name ilike '%.less' {ignore_url_str}",
-            f"delete from ir_attachment where name ilike '%.scss' {ignore_url_str}",
-            f"delete from ir_attachment where name ilike 'web_icon_data' {ignore_url_str}",
-            f"delete from ir_attachment where name ilike 'web_editor.summernote.%' {ignore_url_str}",
-            f"delete from ir_attachment where name ilike 'web.assets_backend_prod_only.js'",
-            # following is like odoo 16:
-            f"delete from ir_attachment where name ilike '%.assets_%.css' and res_model = 'ir.ui.view'",
-            f"delete from ir_attachment where name ilike '%.assets_%.js' and res_model = 'ir.ui.view'",
-        ]
+    queries += [
+        f"delete from ir_attachment where res_model = 'ir.ui.view' and name ilike '%assets_%' {ignore_url_str};",
+        f"delete from ir_attachment where res_model = 'ir.ui.view' and name ilike '%web_editor.summernote%' {ignore_url_str};",
+        f"delete from ir_attachment where res_model = 'ir.ui.view' and name ilike '%.less%' {ignore_url_str};",
+        f"delete from ir_attachment where res_model = 'ir.ui.view' and name ilike '%.scss%' {ignore_url_str};",
+        f"delete from ir_attachment where name ilike '/web/%web%asset%' {ignore_url_str}",
+        f"delete from ir_attachment where name ilike 'import_bootstrap.less' {ignore_url_str}",
+        f"delete from ir_attachment where name ilike '%.less' {ignore_url_str}",
+        f"delete from ir_attachment where name ilike '%.scss' {ignore_url_str}",
+        f"delete from ir_attachment where name ilike 'web_icon_data' {ignore_url_str}",
+        f"delete from ir_attachment where name ilike 'web_editor.summernote.%' {ignore_url_str}",
+        f"delete from ir_attachment where name ilike 'web.assets_backend_prod_only.js'",
+        # following is like odoo 16:
+        f"delete from ir_attachment where name ilike '%.assets_%.css' and res_model = 'ir.ui.view'",
+        f"delete from ir_attachment where name ilike '%.assets_%.js' and res_model = 'ir.ui.view'",
+    ]
     try:
         with click.progressbar(
             queries, label="Executing queries", length=len(queries)
