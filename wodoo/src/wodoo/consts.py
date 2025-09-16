@@ -29,7 +29,6 @@ def resolve_profiles(profile):
 default_dirs = {
     "admin": "admin",
     "odoo_home": "",
-    "proxy_configs_dir": "${run}/proxy",
     "run": "${run}",
     "run/proxy": "${run}/proxy",
     "run/restore": "${run}/restore",
