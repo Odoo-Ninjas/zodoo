@@ -19,9 +19,6 @@ def after_compose(config, settings, yml, globals):
 def collect_proxy_config(yml):
     proxy_backends = _load_backends(yml)
     for service_name, service in yml['services'].items():
-        if not service.get("build"):
-            continue
-
         if service.get("labels", {}).get("proxy_config") == "0":
             continue
 

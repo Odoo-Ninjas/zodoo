@@ -29,7 +29,6 @@ def resolve_profiles(profile):
 default_dirs = {
     "admin": "admin",
     "odoo_home": "",
-    "proxy_configs_dir": "${run}/proxy",
     "run": "${run}",
     "run/proxy": "${run}/proxy",
     "run/restore": "${run}/restore",
@@ -81,10 +80,13 @@ default_files = {
 }
 
 try:
-    subprocess.run([_search_path("docker"), "compose"], check=True, capture_output=True)
+    subprocess.run([str(_search_path("docker")), "compose"], check=True, capture_output=True)
     default_files["docker_compose_bin"] = [_search_path("docker"), "compose"]
-except subprocess.CalledProcessError:
-    default_files["docker_compose_bin"] = [_search_path("docker-compose")]
+except (subprocess.CalledProcessError, FileNotFoundError):
+    try:
+        default_files["docker_compose_bin"] = [str(_search_path("docker-compose"))]
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        default_files["docker_compose_bin"] = None
 
 default_commands = {
     "dc": default_files["docker_compose_bin"]

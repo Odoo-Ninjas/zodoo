@@ -186,8 +186,8 @@ RUN echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
 
 # pudb config
 RUN mkdir /home/odoo/.config/pudb -p
-RUN chown odoo:odoo /home/odoo/.config -R
 ADD pudb.cfg /home/odoo/.config/pudb
+RUN chown odoo:odoo /home/odoo/.config -R
 
 RUN touch /helpme
 
