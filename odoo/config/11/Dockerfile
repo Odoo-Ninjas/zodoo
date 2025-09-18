@@ -189,6 +189,7 @@ RUN echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
 RUN mkdir /home/odoo/.config/pudb -p
 ADD pudb.cfg /home/odoo/.config/pudb
 RUN chown odoo:odoo /home/odoo/.config -R
+RUN python3 -mpip install pudb==2022.1.3
 
 RUN touch /helpme
 
