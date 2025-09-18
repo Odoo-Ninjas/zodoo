@@ -160,7 +160,8 @@ ENV WODOO_SRC=/opt/wodoo
 ENV WODOO_PIPX_HOME=/opt/wodoo_pipx
 ENV WODOO_ENV_DIR=/opt/wodoo_pipx/venvs/wodoo
 ENV WODOO_PYTHON=${WODOO_ENV_DIR}/bin/python3
-RUN git clone --depth 1 https://github.com/marcwimmer/wodoo $WODOO_SRC
+RUN git clone --depth 1 https://github.com/Odoo-Ninjas/zodoo /opt/zodoo
+RUN rsync /opt/zodoo/wodoo/src/ $WODOO_SRC/ -ar
 
 RUN rm $WODOO_SRC/wodoo/requirements.txt
 COPY config/$ODOO_VERSION/wodoo_requirements.txt $WODOO_SRC/wodoo/requirements.txt
