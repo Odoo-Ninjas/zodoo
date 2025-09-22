@@ -8,6 +8,7 @@ services:
     restart: "unless-stopped"
     command: ["daemon"]
     environment:
+      - odoo_data_dir=/opt/files
       - PROJECT_NAME=${PROJECT_NAME}
     volumes:
       - "$ODOO_IMAGES/cronjobs/bin/:/usr/local/bin/:ro"
@@ -21,3 +22,4 @@ services:
       - /var/lib/docker:/var/lib/docker
       - "${ODOO_IMAGES}/cronjobs/bin/postgres.py:/usr/local/bin/postgres.py"
       - "${ODOO_IMAGES}/cronjobs/bin/run.py:/usr/local/bin/run.py"
+      - ${ODOO_FILES}:/opt/files

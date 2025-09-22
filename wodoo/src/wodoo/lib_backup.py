@@ -210,7 +210,7 @@ def backup_files(config, filename):
 
     files_dir = _get_filestore_folder(config)
     if not files_dir.exists():
-        return
+        raise Exception(f"Files directory not found: {files_dir}")
     subprocess.check_call(["tar", "cfz", filepath, "."], cwd=files_dir)
     __apply_dump_permissions(filepath)
     click.secho(f"Backup files done to {filepath}", fg="green")

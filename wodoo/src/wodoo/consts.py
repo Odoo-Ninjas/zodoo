@@ -1,4 +1,5 @@
 from .tools import _search_path
+import os
 import subprocess
 
 DOCKER_PROFILES = ["manual", "auto"]
@@ -40,7 +41,7 @@ default_dirs = {
     "run_native_requirements": "${run}/requirements",  # requirement files
     "run_native_out_dir": "${run}/odoo_outdir",
     "odoo_tools": "$odoo_home",
-    "odoo_data_dir": "~/.odoo/files",
+    "odoo_data_dir": os.getenv("odoo_data_dir") or os.getenv("ODOO_DATA_DIR") or "~/.odoo/files",
     "user_conf_dir": "~/.odoo",
     "delegator": "~/.odoo/delegator",
     "images": "~/.odoo/images",
