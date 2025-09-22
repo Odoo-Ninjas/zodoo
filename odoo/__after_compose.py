@@ -479,6 +479,7 @@ def after_compose(config, settings, yml, globals):
             url = f"https://www.python.org/ftp/python/{v}/Python-{v}.tgz"
             click.secho(f"Downloading {url}")
             with globals["tools"].download_file(url) as filepath:
+                python_tgz.parent.mkdir(exist_ok=True, parents=True)
                 shutil.copy(filepath, python_tgz)
 
         PYTHON_VERSION = tuple([int(x) for x in config.ODOO_PYTHON_VERSION.split(".")])
