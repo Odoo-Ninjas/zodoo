@@ -352,7 +352,7 @@ def make_customs(config, ctx, path, version, odoosh):
     import inquirer
     from .tools import copy_dir_contents
 
-    dir = get_template_dir()
+    dir = get_template_dir(config)
     src_dir = dir / "customs_template"
 
     def _floatify(x):
@@ -394,22 +394,8 @@ def make_customs(config, ctx, path, version, odoosh):
     sys.exit(0)
 
 
-def get_template_dir():
-    path = Path(os.path.expanduser("~/.odoo/templates"))
-    url = "https://github.com/marcwimmer/wodoo-templates"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if not path.exists():
-        subprocess.check_call(["git", "clone", url, path])
-    try:
-        subprocess.check_call(
-            ["git", "pull", "--rebase=false", "--autostash", "--quiet"],
-            cwd=path,
-        )
-    except:
-        if path.exists():
-            rmtree(None, path)
-        subprocess.check_call(["git", "clone", url, path])
-    return path
+def get_template_dir(config):
+    return config.dirs['images'] / 'templates'
 
 
 def make_module(parent_path, module_name):

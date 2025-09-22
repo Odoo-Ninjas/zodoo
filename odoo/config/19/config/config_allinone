@@ -1,0 +1,15 @@
+[options]
+max_cron_threads = __ODOO_MAX_CRON_THREADS__
+#log_handler = :DEBUG,openerp:DEBUG,werkzeug:DEBUG,odoo.addons.queue_job:DEBUG
+#log_level = debug
+log_handler = :ERROR,openerp:ERROR,werkzeug:ERROR,odoo.addons.queue_job:ERROR
+log_level = error
+
+workers = __ODOO_QUEUEJOBS_WORKERS__
+xmlrpc_port = 8069
+
+limit_memory_hard = __LIMIT_MEMORY_HARD_WEB__
+limit_memory_soft = __LIMIT_MEMORY_SOFT_WEB__
+
+[queue_job]
+channels = __ODOO_QUEUEJOBS_CHANNELS__

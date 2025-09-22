@@ -140,7 +140,7 @@ def suggest_postgres_conf(workload = "oltp", max_connections: int = 100, pg_vers
         "effective_cache_size": human_bytes(effective_cache_size),
         "work_mem": human_bytes(work_mem),
         "maintenance_work_mem": human_bytes(maintenance_work_mem),
-        "max_connections": str(max_connections),
+        "max_connections": str(2000),
         "checkpoint_completion_target": "0.9",
         "max_wal_size": human_bytes(max_wal_size),
         "min_wal_size": human_bytes(min_wal_size),

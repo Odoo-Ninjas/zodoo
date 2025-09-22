@@ -1,0 +1,10 @@
+[options]
+http_enable = False
+log_level = debug
+log_handler = :DEBUG
+max_cron_threads =0
+workers = 0
+upgrade_path = /opt/src/openupgrade/openupgrade_scripts/scripts
+
+limit_memory_hard = __LIMIT_MEMORY_HARD_MIGRATION__
+limit_memory_soft = __LIMIT_MEMORY_SOFT_MIGRATION__

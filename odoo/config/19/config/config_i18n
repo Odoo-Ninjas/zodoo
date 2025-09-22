@@ -1,0 +1,10 @@
+[options]
+log_level = debug
+log_handler = :DEBUG
+max_cron_threads = 0
+workers = 0
+http_enable = False
+
+
+limit_memory_hard = __LIMIT_MEMORY_HARD_WEB__
+limit_memory_soft = __LIMIT_MEMORY_SOFT_WEB__

@@ -1,0 +1,9 @@
+{
+    "install": [
+    ],
+    "version": 12.0,
+    "addons_paths": [
+        "odoo/odoo/addons",
+        "odoo/addons",
+    ]
+}

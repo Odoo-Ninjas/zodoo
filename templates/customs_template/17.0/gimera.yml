@@ -1,0 +1,382 @@
+common:
+  vars:
+    VERSION: '17.0'
+repos:
+  - path: odoo
+    url: https://github.com/odoo/odoo
+    branch: ${VERSION}
+    type: integrated
+    patches: 
+      - patches/odooodoo
+
+  # - path: enterprise
+  #   url: https://github.com/odoo/enterprise
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches: 
+  #     - patches/enterprise
+
+  - path: "addons_OCA/queue"
+    url: https://github.com/OCA/queue
+    branch: ${VERSION}
+    type: integrated
+    patches:
+      - patches/addons_OCA/queue
+
+  - path: "addons_tools/anonymize"
+    url: https://github.com/marcwimmer/odoo-anonymize.git
+    branch: ${VERSION}
+    type: integrated
+
+  - path: "addons_tools/cleardb"
+    url: https://github.com/marcwimmer/odoo-cleardb.git
+    branch: ${VERSION}
+    type: integrated
+
+  # - path: "addons_OCA/account-financial-tools"
+  #   url: https://github.com/OCA/account-financial-tools
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/account-financial-tools.patches
+
+  # - path: "addons_OCA/purchase-workflow"
+  #   url: https://github.com/OCA/purchase-workflow
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/purchase-workflow.patches
+
+  # - path: "addons_OCA/contract"
+  #   url: https://github.com/OCA/contract
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/contract.patches
+
+  # - path: "addons_OCA/project-service"
+  #   url: https://github.com/OCA/project-service
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/project-service.patches
+
+  # - path: "addons_OCA/account-closing"
+  #   url: https://github.com/OCA/account-closing
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/account-closing.patches
+
+  # - path: "addons_OCA/commission"
+  #   url: https://github.com/OCA/commission
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/commission.patches
+
+  # - path: "addons_OCA/management-system"
+  #   url: https://github.com/OCA/management-system
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/management-system.patches
+
+  # - path: "addons_OCA/bank-statement-import"
+  #   url: https://github.com/OCA/bank-statement-import
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/bank-statement-import.patches
+
+  # - path: "addons_OCA/manufacture-reporting"
+  #   url: https://github.com/OCA/manufacture-reporting
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/manufacture-reporting.patches
+
+  # - path: "addons_OCA/server-tools"
+  #   url: https://github.com/OCA/server-tools
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/server-tools.patches
+
+  # - path: "addons_OCA/l10n-germany"
+  #   url: https://github.com/OCA/l10n-germany
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/l10n-germany.patches
+
+  # - path: "addons_OCA/carrier-delivery"
+  #   url: https://github.com/OCA/carrier-delivery
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/carrier-delivery.patches
+
+  # - path: "addons_OCA/sale-reporting"
+  #   url: https://github.com/OCA/sale-reporting
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/sale-reporting.patches
+
+  # - path: "addons_OCA/account-invoice-reporting"
+  #   url: https://github.com/OCA/account-invoice-reporting
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/account-invoice-reporting.patches
+
+  # - path: "addons_OCA/stock-logistics-workflow"
+  #   url: https://github.com/OCA/stock-logistics-workflow
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/stock-logistics-workflow.patches
+
+  # - path: "addons_OCA/web"
+  #   url: https://github.com/OCA/web
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/web.patches
+
+  # - path: "addons_OCA/bank-statement-reconcile"
+  #   url: https://github.com/OCA/bank-statement-reconcile
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/bank-statement-reconcile.patches
+
+  # - path: "addons_OCA/hr-timesheet"
+  #   url: https://github.com/OCA/hr-timesheet
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/hr-timesheet.patches
+
+  # - path: "addons_OCA/website"
+  #   url: https://github.com/OCA/website
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/website.patches
+
+  # - path: "addons_OCA/sale-workflow"
+  #   url: https://github.com/OCA/sale-workflow
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/sale-workflow.patches
+
+  # - path: "addons_OCA/crm"
+  #   url: https://github.com/OCA/crm
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/crm.patches
+
+  # - path: "addons_OCA/bank-payment"
+  #   url: https://github.com/OCA/bank-payment
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/bank-payment.patches
+
+  # - path: "addons_OCA/product-variant"
+  #   url: https://github.com/OCA/product-variant
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/product-variant.patches
+
+  # - path: "addons_OCA/project-reporting"
+  #   url: https://github.com/OCA/project-reporting
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/project-reporting.patches
+
+  # - path: "addons_OCA/stock-logistics-warehouse"
+  #   url: https://github.com/OCA/stock-logistics-warehouse
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/stock-logistics-warehouse.patches
+
+  # - path: "addons_OCA/margin-analysis"
+  #   url: https://github.com/OCA/margin-analysis
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/margin-analysis.patches
+
+  # - path: "addons_OCA/report-print-send"
+  #   url: https://github.com/OCA/report-print-send
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/report-print-send.patches
+
+  # - path: "addons_OCA/account-invoicing"
+  #   url: https://github.com/OCA/account-invoicing
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/account-invoicing.patches
+
+  # - path: "addons_OCA/stock-logistics-barcode"
+  #   url: https://github.com/OCA/stock-logistics-barcode
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/stock-logistics-barcode.patches
+
+  # - path: "addons_OCA/account-financial-reporting"
+  #   url: https://github.com/OCA/account-financial-reporting
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/account-financial-reporting.patches
+
+  # - path: "addons_OCA/pos"
+  #   url: https://github.com/OCA/pos
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/pos.patches
+
+  # - path: "addons_OCA/multi-company"
+  #   url: https://github.com/OCA/multi-company
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/multi-company.patches
+
+  # - path: "addons_OCA/knowledge"
+  #   url: https://github.com/OCA/knowledge
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/knowledge.patches
+
+  # - path: "addons_OCA/partner-contact"
+  #   url: https://github.com/OCA/partner-contact
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/partner-contact.patches
+
+  # - path: "addons_OCA/e-commerce"
+  #   url: https://github.com/OCA/e-commerce
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/e-commerce.patches
+
+  # - path: "addons_OCA/product-attribute"
+  #   url: https://github.com/OCA/product-attribute
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/product-attribute.patches
+
+  # - path: "addons_OCA/connector"
+  #   url: https://github.com/OCA/connector
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/connector.patches
+
+  # - path: "addons_OCA/hr"
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/hr.patches
+
+  # - path: "addons_OCA/stock-logistics-reporting"
+  #   url: https://github.com/OCA/stock-logistics-reporting
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/stock-logistics-reporting.patches
+
+  # - path: "addons_OCA/server-backend"
+  #   url: https://github.com/OCA/server-backend
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/server-backend.patches
+
+  # - path: "addons_OCA/account-analytic"
+  #   url: https://github.com/OCA/account-analytic
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/account-analytic.patches
+
+  # - path: "addons_OCA/account-payment"
+  #   url: https://github.com/OCA/account-payment
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/account-payment.patches
+
+  # - path: "addons_OCA/server-ux"
+  #   url: https://github.com/OCA/server-ux
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/server-ux.patches
+
+  # - path: "addons_OCA/account-consolidation"
+  #   url: https://github.com/OCA/account-consolidation
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/account-consolidation.patches
+
+  # - path: "addons_OCA/l10n-switzerland"
+  #   url: https://github.com/OCA/l10n-switzerland
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/l10n-switzerland.patches
+
+  # - path: "addons_OCA/geospatial"
+  #   url: https://github.com/OCA/geospatial
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/geospatial.patches
+
+  # - path: "addons_OCA/reporting-engine"
+  #   url: https://github.com/OCA/reporting-engine
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/reporting-engine.patches
+
+  # - path: "addons_OCA/server-auth"
+  #   url: https://github.com/OCA/server-auth
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/server-auth.patches
+
+  # - path: "addons_OCA/rma"
+  #   url: https://github.com/OCA/rma
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/rma.patches
+
+  # - path: "addons_OCA/manufacture"
+  #   url: https://github.com/OCA/manufacture
+  #   branch: ${VERSION}
+  #   type: integrated
+  #   patches:
+  #     - addons_OCA/manufactur.patches
