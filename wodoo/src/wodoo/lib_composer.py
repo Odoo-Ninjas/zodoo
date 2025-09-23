@@ -1340,9 +1340,13 @@ def get_docker_host_ip():
 def _merge_odoo_dockerfile(config):
     """
     If customs contains dockerfile, then append their execution
-    in the main dockerfile
+    in the main dockerfile of odoo
     """
     import yaml
+    sync_folder(
+        config.dirs['images'] / 'odoo',
+        config.dirs['run.build.odoo'],
+    )
 
     content = config.files["docker_compose"].read_text()
     content = yaml.safe_load(content)
@@ -1374,10 +1378,11 @@ def _merge_odoo_dockerfile(config):
             Path(dockerfile1).read_text()
         )
         appendix_dir_root = (
-            config.dirs["images"] / "odoo" / "Dockerfile.appendix.dir"
+            config.dirs["run.build.odoo"] / "Dockerfile.appendix.dir"
         )
         if appendix_dir_root.exists():
             shutil.rmtree(appendix_dir_root)
+
 
         for file in bashfind(config.WORKING_DIR, "Dockerfile.appendix"):
             dir = file.parent
@@ -1388,12 +1393,7 @@ def _merge_odoo_dockerfile(config):
             content = content.replace("${PROJECT_NAME}", config.project_name)
             file.write_text(content)
             # probably a dir?
-            dest = (
-                config.dirs["images"]
-                / "odoo"
-                / "Dockerfile.appendix.dir"
-                / dir.name
-            )
+            dest = appendix_dir_root / dir.name
             if dest.exists() and dest.is_file():
                 dest.unlink()
             dest.mkdir(parents=True, exist_ok=True)
