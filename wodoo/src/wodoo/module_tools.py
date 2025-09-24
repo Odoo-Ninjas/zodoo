@@ -398,7 +398,7 @@ def get_template_dir(config):
     return config.dirs['images'] / 'templates'
 
 
-def make_module(parent_path, module_name):
+def make_module(config, parent_path, module_name):
     """
     Creates a new odoo module based on a provided template.
 
@@ -410,7 +410,7 @@ def make_module(parent_path, module_name):
         raise Exception("Path already exists: {}".format(complete_path))
     odoo_root = os.environ["ODOO_HOME"]
 
-    source = get_template_dir()
+    source = get_template_dir(config)
     shutil.copytree(
         str(source / "module_template" / str(version)), complete_path
     )
