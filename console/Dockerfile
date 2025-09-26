@@ -72,3 +72,6 @@ RUN chown odoo:odoo /home/odoo/.profile && chmod a+x /home/odoo/.profile
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod a+x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
+
+COPY set_docker_group.sh /usr/bin
+RUN chmod a+x /usr/bin/set_docker_group.sh
