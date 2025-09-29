@@ -6,12 +6,30 @@ local request_proto =
 ngx.req.set_header("x-forwarded-proto", request_proto)
 
 local myngx = require("myngx")
+local basicauth = require("basicauth")
 local hostname = "{hostname}"
 local port = "{port}"
 local ip = myngx.get_ip(hostname)
 
+local user = "{auth_user}"
+local pass_var = "{auth_pass}"
+
+-- authorization section
+if pass_var and pass_var ~= "" then
+    -- Lookup environment variable by that name
+    local pass = os.getenv("{auth_pass}")
+    if not pass then
+        ngx.log(ngx.ERR, "Auth pass env variable '" .. pass_var .. "' not set")
+        return ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
+    end
+
+    -- Run auth
+    basicauth.basicauth(user, pass)
+else
+    ngx.log(ngx.INFO, "No auth_pass set, skipping basicauth()")
+end
+
 -- If hostname is already a URL, just use it as-is
-local ip = myngx.get_ip(hostname)
 if ip then
     ngx.var['backend'] = "http://" .. ip .. ":" .. port
 end

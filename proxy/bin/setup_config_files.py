@@ -10,6 +10,7 @@ proxy_backends = json.loads(base64.b64decode(os.environ.get("PROXY_BACKENDS", "{
 sample = """
 # proxy_host: odoo:8069
 # proxy_host: os.getenv("PROXY_ODOO_HOST") or "odoo:8069"
+# auth_basic:admin:CONSOLE_PASSWORD
 location /mailer {
     rewrite ^/mailer$ /mailer/ break;
     set $backend $default_target;
@@ -25,16 +26,33 @@ location /mailer {
 }
 """
 
+
 def parse_host_port(value):
     """Parse 'host:port' into (host, port) strings."""
     host, port = value.split(":", 1)
     return host.strip(), port.strip()
 
-PROXY_LINE_RE = re.compile(r'^\s*#.*?proxy_host:\s*(.+?)\s*$', re.IGNORECASE | re.MULTILINE)
+
+def resolve_auth_basic(cfg):
+    conf = cfg.get("nginx_conf", "")
+    for line in (conf or "").splitlines():
+        if "auth_basic:" in line:
+            parts = line.split("auth_basic:", 1)[1].strip().split(":", 1)
+            if len(parts) != 2:
+                raise Exception("Requires username:password")
+            return tuple(parts)
+    return "", ""
+
+
+PROXY_LINE_RE = re.compile(
+    r"^\s*#.*?proxy_host:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE
+)
+
+
 def resolve_proxy_host(backend):
-    if backend.get('external'):
-        return backend['external'], None
-    config  = backend['nginx_conf']
+    if backend.get("external"):
+        return backend["external"], None
+    config = backend["nginx_conf"]
     m = PROXY_LINE_RE.search(config)
     if not m:
         return None, None
@@ -44,10 +62,11 @@ def resolve_proxy_host(backend):
     host = os.getenv("project_name") + "_" + host
     return host, port
 
+
 # Directories from ENV with fallback defaults
-LUA_DIR = Path(os.environ['LUA_DIR'])
-CONF_DIR = Path(os.environ['CONF_DIR'])
-LUA_TEMPLATE = Path(os.environ['LUA_TEMPLATE']).read_text()
+LUA_DIR = Path(os.environ["LUA_DIR"])
+CONF_DIR = Path(os.environ["CONF_DIR"])
+LUA_TEMPLATE = Path(os.environ["LUA_TEMPLATE"]).read_text()
 
 # Ensure dirs exist
 LUA_DIR.mkdir(parents=True, exist_ok=True)
@@ -56,24 +75,33 @@ CONF_DIR.mkdir(parents=True, exist_ok=True)
 for name, cfg in proxy_backends.items():
     print("Processing backend:", name)
     host, port = resolve_proxy_host(cfg)
+    auth_user, auth_pass = resolve_auth_basic(cfg)
     if not host:
-        print(f"no # proxy_host: declaration found for {name} in {cfg['nginx_conf']}, skipping")
+        print(
+            f"no # proxy_host: declaration found for {name} in {cfg['nginx_conf']}, skipping"
+        )
         continue
 
     lua_filename = None
-    if not cfg.get('external'):
+    if not cfg.get("external"):
         # Lua file
         lua_filename = LUA_DIR / f"dynamic_upstream_{name}.lua"
         with open(lua_filename, "w") as f:
-            f.write(LUA_TEMPLATE.format(hostname=host, port=port))
+            f.write(
+                LUA_TEMPLATE.format(
+                    hostname=host, port=port, auth_user=auth_user, auth_pass=auth_pass
+                )
+            )
 
     # Nginx conf file
     conf_filename = CONF_DIR / f"{name}.conf"
-    conf = cfg['nginx_conf']
+    conf = cfg["nginx_conf"]
     with open(conf_filename, "w") as f:
         if lua_filename:
             conf = conf.replace("{lua_resolve_host}", str(lua_filename))
         f.write(conf.strip() + "\n")
 
-    external = cfg.get('external')
-    print(f"Generated {lua_filename or f'<no luafilename because external host: {external}>'} and {conf_filename}")
+    external = cfg.get("external")
+    print(
+        f"Generated {lua_filename or f'<no luafilename because external host: {external}>'} and {conf_filename}"
+    )

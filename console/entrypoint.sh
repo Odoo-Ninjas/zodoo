@@ -10,8 +10,11 @@ echo "DB_USER=$DB_USER" >> /home/odoo/env
 echo "DB_PWD=$DB_PWD" >> /home/odoo/env
 echo "DBNAME=$DBNAME" >> /home/odoo/env
 
+echo "-----------------------------------"
+echo "Console access with /console possible username admin and password"
+echo "$CONSOLE_PASSWORD"
+echo "-----------------------------------"
+
 echo "Starting ssh daemon"
 /usr/sbin/sshd -D
-
-
 sleep infinity
