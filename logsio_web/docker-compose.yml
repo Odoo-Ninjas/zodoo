@@ -11,6 +11,7 @@ services:
         # LOGIO_SERVER_UI_BUILD_PATH: '/logs'
     labels:
       proxy_config: ${ODOO_IMAGES}/logsio_web/proxy/logs.conf
+      proxy_config_socket: ${ODOO_IMAGES}/logsio_web/proxy/logs_socket.conf
     environment:
       TIMEZONE: Europe/Berlin
       # LOG_CONTAINER: odoo
