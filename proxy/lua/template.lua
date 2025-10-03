@@ -15,16 +15,14 @@ local user = "{auth_user}"
 local pass_var = "{auth_pass}"
 
 -- authorization section
+ngx.log(ngx.ERR, "\nPass var:'" .. pass_var .. "' not set")
 if pass_var and pass_var ~= "" then
     -- Lookup environment variable by that name
-    local pass = os.getenv("{auth_pass}")
-    if not pass then
-        ngx.log(ngx.ERR, "Auth pass env variable '" .. pass_var .. "' not set")
-        return ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
+    local pass = os.getenv(pass_var)
+    if pass ~= "" then
+        -- Run auth
+        basicauth.basicauth(user, pass)
     end
-
-    -- Run auth
-    basicauth.basicauth(user, pass)
 else
     ngx.log(ngx.INFO, "No auth_pass set, skipping basicauth()")
 end
