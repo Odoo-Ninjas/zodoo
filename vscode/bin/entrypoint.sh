@@ -103,8 +103,10 @@ VSCODE_PERMA_EXTENSIONS_FOLDER
 
 install_extensions \
     d-biehl.robotcode \
-    MarcWimmerITE.odoobrowserITE \
     ms-python.python
+for vsix in $VSIX_DIR/*.vsix; do
+    install_extensions "$vsix"
+done
 rsync "$EXTENSIONS_DIR/" "$VSCODE_PERMA_EXTENSIONS_FOLDER/" -ar
 touch "$VSCODE_PERMA_EXTENSIONS_FOLDER/.notempty"
 
