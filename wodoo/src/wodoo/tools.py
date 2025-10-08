@@ -878,10 +878,12 @@ def __try_to_set_owner(UID, path, abort_if_failed=True, verbose=False):
     for line in filter(bool, res):
         try:
             try:
-                subprocess.check_output(["chown", str(UID), line])
+                if Path(line).exists():
+                    subprocess.check_output(["chown", str(UID), line])
             except:
                 try:
-                    subprocess.check_output(["sudo", "chown", str(UID), line])
+                    if Path(line).exists():
+                        subprocess.check_output(["sudo", "chown", str(UID), line])
                 except Exception as ex:
                     if abort_if_failed:
                         abort(
@@ -890,12 +892,14 @@ def __try_to_set_owner(UID, path, abort_if_failed=True, verbose=False):
                         )
 
             try:
-                subprocess.check_output(["chgrp", str(primary_group), line])
+                if Path.exists(line):
+                    subprocess.check_output(["chgrp", str(primary_group), line])
             except:
                 try:
-                    subprocess.check_output(
-                        ["sudo", "chgrp", str(primary_group), line]
-                    )
+                    if Path.exists(line):
+                        subprocess.check_output(
+                            ["sudo", "chgrp", str(primary_group), line]
+                        )
                 except:
                     pass
 
