@@ -224,9 +224,9 @@ def run_tests(ctx, config, only_one_attempt, filter, no_db_reset):
                 else:
                     success.append(file)
 
-            success_quote = round((1.0 - float(len(failed)) / float(len(ran_tests))) * 100, 1)
+            success_quote = round((float(len(success)) / float(len(ran_tests)) * 100.0), 1)
             elapsed = (datetime.now() - started).total_seconds()
-            click.secho(f"Success quote: {success_quote}% - Time: {elapsed} seconds", fg="yellow")
+            click.secho(f"Success quote: {success_quote}% - Time: {elapsed} seconds - {len(ran_tests)} tests", fg="yellow")
             for i, txtfile in enumerate(ran_tests, 1):
                 color = "green" if txtfile not in failed else "red"
                 click.secho(f"{i}: {txtfile}", fg=color)
