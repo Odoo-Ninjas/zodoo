@@ -113,7 +113,10 @@ def update_module_file(module):
 @odoo_module.command(name="run-tests")
 @pass_config
 @click.pass_context
-def run_tests(ctx, config):
+@click.option("-1", "--only-one-attempt", is_flag=True, help="If test file fails, no reset happens - just continued to next one")
+@click.option("-f", "--filter", help="Filter test names (simple wildcard)")
+@click.option("-R", "--no-db-reset", is_flag=True, help="No database reset - uses current database")
+def run_tests(ctx, config, only_one_attempt, filter, no_db_reset):
     start_postgres_if_local(ctx, config)
     started = datetime.now()
     if not config.devmode and not config.force:
@@ -123,7 +126,7 @@ def run_tests(ctx, config):
         )
         sys.exit(-1)
 
-    if not config.force:
+    if not config.force and not no_db_reset:
         click.secho(
             (
                 "Please provide parameter -f - database will be dropped. Otherwise "
@@ -140,7 +143,7 @@ def run_tests(ctx, config):
         return
 
     def reset_db():
-        if config.force:
+        if not no_db_reset:
             Commands.invoke(
                 ctx, "wait_for_container_postgres", missing_ok=True
             )
@@ -164,12 +167,12 @@ def run_tests(ctx, config):
         # identify test files and run them, otherwise tests of dependent modules are run
         ran_tests = []
         for file in sorted(testfiles):
+            if filter:
+                if not re.search(filter.replace("*", ".*"), str(file)):
+                    continue
             file = module.path / file
             ran_tests.append(file)
 
-            click.secho(f"So far tests being run:", fg="yellow")
-            for i, txtfile in enumerate(ran_tests, 1):
-                print(f"{i}: {txtfile}")
 
             if config.use_docker:
 
@@ -187,58 +190,66 @@ def run_tests(ctx, config):
 
                 res = run_test(file)
                 if res:
-                    click.secho(
-                        f"Test {file} failed on first attempt. Resetting db and trying once more.",
-                        fg="red",
-                    )
-                    reset_db()
-                    res = run_test(file)
-                    if res:
+                    if only_one_attempt:
                         failed.append(file)
-                        click.secho(
-                            f"Failed, running again with debug on: {file}",
-                            fg="red",
-                            bold=True,
-                        )
-                        res = __cmd_interactive(
-                            config,
-                            *(
-                                [
-                                    "run",
-                                    "--rm",
-                                    "odoo",
-                                    "/odoolib/unit_test.py",
-                                    file,
-                                    "--log-level=debug",
-                                ]
-                            ),
-                        )
                     else:
-                        success.append(file)
+                        click.secho(
+                            f"Test {file} failed on first attempt. Resetting db and trying once more.",
+                            fg="red",
+                        )
+                        reset_db()
+                        res = run_test(file)
+                        if res:
+                            failed.append(file)
+                            click.secho(
+                                f"Failed, running again with debug on: {file}",
+                                fg="red",
+                                bold=True,
+                            )
+                            __cmd_interactive(
+                                config,
+                                *(
+                                    [
+                                        "run",
+                                        "--rm",
+                                        "odoo",
+                                        "/odoolib/unit_test.py",
+                                        file,
+                                        "--log-level=debug",
+                                    ]
+                                ),
+                            )
+                        else:
+                            success.append(file)
                 else:
                     success.append(file)
 
-    elapsed = datetime.now() - started
-    click.secho(f"Time: {elapsed}", fg="yellow")
+            success_quote = round((1.0 - float(len(failed)) / float(len(ran_tests))) * 100, 1)
+            elapsed = (datetime.now() - started).total_seconds()
+            click.secho(f"Success quote: {success_quote}% - Time: {elapsed} seconds", fg="yellow")
+            for i, txtfile in enumerate(ran_tests, 1):
+                color = "green" if txtfile not in failed else "red"
+                click.secho(f"{i}: {txtfile}", fg=color)
+
+    click.secho(f"Time: {elapsed} seconds", fg="yellow")
 
     # in force-mode shut down
-    if config.force:
+    if config.force and not no_db_reset:
         for _ in range(3):
             try:
                 Commands.invoke(ctx, "down", volumes=True)
             except:
                 time.sleep(3)
 
+    for mod in success:
+        click.secho(str(mod), fg="green")
+    click.secho("Tests OK", fg="green")
+
     if failed:
         click.secho("Tests failed: ", fg="red")
         for mod in failed:
             click.secho(str(mod), fg="red")
         sys.exit(-1)
-    else:
-        for mod in success:
-            click.secho(str(mod), fg="green")
-        click.secho("Tests OK", fg="green")
-
 
 @odoo_module.command(name="download-openupgrade")
 @pass_config
