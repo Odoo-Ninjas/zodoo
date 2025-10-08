@@ -156,6 +156,7 @@ def run_tests(ctx, config, only_one_attempt, filter, no_db_reset):
     from .module_tools import Module
 
     success, failed = [], []
+    all_ran_tests = []
     for module in tests:
         module = Module.get_by_name(module)
         testfiles = list(module.get_all_files_of_module())
@@ -172,6 +173,7 @@ def run_tests(ctx, config, only_one_attempt, filter, no_db_reset):
                     continue
             file = module.path / file
             ran_tests.append(file)
+            all_ran_tests.append(file)
 
 
             if config.use_docker:
@@ -224,7 +226,7 @@ def run_tests(ctx, config, only_one_attempt, filter, no_db_reset):
                 else:
                     success.append(file)
 
-            success_quote = round((float(len(success)) / float(len(ran_tests)) * 100.0), 1)
+            success_quote = round((float(len(success)) / float(len(all_ran_tests)) * 100.0), 1)
             elapsed = (datetime.now() - started).total_seconds()
             click.secho(f"Success quote: {success_quote}% - Time: {elapsed} seconds - {len(ran_tests)} tests", fg="yellow")
             for i, txtfile in enumerate(ran_tests, 1):
