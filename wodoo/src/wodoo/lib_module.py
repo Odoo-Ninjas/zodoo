@@ -102,7 +102,7 @@ def _get_default_modules_to_update(config):
 
 
 @odoo_module.command(name="update-module-file")
-@click.argument("module", nargs=-1, required=True)
+@click.argument("module", nargs=-1, required=True, shell_complete=_get_available_modules)
 def update_module_file(module):
     from .module_tools import Module
 
@@ -110,13 +110,16 @@ def update_module_file(module):
         Module.get_by_name(module, nocache=True).update_module_file()
 
 
+
 @odoo_module.command(name="run-tests")
 @pass_config
 @click.pass_context
+@click.argument("module", nargs=-1, required=False, shell_complete=_get_available_modules)
 @click.option("-1", "--only-one-attempt", is_flag=True, help="If test file fails, no reset happens - just continued to next one")
 @click.option("-f", "--filter", help="Filter test names (simple wildcard)")
+@click.option("--regex", is_flag=True, help="Filter is regex")
 @click.option("-R", "--no-db-reset", is_flag=True, help="No database reset - uses current database")
-def run_tests(ctx, config, only_one_attempt, filter, no_db_reset):
+def run_tests(ctx, config, module, only_one_attempt, filter, no_db_reset, regex):
     start_postgres_if_local(ctx, config)
     started = datetime.now()
     if not config.devmode and not config.force:
@@ -157,7 +160,10 @@ def run_tests(ctx, config, only_one_attempt, filter, no_db_reset):
 
     success, failed = [], []
     all_ran_tests = []
+    filter_module = module
     for module in tests:
+        if filter_module and module not in filter_module:
+            continue
         module = Module.get_by_name(module)
         testfiles = list(module.get_all_files_of_module())
         testfiles = [x for x in testfiles if str(x).startswith("tests/")]
@@ -169,7 +175,12 @@ def run_tests(ctx, config, only_one_attempt, filter, no_db_reset):
         ran_tests = []
         for file in sorted(testfiles):
             if filter:
-                if not re.search(filter.replace("*", ".*"), str(file)):
+                test = module.name + "/" + str(file)
+                if regex:
+                    found = bool(re.search(filter, test))
+                else:
+                    found = filter in test
+                if not found:
                     continue
             file = module.path / file
             ran_tests.append(file)
@@ -228,11 +239,13 @@ def run_tests(ctx, config, only_one_attempt, filter, no_db_reset):
 
             success_quote = round((float(len(success)) / float(len(all_ran_tests)) * 100.0), 1)
             elapsed = (datetime.now() - started).total_seconds()
-            click.secho(f"Success quote: {success_quote}% - Time: {elapsed} seconds - {len(ran_tests)} tests", fg="yellow")
+            remaining = len(tests) - len(ran_tests)
+            click.secho(f"Success quote: {success_quote}% - Time: {elapsed} seconds - {len(ran_tests)} tests - remaining: {remaining}", fg="yellow")
             for i, txtfile in enumerate(ran_tests, 1):
                 color = "green" if txtfile not in failed else "red"
                 click.secho(f"{i}: {txtfile}", fg=color)
 
+    elapsed = (datetime.now() - started).total_seconds()
     click.secho(f"Time: {elapsed} seconds", fg="yellow")
 
     # in force-mode shut down
@@ -249,8 +262,9 @@ def run_tests(ctx, config, only_one_attempt, filter, no_db_reset):
 
     if failed:
         click.secho("Tests failed: ", fg="red")
-        for mod in failed:
-            click.secho(str(mod), fg="red")
+        for testfile in failed:
+            lines = Path(testfile).splitlines()
+            click.secho(f"{testfile}\t[Lines: {lines}]", fg="red")
         sys.exit(-1)
 
 @odoo_module.command(name="download-openupgrade")
@@ -1030,7 +1044,7 @@ def _parse_modules(modules):
 
 
 @odoo_module.command()
-@click.argument("modules", nargs=-1, required=False)
+@click.argument("modules", nargs=-1, required=False, shell_complete=_get_available_modules)
 @pass_config
 @click.pass_context
 def uninstall(ctx, config, modules):
@@ -1129,7 +1143,7 @@ for module in modules:
 
 
 @odoo_module.command(name="update-i18n", help="Just update translations")
-@click.argument("module", nargs=-1, required=False)
+@click.argument("module", nargs=-1, required=False, shell_complete=_get_available_modules)
 @click.option(
     "--no-restart",
     default=False,
@@ -1870,7 +1884,7 @@ def zip(config, ctx, module):
 
 
 @odoo_module.command()
-@click.argument("module", required=True)
+@click.argument("module", required=True, shell_complete=_get_available_modules)
 @click.argument("repourl", required=True)
 @click.option("--update", is_flag=True)
 @click.pass_context

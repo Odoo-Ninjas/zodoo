@@ -92,6 +92,14 @@ def _replace_params_in_config(
     # queuejob channels
     content = content.replace("__ODOO_QUEUEJOBS_CHANNELS__", _get_queuejob_channels())
 
+    extra_config = []
+    for setting in os.environ.keys():
+        if setting.startswith("EXTRA_CONFIG_"):
+            key = setting.replace("EXTRA_CONFIG_", "")
+            value = os.environ[setting]
+            extra_config.append(f"{key} = {value}")
+    content = content.replace("___EXTRA_ODOO_CONFIG___", '\n'.join(extra_config))
+
     # upgrade paths
     upgrade_path = upgrade_path or []
     upgrade_path = make_absolute_upgrade_paths(upgrade_path)

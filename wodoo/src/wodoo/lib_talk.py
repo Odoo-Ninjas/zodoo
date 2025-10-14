@@ -352,7 +352,7 @@ def users(config, login):
 def fields(config, model, field):
     conn = config.get_odoo_conn()
     sql = (
-        "SELECT f.name, f.ttype "
+        "SELECT f.model, f.name, f.ttype "
         "FROM ir_model_fields f INNER JOIN "
         "ir_model m ON "
         "f.model_id = m.id "

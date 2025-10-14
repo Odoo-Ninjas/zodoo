@@ -256,6 +256,12 @@ The partner autocomplete nerves for example.
 If you develop a strange external repository you can define a pre action scripts,
 that is executed before the reload and you can adapt some things.
 
+# Extra Configuration to odoo config file
+
+EXTRA_CONFIG_your_key=value
+
+These settings are added to the config files.
+
 # Pytests
 
 Best executed with:

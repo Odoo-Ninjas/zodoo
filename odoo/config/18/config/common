@@ -19,3 +19,6 @@ proxy_mode = True
 translate_modules = ['all']
 
 upgrade_path = __UPGRADE_PATH__
+
+
+___EXTRA_ODOO_CONFIG___
