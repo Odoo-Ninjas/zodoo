@@ -270,6 +270,12 @@ Best executed with:
 time sudo -E pytest
 ```
 
+# Debugging python container:
+
+* odoo debug odoo_debug  inside container type: debug<enter>
+* open url: http://hostname:port/debugpython
+* --> container is debugged; websocket and longpolling are forwarded to odoo container
+
 # Performance Check
 
 ```python

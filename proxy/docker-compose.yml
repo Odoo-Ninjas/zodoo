@@ -19,7 +19,6 @@ services:
       - $ODOO_IMAGES/proxy/static:/usr/local/openresty/nginx/static
       - $ODOO_IMAGES/proxy/lua/template.lua:/opt/template.lua
       - ${ODOO_IMAGES}/proxy/lua/myngx.lua:/usr/local/openresty/luajit/share/lua/5.1/myngx.lua
-      - ${ODOO_IMAGES}/proxy/bin/setup_config_files.py:/usr/local/bin/setup_config_files.py
 
     logging:
       driver: "json-file"

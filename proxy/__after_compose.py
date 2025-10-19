@@ -29,13 +29,26 @@ def collect_proxy_config(yml):
         for label, content in service.get("labels", {}).items():
             if label.startswith("proxy_config"):
                 suffix = label.replace("proxy_config", "")
-                files[service_name + suffix] = Path(content)
-        for upstream_name, file in files.items():
-            if not file.is_file():
+
+                lua_template = service.get("labels", {}).get("proxy_lua_template", "")
+                if lua_template and Path(lua_template).exists():
+                    lua_template = Path(lua_template).read_text()
+                else:
+                    lua_template = ""
+
+                data = {
+                    'nginx_conf_file': Path(content),
+                    "lua_template": lua_template,
+                }
+                files[service_name + suffix] = data
+        for upstream_name, data in files.items():
+            nginx_conf_file = Path(data['nginx_conf_file'])
+            if not nginx_conf_file.is_file():
                 continue
-            conf_content = file.read_text(encoding='utf-8')
+            conf_content = nginx_conf_file.read_text(encoding='utf-8')
             proxy_backends[upstream_name] = {
-                "nginx_conf": conf_content.strip() + "\n"
+                "nginx_conf": conf_content.strip() + "\n",
+                "lua_template": data.get("lua_template", "")
             }
 
     _apply_backends(yml, proxy_backends)
