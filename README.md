@@ -275,6 +275,7 @@ time sudo -E pytest
 * odoo debug odoo_debug  inside container type: debug<enter>
 * open url: http://hostname:port/debugpython
 * --> container is debugged; websocket and longpolling are forwarded to odoo container
+* reset cookie: http://hostname:port/debugpython_off
 
 # Performance Check
 

@@ -296,7 +296,7 @@ def _turn_into_subvolume(config):
 
 def make_snapshot(ctx, config, name):
     zfs = search_env_path("zfs")
-    __dc(config, ["stop", "-t", "1"] + ["postgres"])
+    __dc(config, ["stop", "-t", "0"] + ["postgres"])
     _turn_into_subvolume(config)
     snapshots = list(_get_snapshots(config))
     snapshot = list(filter(lambda x: x["name"] == name, snapshots))
