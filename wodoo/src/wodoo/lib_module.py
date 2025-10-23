@@ -161,6 +161,7 @@ def run_tests(ctx, config, module, only_one_attempt, filter, no_db_reset, regex)
     success, failed = [], []
     all_ran_tests = []
     filter_module = module
+    ran_tests = []
     for module in tests:
         if filter_module and module not in filter_module:
             continue
@@ -172,7 +173,6 @@ def run_tests(ctx, config, module, only_one_attempt, filter, no_db_reset, regex)
         testfiles = [x for x in testfiles if x.name.startswith("test_")]
 
         # identify test files and run them, otherwise tests of dependent modules are run
-        ran_tests = []
         for file in sorted(testfiles):
             if filter:
                 test = module.name + "/" + str(file)
