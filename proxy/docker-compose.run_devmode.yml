@@ -1,0 +1,4 @@
+services:
+  proxy:
+    volumes:
+      - ${ODOO_IMAGES}/proxy/bin/setup_config_files.py:/usr/local/bin/setup_config_files.py

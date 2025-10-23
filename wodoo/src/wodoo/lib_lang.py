@@ -4,6 +4,7 @@ from .tools import __dcexec
 from .tools import _execute_sql
 from .cli import cli, pass_config
 from .lib_clickhelpers import AliasedGroup
+from .tools import _get_available_modules
 
 
 @cli.group(cls=AliasedGroup)
@@ -14,7 +15,7 @@ def lang(config):
 
 @lang.command(name="export")
 @click.argument("lang", required=True)
-@click.argument("modules", nargs=-1, required=True)
+@click.argument("modules", nargs=-1, required=True, shell_complete=_get_available_modules)
 @pass_config
 def export_i18n(config, lang, modules):
     modules = ",".join(modules)

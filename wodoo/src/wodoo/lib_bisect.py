@@ -173,7 +173,7 @@ def good(config, ctx):
 
 
 @bisect.command()
-@click.argument("module")
+@click.argument("module", shell_complete=_get_available_modules)
 @click.pass_context
 @pass_config
 def testdep(config, ctx, module):

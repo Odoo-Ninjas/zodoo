@@ -19,7 +19,7 @@ parser.add_argument('--remote-debug', action="store_true")
 parser.add_argument('--wait-for-remote', action="store_true")
 parser.add_argument('--resultsfile')
 parser.add_argument('test_file')
-parser.set_defaults(log_level='debug')
+parser.set_defaults(log_level='error')
 args = parser.parse_args()
 
 os.environ['TEST_QUEUE_JOB_NO_DELAY'] = '1'
@@ -73,4 +73,15 @@ if args.resultsfile:
 if any(x['rc'] for x in runs):
     rc = -1
 
+if not rc:
+    text = """
+     _    _ _   _            _                                      _ 
+    / \  | | | | |_ ___  ___| |_ ___   _ __   __ _ ___ ___  ___  __| |
+   / _ \ | | | | __/ _ \/ __| __/ __| | '_ \ / _` / __/ __|/ _ \/ _` |
+  / ___ \| | | | ||  __/\__ \ |_\__ \ | |_) | (_| \__ \__ \  __/ (_| |
+ /_/   \_\_|_|  \__\___||___/\__|___/ | .__/ \__,_|___/___/\___|\__,_|
+                                      |_|                             
+"""
+                                                                                                                                                                   
+    click.secho(text, fg="green", bold=True)
 sys.exit(rc)

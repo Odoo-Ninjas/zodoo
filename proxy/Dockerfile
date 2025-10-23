@@ -10,6 +10,8 @@ COPY lua/ /usr/local/openresty/nginx/lua/
 COPY conf.d/ /usr/local/openresty/nginx/conf.d/
 COPY lua/myngx.lua /usr/local/openresty/luajit/share/lua/5.1/myngx.lua
 COPY lua/basicauth.lua /usr/local/openresty/luajit/share/lua/5.1/basicauth.lua
+COPY bin/ /usr/local/bin/
+RUN chmod a+x /usr/local/bin/*
 
 RUN \
 chmod a+rw -R /usr/local/openresty && \

@@ -7,7 +7,7 @@ repos:
     branch: ${VERSION}
     type: integrated
     patches: 
-      - patches/odooodoo
+      - patches/odoo
 
   # - path: enterprise
   #   url: https://github.com/odoo/enterprise

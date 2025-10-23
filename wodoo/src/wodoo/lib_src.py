@@ -23,6 +23,7 @@ from .tools import pretty_xml
 from .tools import _execute_sql
 from .tools import odoorpc
 from .tools import _output_clipboard_csv
+from .tools import _get_available_modules
 
 
 ADDONS_OCA = "addons_OCA"
@@ -403,7 +404,7 @@ def pretty_print_manifest():
 
 @src.command()
 @pass_config
-@click.argument("module")
+@click.argument("module", shell_complete=_get_available_modules)
 def security(config, module, model):
     from .module_tools import Modules
 

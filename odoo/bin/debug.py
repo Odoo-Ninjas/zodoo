@@ -19,7 +19,7 @@ from tools import kill_odoo
 
 config = get_settings()
 DEBUGGER_WATCH = Path(os.environ["DEBUGGER_WATCH"])
-print("Watching file {}".format(DEBUGGER_WATCH))
+#print("Watching file {}".format(DEBUGGER_WATCH))
 customs_dir = Path(os.environ["CUSTOMS_DIR"])
 profiling = False
 
@@ -87,12 +87,13 @@ class Debugger(object):
 
     def action_update_module(self, cmd, module):
         kill_odoo()
-        PARAMS_CONST = ["--log=debug"]
+        click.secho("UPDATE STARTED - please wait ...", fg="green")
+        PARAMS_CONST = [f"--log={self.loglevel.lower()}"]
         if config["DEVMODE"] == "1" and config.get("NO_QWEB_DELETE", "") != "1":
             PARAMS_CONST += ["--delete-qweb"]
         if cmd == "update_module":
             PARAMS_CONST += ["--no-tests"]
-        if self.execpy(
+        if res := self.execpy(
             [
                 os.environ['WODOO_PYTHON'],
                 "/odoolib/update_modules.py",
@@ -100,6 +101,10 @@ class Debugger(object):
             ]
             + PARAMS_CONST
         ):
+            if res:
+                click.secho("Odoo update Success", fg="green")
+            else:
+                click.secho("Odoo update failed", fg="red")
             self.trigger_restart()
 
     def action_last_unittest(self):
@@ -270,6 +275,8 @@ def command_debug(
     if profile:
         click.secho("Profiling enabled - set @profile at defs to see the metrics", fg="green")
     prepare_run()
+
+    os.environ["WODOO_LOGLEVEL"] = loglevel
 
     Debugger(
         sync_common_modules=sync_common_modules,

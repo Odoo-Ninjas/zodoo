@@ -78,7 +78,9 @@ RUN #___SNIPPET_APT_INSTALL___ \
     libffi-dev \
     libkrb5-dev \
     cmake \
-    git
+    git \
+    libcairo2 \
+    libcairo2-dev
 
 #___SNIPPET_DEB_REQUIREMENTS___
 
@@ -173,7 +175,9 @@ RUN #___SNIPPET_APT_INSTALL___ \
             xfonts-base \
             libgeos-dev\
             vim \
-            fontconfig 
+            fontconfig \
+            libcairo2 \
+            libcairo2-dev
 
 COPY liberation-sans /usr/share/fonts/
 # rebuild font cache

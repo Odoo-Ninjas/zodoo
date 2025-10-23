@@ -38,6 +38,7 @@ services:
       SELENIUM_TIMEOUT: 15
       CURRENT_HOST_RUN_DIR: /home/user1/.odoo/run/current 
       VSCODE_PERMA_EXTENSIONS_FOLDER: /home/user1/.odoo/run/current/vscode-perma-extensions
+      VSIX_DIR: /opt/vsix
     volumes:
       - ${HOST_CUSTOMS_DIR}:/opt/src
       - ${HOST_CUSTOMS_DIR}:${HOST_CUSTOMS_DIR}
@@ -52,5 +53,6 @@ services:
       - "${ODOO_IMAGES}/vscode/settings.json:/opt/settings.json.template"
       - "${ODOO_IMAGES}:/home/user1/.odoo/images"
       - "${ODOO_IMAGES}/vscode/bin/set_git_infos.sh:/usr/local/bin/set_git_infos.sh"
+      - "${ODOO_IMAGES}/vscode/vsix:/opt/vsix"
     extra_hosts:
       - "host.docker.internal:host-gateway"

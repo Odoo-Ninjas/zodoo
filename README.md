@@ -165,7 +165,6 @@ odoo pgactivity
 |ODOO_DEBUG_LOGLEVEL=info,error,debug|Loglevel for debug inside odoo container|
 |APT_PROXY_IP=<ip>|Name/IP where to reach the apt-cacher on the host at buildtime from containers|
 |RUN_APT_CACHER|if 1 then host apt cacher|
-|PYPI_HOST||
 
 ## Odoo Server Configuration in ~/.odoo/settings/odoo.config and odoo.config.${PROJECT_NAME}
 
@@ -256,6 +255,12 @@ The partner autocomplete nerves for example.
 If you develop a strange external repository you can define a pre action scripts,
 that is executed before the reload and you can adapt some things.
 
+# Extra Configuration to odoo config file
+
+EXTRA_CONFIG_your_key=value
+
+These settings are added to the config files.
+
 # Pytests
 
 Best executed with:
@@ -263,6 +268,13 @@ Best executed with:
 ```bash
 time sudo -E pytest
 ```
+
+# Debugging python container:
+
+* odoo debug odoo_debug  inside container type: debug<enter>
+* open url: http://hostname:port/debugpython
+* --> container is debugged; websocket and longpolling are forwarded to odoo container
+* reset cookie: http://hostname:port/debugpython_off
 
 # Performance Check
 

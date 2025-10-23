@@ -9,6 +9,20 @@ local myngx = require("myngx")
 local basicauth = require("basicauth")
 local hostname = "{hostname}"
 local port = "{port}"
+
+-- insert: if cookie exists - "debugpython=1" then set hostname to "odoo_debug"
+-- but only if port is 8069(str)
+local cookie = ngx.var.http_cookie
+if cookie and port == "8069" then
+    -- find() returns the index if substring exists, or nil otherwise
+    if string.find(cookie, "debugpython=1") then
+        ngx.log(ngx.INFO, "debugpython cookie detected — using odoo_debug")
+        hostname = "odoo_debug"
+    end
+end
+
+local port = "{port}"
+
 local ip = myngx.get_ip(hostname)
 
 local user = "{auth_user}"
@@ -31,3 +45,5 @@ end
 if ip then
     ngx.var['backend'] = "http://" .. ip .. ":" .. port
 end
+
+-- das sollte man sehen

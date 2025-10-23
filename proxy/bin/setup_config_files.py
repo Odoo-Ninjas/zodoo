@@ -66,7 +66,7 @@ def resolve_proxy_host(backend):
 # Directories from ENV with fallback defaults
 LUA_DIR = Path(os.environ["LUA_DIR"])
 CONF_DIR = Path(os.environ["CONF_DIR"])
-LUA_TEMPLATE = Path(os.environ["LUA_TEMPLATE"]).read_text()
+DEFAULT_LUA_TEMPLATE = Path(os.environ["LUA_TEMPLATE"]).read_text()
 
 # Ensure dirs exist
 LUA_DIR.mkdir(parents=True, exist_ok=True)
@@ -81,6 +81,8 @@ for name, cfg in proxy_backends.items():
             f"no # proxy_host: declaration found for {name} in {cfg['nginx_conf']}, skipping"
         )
         continue
+
+    LUA_TEMPLATE = cfg['lua_template'] or DEFAULT_LUA_TEMPLATE
 
     lua_filename = None
     if not cfg.get("external"):
