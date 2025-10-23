@@ -162,6 +162,8 @@ def run_tests(ctx, config, module, only_one_attempt, filter, no_db_reset, regex)
     all_ran_tests = []
     filter_module = module
     ran_tests = []
+    all_testfiles = []
+    count_all_tests = 0
     for module in tests:
         if filter_module and module not in filter_module:
             continue
@@ -172,8 +174,7 @@ def run_tests(ctx, config, module, only_one_attempt, filter, no_db_reset, regex)
         testfiles = [x for x in testfiles if x.name != "__init__.py"]
         testfiles = [x for x in testfiles if x.name.startswith("test_")]
 
-        # identify test files and run them, otherwise tests of dependent modules are run
-        for file in sorted(testfiles):
+        for file in testfiles:
             if filter:
                 test = module.name + "/" + str(file)
                 if regex:
@@ -183,67 +184,71 @@ def run_tests(ctx, config, module, only_one_attempt, filter, no_db_reset, regex)
                 if not found:
                     continue
             file = module.path / file
-            ran_tests.append(file)
-            all_ran_tests.append(file)
+            all_testfiles.append(file)
+            count_all_tests += 1
 
+    for file in sorted(all_testfiles):
 
-            if config.use_docker:
+        ran_tests.append(file)
+        all_ran_tests.append(file)
 
-                def run_test(file):
-                    params = ["odoo", "/odoolib/unit_test.py", file]
-                    click.secho(
-                        f"Running test: {file}", fg="yellow", bold=True
-                    )
-                    res = __dcrun(
-                        config,
-                        params + ["--log-level=error", "--not-interactive"],
-                        returncode=True,
-                    )
-                    return res
+        if config.use_docker:
 
-                res = run_test(file)
-                if res:
-                    if only_one_attempt:
-                        failed.append(file)
-                    else:
-                        click.secho(
-                            f"Test {file} failed on first attempt. Resetting db and trying once more.",
-                            fg="red",
-                        )
-                        reset_db()
-                        res = run_test(file)
-                        if res:
-                            failed.append(file)
-                            click.secho(
-                                f"Failed, running again with debug on: {file}",
-                                fg="red",
-                                bold=True,
-                            )
-                            __cmd_interactive(
-                                config,
-                                *(
-                                    [
-                                        "run",
-                                        "--rm",
-                                        "odoo",
-                                        "/odoolib/unit_test.py",
-                                        file,
-                                        "--log-level=debug",
-                                    ]
-                                ),
-                            )
-                        else:
-                            success.append(file)
+            def run_test(file):
+                params = ["odoo", "/odoolib/unit_test.py", file]
+                click.secho(
+                    f"Running test: {file}", fg="yellow", bold=True
+                )
+                res = __dcrun(
+                    config,
+                    params + ["--log-level=error", "--not-interactive"],
+                    returncode=True,
+                )
+                return res
+
+            res = run_test(file)
+            if res:
+                if only_one_attempt:
+                    failed.append(file)
                 else:
-                    success.append(file)
+                    click.secho(
+                        f"Test {file} failed on first attempt. Resetting db and trying once more.",
+                        fg="red",
+                    )
+                    reset_db()
+                    res = run_test(file)
+                    if res:
+                        failed.append(file)
+                        click.secho(
+                            f"Failed, running again with debug on: {file}",
+                            fg="red",
+                            bold=True,
+                        )
+                        __cmd_interactive(
+                            config,
+                            *(
+                                [
+                                    "run",
+                                    "--rm",
+                                    "odoo",
+                                    "/odoolib/unit_test.py",
+                                    file,
+                                    "--log-level=debug",
+                                ]
+                            ),
+                        )
+                    else:
+                        success.append(file)
+            else:
+                success.append(file)
 
-            success_quote = round((float(len(success)) / float(len(all_ran_tests)) * 100.0), 1)
-            elapsed = (datetime.now() - started).total_seconds()
-            remaining = len(tests) - len(ran_tests)
-            click.secho(f"Success quote: {success_quote}% - Time: {elapsed} seconds - {len(ran_tests)} tests - remaining: {remaining}", fg="yellow")
-            for i, txtfile in enumerate(ran_tests, 1):
-                color = "green" if txtfile not in failed else "red"
-                click.secho(f"{i}: {txtfile}", fg=color)
+        success_quote = round((float(len(success)) / float(len(all_ran_tests)) * 100.0), 1)
+        elapsed = (datetime.now() - started).total_seconds()
+        remaining = count_all_tests - len(ran_tests)
+        click.secho(f"Success quote: {success_quote}% - Time: {elapsed} seconds - {len(ran_tests)} tests - remaining: {remaining}", fg="yellow")
+        for i, txtfile in enumerate(ran_tests, 1):
+            color = "green" if txtfile not in failed else "red"
+            click.secho(f"{i}: {txtfile}", fg=color)
 
     elapsed = (datetime.now() - started).total_seconds()
     click.secho(f"Time: {elapsed} seconds", fg="yellow")
