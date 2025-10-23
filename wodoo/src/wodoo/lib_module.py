@@ -268,7 +268,7 @@ def run_tests(ctx, config, module, only_one_attempt, filter, no_db_reset, regex)
     if failed:
         click.secho("Tests failed: ", fg="red")
         for testfile in failed:
-            lines = Path(testfile).splitlines()
+            lines = len(testfile.read_text().splitlines())
             click.secho(f"{testfile}\t[Lines: {lines}]", fg="red")
         sys.exit(-1)
 
