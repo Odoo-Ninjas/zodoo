@@ -1,6 +1,6 @@
 [options]
-log_handler = :ERROR,openerp:ERROR,werkzeug:ERROR,odoo.addons.queue_job:ERROR
-log_level = error
+log_handler = :WARN,openerp:WARN,werkzeug:WARN,odoo.addons.queue_job:WARN
+log_level = warn
 max_cron_threads =0
 workers = 0
 

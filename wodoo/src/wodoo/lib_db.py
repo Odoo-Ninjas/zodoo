@@ -18,6 +18,7 @@ from .tools import print_prod_env
 from .tools import _exists_db
 from .odoo_config import get_conn_autoclose
 from .tools import __dc
+from .tools import _get_available_modules
 from tqdm import tqdm
 
 SEP = "------------------------------------------------------------"
@@ -234,9 +235,10 @@ def aggressive_drop_db(config, conn, dbname):
     is_flag=True,
     help="No progress, but allows interactive debugging",
 )
+@click.option("-m", "--modules", multiple=True, help="Install these modules", shell_complete=_get_available_modules)
 @pass_config
 @click.pass_context
-def reset_db(ctx, config, dbname, do_not_install_base, no_overwrite, no_progress):
+def reset_db(ctx, config, dbname, do_not_install_base, no_overwrite, no_progress, modules):
     import psycopg2
 
     collatec = True
@@ -293,6 +295,18 @@ def reset_db(ctx, config, dbname, do_not_install_base, no_overwrite, no_progress
             no_scripts=True,
             no_progress=no_progress,
         )
+        if modules:
+            Commands.invoke(
+                ctx,
+                "update",
+                module=','.join(modules),
+                since_git_sha=False,
+                no_restart=True,
+                no_dangling_check=True,
+                non_interactive=True,
+                no_outdated_modules=True,
+                no_progress=no_progress,
+            )
 
 
 @db.command()

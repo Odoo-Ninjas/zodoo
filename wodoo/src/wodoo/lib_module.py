@@ -115,11 +115,10 @@ def update_module_file(module):
 @pass_config
 @click.pass_context
 @click.argument("module", nargs=-1, required=False, shell_complete=_get_available_modules)
-@click.option("-1", "--only-one-attempt", is_flag=True, help="If test file fails, no reset happens - just continued to next one")
 @click.option("-f", "--filter", help="Filter test names (simple wildcard)")
 @click.option("--regex", is_flag=True, help="Filter is regex")
 @click.option("-R", "--no-db-reset", is_flag=True, help="No database reset - uses current database")
-def run_tests(ctx, config, module, only_one_attempt, filter, no_db_reset, regex):
+def run_tests(ctx, config, module, filter, no_db_reset, regex):
     start_postgres_if_local(ctx, config)
     started = datetime.now()
     if not config.devmode and not config.force:
@@ -164,6 +163,9 @@ def run_tests(ctx, config, module, only_one_attempt, filter, no_db_reset, regex)
     ran_tests = []
     all_testfiles = []
     count_all_tests = 0
+    count_lines = 0
+    count_success_lines = 0
+
     for module in tests:
         if filter_module and module not in filter_module:
             continue
@@ -188,8 +190,10 @@ def run_tests(ctx, config, module, only_one_attempt, filter, no_db_reset, regex)
             count_all_tests += 1
 
     for file in sorted(all_testfiles):
+        linecount = len(file.read_text().splitlines())
 
         ran_tests.append(file)
+        count_lines += linecount
         all_ran_tests.append(file)
 
         if config.use_docker:
@@ -208,7 +212,7 @@ def run_tests(ctx, config, module, only_one_attempt, filter, no_db_reset, regex)
 
             res = run_test(file)
             if res:
-                if only_one_attempt:
+                if no_db_reset:
                     failed.append(file)
                 else:
                     click.secho(
@@ -239,13 +243,18 @@ def run_tests(ctx, config, module, only_one_attempt, filter, no_db_reset, regex)
                         )
                     else:
                         success.append(file)
+                        count_success_lines += linecount
             else:
                 success.append(file)
+                count_success_lines += linecount
+        else:
+            raise NotImplementedError()
 
         success_quote = round((float(len(success)) / float(len(all_ran_tests)) * 100.0), 1)
+        success_line_quote = round(float(count_success_lines) / float(count_lines) * 100.0, 1)
         elapsed = (datetime.now() - started).total_seconds()
         remaining = count_all_tests - len(ran_tests)
-        click.secho(f"Success quote: {success_quote}% - Time: {elapsed} seconds - {len(ran_tests)} tests - remaining: {remaining}", fg="yellow")
+        click.secho(f"Successful Files: {success_quote}% - Successful Lines: {success_line_quote} - Time: {elapsed} seconds - {len(ran_tests)} tests - remaining: {remaining}", fg="yellow")
         for i, txtfile in enumerate(ran_tests, 1):
             color = "green" if txtfile not in failed else "red"
             click.secho(f"{i}: {txtfile}", fg=color)
