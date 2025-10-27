@@ -500,4 +500,19 @@ def set_remote_keys(ctx, config):
     )
 
 
+@talk.command()
+@click.argument("job_command", required=True)
+def queue_job_func_to_shell(job_command):
+    """
+    Converts:
+    wdb.backend(4,)._import(model_name='cdp.task', item=84263602, importer_usage='record.importer')
+
+    into:
+    env['wdb.backend'].browse(4)._import(model_name='cdp.task', item=84263602, importer_usage='record.importer')
+    """
+
+    model, func = job_command.split(").")
+    model, id = model.split("(")
+    click.secho(f"env['{model}'].browse({id}).{func}", fg='green')
+
 Commands.register(progress)

@@ -34,6 +34,7 @@ IMAGES_BRANCH=master
 
 
 RUN_APT_CACHER=1
+RUN_PROXPI=1
 APT_OPTIONS=-o Acquire::Retries=1 -y --no-install-recommends
 NO_SOFFICE=1
 HTTP_PROXY_BUILD=
