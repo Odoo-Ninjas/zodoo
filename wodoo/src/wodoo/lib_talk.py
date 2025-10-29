@@ -1,4 +1,5 @@
 import json
+import xml.etree.ElementTree as ET
 import arrow
 import time
 
@@ -459,45 +460,21 @@ def _get_xmlid(conn, id, model):
 
 
 @talk.command()
+@click.argument("name", required=False)
 @click.option("-M", "--module")
-@click.argument("model", required=True)
-@click.argument("name", required=False)
-@click.option("-t", "--type")
-@pass_config
-def views(config, name, module, model, type, arch):
-    conn = config.get_odoo_conn()
-
-    where = f"model = '{model}'"
-    where += "AND inherit_id is null"
-    rows = _execute_sql(
-        conn,
-        sql=f"select id, name, type from ir_ui_view where {where}",
-        fetchall=True,
-        return_columns=True,
-    )
-
-    rows = list(rows)
-    if type:
-        rows[1] = list(filter(lambda x: x[2] == type, rows[1]))
-
-    rows2 = []
-    for row in rows[1]:
-        row = list(row)
-        row.append(_get_xmlid(conn, row[0], "ir.ui.view"))
-        rows2.append(row)
-    rows[0] = list(rows[0])
-    rows[0].append("xmlid")
-    click.secho(tabulate(rows2, rows[0], tablefmt="fancy_grid"), fg="yellow")
-
-@talk.command()
-@click.argument("name", required=False)
 @click.option("-a", "--arch", required=False)
 @click.option("-m", "--model", required=False)
 @click.option("-t", "--type", required=False)
+@click.option("-x", "--xmlid", required=False)
+@click.option("-S", "--show", is_flag=True)
 @pass_config
-def find_view(config, name, arch, model, type):
+def views(config, name, arch, model, type, xmlid, show, module):
     odoo = odoorpc(config)
     domain = []
+    if module:
+        # from .module_tools import Module
+        # module = Module.get_by_name(module, nocache=False)
+        domain += [('arch_fs', '=ilike', f"{str(module)}/%")]
     if name:
         domain += [('name','ilike',name)]
     if arch:
@@ -506,10 +483,29 @@ def find_view(config, name, arch, model, type):
         domain += [('type', 'ilike', type)]
     if model:
         domain += [('model', 'ilike', model)]
+    if xmlid:
+        id = odoo.env.ref(xmlid).id
+        domain += [('id','=',id)]
     views = odoo.env['ir.ui.view'].search(domain)
+    rows = []
     for view in views:
         v = odoo.env['ir.ui.view'].browse(view)
-        click.secho(f"{v.get_external_id()}: {v.name}", fg='green')
+        id = v.get_external_id()
+        if id:
+            for id, xmlid in id.items():
+                break
+        else:
+            ix, xmlid = "", ""
+        rows.append((id, v.type, xmlid, v.inherit_id.id or '', v.arch_fs))
+    rows = sorted(rows, key=lambda x: (str(x[1]), str(x[3])))
+
+    for view in views:
+        v = odoo.env['ir.ui.view'].browse(view)
+        click.secho(f"{v.get_external_id()} {v.arch_fs}", fg='green')
+        pretty_xml = ET.fromstring(v.arch_db)
+        ET.indent(pretty_xml, space="    ")
+        click.secho(ET.tostring(pretty_xml, encoding="unicode"), fg='yellow')
+
 
 
 @talk.command()
