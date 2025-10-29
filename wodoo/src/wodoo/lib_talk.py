@@ -497,9 +497,9 @@ def views(config, name, arch, model, type, xmlid, show, module):
                 break
         else:
             ix, xmlid = "", ""
-        rows.append((id, v.type, xmlid, v.inherit_id.id or '', v.arch_fs))
+        rows.append((id, v.type, v.model, xmlid, v.inherit_id.id or '', v.arch_fs))
     rows = sorted(rows, key=lambda x: (str(x[1]), str(x[3])))
-    click.secho(tabulate(rows, ("id", "xmlid", "type", "inherits", "filepath"), tablefmt="fancy_grid"), fg='yellow')
+    click.secho(tabulate(rows, ("id", "type", "model", "xmlid",  "inherits", "filepath"), tablefmt="fancy_grid"), fg='yellow')
 
     if show:
         for view in views:
