@@ -26,3 +26,5 @@ packaging
 odoorpc
 tenacity
 scapy
+
+odoorpc

@@ -2213,3 +2213,23 @@ def has_unpushed_commits(repo: str = ".") -> bool:
         check=True,
     )
     return int(result.stdout.strip()) > 0
+
+
+def odoorpc(config):
+    import odoorpc as odoorpc_module
+    import getpass
+
+    odoo = odoorpc_module.ODOO("localhost", port=int(config.PROXY_PORT))
+    for password in [None, "1", "admin"]:
+        try:
+            odoo.login(config.DBNAME, "admin", password or config.DEFAULT_DEV_PASSWORD)
+        except:
+            click.secho("Trying next password.")
+        else:
+            break
+    else:
+        click.secho("Login failed - perhaps try password.")
+        password = getpass.getpass("Password: ")
+        odoo.login(config.DBNAME, "admin", password)
+
+    return odoo

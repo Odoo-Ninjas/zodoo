@@ -9,6 +9,7 @@ from .cli import Commands, cli, pass_config
 from .lib_clickhelpers import AliasedGroup
 from .tools import _execute_sql
 from .tools import _get_setting
+from .tools import odoorpc
 
 
 def _stringify_translated_dict(v):
@@ -37,6 +38,9 @@ def talk(config):
 @click.option("-r", "--resid")
 @pass_config
 def xmlids(config, name, module, model, resid):
+    return _xmlids(config, name, module, model, resid)
+
+def _xmlids(config, name, module, model, resid):
     conn = config.get_odoo_conn()
     where = " where 1 = 1"
     if model:
@@ -514,5 +518,16 @@ def queue_job_func_to_shell(job_command):
     model, func = job_command.split(").")
     model, id = model.split("(")
     click.secho(f"env['{model}'].browse({id}).{func}", fg='green')
+
+@talk.command(help="Finds the server or window action name behind an action ID")
+@click.argument("action_id", required=True)
+@pass_config
+def resolve_action_id(config, action_id):
+    odoo = odoorpc(config)
+    action = odoo.env['ir.actions.actions'].browse(int(action_id))
+    type = action.type
+    action = odoo.env[type].browse(action.id)
+    click.secho(action.get_external_id(), fg='green')
+
 
 Commands.register(progress)
