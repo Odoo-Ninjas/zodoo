@@ -482,10 +482,11 @@ def views(config, name, arch, model, type, xmlid, show, module):
     if type:
         domain += [('type', 'ilike', type)]
     if model:
-        domain += [('model', 'ilike', model)]
+        domain += [('model', '=', model)]
     if xmlid:
         id = odoo.env.ref(xmlid).id
         domain += [('id','=',id)]
+    click.secho(f"Searching with domain: {domain}", fg='blue')
     views = odoo.env['ir.ui.view'].search(domain)
     rows = []
     for view in views:
@@ -498,13 +499,15 @@ def views(config, name, arch, model, type, xmlid, show, module):
             ix, xmlid = "", ""
         rows.append((id, v.type, xmlid, v.inherit_id.id or '', v.arch_fs))
     rows = sorted(rows, key=lambda x: (str(x[1]), str(x[3])))
+    click.secho(tabulate(rows, ("id", "xmlid", "type", "inherits", "filepath"), tablefmt="fancy_grid"), fg='yellow')
 
-    for view in views:
-        v = odoo.env['ir.ui.view'].browse(view)
-        click.secho(f"{v.get_external_id()} {v.arch_fs}", fg='green')
-        pretty_xml = ET.fromstring(v.arch_db)
-        ET.indent(pretty_xml, space="    ")
-        click.secho(ET.tostring(pretty_xml, encoding="unicode"), fg='yellow')
+    if show:
+        for view in views:
+            v = odoo.env['ir.ui.view'].browse(view)
+            click.secho(f"{v.get_external_id()} {v.arch_fs}", fg='green')
+            pretty_xml = ET.fromstring(v.arch_db)
+            ET.indent(pretty_xml, space="    ")
+            click.secho(ET.tostring(pretty_xml, encoding="unicode"), fg='yellow')
 
 
 
