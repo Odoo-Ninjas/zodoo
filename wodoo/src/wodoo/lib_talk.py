@@ -464,7 +464,7 @@ def _get_xmlid(conn, id, model):
 @click.argument("name", required=False)
 @click.option("-t", "--type")
 @pass_config
-def views(config, name, module, model, type):
+def views(config, name, module, model, type, arch):
     conn = config.get_odoo_conn()
 
     where = f"model = '{model}'"
@@ -488,6 +488,28 @@ def views(config, name, module, model, type):
     rows[0] = list(rows[0])
     rows[0].append("xmlid")
     click.secho(tabulate(rows2, rows[0], tablefmt="fancy_grid"), fg="yellow")
+
+@talk.command()
+@click.argument("name", required=False)
+@click.option("-a", "--arch", required=False)
+@click.option("-m", "--model", required=False)
+@click.option("-t", "--type", required=False)
+@pass_config
+def find_view(config, name, arch, model, type):
+    odoo = odoorpc(config)
+    domain = []
+    if name:
+        domain += [('name','ilike',name)]
+    if arch:
+        domain += [('arch_prev', 'ilike', arch)]
+    if type:
+        domain += [('type', 'ilike', type)]
+    if model:
+        domain += [('model', 'ilike', model)]
+    views = odoo.env['ir.ui.view'].search(domain)
+    for view in views:
+        v = odoo.env['ir.ui.view'].browse(view)
+        click.secho(f"{v.get_external_id()}: {v.name}", fg='green')
 
 
 @talk.command()
@@ -528,6 +550,14 @@ def resolve_action_id(config, action_id):
     type = action.type
     action = odoo.env[type].browse(action.id)
     click.secho(action.get_external_id(), fg='green')
+
+@talk.command()
+@pass_config
+def rpc(config):
+    odoo = odoorpc(config)
+    env = odoo.env
+    import IPython
+    IPython.embed(header=f"OdooRPC Shell {config.dbname} Port:{config.proxy_port}")
 
 
 Commands.register(progress)

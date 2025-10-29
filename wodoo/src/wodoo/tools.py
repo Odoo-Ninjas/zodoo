@@ -2224,7 +2224,7 @@ def odoorpc(config):
         try:
             odoo.login(config.DBNAME, "admin", password or config.DEFAULT_DEV_PASSWORD)
         except:
-            click.secho("Trying next password.")
+            pass
         else:
             break
     else:

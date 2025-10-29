@@ -28,3 +28,4 @@ tenacity
 scapy
 
 odoorpc
+IPython
