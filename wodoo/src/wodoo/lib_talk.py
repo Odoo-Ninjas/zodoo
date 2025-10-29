@@ -581,7 +581,11 @@ def rpc(config):
 
     # Build a banner
     info_line = f"Connected to Odoo [{config.DBNAME}] @ PORT: {config.PROXY_PORT}"
-    tips = "Examples:\n  Partner = odoo.env['res.partner']\n  Partner.search_read([], ['name'], limit=5)"
+    tips = (
+        "Examples:\n"
+        "  Partner = env['res.partner']\n"
+        "  Partner.search_read([], ['name'], limit=5)"
+    )
     console = Console(force_terminal=True, soft_wrap=True)
     rprint = console.print   # <-- define rprint
     rprint(f"[bold green]{info_line}[/bold green]")
