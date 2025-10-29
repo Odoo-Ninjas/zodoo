@@ -29,3 +29,4 @@ scapy
 
 odoorpc
 IPython
+rich

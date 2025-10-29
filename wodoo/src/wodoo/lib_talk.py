@@ -554,10 +554,60 @@ def resolve_action_id(config, action_id):
 @talk.command()
 @pass_config
 def rpc(config):
+    from prompt_toolkit.styles import Style
+    from IPython.terminal.prompts import Prompts, Token
+    from IPython import get_ipython
+    from IPython.terminal.embed import InteractiveShellEmbed
+    from IPython.terminal.prompts import Prompts, Token
+    from rich.console import Console
+    from rich.pretty import pprint
+
+
+
+    # ----- pretty/colored output (rich) -----
+    try:
+        from rich import print as rprint
+        from rich.pretty import pprint as rpprint
+        USE_RICH = True
+    except Exception:
+        USE_RICH = False
+
+    class OdooPrompts(Prompts):
+        def in_prompt_tokens(self, cli=None):
+            return [(Token.Prompt, f"[{config.DBNAME}] [{self.shell.execution_count}]: ")]
+
     odoo = odoorpc(config)
-    env = odoo.env
-    import IPython
-    IPython.embed(header=f"OdooRPC Shell {config.dbname} Port:{config.proxy_port}")
+    local_vars = {"odoo": odoo, "env": odoo.env}
+
+    # Build a banner
+    info_line = f"Connected to Odoo [{config.DBNAME}] @ PORT: {config.PROXY_PORT}"
+    tips = "Examples:\n  Partner = odoo.env['res.partner']\n  Partner.search_read([], ['name'], limit=5)"
+    console = Console(force_terminal=True, soft_wrap=True)
+    rprint = console.print   # <-- define rprint
+    rprint(f"[bold green]{info_line}[/bold green]")
+    rprint("[cyan]Variables:[/cyan] [bold]odoo[/bold]  |  [cyan]Helpers:[/cyan] print (rich), pprint (rich.pretty)")
+    rprint(tips)
+
+    # Create and configure shell
+    ipshell = InteractiveShellEmbed(banner1="")
+    ipshell.colors = "Linux"  # nice default; try 'Neutral' or 'LightBG' if you prefer
+    try:
+        # True color & verbose tracebacks
+        ipshell.run_line_magic("config", "TerminalInteractiveShell.true_color = True")
+        ipshell.run_line_magic("xmode", "Verbose")
+    except Exception:
+        pass
+
+    # Attach prompt & helpers
+    ipshell.prompts = OdooPrompts(ipshell)
+    local_ns = {"odoo": odoo, "env": odoo.env}
+    if USE_RICH:
+        local_ns.update({"print": rprint, "pprint": rpprint})
+    # Drop into the shell
+    ipshell(local_ns=local_ns, global_ns={})
+
+    # After exit, print a friendly message
+    print("Bye! 👋")
 
 
 Commands.register(progress)
