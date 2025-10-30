@@ -21,8 +21,11 @@ LANG = sys.argv[1]
 MODULES = sys.argv[2]
 
 # definitly in version 15+
-if "_" in LANG:
-    LANG = LANG.split("_")[0]
+from wodoo.odoo_config import customs_dir, MANIFEST
+manifest = MANIFEST()
+if float(manifest['version']) < 18.0:
+    if "_" in LANG:
+        LANG = LANG.split("_")[0]
 
 # only export in base langs here
 # 13.0 import just de_DE did not import with specifying a translation file
@@ -30,7 +33,10 @@ if "_" in LANG:
 def _get_lang_export_line(module, lang):
     filename = tempfile.mktemp(suffix='.po')
     code = (
-        "from odoo.tools import trans_export\n"
+        "try:\n"
+        " from odoo.tools import trans_export\n"
+        "except ImportError:\n"
+        " from odoo.tools.translate import trans_export\n"
         f"with open('{filename}', 'wb') as buf:\n"
         f'   trans_export("{lang}", ["{module.name}"], buf, "po", env.cr) \n'
     )
