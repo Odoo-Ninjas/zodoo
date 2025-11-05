@@ -899,6 +899,11 @@ def update(
 
     duration = (arrow.get() - started).total_seconds()
     date = arrow.get().strftime("%Y-%m-%d %H:%M:%S")
+
+    if not no_restart:
+        _execute_after_update_scripts(config)
+
+
     click.secho(f"Update done at {date} - duration {duration}s", fg="yellow")
     if not no_progress:
         click.secho("Update-log here: ./update.log")
@@ -907,6 +912,12 @@ def update(
             update_log_file.relative_to(customs_dir()),
         )
 
+def _execute_after_update_scripts(config):
+    for file in [
+        "/etc/odoo/after-update.sh",
+    ]:
+        if file.exists():
+            subprocess.run([file], check=True)
 
 def _exec_commands(ctx, config, commands):
     for command in commands:
