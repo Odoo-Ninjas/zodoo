@@ -249,7 +249,7 @@ class DBModules(object):
             and
                 mprior.state = 'uninstalled'
             and 
-                m.name not in (%s)
+                mprior.name not in (%s)
             ;
         """ % (
 (
