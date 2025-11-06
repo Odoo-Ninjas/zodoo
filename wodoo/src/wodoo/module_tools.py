@@ -56,6 +56,11 @@ def module_or_string(module):
     if isinstance(module, Module):
         return module.name
 
+def module_name(module):
+    if isinstance(module, str):
+        return module
+    return module.name
+
 
 class NotInAddonsPath(Exception):
     pass
@@ -225,7 +230,7 @@ class DBModules(object):
                 yield mod
 
     @classmethod
-    def get_uninstalled_modules_where_others_depend_on(clazz):
+    def get_uninstalled_modules_where_others_depend_on(clazz, going_to_uninstall_modules):
         sql = """
             select
                 d.name
@@ -242,12 +247,21 @@ class DBModules(object):
             where
                 m.state in ('installed', 'to install', 'to upgrade')
             and
-                mprior.state = 'uninstalled';
-        """
+                mprior.state = 'uninstalled'
+            and 
+                m.name not in (%s)
+            ;
+        """ % (
+(
+                ','.join(
+                    map(
+                        lambda x: f"'{module_name(x)}'", (
+                            going_to_uninstall_modules or ["_______"]))))
+        )
         with get_conn_autoclose() as cr:
             if not _exists_table(cr, "ir_module_module"):
                 return []
-            cr.execute(sql)
+            cr.execute(sql )
             return [x[0] for x in cr.fetchall()]
 
     @classmethod

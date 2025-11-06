@@ -89,13 +89,15 @@ def abort_upgrade(config):
     DBModules.abort_upgrade()
 
 
-def _get_default_modules_to_update(config):
+def _get_default_modules_to_update(config, going_to_uninstall_modules):
     from .module_tools import Modules, DBModules
 
     mods = Modules()
     module = mods.get_customs_modules("to_update")
-    module += DBModules.get_uninstalled_modules_where_others_depend_on()
-    module += DBModules.get_outdated_installed_modules(mods)
+    uninstalled_modules = list(DBModules.get_uninstalled_modules_where_others_depend_on( going_to_uninstall_modules))
+    module += uninstalled_modules
+    outdated_modules = list(DBModules.get_outdated_installed_modules(mods))
+    module += outdated_modules
     remove_some_modules(config, module)
 
     return module
@@ -553,6 +555,11 @@ def make_sure_module_is_installed(ctx, config, module):
     is_flag=True,
     help="No progress, but allows interactive debugging",
 )
+@click.option(
+    "-N",
+    "--dry-run",
+    is_flag=True,
+)
 @pass_config
 @click.pass_context
 def update(
@@ -582,6 +589,7 @@ def update(
     stdout=False,
     no_scripts=False,
     no_progress=False,
+    dry_run=False,
 ):
     """
     Just custom modules are updated, never the base modules (e.g. prohibits adding old stock-locations)
@@ -643,6 +651,9 @@ def update(
     if test_tags and default_test_tags:
         abort("Conflict: parameter test-tags and default-test-tags")
 
+    if dry_run:
+        no_restart = True
+
     update_log_file = customs_dir() / "update.log"
     update_log_file.write_text("")
     __try_to_set_owner(
@@ -650,13 +661,33 @@ def update(
         update_log_file,
         verbose=True,
     )
-    if is_docker_available():
+    if is_docker_available() and not dry_run:
         start_postgres_if_local(ctx, config)
     manifest = MANIFEST()
     if manifest.get("before-odoo-update", []) and not no_scripts:
         if os.getenv("NO_BEFORE_ODOO_COMMAND") != "1":
             click.secho("Running before-odoo-update", fg="yellow")
-            _exec_commands(ctx, config, manifest.get("before-odoo-update", []))
+            if dry_run:
+                click.secho(
+                    f"Would run before-odoo-update commands: {manifest.get('before-odoo-update',[])}"
+                )
+            else:
+                _exec_commands(ctx, config, manifest.get("before-odoo-update", []))
+
+    def _get_module_name(x):
+        if isinstance(x, str):
+            return x
+        return x.name
+
+    def display_modules(modules):
+        modules = sorted(map(_get_module_name, modules))
+        maxsize = max(len(x) for x in modules)
+        lines = []
+        for i in range(0, len(modules), 3):
+            row = modules[i: i + 3]
+            lines.append("".join(word.ljust(maxsize + 3) for word in row))
+        for line in lines:
+            print(line)
 
     def _perform_install(module):
         if since_git_sha and module:
@@ -671,7 +702,7 @@ def update(
             module = _parse_modules(module)
 
         if not module and not since_git_sha:
-            module = _get_default_modules_to_update(config)
+            module = _get_default_modules_to_update(config, manifest.get("uninstall", []))
 
         def _get_outdated_modules():
             return list(
@@ -714,12 +745,16 @@ def update(
                 return test_tags or ""
 
         click.echo("Run module update")
-        if config.odoo_update_start_notification_touch_file_in_container:
+        if config.odoo_update_start_notification_touch_file_in_container and not dry_run:
             Path(
                 config.odoo_update_start_notification_touch_file_in_container
             ).write_text(datetime.now().strftime(DTF))
 
         def _technically_update(modules):
+            if dry_run:
+                click.secho("Would update now modules: ")
+                display_modules(modules)
+                return
             if not no_progress:
                 progress = ProgressBarDaemon(interval=0.2)
                 progress.start()
@@ -873,7 +908,7 @@ def update(
     if not uninstall:
         _perform_install(module)
 
-    _uninstall_devmode_modules(ctx, config, manifest)
+    _uninstall_devmode_modules(ctx, config, manifest, dry_run=dry_run)
 
     all_modules = (
         not param_module
@@ -931,9 +966,12 @@ def _exec_commands(ctx, config, commands):
         subprocess.run(cmd, check=True, env=env)
 
 
-def _uninstall_devmode_modules(ctx, config, manifest):
+def _uninstall_devmode_modules(ctx, config, manifest, dry_run):
     if config.devmode and manifest.get("devmode_uninstall", []):
         for mod in manifest["devmode_uninstall"]:
+            if dry_run:
+                click.secho(f"Would uninstall: {mode}")
+                continue
             _uninstall_marked_modules(
                 ctx, config, manifest["devmode_uninstall"], False
             )
@@ -1178,6 +1216,9 @@ for module in modules:
 @pass_config
 @click.pass_context
 def update_i18n(ctx, config, module, no_restart):
+    from .odoo_config import customs_dir, MANIFEST
+
+    manifest = MANIFEST()
     if config.run_postgres:
         Commands.invoke(ctx, "up", machines=["postgres"], daemon=True)
     Commands.invoke(ctx, "wait_for_container_postgres")
@@ -1186,7 +1227,7 @@ def update_i18n(ctx, config, module, no_restart):
     )  # '1,2 3' --> ['1', '2', '3']
 
     if not module:
-        module = _get_default_modules_to_update(config)
+        module = _get_default_modules_to_update(config, manifest.get("uninstall", []))
 
     try:
         params = [",".join(module)]
@@ -1473,7 +1514,10 @@ def unittest(
 @pass_config
 @click.pass_context
 def generate_update_command(ctx, config):
-    modules = _get_default_modules_to_update(config)
+    from .odoo_config import customs_dir, MANIFEST
+
+    manifest = MANIFEST()
+    modules = _get_default_modules_to_update(config,manifest.get("uninstall", []) )
     click.secho(f"-u {','.join(modules)}")
 
 
@@ -1778,7 +1822,10 @@ def list_modules(ctx, config, skip_odoo, skip_enterprise, skip_oca):
 @pass_config
 @click.pass_context
 def list_outdated_modules(ctx, config):
-    modules = _get_default_modules_to_update(config)
+    from .odoo_config import customs_dir, MANIFEST
+
+    manifest = MANIFEST()
+    modules = _get_default_modules_to_update(config,manifest.get("uninstall", []))
 
     def _get_outdated_modules(module):
         return list(
