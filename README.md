@@ -261,6 +261,11 @@ EXTRA_CONFIG_your_key=value
 
 These settings are added to the config files.
 
+
+# execute success update script
+
+* file at /etc/odoo/after-update.sh is executed.
+
 # Pytests
 
 Best executed with:

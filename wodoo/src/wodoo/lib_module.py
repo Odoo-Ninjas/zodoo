@@ -916,7 +916,7 @@ def _execute_after_update_scripts(config):
     for file in [
         "/etc/odoo/after-update.sh",
     ]:
-        if file.exists():
+        if Path(file).exists():
             subprocess.run([file], check=True)
 
 def _exec_commands(ctx, config, commands):
