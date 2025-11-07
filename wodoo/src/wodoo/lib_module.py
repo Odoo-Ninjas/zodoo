@@ -212,6 +212,11 @@ def run_tests(ctx, config, module, filter, no_db_reset, regex, exclude_filter):
             all_testfiles.append(file)
             count_all_tests += 1
 
+    def display_progress():
+        click.secho(
+            f"Successful Files: {success_ratio}% - Successful Lines: {success_line_ratio} - Time: {elapsed} seconds - {len(ran_tests)} tests - remaining: {remaining}",
+            fg="yellow",
+            )
     for file in sorted(all_testfiles):
         linecount = len(file.read_text().splitlines())
 
@@ -291,10 +296,7 @@ def run_tests(ctx, config, module, filter, no_db_reset, regex, exclude_filter):
         print("\033[F", end="")
         color = "green" if was_success else "red"
         click.secho(f"{file} [{linecount}]".ljust(size.columns), fg=color)
-        click.secho(
-            f"Successful Files: {success_ratio}% - Successful Lines: {success_line_ratio} - Time: {elapsed} seconds - {len(ran_tests)} tests - remaining: {remaining}",
-            fg="yellow",
-        )
+        display_progress()
 
     elapsed = (datetime.now() - started).total_seconds()
     click.secho(f"Time: {elapsed} seconds", fg="yellow")
@@ -317,7 +319,10 @@ def run_tests(ctx, config, module, filter, no_db_reset, regex, exclude_filter):
         for testfile in failed:
             lines = len(testfile.read_text().splitlines())
             click.secho(f"{testfile}\t[Lines: {lines}]", fg="red")
+        display_progress()
         sys.exit(-1)
+    else:
+        display_progress()
 
 
 @odoo_module.command(name="download-openupgrade")
