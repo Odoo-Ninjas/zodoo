@@ -206,73 +206,69 @@ def run_tests(ctx, config, module, filter, no_db_reset, regex):
         count_lines += linecount
         all_ran_tests.append(file)
 
-        if config.use_docker:
-
-            def run_test(file):
-                params = ["odoo", "/odoolib/unit_test.py", file]
-                click.secho(f"Running test: {file}", fg="yellow", bold=True)
-                res = __dcrun(
-                    config,
-                    params + ["--log-level=error", "--not-interactive"],
-                    returncode=True,
-                )
-                return res
-
-            res = run_test(file)
-            if res:
-                if no_db_reset:
-                    failed.append(file)
-                else:
-                    click.secho(
-                        f"Test {file} failed on first attempt. Resetting db and trying once more.",
-                        fg="red",
-                    )
-                    reset_db()
-                    res = run_test(file)
-                    if res:
-                        failed.append(file)
-                        click.secho(
-                            f"Failed, running again with debug on: {file}",
-                            fg="red",
-                            bold=True,
-                        )
-                        __cmd_interactive(
-                            config,
-                            *(
-                                [
-                                    "run",
-                                    "--rm",
-                                    "odoo",
-                                    "/odoolib/unit_test.py",
-                                    file,
-                                    "--log-level=debug",
-                                ]
-                            ),
-                        )
-                    else:
-                        success.append(file)
-                        count_success_lines += linecount
-            else:
-                success.append(file)
-                count_success_lines += linecount
-        else:
+        if not config.use_docker:
             raise NotImplementedError()
 
-        success_quote = round(
+        def run_test(file):
+            params = ["odoo", "/odoolib/unit_test.py", file]
+            click.secho(f"Running test: {file}", fg="yellow", bold=True)
+            res = __dcrun(
+                config,
+                params + ["--log-level=error", "--not-interactive"],
+                returncode=True,
+            )
+            return res
+
+        res = run_test(file)
+        if res:
+            if no_db_reset:
+                failed.append(file)
+            else:
+                click.secho(
+                    f"Test {file} failed on first attempt. Resetting db and trying once more.",
+                    fg="red",
+                )
+                reset_db()
+                res = run_test(file)
+                if res:
+                    failed.append(file)
+                    click.secho(
+                        f"Failed, running again with debug on: {file}",
+                        fg="red",
+                        bold=True,
+                    )
+                    __cmd_interactive(
+                        config,
+                        *(
+                            [
+                                "run",
+                                "--rm",
+                                "odoo",
+                                "/odoolib/unit_test.py",
+                                file,
+                                "--log-level=debug",
+                            ]
+                        ),
+                    )
+                else:
+                    success.append(file)
+                    count_success_lines += linecount
+        else:
+            success.append(file)
+            count_success_lines += linecount
+
+        success_ratio = round(
             (float(len(success)) / float(len(all_ran_tests)) * 100.0), 1
         )
-        success_line_quote = round(
+        success_line_ratio = round(
             float(count_success_lines) / float(count_lines) * 100.0, 1
         )
         elapsed = (datetime.now() - started).total_seconds()
         remaining = count_all_tests - len(ran_tests)
         click.secho(
-            f"Successful Files: {success_quote}% - Successful Lines: {success_line_quote} - Time: {elapsed} seconds - {len(ran_tests)} tests - remaining: {remaining}",
+            f"Successful Files: {success_ratio}% - Successful Lines: {success_line_ratio} - Time: {elapsed} seconds - {len(ran_tests)} tests - remaining: {remaining}",
             fg="yellow",
         )
-        for i, txtfile in enumerate(ran_tests, 1):
-            color = "green" if txtfile not in failed else "red"
-            click.secho(f"{i}: {txtfile}", fg=color)
 
     elapsed = (datetime.now() - started).total_seconds()
     click.secho(f"Time: {elapsed} seconds", fg="yellow")
@@ -285,6 +281,7 @@ def run_tests(ctx, config, module, filter, no_db_reset, regex):
             except:
                 time.sleep(3)
 
+    # Summary
     for mod in success:
         click.secho(str(mod), fg="green")
     click.secho("Tests OK", fg="green")
