@@ -1,3 +1,4 @@
+import shutil
 import time
 import re
 import sys
@@ -9,6 +10,8 @@ import inquirer
 import traceback
 from datetime import datetime
 import shutil
+import click_spinner
+
 import os
 import tempfile
 import click
@@ -205,12 +208,14 @@ def run_tests(ctx, config, module, filter, no_db_reset, regex):
         ran_tests.append(file)
         count_lines += linecount
         all_ran_tests.append(file)
+        was_success = None
 
         if not config.use_docker:
             raise NotImplementedError()
 
         def run_test(file):
             params = ["odoo", "/odoolib/unit_test.py", file]
+            print("\033[1K\r", end="")
             click.secho(f"Running test: {file}", fg="yellow", bold=True)
             res = __dcrun(
                 config,
@@ -219,10 +224,13 @@ def run_tests(ctx, config, module, filter, no_db_reset, regex):
             )
             return res
 
-        res = run_test(file)
+        sys.stdout.flush()
+        with click_spinner.spinner(beep=True):
+            res = run_test(file)
         if res:
             if no_db_reset:
                 failed.append(file)
+                was_success = False
             else:
                 click.secho(
                     f"Test {file} failed on first attempt. Resetting db and trying once more.",
@@ -252,10 +260,12 @@ def run_tests(ctx, config, module, filter, no_db_reset, regex):
                     )
                 else:
                     success.append(file)
+                    was_success = True
                     count_success_lines += linecount
         else:
             success.append(file)
             count_success_lines += linecount
+            was_success = True
 
         success_ratio = round(
             (float(len(success)) / float(len(all_ran_tests)) * 100.0), 1
@@ -265,6 +275,11 @@ def run_tests(ctx, config, module, filter, no_db_reset, regex):
         )
         elapsed = (datetime.now() - started).total_seconds()
         remaining = count_all_tests - len(ran_tests)
+        size = shutil.get_terminal_size()
+        print("\033[F", end="")
+        print("\033[F", end="")
+        color = "green" if was_success else "red"
+        click.secho(f"{file}".ljust(size.columns), fg=color)
         click.secho(
             f"Successful Files: {success_ratio}% - Successful Lines: {success_line_ratio} - Time: {elapsed} seconds - {len(ran_tests)} tests - remaining: {remaining}",
             fg="yellow",

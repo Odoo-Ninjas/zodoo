@@ -30,3 +30,4 @@ scapy
 odoorpc
 IPython
 rich
+click-spinner
