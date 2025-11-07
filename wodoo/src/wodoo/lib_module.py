@@ -10,7 +10,6 @@ import inquirer
 import traceback
 from datetime import datetime
 import shutil
-import click_spinner
 
 import os
 import tempfile
@@ -225,6 +224,7 @@ def run_tests(ctx, config, module, filter, no_db_reset, regex):
             return res
 
         sys.stdout.flush()
+        import click_spinner
         with click_spinner.spinner(beep=True):
             res = run_test(file)
         if res:
