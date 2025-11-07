@@ -127,6 +127,7 @@ def update_module_file(module):
     "module", nargs=-1, required=False, shell_complete=_get_available_modules
 )
 @click.option("-f", "--filter", help="Filter test names (simple wildcard)")
+@click.option("-F", "--exclude-filter", help="Filter test names (simple wildcard)", multiple=True)
 @click.option("--regex", is_flag=True, help="Filter is regex")
 @click.option(
     "-R",
@@ -134,7 +135,7 @@ def update_module_file(module):
     is_flag=True,
     help="No database reset - uses current database",
 )
-def run_tests(ctx, config, module, filter, no_db_reset, regex):
+def run_tests(ctx, config, module, filter, no_db_reset, regex, exclude_filter):
     start_postgres_if_local(ctx, config)
     started = datetime.now()
     if not config.devmode and not config.force:
@@ -178,6 +179,13 @@ def run_tests(ctx, config, module, filter, no_db_reset, regex):
     count_lines = 0
     count_success_lines = 0
 
+    def _filter_matches(the_filter, string):
+        if regex:
+            found = bool(re.search(the_filter, string))
+        else:
+            found = the_filter in string
+        return found
+
     for module in tests:
         if filter_module and module not in filter_module:
             continue
@@ -189,14 +197,17 @@ def run_tests(ctx, config, module, filter, no_db_reset, regex):
         testfiles = [x for x in testfiles if x.name.startswith("test_")]
 
         for file in testfiles:
+            test = module.name + "/" + str(file)
             if filter:
-                test = module.name + "/" + str(file)
-                if regex:
-                    found = bool(re.search(filter, test))
-                else:
-                    found = filter in test
-                if not found:
+                if not _filter_matches(filter, test):
                     continue
+            ignore_file = False
+            for exclude in exclude_filter:
+                if _filter_matches(exclude, test):
+                    ignore_file = True
+            if ignore_file:
+                continue
+            
             file = module.path / file
             all_testfiles.append(file)
             count_all_tests += 1
@@ -215,7 +226,7 @@ def run_tests(ctx, config, module, filter, no_db_reset, regex):
         def run_test(file):
             params = ["odoo", "/odoolib/unit_test.py", file]
             print("\033[1K\r", end="")
-            click.secho(f"Running test: {file}", fg="yellow", bold=True)
+            click.secho(f"Running test: {file} [{linecount}]", fg="yellow", bold=True)
             res = __dcrun(
                 config,
                 params + ["--log-level=error", "--not-interactive"],
@@ -279,7 +290,7 @@ def run_tests(ctx, config, module, filter, no_db_reset, regex):
         print("\033[F", end="")
         print("\033[F", end="")
         color = "green" if was_success else "red"
-        click.secho(f"{file}".ljust(size.columns), fg=color)
+        click.secho(f"{file} [{linecount}]".ljust(size.columns), fg=color)
         click.secho(
             f"Successful Files: {success_ratio}% - Successful Lines: {success_line_ratio} - Time: {elapsed} seconds - {len(ran_tests)} tests - remaining: {remaining}",
             fg="yellow",
