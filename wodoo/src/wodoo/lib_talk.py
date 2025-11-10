@@ -353,8 +353,9 @@ def users(config, login):
 @talk.command()
 @click.argument("model", required=False, default="%")
 @click.argument("field", required=False, default="%")
+@click.option("-r", "--relation", required=False)
 @pass_config
-def fields(config, model, field):
+def fields(config, model, field, relation):
     conn = config.get_odoo_conn()
     sql = (
         "SELECT f.model, f.name, f.ttype, f.relation "
@@ -367,6 +368,8 @@ def fields(config, model, field):
         sql += f" AND m.model ilike '%{model}%' "
     if field:
         sql += f" AND f.name ilike '%{field}%' "
+    if relation:
+        sql += f" AND f.relation = '{relation}' "
 
     rows = _execute_sql(
         conn,
@@ -375,7 +378,7 @@ def fields(config, model, field):
         return_columns=False,
     )
 
-    cols = ["name", "ttype"]
+    cols = ["model", "field-name", "ttype", "relation"]
     click.secho(
         tabulate(rows, cols, tablefmt="fancy_grid"),
         fg="yellow",
