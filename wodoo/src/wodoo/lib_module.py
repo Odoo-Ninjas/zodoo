@@ -127,7 +127,9 @@ def update_module_file(module):
     "module", nargs=-1, required=False, shell_complete=_get_available_modules
 )
 @click.option("-f", "--filter", help="Filter test names (simple wildcard)")
-@click.option("-F", "--exclude-filter", help="Filter test names (simple wildcard)", multiple=True)
+@click.option(
+    "-F", "--exclude-filter", help="Filter test names (simple wildcard)", multiple=True
+)
 @click.option("--regex", is_flag=True, help="Filter is regex")
 @click.option(
     "-R",
@@ -207,16 +209,23 @@ def run_tests(ctx, config, module, filter, no_db_reset, regex, exclude_filter):
                     ignore_file = True
             if ignore_file:
                 continue
-            
+
             file = module.path / file
             all_testfiles.append(file)
             count_all_tests += 1
 
     def display_progress():
         click.secho(
-            f"Successful Files: {success_ratio}% - Successful Lines: {success_line_ratio} - Time: {elapsed} seconds - {len(ran_tests)} tests - remaining: {remaining}",
-            fg="yellow",
+            (
+                f"Successful Files: {success_ratio}% - "
+                f"Successful Lines: {success_line_ratio}% - "
+                f"Time: {elapsed}s- "
+                f"{len(ran_tests)} tested - "
+                f"{remaining} remaining"
             )
+            fg="yellow",
+        )
+
     for file in sorted(all_testfiles):
         linecount = len(file.read_text().splitlines())
 
@@ -241,6 +250,7 @@ def run_tests(ctx, config, module, filter, no_db_reset, regex, exclude_filter):
 
         sys.stdout.flush()
         import click_spinner
+
         with click_spinner.spinner(beep=True):
             res = run_test(file)
         if res:
