@@ -222,7 +222,7 @@ def run_tests(ctx, config, module, filter, no_db_reset, regex, exclude_filter):
                 f"Time: {elapsed}s- "
                 f"{len(ran_tests)} tested - "
                 f"{remaining} remaining"
-            )
+            ),
             fg="yellow",
         )
 
