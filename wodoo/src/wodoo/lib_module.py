@@ -180,6 +180,9 @@ def run_tests(ctx, config, module, filter, no_db_reset, regex, exclude_filter):
     count_all_tests = 0
     count_lines = 0
     count_success_lines = 0
+    success_ratio = 0
+    success_line_ratio = 0
+    remaining = 0
 
     def _filter_matches(the_filter, string):
         if regex:

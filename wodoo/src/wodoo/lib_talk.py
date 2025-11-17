@@ -470,8 +470,9 @@ def _get_xmlid(conn, id, model):
 @click.option("-t", "--type", required=False)
 @click.option("-x", "--xmlid", required=False)
 @click.option("-S", "--show", is_flag=True)
+@click.option("--mode", help="Mode")
 @pass_config
-def views(config, name, arch, model, type, xmlid, show, module):
+def views(config, name, arch, model, type, xmlid, show, module, mode):
     odoo = odoorpc(config)
     domain = []
     if module:
@@ -486,6 +487,8 @@ def views(config, name, arch, model, type, xmlid, show, module):
         domain += [('type', 'ilike', type)]
     if model:
         domain += [('model', '=', model)]
+    if mode:
+        domain += [('mode', '=', mode)]
     if xmlid:
         id = odoo.env.ref(xmlid).id
         domain += [('id','=',id)]
@@ -500,9 +503,9 @@ def views(config, name, arch, model, type, xmlid, show, module):
                 break
         else:
             ix, xmlid = "", ""
-        rows.append((id, v.type, v.model, xmlid, v.inherit_id.id or '', v.arch_fs))
+        rows.append((id, v.type, v.model, xmlid, v.mode, v.inherit_id.id or '', v.arch_fs))
     rows = sorted(rows, key=lambda x: (str(x[1]), str(x[3])))
-    click.secho(tabulate(rows, ("id", "type", "model", "xmlid",  "inherits", "filepath"), tablefmt="fancy_grid"), fg='yellow')
+    click.secho(tabulate(rows, ("id", "type", "model", "xmlid",  "mode", "inherits", "filepath"), tablefmt="fancy_grid"), fg='yellow')
 
     if show:
         for view in views:
