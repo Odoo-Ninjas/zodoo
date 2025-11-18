@@ -57,6 +57,8 @@ ARG ODOO_FRAMEWORK_REQUIREMENTS
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
 
+#___SNIPPET_APT_PROXY___
+
 RUN #___SNIPPET_APT_INSTALL___ \
     build-essential \
     libxml2-dev \
@@ -100,7 +102,8 @@ COPY patches/python_3.8.email.patch /usr/local/src
 RUN bash /usr/local/src/python_3.8.email.patch
 
 # Openupgradelib
-RUN apt-get install -y git
+RUN apt-get install -y git ca-certificates && \
+    update-ca-certificates
 RUN git clone https://github.com/OCA/openupgradelib /opt/openupgradelib
 WORKDIR /opt/openupgradelib
 RUN pip3 install $(cat /etc/pip_options) /opt/openupgradelib
@@ -184,14 +187,10 @@ RUN apt-get install -y xfonts-75dpi xfonts-base libgeos-dev
 WORKDIR /tmp
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
     curl -o /root/wkhtmltox.deb -sSL  https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.bullseye_amd64.deb && \
-    apt-get install -y --no-install-recommends /root/wkhtmltox.deb && \
-    rm -rf /var/lib/apt/lists/* /root/wkhtmltox.deb; \
-fi
+    apt-get install -y --no-install-recommends /root/wkhtmltox.deb; fi
 RUN if [ "$TARGETARCH" = "arm64" ]; then \
     curl -o /root/wkhtmltox.deb -sSL https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.bullseye_arm64.deb &&  \
-    apt-get install -y --no-install-recommends /root/wkhtmltox.deb && \
-    rm -rf /var/lib/apt/lists/* /root/wkhtmltox.deb;  \
-fi
+    apt-get install -y --no-install-recommends /root/wkhtmltox.deb; fi
 
 #___SNIPPET_NODEJS___
 
@@ -205,12 +204,12 @@ rm -Rf /usr/local/man && mkdir -p /usr/local/man/man1
 # RUN rm -Rf /opt/venv
 # COPY --from=build_pip /opt/venv /opt/venv
 
-
 #___SNIPPET_DEB_REQUIREMENTS___
 
 #___SNIPPET_PYTHON_INSTALL___
 
 #___SNIPPET_TRANSFER_VENV___
+
 
 WORKDIR /opt/odoo
 
@@ -226,19 +225,24 @@ ENV WODOO_SRC=/opt/wodoo
 ENV WODOO_PIPX_HOME=/opt/wodoo_pipx
 ENV WODOO_ENV_DIR=/opt/wodoo_pipx/venvs/wodoo
 ENV WODOO_PYTHON=${WODOO_ENV_DIR}/bin/python3
-RUN git clone --depth 1 https://github.com/marcwimmer/wodoo $WODOO_SRC
+RUN git clone --depth 1 https://github.com/Odoo-Ninjas/zodoo $WODOO_SRC
 
-RUN rm $WODOO_SRC/wodoo/requirements.txt
-COPY config/$ODOO_VERSION/wodoo_requirements.txt $WODOO_SRC/wodoo/requirements.txt
+RUN rm $WODOO_SRC/wodoo/src/wodoo/requirements.txt
+COPY config/$ODOO_VERSION/wodoo_requirements.txt $WODOO_SRC/wodoo/src/wodoo/requirements.txt
 
+RUN apt-get install -y build-essential \
+        libxml2-dev \
+        libxslt1-dev \
+        libffi-dev \
+        libpq-dev \
+        pkg-config 
 RUN \
 export PIPX_HOME="${WODOO_PIPX_HOME}" && \
 export PIPX_BIN_DIR=/usr/local/bin && \
 PIPX_DEFAULT_PYTHON=/opt/venv/bin/python3 \
-pipx install --pip-args="$(cat /etc/pip_options) --constraint /opt/constraints.txt" -e $WODOO_SRC && \
+pipx install --pip-args=" --constraint /opt/constraints.txt" -e $WODOO_SRC/wodoo/src && \
 echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
 RUN pip3 install $(cat /etc/pip_options) lxml==4.6.0
-
 
 
 
@@ -248,10 +252,9 @@ RUN if [ "$TARGETARCH" = "arm64" ]; then \
 libpq-dev && \
 pip3 install $(cat /etc/pip_options) psycopg2-binary --no-binary psycopg2-binary --force-reinstall; \
 fi
- 
+
 RUN #___SNIPPET_APT_INSTALL___ \
 coreutils
-
 
 
 
