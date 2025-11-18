@@ -478,8 +478,6 @@ def _copy_all_dockerfiles_to_run_dir_and_set_dockerfile_in_dockercompose(
 
     from .myconfigparser import MyConfigParser
 
-    settings = MyConfigParser(config.files["settings"])
-
     content = config.files["docker_compose"].read_text()
     content = yaml.safe_load(content)
     images_dir = config.dirs["images"]

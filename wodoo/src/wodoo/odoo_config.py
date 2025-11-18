@@ -114,9 +114,14 @@ class MANIFEST_CLASS(object):
     def _get_data(self):
         content = self.path.read_text() or "{}"
         try:
-            return OrderedDict(eval(content))
+            res = OrderedDict(eval(content))
         except:
             abort(f"Could not parse {content}")
+
+        system_addons_paths = res.get("addons_paths_system", [])
+        if system_addons_paths:
+            res['addons_paths'] = system_addons_paths + res.get('addons_paths', []) 
+        return res
 
     def __getitem__(self, key):
         data = self._get_data()
