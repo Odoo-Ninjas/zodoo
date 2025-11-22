@@ -39,9 +39,9 @@ def set_password_all_users(config, ctx, password, default):
     l = len(users)
     for i, user in enumerate(users, 1):
         click.secho(f"{i}/{l} Setting password for user {user[0]}", fg="green")
-        if not __verify_password(password, user[1]):
-            sql = f"update res_users set password='{pwd}' where login='{user[0]}'"
-            _execute_sql(conn, sql)
+        # if not __verify_password(password, user[1]):  # WHY USED?
+        sql = f"update res_users set password='{pwd}' where login='{user[0]}'"
+        _execute_sql(conn, sql)
     if current_version() in [11.0]:
         sql = f"update res_users set password_crypt=password"
         _execute_sql(conn, sql)
