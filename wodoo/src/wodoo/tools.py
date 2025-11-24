@@ -847,6 +847,10 @@ def is_docker_available():
 
 
 def _get_user_primary_group(UID):
+    try:
+        return int(UID)
+    except:
+        pass
     id = search_env_path("id")
     return subprocess.check_output(
         [id, "-gn", str(UID)], encoding="utf8"
