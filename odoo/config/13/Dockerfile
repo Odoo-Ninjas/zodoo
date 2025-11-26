@@ -225,10 +225,11 @@ ENV WODOO_SRC=/opt/wodoo
 ENV WODOO_PIPX_HOME=/opt/wodoo_pipx
 ENV WODOO_ENV_DIR=/opt/wodoo_pipx/venvs/wodoo
 ENV WODOO_PYTHON=${WODOO_ENV_DIR}/bin/python3
-RUN git clone --depth 1 https://github.com/Odoo-Ninjas/zodoo $WODOO_SRC
+RUN git clone --depth 1 https://github.com/Odoo-Ninjas/zodoo /opt/zodoo
+RUN rsync /opt/zodoo/wodoo/src/ /opt/wodoo/ -ar
 
-RUN rm $WODOO_SRC/wodoo/src/wodoo/requirements.txt
-COPY config/$ODOO_VERSION/wodoo_requirements.txt $WODOO_SRC/wodoo/src/wodoo/requirements.txt
+RUN rm $WODOO_SRC/wodoo/requirements.txt
+COPY config/$ODOO_VERSION/wodoo_requirements.txt $WODOO_SRC/wodoo/requirements.txt
 
 RUN apt-get install -y build-essential \
         libxml2-dev \
@@ -240,7 +241,7 @@ RUN \
 export PIPX_HOME="${WODOO_PIPX_HOME}" && \
 export PIPX_BIN_DIR=/usr/local/bin && \
 PIPX_DEFAULT_PYTHON=/opt/venv/bin/python3 \
-pipx install --pip-args=" --constraint /opt/constraints.txt" -e $WODOO_SRC/wodoo/src && \
+pipx install --pip-args=" --constraint /opt/constraints.txt" -e $WODOO_SRC && \
 echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
 RUN pip3 install $(cat /etc/pip_options) lxml==4.6.0
 
@@ -292,6 +293,8 @@ ENV ODOO_SERVER_TOOLS_MODULES=/opt/odoo_server_tools
 ENV ODOO_FRAMEWORK_KEEP_SQL_CONNECTION=1
 ENV PATH=/odoolib:/opt/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ENV DOCKER_MACHINE=1
+ENV PIPX_HOME=/opt/wodoo_pipx
+ENV ENV_DIR=/opt/wodoo_pipx/venvs/wodoo
 
 ADD bin/ /odoolib/
 ENV ODOO_CONFIG_DIR=${ODOO_CONFIG_DIR}
