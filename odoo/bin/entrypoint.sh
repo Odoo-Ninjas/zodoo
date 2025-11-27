@@ -9,4 +9,5 @@
 # 	EOT
 # 	chmod a+x "$path"
 # fi
+chown $OWNER_UID /home/odoo/.config -R
 exec "$WODOO_PYTHON" /odoolib/entrypoint.py "$@"
