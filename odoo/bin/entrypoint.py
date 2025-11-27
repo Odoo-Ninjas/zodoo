@@ -1,12 +1,21 @@
 import sys
 import os
 import shutil
+import subprocess
 from pathlib import Path
 
-
 owner = os.environ['OWNER_UID']
-
-os.system(f"usermod -u {owner} odoo")
+owner_uid = os.getenv("OWNER_UID")
+try:
+    owner_uid = int(owner_uid)
+except:
+    print(f"Invalid OWNER_UID: {owner_uid} - requires a number.")
+else:
+    if owner_uid < 1000:
+        old_uid = owner_uid
+        new_uid = 30000 - owner_uid
+        subprocess.check_call(["python3", "/odoolib/reuid.py", "--old-uid", str(old_uid), "--new-uid", str(new_uid)])
+        os.system(f"usermod -u {owner} odoo")
 
 #print(f"Setting ownership of /opt/files to {owner}")
 os.system(f"chown '{owner}:{owner}' /opt/files")

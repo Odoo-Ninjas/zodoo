@@ -3,8 +3,10 @@ services:
     volumes:
       - ${HOST_RUN_DIR}/odoo_outdir/robot_output:/robot_output
       - ${ODOO_IMAGES}/odoo/bin/update_modules.py:/odoolib/update_modules.py
+      - ${ODOO_IMAGES}/odoo/bin/reuid.py:/odoolib/reuid.py
+      - ${ODOO_IMAGES}/odoo/bin/entrypoint.py:/odoolib/entrypoint.py
       - ~/.config/pudb:/home/odoo/.config/pudb
-      # copied by entrpoint to destination and correct UID/GID
+      # copied by entrypoint to destination and correct UID/GID
       - ${HOST_RUN_DIR}/odoo-shell-ipython:/home/odoo/.ipython
       - ${ODOO_IMAGES}/odoo/bin:/odoolib:ro
       - ${ODOO_IMAGES}/odoo/config/${ODOO_VERSION_INT}/config:/etc/odoo/config.template:ro
