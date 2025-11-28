@@ -689,7 +689,7 @@ def get_docker_version():
     try:
         docker = search_env_path("docker")
     except FileNotFoundError:
-        return None
+        return (0,0,0)
     version = subprocess.check_output(
         [docker, "--version"], encoding="utf8"
     ).strip()
