@@ -33,6 +33,7 @@ def main():
     try:
         other = pwd.getpwuid(new_uid)
         print(f"ABBRUCH: UID {new_uid} existiert schon und gehört zu '{other.pw_name}'.")
+        sys.exit(0)
     except KeyError:
         pass  # UID ist frei
 
