@@ -3,6 +3,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+import pwd
 
 owner = os.environ['OWNER_UID']
 owner_uid = os.getenv("OWNER_UID")
@@ -14,6 +15,10 @@ else:
     if owner_uid < 1000:
         old_uid = owner_uid
         new_uid = 30000 - owner_uid
+    else:
+        old_uid = pwd.getpwnam("odoo").pw_uid
+        new_uid = owner_uid
+    if str(old_uid) != str(new_uid):
         subprocess.check_call(["python3", "/odoolib/reuid.py", "--old-uid", str(old_uid), "--new-uid", str(new_uid)])
         os.system(f"usermod -u {owner} odoo")
 
