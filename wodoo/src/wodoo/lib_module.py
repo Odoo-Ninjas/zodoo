@@ -1180,6 +1180,7 @@ def _uninstall_marked_modules(ctx, config, modules, no_restart=False):
             effective_uninstall.append(module)
     if errors:
         abort("\n".join(errors))
+    cmd = ""
     if effective_uninstall:
         module_comma = ",".join(map(lambda x: f"'{x}'", sorted(effective_uninstall)))
         if len(effective_uninstall) > 10:
@@ -1216,7 +1217,8 @@ for module in modules:
 
     modules = [x for x in modules if DBModules.is_module_installed(x)]
     if modules:
-        click.secho(cmd, fg="yellow")
+        if cmd:
+            click.secho(cmd, fg="yellow")
         abort(f"Failed to uninstall: {','.join(modules)}")
 
 
