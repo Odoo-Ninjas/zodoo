@@ -89,6 +89,7 @@ def _replace_params_in_config(
     server_wide_modules = ",".join(_get_server_wide_modules(server_wide_modules))
     content = content.replace("__SERVER_WIDE_MODULES__", server_wide_modules)
 
+
     # queuejob channels
     content = content.replace("__ODOO_QUEUEJOBS_CHANNELS__", _get_queuejob_channels())
 
@@ -210,7 +211,6 @@ def _replace_variables_in_config_files(local_config):
             server_wide_modules = local_config.server_wide_modules.split(",") or None
         elif os.getenv("SERVER_WIDE_MODULES"):
             server_wide_modules = os.environ["SERVER_WIDE_MODULES"].split(",")
-
         if local_config and local_config.upgrade_path:
             upgrade_path = local_config.upgrade_path.split(",")
         else:
@@ -493,6 +493,7 @@ def exec_odoo(
     dokill=True,
     remote_debug=False,
     wait_for_remote=False,
+    enable_queuejobs=False,
     **kwargs,
 ):  # NOQA
     assert not [x for x in args if "--pidfile" in x], "Not custom pidfile allowed"
@@ -614,6 +615,10 @@ def _get_server_wide_modules(server_wide_modules=None):
     ):
         if "queue_job" in server_wide_modules:
             server_wide_modules.remove("queue_job")
+
+    if os.getenv("ENABLE_QUEUEJOBS") == "1":
+        if "queue_job" not in server_wide_modules:
+            server_wide_modules.append("queue_job")
     return server_wide_modules
 
 

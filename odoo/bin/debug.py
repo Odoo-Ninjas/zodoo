@@ -42,10 +42,11 @@ def watch_file_and_kill():
 
 
 class Debugger(object):
-    def __init__(self, sync_common_modules, wait_for_remote, remote_debugging, loglevel):
+    def __init__(self, sync_common_modules, wait_for_remote, remote_debugging, loglevel, enable_queuejobs):
         self.odoolib_path = Path(os.environ["ODOOLIB"])
         self.sync_common_modules = sync_common_modules
         self.first_run = True
+        self.enable_queuejobs = enable_queuejobs
         self.last_unit_test = None
         self.wait_for_remote = wait_for_remote
         if wait_for_remote:
@@ -66,6 +67,7 @@ class Debugger(object):
 
     def action_debug(self):
         self.first_run = False
+
         if os.getenv("ODOO_PYTHON_DEBUG_PORT", ""):
             print(
                 "PTHON REMOTE DEBUGGER PORT: {}".format(
@@ -82,6 +84,8 @@ class Debugger(object):
             cmd += ["--remote-debug"]
         if self.wait_for_remote:
             cmd += ["--wait-for-remote"]
+        if self.enable_queuejobs:
+            cmd += ["--enable-queuejobs"]
         # print(f"executing: {cmd}")
         self.execpy(cmd)
 
@@ -249,6 +253,7 @@ class Debugger(object):
     help="If set, then common modules from framework are copied to addons_tools",
 )
 @click.option("-q", "--debug-queuejobs", is_flag=True)
+@click.option("-qe", "--enable-queuejobs", is_flag=True)
 @click.option("-w", "--wait-for-remote", is_flag=True)
 @click.option("-r", "--remote-debugging", is_flag=True)
 @click.option("-W", "--web-workers", default=2)
@@ -262,6 +267,7 @@ def command_debug(
     web_workers,
     profile,
     loglevel,
+    enable_queuejobs,
 ):
     global profiling
     if debug_queuejobs:
@@ -270,6 +276,9 @@ def command_debug(
         os.environ["PYTHONBREAKPOINT"] = "debugpy.set_trace"
     else:
         os.environ["PYTHONBREAKPOINT"] = "pudb.set_trace"
+
+    if enable_queuejobs:
+        os.environ["ENABLE_QUEUEJOBS"] = "1"
     os.environ["ODOO_WORKERS_WEB"] = str(web_workers)
     profiling = profile
     if profile:
@@ -283,6 +292,7 @@ def command_debug(
         wait_for_remote=wait_for_remote,
         remote_debugging=remote_debugging,
         loglevel=loglevel,
+        enable_queuejobs=enable_queuejobs
     ).endless_loop()
 
 
