@@ -299,3 +299,5 @@ ENV ENV_DIR=/opt/wodoo_pipx/venvs/wodoo
 ADD bin/ /odoolib/
 ENV ODOO_CONFIG_DIR=${ODOO_CONFIG_DIR}
 ADD config/${ODOO_VERSION}/config ${ODOO_CONFIG_DIR}.template
+CMD ["sh", "-c", "/opt/wodoo_pipx/venvs/wodoo/bin/python3 /odoolib/run.py"]
+ENTRYPOINT ["/odoolib/entrypoint.sh"]
