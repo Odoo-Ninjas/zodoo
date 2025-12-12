@@ -45,7 +45,7 @@ fi
 
 # Install the editable package using pipx
 echo "📦 Installing $SRC_DIR via pipx..."
-pipx install -e "$SRC_DIR" -f
+pipx install -e "$SRC_DIR" -f || pipx install -e "$SRC_DIR"  
 
 # Setting up completion
 odoo completion -x
