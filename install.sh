@@ -45,6 +45,7 @@ fi
 
 # Install the editable package using pipx
 echo "📦 Installing $SRC_DIR via pipx..."
+# ubuntu 20.04 has no -f flag
 pipx install -e "$SRC_DIR" -f || pipx install -e "$SRC_DIR"  
 
 # Setting up completion
