@@ -384,6 +384,31 @@ def fields(config, model, field, relation):
         fg="yellow",
     )
 
+@talk.command()
+@click.argument("model", required=False, default="%")
+@pass_config
+def models(config, model):
+    conn = config.get_odoo_conn()
+    sql = (
+        "SELECT name, model "
+        "FROM ir_model "
+        "WHERE 1=1 "
+    )
+    if model:
+        sql += f" AND model ilike '%{model}%' "
+
+    rows = _execute_sql(
+        conn,
+        sql=sql,
+        fetchall=True,
+        return_columns=False,
+    )
+
+    cols = ["model", "name"]
+    click.secho(
+        tabulate(rows, cols, tablefmt="fancy_grid"),
+        fg="yellow",
+    )
 
 @talk.command()
 @click.option("-i", "--interval", default=5, type=int)

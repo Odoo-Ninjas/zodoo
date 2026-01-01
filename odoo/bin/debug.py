@@ -97,14 +97,15 @@ class Debugger(object):
             PARAMS_CONST += ["--delete-qweb"]
         if cmd == "update_module":
             PARAMS_CONST += ["--no-tests"]
-        if res := self.execpy(
+        res = self.execpy(
             [
                 os.environ['WODOO_PYTHON'],
                 "/odoolib/update_modules.py",
                 module,
             ]
             + PARAMS_CONST
-        ):
+        )
+        if res:
             if res:
                 click.secho("Odoo update Success", fg="green")
             else:
