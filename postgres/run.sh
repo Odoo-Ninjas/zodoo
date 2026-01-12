@@ -11,7 +11,7 @@ for candi in ['/config', '/config1', '/config2']:
     if candi.exists():
         print("Configuration file found at " + str(candi))
         conf = [x for x in candi.read_text().splitlines() if not x.strip().startswith("#")]
-conf += os.getenv('POSTGRES_CONFIG').split(";")
+conf += os.getenv('POSTGRES_CONFIG').replace(",", ";").split(";")
 conf = list(filter(lambda x: bool((x or '').strip()) and not (x or '').strip().startswith("#"), conf))
 
 print("Applying configuration:\n" + '\n'.join(conf))
