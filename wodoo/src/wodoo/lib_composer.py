@@ -1084,8 +1084,33 @@ def _prepare_docker_compose_files(config, dest_file, paths):
     content = __run_docker_compose_config(config, contents, env)
     content = post_process_complete_yaml_config(config, content)
     content = _execute_after_compose(config, content)
+    create_directories(config, content)
     with atomic_write(dest_file) as file:
         file.write_text(_yamldump(content))
+
+
+def create_directories(config, content):
+    """
+    create all host directories for volumes
+    """
+    for service_name in content["services"]:
+        service = content["services"][service_name]
+        for volume in service.get("volumes", []) or []:
+            if isinstance(volume, str):
+                parts = volume.split(":")
+                host_path = parts[0]
+            elif isinstance(volume, dict):
+                if volume.get("type") != "bind":
+                    continue
+                host_path = volume.get("source")
+            else:
+                continue
+            if host_path.startswith("/"):
+                host_path = Path(host_path)
+            else:
+                raise NotImplementedError(hostpath)
+            if not host_path.exists():
+                host_path.mkdir(parents=True, exist_ok=True)
 
 
 def _fix_contents(contents):
