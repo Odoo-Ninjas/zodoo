@@ -231,7 +231,7 @@ def menus(config, name):
             sql=(
                 f"SELECT id FROM ir_ui_menu WHERE name::text ILIKE '%{name}%' "
                 f" UNION "
-                f"SELECT res_id FROM ir_model_data WHERE model = 'ir.ui.menu' AND name::text ILIKE '%{name}%'"
+                f"SELECT res_id FROM ir_model_data WHERE model = 'ir.ui.menu' AND (name::text ILIKE '%{name}%' OR module ILIKE '%{name}%' )"
             ),
             fetchall=True,
             return_columns=False,
@@ -363,6 +363,7 @@ def fields(config, model, field, relation):
         "ir_model m ON "
         "f.model_id = m.id "
         "WHERE 1=1 "
+        "ORDER 2, 1 "
     )
     if model:
         sql += f" AND m.model ilike '%{model}%' "
