@@ -363,7 +363,6 @@ def fields(config, model, field, relation):
         "ir_model m ON "
         "f.model_id = m.id "
         "WHERE 1=1 "
-        "ORDER 2, 1 "
     )
     if model:
         sql += f" AND m.model ilike '%{model}%' "
@@ -371,6 +370,8 @@ def fields(config, model, field, relation):
         sql += f" AND f.name ilike '%{field}%' "
     if relation:
         sql += f" AND f.relation = '{relation}' "
+
+    sql += "ORDER BY 2, 1 "
 
     rows = _execute_sql(
         conn,
