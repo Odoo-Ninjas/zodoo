@@ -1118,7 +1118,7 @@ def _get_crypt_context():
         16.0,
     ]:
         return CryptContext(schemes=["pbkdf2_sha512", "md5_crypt"])
-    elif current_version() in [17.0, 18.0]:
+    elif current_version() in [17.0, 18.0, 19.0]:
         MIN_ROUNDS = 600_000
         return CryptContext(
             schemes=["pbkdf2_sha512", "plaintext"],
