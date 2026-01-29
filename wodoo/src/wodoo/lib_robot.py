@@ -660,6 +660,7 @@ def make_variable_file(ctx, config, userpassword=None):
     data.setdefault("ROBO_ODOO_PASSWORD", "admin")
     data["ROBO_ODOO_USER"] = "admin"
     data["ROBO_ODOO_VERSION"] = current_version()
+    data["ROBO_ODOO_PORT"] = config.PROXY_PORT
     data["TEST_RUN_INDEX"] = 0
     data["TEST_DIR"] = str(customs_dir() / "robot-output")
     Path(data["TEST_DIR"]).mkdir(exist_ok=True)
