@@ -23,8 +23,12 @@ def setup(config):
 @pass_config
 @click.pass_context
 def next_port(ctx, config):
-    PORTS = set()
-    if config.PROXY_PORT and str(config.PROXY_PORT) != "80":
+    _setup_port(ctx, config, "PROXY_PORT")
+    _setup_port(ctx, config, "DEBUG_PORT")
+
+
+def _setup_port(ctx, config, SETTING_NAME):
+    if getattr(config, SETTING_NAME) and str(getattr(config, SETTING_NAME)) != "80":
         click.secho(f"Port is already configured: {config.PROXY_PORT}")
         return
     # perhaps not reloaded:
@@ -32,25 +36,29 @@ def next_port(ctx, config):
     content = ""
     if settings.exists():
         content = settings.read_text() if settings.exists() else ""
-        if "PROXY_PORT=" in content and "PROXY_PORT=80" not in content:
+        # hacky...with =80
+        if f"{SETTING_NAME}=" in content and "{SETTING_NAME}=80" not in content:
             click.secho(f"Already configured: {content}")
             return
+    port = _next_port(ctx, config)
+    settings.write_text(content + f"\n{SETTING_NAME}={port}\n")
+    click.secho(
+        f"Configured {SETTING_NAME}: {port}. Please reload and restart machines."
+    )
 
+def _next_port(ctx,config):
+    PORTS = set()
     parentfolder = config.dirs["user_conf_dir"]
     for file in parentfolder.glob("settings.*"):
         lines = [
             x
             for x in file.read_text().splitlines()
-            if x.startswith("PROXY_PORT=")
-        ]
+            if x.startswith("PROXY_PORT=") or x.startswith("DEBUG_PORT=")        ]
         for line in lines:
             for port in re.findall(r"\d+", line):
                 PORTS.add(int(port))
     port = max(PORTS) + 1
-    settings.write_text(content + f"\nPROXY_PORT={port}\n")
-    click.secho(
-        f"Configured proxy port: {port}. Please reload and restart machines."
-    )
+    return port
 
 
 @setup.command(name="remove-web-assets")
