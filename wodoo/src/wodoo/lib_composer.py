@@ -1664,7 +1664,7 @@ def setup_launch_json(config):
     ]
     content_task["tasks"] = [
         x
-        for x in content_task["tasks"]
+        for x in content_task.get("tasks", [])
         if x.get("name") not in [y["name"] for y in template["tasks"]]
     ]
     content["configurations"] += template["configurations"]
