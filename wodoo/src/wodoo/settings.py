@@ -68,8 +68,8 @@ def _export_settings(config, forced_values):
     settings.write()
 
 def _append_host_db_port(config, settings):
-    from .tools import on_osx
-    if on_osx():
+    from .tools import on_osx, on_windows_wsl
+    if on_osx() or on_windows_wsl():
         from .lib_setup import _next_port
         if not settings.get("HOST_DB_PORT"):
             settings['HOST_DB_PORT'] = str(_next_port(config))

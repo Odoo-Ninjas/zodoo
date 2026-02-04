@@ -46,7 +46,7 @@ from .tools import autocleanpaper
 from .tools import sync_folder
 from .tools import _yamldump
 from .tools import _shell_complete_services
-from .tools import on_osx
+from .tools import on_osx, on_windows_wsl
 
 import inspect
 import os
@@ -1588,7 +1588,7 @@ def get_host_info():
 
 
 def final_notes(config):
-    if on_osx():
+    if on_osx() or on_windows_wsl():
         if not config.dirs["pyenv"].exists():
             click.secho(
                 "\nPlease setup your local python environment with pyenv to debug locally.\nRun:",

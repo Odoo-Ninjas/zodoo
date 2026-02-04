@@ -15,7 +15,7 @@ from pathlib import Path
 import os
 from .tools import abort
 from .tools import am_i_inside_docker_container
-from .tools import on_osx
+from .tools import on_osx, on_windows_wsl
 
 try:
     import psycopg2
@@ -186,7 +186,7 @@ def get_postgres_connection_params(force_inside_container=None):
         host = Path(os.environ["HOST_RUN_DIR"]) / "postgres.socket"
         port = 0
         # on macos socket connection does not work
-        if on_osx():
+        if on_osx() or on_windows_wsl():
             host = "127.0.0.1"
             port = int(config["HOST_DB_PORT"])
 

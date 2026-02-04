@@ -2258,6 +2258,8 @@ def am_i_inside_docker_container():
 def on_osx() -> bool:
     return platform.system() == "Darwin"
 
+def on_windows_wsl() -> bool:
+    return "WSL_DISTRO_NAME" in os.environ or "microsoft" in open("/proc/version").read().lower()
 
 def get_best_python(desired_version):
     pythonexec = f"python{desired_version}"

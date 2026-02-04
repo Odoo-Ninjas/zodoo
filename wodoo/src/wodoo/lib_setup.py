@@ -11,7 +11,7 @@ from .tools import __try_to_set_owner
 from .tools import whoami
 from .tools import abort
 from .tools import is_git_clean
-from .tools import on_osx
+from .tools import on_osx, on_windows_wsl
 from .tools import __rmtree
 
 ALL_PORTS = ["PROXY_PORT", "DEBUG_PORT", "HOST_DB_PORT"]
@@ -27,7 +27,7 @@ def setup(config):
 @click.pass_context
 def next_port(ctx, config):
     ports = ["PROXY_PORT", "DEBUG_PORT" ]
-    if on_osx():
+    if on_osx() or on_windows_wsl():
         ports += ["HOST_DB_PORT"]
     _setup_port(ctx, config, ports)
 
