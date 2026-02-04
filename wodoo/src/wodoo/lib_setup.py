@@ -52,7 +52,7 @@ def _setup_port(ctx, config, required_ports):
         )
 
 def _next_port(config):
-    PORTS = set((1000,))
+    PORTS = set((2000,))  # usually starting with 1023
     parentfolder = config.dirs["user_conf_dir"]
     for file in parentfolder.glob("settings.*"):
         lines = [
