@@ -129,12 +129,12 @@ ENV LANG=C.UTF-8
 #___SNIPPET_APT_PROXY___
 #___SNIPPET_UPDATE_CA_CERTIFICATES___
 RUN #___SNIPPET_APT_INSTALL___ \
-			man \
+            man \
             htop \
             ca-certificates \
             curl \
             node-less \
-			node-clean-css \
+            node-clean-css \
             tmux \
             libfreetype6-dev \
             libpng-dev \
@@ -159,7 +159,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
             imagemagick \
             cups \
             locales \
-			libmagickwand-dev \
+            libmagickwand-dev \
             ffmpeg \
             zip \
             gpg-agent \
@@ -192,6 +192,10 @@ RUN locale-gen en_US.UTF-8 && dpkg-reconfigure locales
 #___SNIPPET_WKHTML2PDF___
 
 #___SNIPPET_NODEJS___
+
+RUN \
+chown odoo:odoo /home/odoo -R && \
+rm -Rf /usr/local/man && mkdir -p /usr/local/man/man1
 
 #___SNIPPET_DEB_REQUIREMENTS___
 

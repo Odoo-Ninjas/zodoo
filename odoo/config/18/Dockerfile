@@ -21,7 +21,9 @@ RUN tar xfz /usr/local/src/python
 WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
 
 
+#___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
 #___SNIPPET_APT_PROXY___
+#___SNIPPET_UPDATE_CA_CERTIFICATES___
 RUN #___SNIPPET_APT_INSTALL___ \
     software-properties-common \
     cmake \
@@ -43,7 +45,8 @@ RUN #___SNIPPET_APT_INSTALL___ \
     freetds-dev  \
     libbz2-dev \
     ncurses-dev \
-    rsync
+    rsync \
+    gcc
 
 #___SNIPPET_BUILD_PYTHON___
 
@@ -60,7 +63,9 @@ ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
 
 
+#___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
 #___SNIPPET_APT_PROXY___
+#___SNIPPET_UPDATE_CA_CERTIFICATES___
 RUN #___SNIPPET_APT_INSTALL___ \ 
     build-essential \
     libxml2-dev \
@@ -79,6 +84,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
     libkrb5-dev \
     cmake \
     git \
+    gcc \
     libcairo2 \
     libcairo2-dev
 
@@ -121,14 +127,16 @@ ARG CUSTOMS_SHA
 ENV PIP_NO_CACHE_DIR=no
 ENV LANG=C.UTF-8
 
+#___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
 #___SNIPPET_APT_PROXY___
+#___SNIPPET_UPDATE_CA_CERTIFICATES___
 RUN #___SNIPPET_APT_INSTALL___ \
-			man \
+            man \
             htop \
             ca-certificates \
             curl \
             node-less \
-			node-clean-css \
+            node-clean-css \
             tmux \
             libfreetype6-dev \
             libpng-dev \
@@ -153,7 +161,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
             imagemagick \
             cups \
             locales \
-			libmagickwand-dev \
+            libmagickwand-dev \
             ffmpeg \
             zip \
             gpg-agent \
@@ -176,6 +184,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
             libgeos-dev\
             vim \
             fontconfig \
+            gcc \
             libcairo2 \
             libcairo2-dev
 
@@ -187,6 +196,10 @@ RUN locale-gen en_US.UTF-8 && dpkg-reconfigure locales
 #___SNIPPET_WKHTML2PDF___
 
 #___SNIPPET_NODEJS___
+
+RUN \
+chown odoo:odoo /home/odoo -R && \
+rm -Rf /usr/local/man && mkdir -p /usr/local/man/man1
 
 #___SNIPPET_DEB_REQUIREMENTS___
 
