@@ -488,6 +488,7 @@ def _copy_all_dockerfiles_to_run_dir_and_set_dockerfile_in_dockercompose(
         trgt_dockerfile.parent.mkdir(parents=True, exist_ok=True)
         src = src_dockerfile.read_text()
         src = _replace_docker_snippets(config, src)
+        src = _remove_if_lines(config, src)
         trgt_dockerfile.write_text(src)
         if delete_source:
             to_del.add(src_dockerfile)
@@ -496,6 +497,19 @@ def _copy_all_dockerfiles_to_run_dir_and_set_dockerfile_in_dockercompose(
     content = _yamldump(content)
     config.files["docker_compose"].write_text(content)
 
+def _remove_if_lines(config, dockerfilecontent):
+    # lines marked with comments like ...... # zodoo-if: DISABLE_VERIFY_PEER_HOST
+    lines = dockerfilecontent.splitlines()
+    lines2 = []
+    for line in lines:
+        if "# zodoo-if:" in line:
+            condition = line.split("# zodoo-if:")[1].strip()
+            value = getattr(config, condition.lower(), None)
+            value = value not in ["0", 0, "false", False, None, '']
+            if not value:
+                continue
+        lines2.append(line)
+    return "\n".join(lines2)
 
 def _replace_docker_snippets(config, dockerfilecontent):
     counter = 0

@@ -14,12 +14,15 @@ ARG CUSTOMS_SHA
 FROM $BASE_IMAGE AS python_builder
 ARG ODOO_PYTHON_VERSION
 ARG APT_PROXY_IP
+
 COPY python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
 WORKDIR /usr/local/src
 RUN tar xfz /usr/local/src/python
 WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
 
+#___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
 #___SNIPPET_APT_PROXY___
+#___SNIPPET_UPDATE_CA_CERTIFICATES___
 RUN #___SNIPPET_APT_INSTALL___ \
     software-properties-common \
     cmake \
@@ -41,7 +44,8 @@ RUN #___SNIPPET_APT_INSTALL___ \
     freetds-dev  \
     libbz2-dev \
     ncurses-dev \
-    rsync
+    rsync \
+    gcc
 
 #___SNIPPET_BUILD_PYTHON___
 
@@ -57,8 +61,11 @@ ARG ODOO_FRAMEWORK_REQUIREMENTS
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
 
+
+#___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
 #___SNIPPET_APT_PROXY___
-RUN #___SNIPPET_APT_INSTALL___ \
+#___SNIPPET_UPDATE_CA_CERTIFICATES___
+RUN #___SNIPPET_APT_INSTALL___ \ 
     build-essential \
     libxml2-dev \
     libxslt1-dev \
@@ -71,11 +78,14 @@ RUN #___SNIPPET_APT_INSTALL___ \
     libpoppler-cpp-dev \
     pkg-config \
     libfreetype6-dev \
-    freetds-dev \
+    freetds-dev  \
     libffi-dev \
     libkrb5-dev \
     cmake \
-    git
+    git \
+    gcc \
+    libcairo2 \
+    libcairo2-dev
 
 #___SNIPPET_DEB_REQUIREMENTS___
 
@@ -99,6 +109,7 @@ RUN pip3 install $(cat /etc/pip_options) pudb ipython debugpy
 #___SNIPPET_OPENUPGRADELIB___
 
 
+
 # --------------------------------------------------------------------
 # ODOO
 # --------------------------------------------------------------------
@@ -112,12 +123,12 @@ ARG CUSTOMS_SHA
 
 #___SNIPPET_CHECK_SHA___
 
-
-ENV LANG=C.UTF-8
 ENV PIP_NO_CACHE_DIR=no
+ENV LANG=C.UTF-8
 
+#___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
 #___SNIPPET_APT_PROXY___
-
+#___SNIPPET_UPDATE_CA_CERTIFICATES___
 RUN #___SNIPPET_APT_INSTALL___ \
             man \
             htop \
@@ -169,7 +180,12 @@ RUN #___SNIPPET_APT_INSTALL___ \
             time \
             xfonts-75dpi \
             xfonts-base \
+            libgeos-dev\
             vim \
+            fontconfig \
+            gcc \
+            libcairo2 \
+            libcairo2-dev \
             libgeos-dev
 
 COPY liberation-sans /usr/share/fonts/
@@ -184,6 +200,7 @@ RUN locale-gen en_US.UTF-8 && dpkg-reconfigure locales
 RUN \
 chown odoo:odoo /home/odoo -R && \
 rm -Rf /usr/local/man && mkdir -p /usr/local/man/man1
+
 #___SNIPPET_DEB_REQUIREMENTS___
 
 #___SNIPPET_PYTHON_INSTALL___

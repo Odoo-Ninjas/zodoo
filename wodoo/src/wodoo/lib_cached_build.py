@@ -187,8 +187,8 @@ def start_squid_proxy(config, empty_setup=False):
         "PIP_OPTIONS_NO_BUILDISOLATION": config.PIP_OPTIONS_NO_BUILDISOLATION,
     }
     if empty_setup:
-        for k in settings:
-            settings[k] = ""
+        settings["APT_PROXY_IP"] = ""
+        settings["PIP_PROXY_IP"] = ""
     start_container(
         config,
         APT_CACHER_CONTAINER_NAME,

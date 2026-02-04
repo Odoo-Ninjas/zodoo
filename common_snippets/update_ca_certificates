@@ -1,3 +1,5 @@
+RUN echo 'Acquire::https::Verify-Peer "false";\nAcquire::https::Verify-Host "false";' > /etc/apt/apt.conf.d/99insecure   # zodoo-if: APT_DISABLE_VERIFY_PEER_HOST
 RUN #___SNIPPET_APT_INSTALL___ \
 ca-certificates
 RUN update-ca-certificates
+RUN rm /etc/apt/apt.conf.d/99insecure || true
