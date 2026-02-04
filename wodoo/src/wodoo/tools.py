@@ -1242,7 +1242,10 @@ def exec_file_in_path(filename):
     try:
         return next(_g())
     except StopIteration:
-        raise Exception(f"Could not find in path: {filename}")
+        inpath = shutil.which(filename)
+        if inpath:
+            return inpath
+        raise FileNotFoundError(f"Could not find in path: {filename}")
 
 
 def measure_time(method):
