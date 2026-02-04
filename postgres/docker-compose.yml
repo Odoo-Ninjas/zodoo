@@ -1,6 +1,6 @@
 # manage-order: 500
 volumes:
-    odoo_postgres_volume:
+  odoo_postgres_volume:
 services:
   postgres_change_permissions:
     image: ubuntu:22.04
@@ -17,7 +17,7 @@ services:
         echo Successfully setup ownership of socketfile
 
   postgres:
-    build: 
+    build:
       context: $ODOO_IMAGES/postgres
     restart: unless-stopped
     stdin_open: true
@@ -36,7 +36,6 @@ services:
       - $HOST_RUN_DIR/pgcli_history:/root/.config/pgcli/history
       - odoo_postgres_volume:/var/lib/postgresql/data
       # /.s.PGSQL.5432
-      - $HOST_RUN_DIR/postgres.socket:/var/run/postgresql
       - $HOST_RUN_DIR/postgres.logs:/logs
       - ${ODOO_IMAGES}/postgres/run.sh:/run.sh:ro
     environment:

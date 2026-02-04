@@ -667,7 +667,7 @@ def __rmtree(config, path):
             path.startswith(str(config.dirs["odoo_home"]) + x)
             for x in ["/tmp", "/run/"]
         ):
-            if "/tmp" in path:
+            if any(x in path for x in ["/tmp", ".pyenv"]):
                 pass
             else:
                 raise Exception("not allowed")
@@ -2237,3 +2237,41 @@ def odoorpc(config):
         odoo.login(config.DBNAME, "admin", password)
 
     return odoo
+
+def am_i_inside_docker_container():
+    from pathlib import Path
+    import platform
+
+    if platform.system() == "Darwin":
+        return False
+    # Linux: might be host or container
+    try:
+        c = Path("/proc/1/cgroup").read_text()
+        if any(x in c for x in ("docker", "kubepods", "containerd", "podman")):
+            return True
+            return "Container (cgroup marker)"
+    except FileNotFoundError:
+        pass
+    return False
+
+
+def on_osx() -> bool:
+    return platform.system() == "Darwin"
+
+
+def get_best_python(desired_version):
+    pythonexec = f"python{desired_version}"
+    python_version = shutil.which(pythonexec)
+    if not python_version:
+        raise FileNotFoundError(python_version)
+    return python_version
+
+def require_homebrew():
+    if platform.system() != "Darwin":
+        return  # Homebrew is macOS-only, silently ignore elsewhere
+
+    if not shutil.which("brew"):
+        raise RuntimeError(
+            "Homebrew is not installed.\n"
+            "Install it from https://brew.sh and re-run this command."
+        )

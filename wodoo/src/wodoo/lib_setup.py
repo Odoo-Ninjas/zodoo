@@ -11,7 +11,10 @@ from .tools import __try_to_set_owner
 from .tools import whoami
 from .tools import abort
 from .tools import is_git_clean
+from .tools import on_osx
+from .tools import __rmtree
 
+ALL_PORTS = ["PROXY_PORT", "DEBUG_PORT", "HOST_DB_PORT"]
 
 @cli.group(cls=AliasedGroup)
 @pass_config
@@ -23,37 +26,40 @@ def setup(config):
 @pass_config
 @click.pass_context
 def next_port(ctx, config):
-    _setup_port(ctx, config, "PROXY_PORT")
-    _setup_port(ctx, config, "DEBUG_PORT")
+    ports = ["PROXY_PORT", "DEBUG_PORT" ]
+    if on_osx():
+        ports += ["HOST_DB_PORT"]
+    _setup_port(ctx, config, ports)
 
-
-def _setup_port(ctx, config, SETTING_NAME):
-    if getattr(config, SETTING_NAME) and str(getattr(config, SETTING_NAME)) != "80":
-        click.secho(f"Port is already configured: {config.PROXY_PORT}")
-        return
-    # perhaps not reloaded:
-    settings = config.files["project_settings"]
-    content = ""
-    if settings.exists():
-        content = settings.read_text() if settings.exists() else ""
-        # hacky...with =80
-        if f"{SETTING_NAME}=" in content and "{SETTING_NAME}=80" not in content:
-            click.secho(f"Already configured: {content}")
+def _setup_port(ctx, config, required_ports):
+    for required_port in required_ports:
+        if getattr(config, required_port) and str(getattr(config, required_port)) != "80":
+            click.secho(f"Port is already configured: {config.PROXY_PORT}")
             return
-    port = _next_port(ctx, config)
-    settings.write_text(content + f"\n{SETTING_NAME}={port}\n")
-    click.secho(
-        f"Configured {SETTING_NAME}: {port}. Please reload and restart machines."
-    )
+        # perhaps not reloaded:
+        settings = config.files["project_settings"]
+        content = ""
+        if settings.exists():
+            content = settings.read_text() if settings.exists() else ""
+            # hacky...with =80
+            if f"{required_port}=" in content and "{required_port}=80" not in content:
+                click.secho(f"Already configured: {content}")
+                return
+        port = _next_port(config)
+        settings.write_text(content + f"\n{required_port}={port}\n")
+        click.secho(
+            f"Configured {required_port}: {port}. Please reload and restart machines."
+        )
 
-def _next_port(ctx,config):
+def _next_port(config):
     PORTS = set()
     parentfolder = config.dirs["user_conf_dir"]
     for file in parentfolder.glob("settings.*"):
         lines = [
             x
             for x in file.read_text().splitlines()
-            if x.startswith("PROXY_PORT=") or x.startswith("DEBUG_PORT=")        ]
+            if any(x.startswith(SETTING_NAME + "=") for SETTING_NAME in ALL_PORTS)
+        ]
         for line in lines:
             for port in re.findall(r"\d+", line):
                 PORTS.add(int(port))
@@ -181,6 +187,31 @@ def produce_test_lines(lines):
     lines = int(lines)
     for i in range(lines):
         click.secho(lorem.paragraph())
+
+
+@setup.command()
+@pass_config
+@click.pass_context
+def setup_pyenv(ctx, config):
+    from .tools import require_homebrew
+    require_homebrew()
+    click.secho("Setting up pyenv...", fg="yellow")
+    from .odoo_config import customs_dir
+    SRC = customs_dir()
+    d = config.dirs['pyenv']
+    if d.exists():
+        __rmtree(config, d)
+    from .tools import get_best_python
+    python = get_best_python(config.ODOO_PYTHON_VERSION_SHORT)
+
+    d.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run([python, "-mvenv", str(d)], check=True)
+
+    subprocess.run(["brew", "install", "libpq"], check=True)
+    subprocess.run([d / 'bin/python3', '-m', 'pip', 'install', '-r', SRC / 'requirements.txt.all'], check=True)
+    subprocess.run([d / 'bin/python3', '-m', 'pip', 'uninstall', '-y', 'psycopg2'], check=True)
+    subprocess.run([d / 'bin/python3', '-m', 'pip', 'install','psycopg2-binary'], check=True)
+    click.secho("Pyenv setup done.", fg="green")
 
 
 Commands.register(status)

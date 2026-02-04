@@ -1,0 +1,4 @@
+services:
+  postgres:
+    ports:
+      - "${HOST_DB_PORT}:5432"

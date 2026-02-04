@@ -177,12 +177,13 @@ class Config(object):
         except Exception:
             raise
 
-    def get_odoo_conn(self, inside_container=None):
+    def get_odoo_conn(self, force_inside_container=None):
         from .odoo_config import get_postgres_connection_params  # NOQA
         from .tools import DBConnection
 
         host, port, user, password = get_postgres_connection_params(
-            inside_container=inside_container
+            force_inside_container=force_inside_container
+
         )
         conn = DBConnection(self.dbname, host, port, user, password)
         return conn

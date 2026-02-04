@@ -1,0 +1,55 @@
+{
+  "tasks": [
+    {
+      "name": "prelaunch1",
+      "label": "prelaunch1",
+      "type": "shell",
+      "command": "odoo up -d postgres",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "never",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    }
+  ],
+  "configurations": [
+    {
+      "name": "zodoo",
+      "type": "python",
+      "request": "launch",
+
+      "python": "~/.odoo/run/__PROJECT_NAME__/.venv/bin/python3",
+      "program": "${workspaceFolder}/odoo/odoo-bin",
+      "preLaunchTask": "prelaunch1",
+      "serverReadyAction": {
+        "pattern": ".*HTTP service.*running on.*",
+        "uriFormat": "http://localhost:xxxx",
+        "action": "openExternally"
+      },
+      "args": [
+        "--database=odoo19",
+        "--db_host=127.0.0.1",
+        "--db_port=9008",
+        "--db_user=odoo",
+        "--db_password=odoo",
+        "--addons-path=${workspaceFolder}/odoo/addons,${workspaceFolder}/odoo/addons",
+        "--log-level=debug",
+        "--dev=all",
+        "--http-interface=0.0.0.0",
+        "--http-port=8069",
+        "--workers=0",
+        "--data-dir={HOME}/.odoo/files"
+      ],
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "PYTHONUNBUFFERED": "1",
+        "GEVENT_SUPPORT": "true"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": false
+    }
+  ]
+}

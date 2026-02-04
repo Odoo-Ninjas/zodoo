@@ -357,6 +357,8 @@ def build(
     if settings.get("RUN_APT_CACHER") in ["1", ""]:
         start_squid_proxy(config)
         start_proxpi(config)
+    else:
+        start_squid_proxy(config, empty_setup=True)
 
     ensure_project_name(config)
     if plain:

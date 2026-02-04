@@ -5,6 +5,7 @@ set -e
 REPO_URL="https://github.com/Odoo-Ninjas/zodoo"
 TARGET_DIR="$HOME/.odoo/images"
 SRC_DIR="$TARGET_DIR/wodoo/src"
+OS="$(uname -s)"
 
 pipx uninstall wodoo || true  # remove any old version
 
@@ -46,7 +47,12 @@ fi
 # Install the editable package using pipx
 echo "📦 Installing $SRC_DIR via pipx..."
 # ubuntu 20.04 has no -f flag
-pipx install -e "$SRC_DIR" -f || pipx install -e "$SRC_DIR"  
+PYTHONARG=()
+if [[ "$OS" == "Darwin" ]]; then
+    PYTHONARG=(--python python3.12)
+fi
+pipx install -e "$SRC_DIR" -f ${PYTHONARG[@]} || \
+pipx install -e "$SRC_DIR" ${PYTHONARG[@]}
 
 # Setting up completion
 odoo completion -x

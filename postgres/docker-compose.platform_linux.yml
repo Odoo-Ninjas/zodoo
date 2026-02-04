@@ -1,0 +1,4 @@
+services:
+  postgres:
+    volumes:
+      - $HOST_RUN_DIR/postgres.socket:/var/run/postgresql

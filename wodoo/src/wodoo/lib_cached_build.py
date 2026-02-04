@@ -76,7 +76,7 @@ def start_container(
             image_timestamp = _image_timestamp_stamp(image_name)
         except:
             image_timestamp = arrow.get("1980-04-04")
-        sf = ["#temporary file - do not edit -"]
+        sf = ["#temporary file - do not edit --"]
         for k, v in sorted(stored_settings.items(), key=lambda k: k[0]):
             sf.append(f"export {k}='{v}'")
         filecontent = "\n".join(sf + [""])
@@ -176,9 +176,19 @@ def create_named_volume(volume_name):
     if not result.stdout.strip():
         subprocess.run(["docker", "volume", "create", volume_name], check=True)
 
-def start_squid_proxy(config):
+def start_squid_proxy(config, empty_setup=False):
     image_name = "squid-deb-cacher-wodoo"
     create_named_volume(APT_VOLNAME)
+    settings = {
+        "APT_PROXY_IP": config.APT_PROXY_IP,
+        "PIP_PROXY_IP": config.PIP_PROXY_IP,
+        "APT_OPTIONS": config.APT_OPTIONS,
+        "PIP_OPTIONS": config.PIP_OPTIONS,
+        "PIP_OPTIONS_NO_BUILDISOLATION": config.PIP_OPTIONS_NO_BUILDISOLATION,
+    }
+    if empty_setup:
+        for k in settings:
+            settings[k] = ""
     start_container(
         config,
         APT_CACHER_CONTAINER_NAME,
@@ -187,13 +197,7 @@ def start_squid_proxy(config):
         network="aptcache-net",
         port_mapping=config.APT_PROXY_IP + ":8000",
         volmappings={APT_VOLNAME: "/data"},
-        stored_settings={
-            "APT_PROXY_IP": config.APT_PROXY_IP,
-            "PIP_PROXY_IP": config.PIP_PROXY_IP,
-            "APT_OPTIONS": config.APT_OPTIONS,
-            "PIP_OPTIONS": config.PIP_OPTIONS,
-            "PIP_OPTIONS_NO_BUILDISOLATION": config.PIP_OPTIONS_NO_BUILDISOLATION,
-        },
+        stored_settings=settings,
         startup=config.APT_PROXY_IP and config.APT_PROXY_IP != "ignore",
     )
 

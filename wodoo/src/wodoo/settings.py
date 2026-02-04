@@ -4,6 +4,7 @@ import click
 import tempfile
 from pathlib import Path
 from contextlib import contextmanager
+
 from .tools import whoami
 
 
@@ -37,6 +38,14 @@ def _get_settings(config, customs, quiet=False):
         Path(filename).unlink()
 
 
+def get_docker_gid():
+    try:
+        return grp.getgrnam("docker").gr_gid
+    except KeyError:
+        # macOS (oder Linux ohne docker group)
+        return os.getgid()
+
+
 def _export_settings(config, forced_values):
     from .myconfigparser import MyConfigParser
 
@@ -46,7 +55,7 @@ def _export_settings(config, forced_values):
     settings = MyConfigParser(config.files["settings"])
     if "OWNER_UID" not in settings.keys():
         settings["OWNER_UID"] = whoami(id=True)
-    settings["DOCKER_GID"] = grp.getgrnam("docker").gr_gid
+    settings["DOCKER_GID"] = get_docker_gid()
 
     # forced values:
     for k, v in forced_values.items():
@@ -54,7 +63,18 @@ def _export_settings(config, forced_values):
 
     settings["ODOO_IMAGES"] = config.dirs["images"]
 
+    _append_host_db_port(config, settings)
+
     settings.write()
+
+def _append_host_db_port(config, settings):
+    from .tools import on_osx
+    if on_osx():
+        from .lib_setup import _next_port
+        if not settings.get("HOST_DB_PORT"):
+            settings['HOST_DB_PORT'] = str(_next_port(config))
+        if not settings.get("DEBUG_PORT"):
+            settings['DEBUG_PORT'] = str(_next_port(config))
 
 
 def _collect_settings_files(config, quiet=False):

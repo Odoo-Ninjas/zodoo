@@ -14,6 +14,8 @@ import json
 from pathlib import Path
 import os
 from .tools import abort
+from .tools import am_i_inside_docker_container
+from .tools import on_osx
 
 try:
     import psycopg2
@@ -173,8 +175,9 @@ def current_version():
     return cache_version["value"]
 
 
-def get_postgres_connection_params(inside_container=None):
+def get_postgres_connection_params(force_inside_container=None):
     config = get_settings()
+    inside_container = am_i_inside_docker_container() if force_inside_container is not None else force_inside_container
     if (
         not inside_container
         and os.getenv("DOCKER_MACHINE") != "1"
@@ -182,6 +185,10 @@ def get_postgres_connection_params(inside_container=None):
     ):
         host = Path(os.environ["HOST_RUN_DIR"]) / "postgres.socket"
         port = 0
+        # on macos socket connection does not work
+        if on_osx():
+            host = "127.0.0.1"
+            port = int(config["HOST_DB_PORT"])
 
     else:
         host = config["DB_HOST"]
