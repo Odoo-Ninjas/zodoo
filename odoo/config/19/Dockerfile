@@ -23,6 +23,7 @@ WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
 
 #___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
 #___SNIPPET_APT_PROXY___
+#___SNIPPET_UPDATE_CA_CERTIFICATES___
 RUN #___SNIPPET_APT_INSTALL___ \
     software-properties-common \
     cmake \
@@ -64,6 +65,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 #___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
 #___SNIPPET_APT_PROXY___
+#___SNIPPET_UPDATE_CA_CERTIFICATES___
 RUN #___SNIPPET_APT_INSTALL___ \ 
     build-essential \
     libxml2-dev \
@@ -125,6 +127,7 @@ ENV LANG=C.UTF-8
 
 #___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
 #___SNIPPET_APT_PROXY___
+#___SNIPPET_UPDATE_CA_CERTIFICATES___
 RUN #___SNIPPET_APT_INSTALL___ \
 			man \
             htop \
