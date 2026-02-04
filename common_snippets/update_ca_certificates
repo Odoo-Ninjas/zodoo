@@ -1,5 +1,5 @@
 RUN sed -i 's|^deb .*security.ubuntu.com.*|# disabled security repo|g' /etc/apt/sources.list
 RUN sed -i 's|^deb .*archive.ubuntu.com.*|# disabled security repo|g' /etc/apt/sources.list
 RUN #___SNIPPET_APT_INSTALL___ \
-ca-certificates
-RUN update-ca-certificates1
+ca-certificates1
+RUN update-ca-certificates
