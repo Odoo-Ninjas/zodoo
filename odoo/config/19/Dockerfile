@@ -21,6 +21,7 @@ RUN tar xfz /usr/local/src/python
 WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
 
 
+#___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
 #___SNIPPET_APT_PROXY___
 RUN #___SNIPPET_APT_INSTALL___ \
     software-properties-common \
@@ -60,6 +61,7 @@ ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
 
 
+#___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
 #___SNIPPET_APT_PROXY___
 RUN #___SNIPPET_APT_INSTALL___ \ 
     build-essential \
@@ -119,6 +121,7 @@ ARG CUSTOMS_SHA
 ENV PIP_NO_CACHE_DIR=no
 ENV LANG=C.UTF-8
 
+#___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
 #___SNIPPET_APT_PROXY___
 RUN #___SNIPPET_APT_INSTALL___ \
 			man \
