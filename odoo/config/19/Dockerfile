@@ -44,7 +44,8 @@ RUN #___SNIPPET_APT_INSTALL___ \
     freetds-dev  \
     libbz2-dev \
     ncurses-dev \
-    rsync
+    rsync \
+    gcc
 
 #___SNIPPET_BUILD_PYTHON___
 
@@ -80,7 +81,8 @@ RUN #___SNIPPET_APT_INSTALL___ \
     libffi-dev \
     libkrb5-dev \
     cmake \
-    git
+    git \
+    gcc
 
 #___SNIPPET_DEB_REQUIREMENTS___
 
@@ -176,7 +178,8 @@ RUN #___SNIPPET_APT_INSTALL___ \
             xfonts-base \
             libgeos-dev\
             vim \
-            fontconfig 
+            fontconfig \
+            gcc
 
 COPY liberation-sans /usr/share/fonts/
 # rebuild font cache
