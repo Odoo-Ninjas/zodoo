@@ -177,7 +177,7 @@ def current_version():
 
 def get_postgres_connection_params(force_inside_container=None):
     config = get_settings()
-    inside_container = am_i_inside_docker_container() if force_inside_container is not None else force_inside_container
+    inside_container = am_i_inside_docker_container() if force_inside_container is None else force_inside_container
     if (
         not inside_container
         and os.getenv("DOCKER_MACHINE") != "1"
