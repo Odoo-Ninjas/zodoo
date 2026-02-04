@@ -4,8 +4,8 @@ import click
 import tempfile
 from pathlib import Path
 from contextlib import contextmanager
-
 from .tools import whoami
+from .tools import update_setting
 
 
 def _get_settings_files(config):
@@ -69,12 +69,13 @@ def _export_settings(config, forced_values):
 
 def _append_host_db_port(config, settings):
     from .tools import on_osx, on_windows_wsl
+    from .cli import cli, pass_config, Commands
     if on_osx() or on_windows_wsl():
         from .lib_setup import _next_port
-        if not settings.get("HOST_DB_PORT"):
-            settings['HOST_DB_PORT'] = str(_next_port(config))
-        if not settings.get("DEBUG_PORT"):
-            settings['DEBUG_PORT'] = str(_next_port(config))
+        for name in ['HOST_DB_PORT', 'DEBUG_PORT']:
+            if not settings.get(name):
+                settings[name] = str(_next_port(config))
+                update_setting(config, name, settings[name])
 
 
 def _collect_settings_files(config, quiet=False):

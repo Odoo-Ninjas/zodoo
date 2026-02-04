@@ -2262,6 +2262,8 @@ def on_osx() -> bool:
     return platform.system() == "Darwin"
 
 def on_windows_wsl() -> bool:
+    if not Path('/proc/version').exists():
+        return False
     return "WSL_DISTRO_NAME" in os.environ or "microsoft" in open("/proc/version").read().lower()
 
 def get_best_python(desired_version):

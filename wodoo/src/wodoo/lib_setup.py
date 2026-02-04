@@ -13,6 +13,7 @@ from .tools import abort
 from .tools import is_git_clean
 from .tools import on_osx, on_windows_wsl
 from .tools import __rmtree
+from .tools import update_setting
 
 ALL_PORTS = ["PROXY_PORT", "DEBUG_PORT", "HOST_DB_PORT"]
 
@@ -34,8 +35,8 @@ def next_port(ctx, config):
 def _setup_port(ctx, config, required_ports):
     for required_port in required_ports:
         if getattr(config, required_port) and str(getattr(config, required_port)) != "80":
-            click.secho(f"Port is already configured: {config.PROXY_PORT}")
-            return
+            click.secho(f"Port is already configured: {getattr(config, required_port)}")
+            continue
         # perhaps not reloaded:
         settings = config.files["project_settings"]
         content = ""
@@ -46,7 +47,7 @@ def _setup_port(ctx, config, required_ports):
                 click.secho(f"Already configured: {content}")
                 return
         port = _next_port(config)
-        settings.write_text(content + f"\n{required_port}={port}\n")
+        update_setting(config, required_port, port)
         click.secho(
             f"Configured {required_port}: {port}. Please reload and restart machines."
         )
