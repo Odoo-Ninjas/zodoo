@@ -5,10 +5,13 @@ import inquirer
 from .cli import cli, pass_config, Commands
 from .lib_clickhelpers import AliasedGroup
 from .tools import get_filesystem_of_folder
+from .tools import on_osx, on_windows_wsl
 
 
 def _decide_snapshots_possible(config):
     if not config.use_docker:
+        return False
+    if on_osx() or on_windows_wsl():
         return False
     ttype = get_filesystem_of_folder("/var/lib/docker")
     if ttype in ["zfs", "btrfs"]:
