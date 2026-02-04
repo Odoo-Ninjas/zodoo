@@ -1244,7 +1244,10 @@ def _use_file(config, path):
 
     def platform_matches():
         if any(x for x in path.parts if "platform_" in x):
-            pl = "platform_{}".format(platform.system().lower())
+            splatform = platform.system().lower()
+            if on_windows_wsl():
+                splatform = "windows"
+            pl = "platform_{}".format(splatform)
             if not any(pl in x for x in path.parts):
                 return False
         return True
