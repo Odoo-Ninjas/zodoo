@@ -1644,6 +1644,7 @@ def setup_launch_json(config):
         map(lambda x: f"${{workspaceFolder}}/{x}", manifest["addons_paths"])
     )
     HOME = os.getenv("HOME")
+    server_wide_modules = ",".join(manifest.get("server_wide_modules", [])) or 'web'
 
     for debugconfig in template["configurations"]:
         debugconfig["args"] = [
@@ -1659,6 +1660,7 @@ def setup_launch_json(config):
             f"--http-port={config.DEBUG_PORT}",
             f"--workers=0",
             f"--data-dir={HOME}/.odoo/files",
+            f"--server-wide-modules={server_wide_modules}"
         ]
         debugconfig["python"] = str(config.dirs["pyenv"] / "bin/python3")
         serverReadyAction = debugconfig.get('serverReadyAction')
