@@ -69,7 +69,7 @@
         "--data-dir={HOME}/.odoo/files",
         "--test-enable",
         "--stop-after-init",
-        "--test-file=${file}",
+        "--test-file=${file}"
       ],
       "cwd": "${workspaceFolder}",
       "env": {
