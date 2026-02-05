@@ -1,0 +1,3 @@
+services:
+  rsync:
+    build: ${ODOO_IMAGES}/rsync

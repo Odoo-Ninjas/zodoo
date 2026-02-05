@@ -5,6 +5,8 @@ from .cli import Commands
 from .tools import __get_postgres_volume_name
 from .tools import __dc
 
+def _rsync_image_name(config):
+    return f"{config.PROJECT_NAME}-rsync:latest"
 
 def __get_snapshots(config):
     vols = []
@@ -25,7 +27,6 @@ def __get_snapshots(config):
 def assert_environment(config):
     exec_file_in_path("docker")
 
-
 def restore(ctx, config, snap):
     postgres_volume_name = __get_postgres_volume_name(config)
     snapshot_name = snap
@@ -39,10 +40,12 @@ def restore(ctx, config, snap):
             f"{snapshot_name}:/src",
             "-v",
             f"{postgres_volume_name}:/dest",
-            "alpine",
-            "sh",
-            "-c",
-            "cp -a /src/. /dest/",
+            _rsync_image_name(config),
+            "-ar",
+            "--info=progress2",
+            "--delete-after",
+            "/src/",
+            "/dest/",
         ],
         check=True,
     )
@@ -64,10 +67,11 @@ def make_snapshot(ctx, config, name):
             f"{postgres_volume_name}:/src",
             "-v",
             f"{snapshot_name}:/dest",
-            "alpine",
-            "sh",
-            "-c",
-            "cp -a /src/. /dest/",
+            _rsync_image_name(config),
+            "-ar",
+            "--info=progress2",
+            "/src/",
+            "/dest/",
         ],
         check=True,
     )
