@@ -216,6 +216,7 @@ def setup_pyenv(ctx, config):
     click.secho("Pyenv setup done.", fg="green")
 
     vscode_setting("python.defaultInterpreterPath", str(d / 'bin' / 'python3'))
+    vscode_setting("robot.pythonPath", str(d / 'bin' / 'python3'))
 
 
 Commands.register(status)
