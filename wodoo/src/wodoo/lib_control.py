@@ -129,7 +129,7 @@ def remove_volumes(ctx, config, dry_run):
                                 encoding="utf8",
                             )
                             break
-                        except:
+                        except Exception:
                             click.secho(
                                 f"Removing the volume {vol} failed - waiting and retrying.",
                                 fg="red",

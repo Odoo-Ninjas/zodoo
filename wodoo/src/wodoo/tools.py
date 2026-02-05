@@ -1146,6 +1146,16 @@ def abort(msg, nr=1):
     click.secho(msg, fg="red", bold=True)
     sys.exit(nr)
 
+def rsync_progress_param():
+    test = subprocess.check_output(["rsync", "--version"], encoding='utf8')
+    version = test.splitlines()[0]
+    match = re.search(r"\brsync\s+version\s+(\d+)\.(\d+)\.(\d+)\b", version)
+    version = tuple(map(int, match.groups()))
+    if version >= (3, 2, 0):
+        return "--info=progress2"
+    else:
+        return "--progress"
+
 
 def sync_folder(dir, dest_dir, excludes=None):
     import platform
@@ -1156,12 +1166,13 @@ def sync_folder(dir, dest_dir, excludes=None):
     dest_dir.mkdir(exist_ok=True, parents=True)
     if not dir or not dest_dir or len(str(dir)) < 5 or len(str(dest_dir)) < 5:
         raise Exception("invalid dirs: {} {}".format(dir, dest_dir))
+
     if platform.system() in ["Linux", "Darwin"]:
         cmd = [
             "rsync",
             str(dir) + "/",
             str(dest_dir) + "/",
-            "--info=progress2",
+            rsync_progress_param(),
             "-r",
             "-l",
             "--delete-after",
