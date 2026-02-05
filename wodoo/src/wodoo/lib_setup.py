@@ -14,6 +14,7 @@ from .tools import is_git_clean
 from .tools import on_osx, on_windows_wsl
 from .tools import __rmtree
 from .tools import update_setting
+from .tools import vscode_setting
 
 ALL_PORTS = ["PROXY_PORT", "DEBUG_PORT", "HOST_DB_PORT"]
 
@@ -213,6 +214,8 @@ def setup_pyenv(ctx, config):
     subprocess.run([d / 'bin/python3', '-m', 'pip', 'uninstall', '-y', 'psycopg2'], check=True)
     subprocess.run([d / 'bin/python3', '-m', 'pip', 'install','psycopg2-binary'], check=True)
     click.secho("Pyenv setup done.", fg="green")
+
+    vscode_setting("python.defaultInterpreterPath", str(d / 'bin' / 'python3'))
 
 
 Commands.register(status)

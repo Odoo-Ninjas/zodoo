@@ -1,4 +1,5 @@
 import urllib.request
+import json
 import platform
 import passlib
 import csv
@@ -2282,3 +2283,15 @@ def require_homebrew():
             "Homebrew is not installed.\n"
             "Install it from https://brew.sh and re-run this command."
         )
+
+def vscode_setting(key, value):
+    from .odoo_config import customs_dir
+    path = customs_dir() or Path(os.getcwd())
+    vscode = path / ".vscode" / "settings.json"
+    vscode.parent.mkdir(parents=True, exist_ok=True)
+    content = "{}"
+    if vscode.exists():
+        content = vscode.read_text()
+    content = json.loads(content)
+    content[key] = value
+    vscode.write_text(json.dumps(content, indent=4))
