@@ -1661,15 +1661,19 @@ def setup_launch_json(config):
             f"--data-dir=${HOME}/.odoo/files",
         ]
         debugconfig["python"] = str(config.dirs["pyenv"] / "bin/python3")
-        serverReadyAction = debugconfig['serverReadyAction']
-        serverReadyAction['uriFormat'] = serverReadyAction['uriFormat'].replace(
-            "xxxx", str(config.DEBUG_PORT)
-        )
+        serverReadyAction = debugconfig.get('serverReadyAction')
+        if serverReadyAction:
+            serverReadyAction['uriFormat'] = serverReadyAction['uriFormat'].replace(
+                "xxxx", str(config.DEBUG_PORT)
+            )
 
     for taskconfig in template["tasks"]:
-        cmd = ""
-        if config.run_postgres:
-            cmd += f"odoo up -d postgres "
+        cmd = taskconfig['command']
+        cmd = f"RUN_POSTGRES={"1" if config.run_postgres else "0"} {cmd}"
+        cmd = f"ON_OSX={"1" if on_osx() else "0"} {cmd}"
+        cmd = f"ON_WINDOWS_WSL={"1" if on_windows_wsl() else "0"} {cmd}"
+        cmd = f"PROJECTNAME={config.project_name} {cmd}"
+        cmd = f"PORT={config.DEBUG_PORT} {cmd}"
         taskconfig["command"] = cmd
 
     template_config_names = [x["name"] for x in template["configurations"]]

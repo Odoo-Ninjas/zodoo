@@ -4,7 +4,7 @@
       "name": "prelaunch1",
       "label": "prelaunch1",
       "type": "shell",
-      "command": "odoo up -d postgres",
+      "command": "/bin/bash ~/.odoo/images/wodoo/src/wodoo/bin/launch_debug.sh",
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -17,18 +17,13 @@
   ],
   "configurations": [
     {
-      "name": "zodoo",
+      "name": "zodoo-browser",
       "type": "python",
       "request": "launch",
 
       "python": "~/.odoo/run/__PROJECT_NAME__/.venv/bin/python3",
       "program": "${workspaceFolder}/odoo/odoo-bin",
       "preLaunchTask": "prelaunch1",
-      "serverReadyAction": {
-        "pattern": ".*HTTP service.*running on.*",
-        "uriFormat": "http://localhost:xxxx",
-        "action": "openExternally"
-      },
       "args": [
         "--database=odoo19",
         "--db_host=127.0.0.1",
