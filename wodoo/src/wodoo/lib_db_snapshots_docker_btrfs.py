@@ -9,6 +9,7 @@ from .tools import __dc
 from .tools import search_env_path, __get_postgres_volume_name
 from pathlib import Path
 from .tools import get_volume_fullpath, get_docker_volumes
+from .tools import rsync_progress_param
 
 SNAPSHOT_DIR = get_docker_volumes() / "subvolumes"
 
@@ -108,7 +109,7 @@ def _turn_into_subvolume(path):
                         str(filename) + "/",
                         str(path) + "/",
                         "-ar",
-                        "--info=progress2",
+                        rsync_progress_param(),
                     ]
                 )
             finally:

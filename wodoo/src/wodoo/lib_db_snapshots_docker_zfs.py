@@ -29,6 +29,7 @@ from .tools import search_env_path, __get_postgres_volume_name
 from pathlib import Path
 from .tools import abort
 from .tools import get_volume_fullpath
+from .tools import rsync_progress_param
 
 HOWTO_PREPARE = """
 
@@ -287,7 +288,7 @@ def _turn_into_subvolume(config):
                 str(filename) + "/",
                 str(fullpath) + "/",
                 "-ar",
-                "--info=progress2",
+                rsync_progress_param(),
             ]
         )
     finally:
