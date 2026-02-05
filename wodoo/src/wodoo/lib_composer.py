@@ -1669,9 +1669,11 @@ def setup_launch_json(config):
 
     for taskconfig in template["tasks"]:
         cmd = taskconfig['command']
-        cmd = f"RUN_POSTGRES={"1" if config.run_postgres else "0"} {cmd}"
-        cmd = f"ON_OSX={"1" if on_osx() else "0"} {cmd}"
-        cmd = f"ON_WINDOWS_WSL={"1" if on_windows_wsl() else "0"} {cmd}"
+        def b(var):
+            return "1" if var else "0"
+        cmd = f"RUN_POSTGRES={b(config.run_postgres)} {cmd}"
+        cmd = f"ON_OSX={b(on_osx())} {cmd}"
+        cmd = f"ON_WINDOWS_WSL={b(on_windows_wsl())} {cmd}"
         cmd = f"PROJECTNAME={config.project_name} {cmd}"
         cmd = f"PORT={config.DEBUG_PORT} {cmd}"
         taskconfig["command"] = cmd
