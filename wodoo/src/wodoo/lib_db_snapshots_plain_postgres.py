@@ -33,9 +33,9 @@ def make_snapshot(ctx, config, name):
 
 
 def remove(config, snapshot):
-    subprocess.call(
-        [
-            exec_file_in_path("dropdb"),
-            snapshot,
-        ]
-    )
+
+    path = Path(config.DUMPS_PATH)
+    for file in path.glob("*"):
+        if file.name == snapshot:
+            file.unlink()
+            return
