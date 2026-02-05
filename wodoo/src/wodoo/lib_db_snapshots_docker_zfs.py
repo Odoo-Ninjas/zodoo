@@ -346,7 +346,7 @@ def _try_umount(config):
         )
 
 
-def restore(config, name):
+def restore(ctx, config, name):
     zfs = search_env_path("zfs")
     if not name:
         return

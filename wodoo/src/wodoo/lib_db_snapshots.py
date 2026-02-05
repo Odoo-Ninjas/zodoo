@@ -90,7 +90,7 @@ def snapshot_restore(ctx, config, name):
         name = __choose_snapshot(config, take=name)
     if not name:
         return
-    config.snapshot_manager.restore(config, name)
+    config.snapshot_manager.restore(ctx, config, name)
 
 
 @snapshot.command(name="remove")

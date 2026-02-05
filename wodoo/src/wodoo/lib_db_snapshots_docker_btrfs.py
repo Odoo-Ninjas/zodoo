@@ -147,7 +147,7 @@ def make_snapshot(ctx, config, name):
     return name
 
 
-def restore(config, name):
+def restore(ctx, config, name):
     if not name:
         return
 
