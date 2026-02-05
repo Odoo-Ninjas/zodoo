@@ -1641,7 +1641,7 @@ def setup_launch_json(config):
 
     manifest = MANIFEST()
     addons_path = ",".join(
-        map(lambda x: f"{{workspaceFolder}}/{x}", manifest["addons_paths"])
+        map(lambda x: f"${{workspaceFolder}}/{x}", manifest["addons_paths"])
     )
     HOME = os.getenv("HOME")
 
@@ -1658,7 +1658,7 @@ def setup_launch_json(config):
             f"--http-interface=0.0.0.0",
             f"--http-port={config.DEBUG_PORT}",
             f"--workers=0",
-            f"--data-dir=${HOME}/.odoo/files",
+            f"--data-dir={HOME}/.odoo/files",
         ]
         debugconfig["python"] = str(config.dirs["pyenv"] / "bin/python3")
         serverReadyAction = debugconfig.get('serverReadyAction')
