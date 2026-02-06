@@ -1271,10 +1271,11 @@ def _use_file(config, path):
                     return False
                 return True
 
+            run_key = "RUN_{}".format(path.parent.name).upper()
+            if hasattr(config, run_key) and not getattr(config, run_key):
+                return False
+
         if platform_matches() is not None and not platform_matches():
-            return False
-        run_key = "RUN_{}".format(path.parent.name).upper()
-        if hasattr(config, run_key) and not getattr(config, run_key):
             return False
 
         customs_dir = config.customs_dir
