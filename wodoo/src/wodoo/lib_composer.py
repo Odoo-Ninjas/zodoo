@@ -1688,6 +1688,7 @@ def setup_launch_json(config):
         cmd = f"ON_WINDOWS_WSL={b(on_windows_wsl())} {cmd}"
         cmd = f"PROJECTNAME={config.project_name} {cmd}"
         cmd = f"PORT={config.DEBUG_PORT} {cmd}"
+        cmd = f"DEVMODE={config.DEVMODE} {cmd}"
         taskconfig["command"] = cmd
 
     template_config_names = [x["name"] for x in template["configurations"]]

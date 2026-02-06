@@ -72,7 +72,6 @@
       "env": {
         "PYTHONUNBUFFERED": "1",
         "GEVENT_SUPPORT": "true",
-        "DONT_START_BROWSER": "1"
       },
       "console": "integratedTerminal",
       "justMyCode": false
