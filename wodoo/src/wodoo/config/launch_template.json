@@ -1,10 +1,22 @@
 {
   "tasks": [
     {
-      "name": "prelaunch1",
-      "label": "prelaunch1",
+      "label": "launch:browser:debug",
       "type": "shell",
-      "command": "/bin/bash ~/.odoo/images/wodoo/src/wodoo/bin/launch_debug.sh",
+      "command": "/bin/bash ~/.odoo/images/wodoo/src/wodoo/bin/launch_browser_debug.sh",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "never",
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "launch:unittest:debug",
+      "type": "shell",
+      "command": "/bin/bash ~/.odoo/images/wodoo/src/wodoo/bin/launch_unittest_debug.sh",
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -23,20 +35,14 @@
 
       "python": "~/.odoo/run/__PROJECT_NAME__/.venv/bin/python3",
       "program": "${workspaceFolder}/odoo/odoo-bin",
-      "preLaunchTask": "prelaunch1",
+      "preLaunchTask": "launch:browser:debug",
       "args": [
-        "--database=odoo19",
-        "--db_host=127.0.0.1",
-        "--db_port=9008",
-        "--db_user=odoo",
-        "--db_password=odoo",
-        "--addons-path=${workspaceFolder}/odoo/addons,${workspaceFolder}/odoo/addons",
         "--log-level=debug",
         "--dev=all",
         "--http-interface=0.0.0.0",
-        "--http-port=8069",
+        "--http-port={DEBUG_PORT}",
         "--workers=0",
-        "--data-dir={HOME}/.odoo/files"
+        "--max-cron-threads=0"
       ],
       "cwd": "${workspaceFolder}",
       "env": {
@@ -53,28 +59,20 @@
 
       "python": "~/.odoo/run/__PROJECT_NAME__/.venv/bin/python3",
       "program": "${workspaceFolder}/odoo/odoo-bin",
-      "preLaunchTask": "prelaunch1",
+      "preLaunchTask": "launch:unittest:debug",
       "args": [
-        "--database=odoo19",
-        "--db_host=127.0.0.1",
-        "--db_port=9008",
-        "--db_user=odoo",
-        "--db_password=odoo",
-        "--addons-path=${workspaceFolder}/odoo/addons,${workspaceFolder}/odoo/addons",
         "--log-level=debug",
-        "--dev=all",
-        "--http-interface=0.0.0.0",
-        "--http-port=8069",
+        "--no-http",
         "--workers=0",
-        "--data-dir={HOME}/.odoo/files",
-        "--test-enable",
-        "--stop-after-init",
-        "--test-file=${file}"
+        "--max-cron-threads=0",
+        "--test-file=${file}",
+        "--stop-after-init"
       ],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONUNBUFFERED": "1",
-        "GEVENT_SUPPORT": "true"
+        "GEVENT_SUPPORT": "true",
+        "DONT_START_BROWSER": "1"
       },
       "console": "integratedTerminal",
       "justMyCode": false

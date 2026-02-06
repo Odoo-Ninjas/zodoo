@@ -1,12 +1,8 @@
 #!/bin/bash
+set -x
 
 current_dir=$(dirname "$0")
-
-touch /tmp/aaa
-
-if [[ "$RUN_POSTGRES" == "1" ]]; then
-    odoo up -d postgres
-fi
+/bin/bash ${current_dir}/prepare.sh
 
 if [[ "$ON_OSX" == "1" ]]; then
 	/bin/bash "$current_dir/open_once_osx.sh" ${PROJECTNAME}  ${PORT}

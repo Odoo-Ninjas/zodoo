@@ -213,10 +213,10 @@ def setup_pyenv(ctx, config):
     subprocess.run([d / 'bin/python3', '-m', 'pip', 'install', '-r', SRC / 'requirements.txt.all'], check=True)
     subprocess.run([d / 'bin/python3', '-m', 'pip', 'uninstall', '-y', 'psycopg2'], check=True)
     subprocess.run([d / 'bin/python3', '-m', 'pip', 'install','psycopg2-binary'], check=True)
-    click.secho("Pyenv setup done.", fg="green")
 
     vscode_setting("python.defaultInterpreterPath", str(d / 'bin' / 'python3'))
     vscode_setting("robot.pythonPath", str(d / 'bin' / 'python3'))
 
+    click.secho(f"Pyenv setup done at {d}", fg="green")
 
 Commands.register(status)

@@ -47,6 +47,7 @@ from .tools import sync_folder
 from .tools import _yamldump
 from .tools import _shell_complete_services
 from .tools import on_osx, on_windows_wsl
+from .tools import load_json
 
 import inspect
 import os
@@ -1627,8 +1628,8 @@ def setup_launch_json(config):
         content_task = task_json.read_text()
     else:
         content_task = '{"version": "0.2.0", "configurations": []}'
-    content = json.loads(content)
-    content_task = json.loads(content_task)
+    content = load_json(content)
+    content_task = load_json(content_task)
     template = current_dir / "config" / "launch_template.json"
     template = json.loads(template.read_text())
 
@@ -1645,23 +1646,32 @@ def setup_launch_json(config):
     )
     HOME = os.getenv("HOME")
     server_wide_modules = ",".join(manifest.get("server_wide_modules", [])) or 'web'
+    from .myconfigparser import MyConfigParser  # NOQA
+    myconfig = MyConfigParser(config.files["settings"])
 
     for debugconfig in template["configurations"]:
-        debugconfig["args"] = [
-            f"--database={config.dbname}",
-            f"--db_host={db_host}",
-            f"--db_port={db_port}",
-            f"--db_user={config.DB_USER}",
-            f"--db_password={config.DB_PWD}",
-            f"--addons-path={addons_path}",
-            f"--log-level=debug",
-            f"--dev=all",
-            f"--http-interface=0.0.0.0",
-            f"--http-port={config.DEBUG_PORT}",
-            f"--workers=0",
-            f"--data-dir={HOME}/.odoo/files",
-            f"--server-wide-modules={server_wide_modules}"
-        ]
+        args = {
+            "--database": config.dbname,
+            "--db_host":db_host,
+            "--db_port":db_port,
+            "--db_user":config.DB_USER,
+            "--db_password":config.DB_PWD,
+            "--addons-path": addons_path,
+            "--workers":0,
+            "--max-cron-threads": 0,
+            "--data-dir": f"{HOME}/.odoo/files",
+            "--load":server_wide_modules,
+        }
+        lines = debugconfig['args']
+        debugconfig['args'] = []
+        for line in lines:
+            for k in myconfig.keys():
+                line = line.replace(f"{k}", myconfig.get(k))
+            debugconfig['args'].append(line)
+        for k,v in args.items():
+            lines = [x for x in debugconfig['args'] if not x.startswith(k + "=")]
+            lines.append(f"{k}={v}")
+            debugconfig['args'] = lines
         debugconfig["python"] = str(config.dirs["pyenv"] / "bin/python3")
         serverReadyAction = debugconfig.get('serverReadyAction')
         if serverReadyAction:
@@ -1684,13 +1694,12 @@ def setup_launch_json(config):
 
     content["configurations"] = [
         x
-        for x in content["configurations"]
-        if x.get("name") not in template_config_names
+        for x in content.get("configurations")        if x.get("name") not in template_config_names
     ]
     content_task["tasks"] = [
         x
         for x in content_task.get("tasks", [])
-        if x.get("name") not in [y["name"] for y in template["tasks"]]
+        if x.get("label") not in [y["label"] for y in template["tasks"]]
     ]
     content["configurations"] += template["configurations"]
     content_task["tasks"] += template["tasks"]
