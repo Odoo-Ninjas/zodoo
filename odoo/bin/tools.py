@@ -311,7 +311,7 @@ def prepare_run(local_config=None):
         del path
         del out_dir
 
-    if os.getenv("IS_ODOO_QUEUEJOB", "") == "1":
+    if os.getenv("IS_ODOO_QUEUEJOB", "") == "1" or os.getenv("ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER", "") == "1":
         # https://www.odoo.com/apps/modules/10.0/queue_job/
         sql = "update queue_job set state='pending' where state in ('started', 'enqueued');"
         with get_conn_autoclose() as cr:

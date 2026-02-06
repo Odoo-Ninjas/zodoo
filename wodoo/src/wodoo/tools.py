@@ -2306,3 +2306,10 @@ def vscode_setting(key, value):
     content = json.loads(content)
     content[key] = value
     vscode.write_text(json.dumps(content, indent=4))
+
+def load_json(content):
+    try:
+        return json.loads(content)
+    except:
+        click.secho(content, fg='red')
+        raise
