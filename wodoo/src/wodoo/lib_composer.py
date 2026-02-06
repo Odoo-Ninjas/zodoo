@@ -1707,7 +1707,23 @@ def setup_launch_json(config):
     content_task["tasks"] += template["tasks"]
     launch_json.write_text(json.dumps(content, indent=4))
     task_json.write_text(json.dumps(content_task, indent=4))
+
+    setup_vscode_settings(config)
     click.secho(f"VSCode launch.json updated at {launch_json}", fg="green")
+
+def setup_vscode_settings(config):
+    parent_dir = Path(config.customs_dir) / ".vscode"
+    parent_dir.mkdir(parents=True, exist_ok=True)
+
+    file = parent_dir / 'settings.json'
+    content = load_json(file.read_text())
+    content['python.analysis.extraPaths'] = []
+    manifest = MANIFEST()
+    root = "${workspaceFolder}"
+    content['python.analysis.extraPaths'].append(root)
+    for path in manifest['addons_paths']:
+        content['python.analysis.extraPaths'].append(f"{root}/{path}")
+    file.write_text(json.dumps(content, indent=4))
 
 
 Commands.register(do_reload, "reload")
