@@ -71,7 +71,7 @@
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONUNBUFFERED": "1",
-        "GEVENT_SUPPORT": "true",
+        "GEVENT_SUPPORT": "true"
       },
       "console": "integratedTerminal",
       "justMyCode": false
