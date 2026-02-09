@@ -89,7 +89,7 @@ RUN rm -Rf \
 
 RUN find /usr/lib/locale -mindepth 1 -maxdepth 1 -type d ! -name '*en_US*' -exec rm -rf {} + || true
 RUN find / -name __pycache__  -exec rm -Rf {} \; || true
-RUN find /usr/lib/aarch64-linux-gnu -name '*.a' -delete
+RUN find /usr/lib -name '*.a' -delete 
 
 RUN rm -Rf \
 /usr/local/lib/python*/test \
