@@ -44,4 +44,17 @@ ENTRYPOINT ["/entrypoint.sh"]
 COPY bin/ /usr/local/bin/
 RUN chmod a+x /usr/local/bin/*.py /usr/local/bin/*.sh
 
+RUN #___SNIPPET_APT_INSTALL___ \
+ncdu
+
+RUN apt-get purge -y build-essential gcc
 #___SNIPPET_CLEANUP___
+RUN rm -Rf \
+/usr/lib/gcc \
+/usr/lib/aarch*/libLLVM* \
+/usr/bin/containerd \
+/usr/bin/ctr \
+/usr/bin/runc \
+/usr/lib/aarch*/perl
+
+RUN find / -name __pycache__ -exec rm -Rf {} \; || true

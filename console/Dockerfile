@@ -75,3 +75,6 @@ ENTRYPOINT ["/entrypoint.sh"]
 
 COPY set_docker_group.sh /usr/bin
 RUN chmod a+x /usr/bin/set_docker_group.sh
+
+#___SNIPPET_CLEANUP___
+RUN find / -name __pycache__ -exec rm -Rf {} \;
