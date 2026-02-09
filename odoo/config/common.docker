@@ -120,7 +120,6 @@ RUN rm -Rf \
 /opt/wodoo_pipx/venvs/wodoo/lib/python3*/site-packages/pip \
 /opt/wodoo_pipx/venvs/wodoo/lib/python3*/site-packages/jedi \
 /opt/wodoo_pipx/venvs/wodoo/lib/python3*/site-packages/setuptools \
-/opt/wodoo_pipx/venvs/wodoo/lib/python3*/site-packages/pygments \
 /opt/wodoo_pipx/venvs/wodoo/lib/python3*/site-packages/IPython \
 /usr/lib/python3 \
 /usr/lib/git-core \
