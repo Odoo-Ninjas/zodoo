@@ -4,7 +4,8 @@ if [[ "$RUN_POSTGRES" == "1" ]]; then
 	odoo up -d postgres
 fi
 
-if [[ ! -e "~/.odoo/run/${PROJECT_NAME}/.pyenv/bin/python3" ]]; then
+PYENV_DIR="$HOME/.odoo/run/${PROJECTNAME}/.pyenv/bin/python3"
+if [[ ! -f "$PYENV_DIR" ]]; then
 	echo "Pyenv not yet initialized. Installing by odoo setup-pyenv"
 	odoo setup-pyenv
 fi
