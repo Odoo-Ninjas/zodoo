@@ -640,7 +640,7 @@ def transfer_volume_content(context, config, show_all, filter, no_backup):
 
 
 @docker.command()
-@click.argument("name")
+@click.argument("name", required=False)
 @pass_config
 @click.pass_context
 def docker_sizes(context, config, name):
@@ -657,13 +657,7 @@ def docker_sizes(context, config, name):
             return True
         return fname in name
 
-    image_names = list(
-        filter(
-            map(
-                lambda x: f"{config.project_name}-{x}",
-                yaml.safe_load(output)["services"].keys(),
-            ), match
-            )
+    image_names = list(filter(match, map(lambda x: f"{config.project_name}-{x}", yaml.safe_load(output)["services"].keys(),))
     )
     sizes = {}
     for imagename in image_names:
