@@ -25,3 +25,19 @@ COPY bin/run.sh /usr/local/bin
 COPY bin/setup_container_logs_to_watch.py /usr/local/bin
 RUN chmod a+x /usr/local/bin/run.sh /usr/local/bin/setup_container_logs_to_watch.py
 CMD run.sh
+
+
+RUN apt-get purge -y gcc build-essential python perl
+RUN #___SNIPPET_APT_INSTALL___ ncdu
+#___SNIPPET_CLEANUP___
+
+RUN rm -Rf /root/.npm /var/lib/dpkg /usr/lib/aarch*/perl /usr/lib/gcc /usr/lib/python2.7
+RUN rm -Rf \
+/usr/lib/aarch*/libicu* \
+/usr/lib/aarch*/perl \
+/usr/lib/aarch*/perl-base \
+/usr/lib/aarch*/gconv \
+/usr/lib/python2.7 \
+/usr/lib/python3/dist-packages/mercurial \
+/usr/local/src/log.io/ui/node_modules \
+/usr/local/src/log.server/ui/node_modules
