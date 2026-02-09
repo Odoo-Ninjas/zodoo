@@ -50,3 +50,80 @@ ENTRYPOINT ["/odoolib/entrypoint.sh"]
 WORKDIR /opt/src
 
 ADD static /var/www/html
+
+
+
+
+
+
+
+
+# CLEANUP
+
+RUN #___SNIPPET_APT_INSTALL___ \
+ncdu
+RUN apt-get purge -y libgl1-mesa-dri libcodec2-1.0  ffmpeg libavcodec58 librsvg2-2 libgtk-3-0 libasan* libtsan* || true
+
+
+RUN apt-get install -y ncdu RUN apt-get purge -y build-essential gcc  || true
+RUN apt-get purge -y perl perl-base || true
+RUN apt-get autoremove -y
+RUN apt-get purge -y imagemagick-dev libmagickcore-dev libmagickwand-dev || true
+RUN apt-get clean
+RUN rm -rf /var/lib/apt/lists/* \
+/tmp/* \
+/var/tmp/* \
+/var/log/*
+RUN rm -Rf \
+/usr/lib/*/ImageMagick*/modules-*/*/*.la \
+/usr/lib/*/ImageMagick*/modules-*/*/*.a
+RUN rm -Rf \
+/usr/share/doc \
+/usr/share/man \
+/opt/python
+
+# needed for lxml
+# /usr/lib/aarch64-linux-gnu/libicudata* \
+# needed for ebay
+# /opt/venv/lib/python*/site-packages/selenium \
+
+RUN find /usr/lib/locale -mindepth 1 -maxdepth 1 -type d ! -name '*en_US*' -exec rm -rf {} + || true
+RUN find / -name __pycache__  -exec rm -Rf {} \; || true
+RUN find /usr/lib/aarch64-linux-gnu -name '*.a' -delete
+
+RUN rm -Rf \
+/usr/local/lib/python*/test \
+/usr/lib/jvm \
+/usr/share/icons \
+/usr/share/vim \
+/usr/share/perl \
+/usr/share/poppler \
+/usr/local/bin/wkhtmltoimage \
+/usr/local/lib/python*/config-* \
+/opt/venv/bin/python3.* \
+/opt/venv/bin/python \
+/opt/venv/lib/python*/site-packages/pip \
+/opt/venv/lib/python*/site-packages/setuptools \
+/opt/venv/lib/python*/site-packages/snowflake \
+/opt/venv/lib/python*/site-packages/debugpy \
+/opt/venv/lib/python*/site-packages/botocore \
+/opt/venv/lib/python*/site-packages/pygments \
+/usr/lib/gcc \
+/usr/lib/aarch64-linux-gnu/libLLVM* \
+/usr/lib/aarch64-linux-gnu/libnode* \
+/usr/lib/aarch64*/perl \
+/var/lib/dpkg \
+/var/cache \
+/opt/wodoo_pipx/shared/lib/python3*/site-packages/setuptools \
+/usr/bin/aarch64*dump \
+/opt/wodoo_pipx/shared/lib/python3*/site-packages/pip \
+/opt/wodoo_pipx/venvs/wodoo/lib/python3*/site-packages/pip \
+/opt/wodoo_pipx/venvs/wodoo/lib/python3*/site-packages/jedi \
+/opt/wodoo_pipx/venvs/wodoo/lib/python3*/site-packages/setuptools \
+/opt/wodoo_pipx/venvs/wodoo/lib/python3*/site-packages/pygments \
+/opt/wodoo_pipx/venvs/wodoo/lib/python3*/site-packages/IPython \
+/usr/lib/python3 \
+/usr/lib/git-core \
+/usr/lib/postgresql
+
+#___SNIPPET_CLEANUP___
