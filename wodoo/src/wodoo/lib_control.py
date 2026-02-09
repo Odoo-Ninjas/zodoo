@@ -640,9 +640,10 @@ def transfer_volume_content(context, config, show_all, filter, no_backup):
 
 
 @docker.command()
+@click.argument("name")
 @pass_config
 @click.pass_context
-def docker_sizes(context, config):
+def docker_sizes(context, config, name):
     from .tools import __dc_out
     from tabulate import tabulate
 
@@ -651,32 +652,46 @@ def docker_sizes(context, config):
     # docker images --format "{{.Repository}}:{{.Tag}} Size: {{.Size}}"
     import yaml
 
+    def match(fname):
+        if not name:
+            return True
+        return fname in name
+
     image_names = list(
-        map(
-            lambda x: f"{config.project_name}_{x}",
-            yaml.safe_load(output)["services"].keys(),
-        )
-    )
-    out = (
-        subprocess.check_output(
-            [
-                "docker",
-                "images",
-                "--format",
-                "{{.Repository}}:{{.Tag}}\tSize: {{.Size}}",
-            ]
-        )
-        .decode("utf8")
-        .splitlines()
+        filter(
+            map(
+                lambda x: f"{config.project_name}-{x}",
+                yaml.safe_load(output)["services"].keys(),
+            ), match
+            )
     )
     sizes = {}
-    for line in out:
-        name, size = line.split(":", 1)
-        size = size.split("\t")[-1]
-        sizes[name] = size
+    for imagename in image_names:
+        click.secho(f"Analyzing {imagename} ...", fg='yellow')
+        try:
+            out = subprocess.check_output(["docker", "run", "--rm", "--entrypoint", "/bin/sh", imagename, "-c", "du -sh /"], text=True, stderr=subprocess.DEVNULL)
+            out = out.splitlines()
+            if out:
+                out = out[0]
+        except subprocess.CalledProcessError as ex:
+            out = ex.stdout.splitlines()
+            if not out:
+                continue
+            out = out[0].strip()
+        if not out:
+            continue
+        out = out.split("\t")[0]
+        sizes[imagename] = out
     recs = []
+    def _get_size(imagename):
+        r = sizes.get(imagename, None)
+        if r is None:
+            r = sizes.get(imagename.replace("-", "_"), None)
+        return r
     for name in sorted(image_names, key=lambda x: x[0]):
-        recs.append((name, sizes.get(name, "")))
+        if not name:
+            continue
+        recs.append((name, _get_size(name)))
 
     click.echo(tabulate(recs, ["Image Name", "Size"]))
 
