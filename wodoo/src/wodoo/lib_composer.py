@@ -1716,7 +1716,10 @@ def setup_vscode_settings(config):
     parent_dir.mkdir(parents=True, exist_ok=True)
 
     file = parent_dir / 'settings.json'
-    content = load_json(file.read_text())
+    if file.exists():
+        content = load_json(file.read_text())
+    else:
+        content = {}
     content['python.analysis.extraPaths'] = []
     manifest = MANIFEST()
     root = "${workspaceFolder}"
