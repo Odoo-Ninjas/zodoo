@@ -655,7 +655,7 @@ def docker_sizes(context, config, name):
     def match(fname):
         if not name:
             return True
-        return fname in name
+        return name in fname
 
     image_names = list(filter(match, map(lambda x: f"{config.project_name}-{x}", yaml.safe_load(output)["services"].keys(),))
     )
