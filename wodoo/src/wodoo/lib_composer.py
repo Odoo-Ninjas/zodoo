@@ -1667,7 +1667,7 @@ def setup_launch_json(config):
         debugconfig['args'] = []
         for line in lines:
             for k in myconfig.keys():
-                line = line.replace(f"{k}", myconfig.get(k))
+                line = line.replace(f"{{{k}}}", myconfig.get(k))
             debugconfig['args'].append(line)
         for k,v in args.items():
             lines = [x for x in debugconfig['args'] if not x.startswith(k + "=")]
