@@ -7,6 +7,8 @@ ENV PIP_NO_CACHE_DIR=no
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 #___SNIPPET_APT_PROXY___
+#___SNIPPET_UPDATE_CA_CERTIFICATES___
+#___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
 
 RUN #___SNIPPET_APT_INSTALL___ \
 python3-pip python3 curl rsync locales pv \

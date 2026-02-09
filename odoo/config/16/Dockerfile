@@ -18,6 +18,8 @@ RUN tar xfz /usr/local/src/python
 WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
 
 #___SNIPPET_APT_PROXY___
+#___SNIPPET_UPDATE_CA_CERTIFICATES___
+#___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
 RUN #___SNIPPET_APT_INSTALL___ \
     software-properties-common \
     cmake \
@@ -57,6 +59,8 @@ ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
 
 #___SNIPPET_APT_PROXY___
+#___SNIPPET_UPDATE_CA_CERTIFICATES___
+#___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
 RUN #___SNIPPET_APT_INSTALL___ \
     build-essential \
     libxml2-dev \
@@ -118,6 +122,8 @@ ENV LANG=C.UTF-8
 ENV PIP_NO_CACHE_DIR=no
 
 #___SNIPPET_APT_PROXY___
+#___SNIPPET_UPDATE_CA_CERTIFICATES___
+#___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
 RUN #___SNIPPET_APT_INSTALL___ \
             man \
             htop \
