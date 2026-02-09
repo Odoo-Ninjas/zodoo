@@ -6,10 +6,10 @@ RUN rm -rf /var/lib/apt/lists/* \
 /usr/share/man
 
 # Statische Libraries löschen
-RUN find /usr/lib -name '*.a' -delete
+RUN find /usr -name '*.a' -delete
 
 RUN if [[ -e /usr/bin/apt-get ]]; then \
-apt-get purge build-essential gcc && \
+apt-get purge build-essential gcc libpq-dev && \
 apt-get autoremove -y && \
 apt-get purge -y imagemagick-dev libmagickcore-dev libmagickwand-dev || true && \
 apt-get clean; \
