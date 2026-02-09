@@ -11,3 +11,18 @@ COPY run.sh /run.sh
 COPY init/* /docker-entrypoint-initdb.d/
 RUN chown -R postgres:postgres /docker-entrypoint-initdb.d && \
     chmod a+x /docker-entrypoint-initdb.d/*.sh /run.sh
+
+#___SNIPPET_CLEANUP___
+RUN rm -Rf \
+/usr/share/perl \
+/usr/lib/gcc \
+/usr/lib/llvm-* \
+/usr/lib/aarch*/perl \
+/usr/lib/python2.7 \
+/var/lib/apt/lists/* \
+/usr/lib/dpkg \
+/usr/lib/bfd-plugins \
+/usr/lib/git-core
+
+RUN apt-get purge -y git git-core gnupg gnupg2 binutils
+RUN apt-get purge -y libgdal* libarmadillo* libogdi* libasan* libtsan* libubsan*
