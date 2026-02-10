@@ -60,6 +60,8 @@ default_files = {
     "project_docker_compose.home": "~/.odoo/docker-compose.yml",
     "project_docker_compose.home.project": "~/.odoo/docker-compose.${project_name}.yml",
     "project_docker_compose.local": "${working_dir}/.odoo/docker-compose.${project_name}.yml",
+    "system_settings": '/etc/odoo/settings',
+    "user_settings": '~/.odoo/settings',
     "docker_bin": _search_path("docker"),
     "docker_compose": "${run}/docker-compose.yml",
     "docker_compose_bin": None,
