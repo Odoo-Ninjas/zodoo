@@ -1,11 +1,9 @@
 #!/usr/bin/python3
-import getpass
 import time
 import gzip
 import shutil
-import platform
 import psycopg2
-import pipes
+import shlex
 import tempfile
 import subprocess
 from threading import Thread
@@ -259,7 +257,7 @@ def _restore(
 
     started = datetime.now()
     click.echo("Restoring DB...")
-    PV_CMD = " ".join(pipes.quote(s) for s in ["pv", str(filepath)])
+    PV_CMD = " ".join(shlex.quote(s) for s in ["pv", str(filepath)])
     if workers > 1 and needs_unzip:
         workers = 1
         click.secho(
@@ -275,12 +273,12 @@ def _restore(
         CMD += " | "
     else:
         CMD = ""
-    CMD += " ".join(pipes.quote(s) for s in method)
+    CMD += " ".join(shlex.quote(s) for s in method)
     CMD += " "
     if method == PGRESTORE and verbose:
         CMD += " --verbose "
     CMD += " ".join(
-        pipes.quote(s)
+        shlex.quote(s)
         for s in [
             "--dbname",
             dbname,
