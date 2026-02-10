@@ -1519,7 +1519,7 @@ def setting(ctx, config, settings, no_reload, user_wide, system_wide):
                 value = get_latest_python_patch_version(value)
                 click.secho(f"Version {value} will be used.", fg="yellow")
                 settings_dict[key] = value
-            if value.lower() in ["null", "nil", "none"]:
+            if value and value.lower() in ["null", "nil", "none"]:
                 settings_dict[key] = None
 
     _tune_settings()
