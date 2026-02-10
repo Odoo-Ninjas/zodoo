@@ -9,19 +9,37 @@
 # 	EOT
 # 	chmod a+x "$path"
 # fi
-set -e
+set -ex
+ls /opt -lht
 if [[ -f /opt/venv.tar.gz ]]; then
-	mv /opt/venv.tar.gz /tmp/venv.tar.gz
+	cd /opt
 	tar \
 		-z \
 		--extract \
-		--file=/tmp/venv.tar.gz \
+		--file=/opt/venv.tar.gz \
 		--preserve-permissions \
 		--same-owner \
 		--xattrs \
-		--acls \
-		-C /opt
-	rm /tmp/venv.tar.gz
+		--acls
+	#rm /opt/venv.tar.gz
+	ls -lhtra /opt
+	if [[ ! -d /opt/venv ]]; then
+		echo "Fehler beim entpacken"
+		exit -1
+	fi
+fi
+if [[ -f /usr/share.tar.gz ]]; then
+	cd /usr
+	tar \
+		-z \
+		--extract \
+		--file=/usr/share.tar.gz \
+		--preserve-permissions \
+		--same-owner \
+		--xattrs \
+		--acls
+	#rm /usr/share.tar.gz
+	ls -lhtra /usr
 fi
 chown $OWNER_UID /home/odoo/.config -R
 exec "$WODOO_PYTHON" /odoolib/entrypoint.py "$@"

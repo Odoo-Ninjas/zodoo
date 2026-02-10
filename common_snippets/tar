@@ -1,7 +1,20 @@
-tar \
-  --preserve-permissions \
-  --xattrs \
-  --xattrs-include='*' \
-  --acls \
-  - \
-  
+bash -euo pipefail -c '\
+tar -cp \
+# restore example:
+#if [[ -f /opt/venv.tar.gz ]]; then
+#	cd /opt
+#	tar \
+#		-z \
+#		--extract \
+#		--file=/opt/venv.tar.gz \
+#		--preserve-permissions \
+#		--same-owner \
+#		--xattrs \
+#		--acls
+#	#rm /opt/venv.tar.gz
+#	ls -lhtra /opt
+#	if [[ ! -d /opt/venv ]]; then
+#		echo "Fehler beim entpacken"
+#		exit -1
+#	fi
+#fi

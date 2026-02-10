@@ -51,10 +51,11 @@ ENTRYPOINT ["/odoolib/entrypoint.sh"]
 
 ADD static /var/www/html
 
-WORKDIR /opt
 
-RUN #___SNIPPET_TAR___
-venv wodoo_pipx | gzip -9 > venv.tar.gz && rm -Rf venv wodoo_pipx
+RUN cd /opt && #___SNIPPET_TAR___
+venv wodoo_pipx | gzip -9 > venv.tar.gz && rm -Rf venv wodoo_pipx '
+
+
 
 WORKDIR /opt/src
 
@@ -112,5 +113,9 @@ RUN rm -Rf \
 
 #___SNIPPET_CLEANUP___
 
+
+
+RUN cd /usr && #___SNIPPET_TAR___
+share | gzip -9 > share.tar.gz && rm -Rf share && cd - '
 
 # MARKER COMMON.DOCKER END
