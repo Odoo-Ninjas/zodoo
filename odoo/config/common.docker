@@ -51,20 +51,10 @@ WORKDIR /opt/src
 
 ADD static /var/www/html
 
-
-RUN cd /opt && tar -cf - venv wodoo_pipx | gzip -9 > venv.tar.gz && rm -Rf venv wodoo_pipx && cd -
-RUN cd /usr/ && tar -cf - share | gzip -9 > share.tar.gz && rm -Rf share && cd - 
-
-
-
-
-
-
-
 # CLEANUP
-
 RUN #___SNIPPET_APT_INSTALL___ \
 ncdu
+
 RUN apt-get purge -y libgl1-mesa-dri libcodec2-1.0  ffmpeg libavcodec58 librsvg2-2 libgtk-3-0 libasan* libtsan* || true
 
 
@@ -121,3 +111,6 @@ RUN rm -Rf \
 /usr/lib/postgresql
 
 #___SNIPPET_CLEANUP___
+
+RUN cd /opt && tar -cf - venv wodoo_pipx | gzip -9 > venv.tar.gz && rm -Rf venv wodoo_pipx && cd -
+RUN cd /usr/ && tar -cf - share | gzip -9 > share.tar.gz && rm -Rf share && cd - 
