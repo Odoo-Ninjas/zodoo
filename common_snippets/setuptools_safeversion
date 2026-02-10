@@ -1,1 +1,3 @@
+# odoo17 requires import pkg_resources; missing since setuptools82 - so if missing in
+# venv it is a problem
 pip3 install $(cat /etc/pip_options) 'setuptools<81' -U
