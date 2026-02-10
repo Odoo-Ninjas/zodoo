@@ -9,9 +9,19 @@
 # 	EOT
 # 	chmod a+x "$path"
 # fi
-if [[ ! -d /opt/venv ]]; then
-	cd /opt
-	tar xfz venv.tar.gz
+set -e
+if [[ -f /opt/venv.tar.gz ]]; then
+	mv /opt/venv.tar.gz /tmp/venv.tar.gz
+	tar \
+		-z \
+		--extract \
+		--file=/tmp/venv.tar.gz \
+		--preserve-permissions \
+		--same-owner \
+		--xattrs \
+		--acls \
+		-C /opt
+	rm /tmp/venv.tar.gz
 fi
 chown $OWNER_UID /home/odoo/.config -R
 exec "$WODOO_PYTHON" /odoolib/entrypoint.py "$@"

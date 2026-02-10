@@ -117,13 +117,7 @@ RUN rm -Rf \
 /usr/lib/aarch64*/perl \
 /var/lib/dpkg \
 /var/cache \
-/opt/wodoo_pipx/shared/lib/python3*/site-packages/setuptools \
 /usr/bin/aarch64*dump \
-/opt/wodoo_pipx/shared/lib/python3*/site-packages/pip \
-/opt/wodoo_pipx/venvs/wodoo/lib/python3*/site-packages/pip \
-/opt/wodoo_pipx/venvs/wodoo/lib/python3*/site-packages/jedi \
-/opt/wodoo_pipx/venvs/wodoo/lib/python3*/site-packages/setuptools \
-/opt/wodoo_pipx/venvs/wodoo/lib/python3*/site-packages/IPython \
 /usr/lib/python3 \
 /usr/lib/git-core \
 /usr/lib/postgresql

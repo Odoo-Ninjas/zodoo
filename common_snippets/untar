@@ -1,0 +1,7 @@
+tar \
+  --extract \
+  --preserve-permissions \
+  --same-owner \
+  --xattrs \
+  --acls
+  --file=
