@@ -24,7 +24,7 @@ COPY file_input.json "$LOGIO_FILE_INPUT_CONFIG_PATH"
 COPY bin/run.sh /usr/local/bin
 COPY bin/setup_container_logs_to_watch.py /usr/local/bin
 RUN chmod a+x /usr/local/bin/run.sh /usr/local/bin/setup_container_logs_to_watch.py
-CMD run.sh
+CMD ["run.sh"]
 
 
 RUN apt-get purge -y gcc build-essential python perl
