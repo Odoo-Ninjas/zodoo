@@ -19,6 +19,9 @@ jobs:
       - name: Run test script
         run: |
           set -e
+          mkdir ~/.odoo
+          rsync ./ ~/.odoo/images/ -ar
+
           pipx install gimera
           cd wodoo/src
           pipx install -e .
