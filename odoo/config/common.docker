@@ -68,7 +68,7 @@ ncdu
 RUN apt-get purge -y libgl1-mesa-dri libcodec2-1.0  ffmpeg libavcodec58 librsvg2-2 libgtk-3-0 libasan* libtsan* || true
 
 
-RUN apt-get install -y ncdu RUN apt-get purge -y build-essential gcc  || true
+RUN apt-get purge -y build-essential gcc  || true
 RUN apt-get purge -y perl perl-base || true
 RUN apt-get autoremove -y
 RUN apt-get purge -y imagemagick-dev libmagickcore-dev libmagickwand-dev || true
