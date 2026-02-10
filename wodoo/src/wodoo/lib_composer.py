@@ -1470,35 +1470,71 @@ def _complete_setting_name(ctx, param, incomplete):
 @composer.command()
 @pass_config
 @click.pass_context
-@click.argument("name", required=False, shell_complete=_complete_setting_name)
-@click.argument("value", required=False, default="")
+@click.argument("settings", required=False, shell_complete=_complete_setting_name, nargs=-1)
 @click.option("-R", "--no-reload", is_flag=True)
-@click.option("-n", "--null", is_flag=True)
-def setting(ctx, config, name, value, no_reload, null):
+@click.option("-u", "--user-wide", is_flag=True, help="updates ~/.odoo/settings")
+@click.option("-s", "--system-wide", is_flag=True, help="updates /etc/odoo/settings")
+def setting(ctx, config, settings, no_reload, user_wide, system_wide):
     from .myconfigparser import MyConfigParser
 
-    if name and "=" in name and not value:
-        name, value = name.split("=", 1)
+    if user_wide:
+        file = config.files['user_settings']
+    elif system_wide:
+        file = config.files['system_settings']
+    else:
+        file = None
 
-    if not name:
+
+    settings_dict = {}
+    def _parse_settings():
+        mode = None
+        for setting in settings:
+            value = None
+            try:
+                key, value = setting.split("=", 1)
+                if mode and mode != 'write':
+                    raise abort("Cannot  readonly and writeonly settings.")
+                mode = 'write'
+
+            except ValueError:
+                key = setting
+                if mode and mode != 'readonly':
+                    raise abort("Cannot  readonly and writeonly settings.")
+                mode = 'readonly'
+                settings_dict[key] = None
+            key = key.strip()
+            if value:
+                value = value.strip()
+            settings_dict[key] = value
+        return mode
+    mode = _parse_settings()
+
+    if not settings_dict:
         ctx.invoke(show_effective_settings)
         return
-    configparser = MyConfigParser(config.files["settings"])
-    name = name.replace(":", "=")
-    if "=" in name:
-        name, value = name.split("=", 1)
-    if not value and not null:
+
+    def _tune_settings():
+        for key, value in settings_dict.items():
+            if key == "ODOO_PYTHON_VERSION" and len(value.split(".")) == 2:
+                value = get_latest_python_patch_version(value)
+                click.secho(f"Version {value} will be used.", fg="yellow")
+                settings_dict[key] = value
+            if value.lower() in ["null", "nil", "none"]:
+                settings_dict[key] = None
+
+    if mode == 'readonly' or mode is None:
+        configparser = MyConfigParser(file or config.files['settings'])
         for k in sorted(configparser.keys()):
-            if name.lower() in k.lower():
+            if any(name.lower() in k.lower() for name in settings_dict.keys()):
                 click.secho(f"{k}={configparser[k]}")
-    else:
-        if name == "ODOO_PYTHON_VERSION" and len(value.split(".")) == 2:
-            value = get_latest_python_patch_version(value)
-            click.secho(f"Version {value} will be used.", fg="yellow")
-        update_setting(config, name, value, null=null)
-        click.secho(f"{name}={value}", fg="green")
+    elif mode == 'write':
+        for key, value in settings_dict.items():
+            update_setting(config, key, value, null=value is None, setting_file=file)
+            click.secho(f"{key}={value}", fg="green")
         if not no_reload:
             ctx.invoke(do_reload)
+    else:
+        raise NotImplementedError(mode)
 
 
 @composer.command()
@@ -1514,7 +1550,7 @@ def docker_service(ctx, config, name, value, no_reload, file):
     if not value and not file:
         content = _parse_yaml(__read_file(config.files["docker_compose"]))
         service = content.get("services", {}).get(name)
-        click.secho(json.dumps(content, indent=4), fg="green")
+        click.secho(json.dumps(service, indent=4), fg="green")
         return
     if file:
         value = __read_file(file)
