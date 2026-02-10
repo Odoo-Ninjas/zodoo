@@ -61,8 +61,6 @@ WORKDIR /opt/src
 
 # CLEANUP
 
-RUN #___SNIPPET_APT_INSTALL___ \
-ncdu
 RUN apt-get purge -y libgl1-mesa-dri libcodec2-1.0  ffmpeg libavcodec58 librsvg2-2 libgtk-3-0 libasan* libtsan* || true
 
 

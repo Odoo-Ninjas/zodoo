@@ -518,7 +518,7 @@ def _replace_docker_snippets(config, dockerfilecontent):
     while "#___SNIPPET" in dockerfilecontent:
         counter += 1
         for snippet in (config.dirs["images"] / "common_snippets").glob("*"):
-            content = remove_comments(snippet.read_text())
+            content = '\n'.join(remove_comments(snippet.read_text().splitlines()))
             name = f"#___SNIPPET_{snippet.stem.upper()}___"
             dockerfilecontent = dockerfilecontent.replace(name, content)
         if counter > 100:
