@@ -19,8 +19,8 @@ jobs:
       - name: Run test script
         run: |
           set -e
-          pwd
           cd wodoo/src
           pipx install -e .
+          cd -
           chmod +x ./tests.sh
           ./tests.sh
