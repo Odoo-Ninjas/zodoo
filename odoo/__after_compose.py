@@ -279,7 +279,7 @@ def _get_dependencies(config, globals, PYTHON_VERSION, exclude=None, include=Non
 
         arr2.append(libpy)
     if not contains_setuptools:
-        arr2.append('setuptools<82')
+        arr2.append('setuptools<81')
     external_dependencies["pip"] = list(sorted(arr2))
 
     external_dependencies["pip"] = list(
