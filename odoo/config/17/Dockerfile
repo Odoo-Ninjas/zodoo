@@ -95,7 +95,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
 
 RUN pip3 install pip -U
 RUN pip3 install $(cat /etc/pip_options) wheel && \
-pip3 install $(cat /etc/pip_options) setuptools -U
+pip3 install $(cat /etc/pip_options) setuptools<81
 
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
