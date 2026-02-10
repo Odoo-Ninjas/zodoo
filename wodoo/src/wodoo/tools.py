@@ -2077,6 +2077,13 @@ def remove_comments(content):
     ]
     return content
 
+def remove_comments_not_snippets(content):
+    content = [
+        line.strip()
+        for line in content
+        if line.strip() and (not line.startswith("#") or line.startswith("#___SNIPPET"))
+    ]
+    return content
 
 def copy_into_docker(strcontent, container_name, dest_path):
     with autocleanpaper() as tfile:
