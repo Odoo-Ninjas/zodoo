@@ -27,4 +27,4 @@ RUN rm -Rf \
 /usr/lib/git-core
 
 RUN apt-get purge -y git git-core gnupg gnupg2 binutils
-RUN apt-get purge -y libgdal* libarmadillo* libogdi* libasan* libtsan* libubsan*
+RUN apt-get purge -y libgdal* libarmadillo* libogdi* libasan* libtsan* libubsan* || true
