@@ -1,0 +1,1 @@
+pip3 install $(cat /etc/pip_options) setuptools<81 -U
