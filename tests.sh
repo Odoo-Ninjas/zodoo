@@ -1,4 +1,5 @@
 #!/bin/bash
+set -ex
 
 odoo init f1 19.0
 cd f1
