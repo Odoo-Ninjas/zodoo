@@ -54,7 +54,7 @@ ADD static /var/www/html
 WORKDIR /opt
 
 RUN #___SNIPPET_TAR___
-venv wodoo_pipx | gzip -9 > venv.tar.gz
+venv wodoo_pipx | gzip -9 > venv.tar.gz && rm -Rf venv wodoo_pipx
 
 WORKDIR /opt/src
 
