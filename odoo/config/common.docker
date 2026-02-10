@@ -1,3 +1,4 @@
+# MARKER COMMON.DOCKER BEGIN
 
 # install wodoo
 RUN #___SNIPPET_APT_INSTALL___ \
@@ -128,3 +129,6 @@ RUN rm -Rf \
 /usr/lib/postgresql
 
 #___SNIPPET_CLEANUP___
+
+
+# MARKER COMMON.DOCKER END

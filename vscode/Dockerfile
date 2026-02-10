@@ -49,14 +49,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
 
 # --- COPY newer Python version ---
 # hadolint ignore=DL3059
-RUN add-apt-repository -y ppa:deadsnakes/ppa --no-update
-# hadolint ignore=DL3059
-RUN #___SNIPPET_APT_INSTALL___ \
-    software-properties-common \
-    python3.11 \
-    python3.11-dev \
-    python3.11-distutils \
-    python3.11-venv
+RUN #___SNIPPET_PYTHON311___
 
 # --- Determine VSCode download link and install ---
 RUN export SHELL=/bin/bash && \
