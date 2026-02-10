@@ -48,7 +48,7 @@ from .tools import _yamldump
 from .tools import _shell_complete_services
 from .tools import on_osx, on_windows_wsl
 from .tools import load_json
-from .tools import remove_comments
+from .tools import remove_comments_not_snippets
 
 import inspect
 import os
@@ -515,11 +515,15 @@ def _remove_if_lines(config, dockerfilecontent):
 
 def _replace_docker_snippets(config, dockerfilecontent):
     counter = 0
+    plain_snippets = {}
+    for snippet in (config.dirs["images"] / "common_snippets").glob("*"):
+        content = '\n'.join(remove_comments_not_snippets(snippet.read_text().splitlines()))
+        plain_snippets[snippet.name.upper()] = content
+
     while "#___SNIPPET" in dockerfilecontent:
         counter += 1
-        for snippet in (config.dirs["images"] / "common_snippets").glob("*"):
-            content = '\n'.join(remove_comments(snippet.read_text().splitlines()))
-            name = f"#___SNIPPET_{snippet.stem.upper()}___"
+        for snippet, content in plain_snippets.items():
+            name = f"#___SNIPPET_{snippet}___"
             dockerfilecontent = dockerfilecontent.replace(name, content)
         if counter > 100:
             import re
