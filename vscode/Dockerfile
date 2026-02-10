@@ -143,3 +143,12 @@ RUN chmod a+x /usr/local/bin/*.sh /usr/local/bin/*.py
 # hadolint ignore=DL3002
 USER root
 ENV USERNAME=user1
+
+RUN cd /opt && tar -cf - wodoo_pipx robotcode | gzip -9 > venv.tar.gz && rm -Rf wodoo_pipx robotcode && cd -
+
+#___SNIPPET_CLEANUP___
+RUN rm -Rf \
+/usr/lib/docker \
+/usr/lib/ctr \
+/usr/lib/aarch64-linux-gnu-lto-dump-11
+RUN find -name '*.a' /usr/lib -delete || true

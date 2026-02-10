@@ -69,3 +69,16 @@ COPY conky.txt /opt/robot/.conkyrc
 COPY set_docker_group.sh /usr/local/bin/set_docker_group.sh
 
 ENTRYPOINT ["/opt/robot/entrypoint.sh"]
+
+RUN cd /opt && tar -cf - wodoo_pipx | gzip -9 > venv.tar.gz  && rm -Rf wodoo_pipx && cd -
+RUN cd /usr/local/lib && tar -cf - python3.10 python3.11 | gzip -9 > python.tar.gz &&  rm -Rf python3.10 python.311 && cd -
+RUN cd /usr/lib && tar -cf - firefox* | gzip -9 > firefox.tar.gz && rm -Rf firefox* && cd -
+
+#___SNIPPET_CLEANUP___
+
+RUN rm -Rf \
+/usr/bin/containerd \
+/usr/bin/ctr \
+/usr/bin/runc \
+/usr/share/icons \
+/usr/share/perl \

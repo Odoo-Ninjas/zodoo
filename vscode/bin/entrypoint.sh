@@ -4,13 +4,20 @@ set -x
 export TEMPLATE_USERNAME=usertemplate1
 export USERNAME=user1
 
+if [[ -f /opt/venv.tar.gz ]]; then
+    cd /opt
+    tar xf venv.tar.gz &
+    rm venv.tar.gz
+fi
+wait
+
 /bin/bash /usr/local/bin/set_docker_group.sh || exit -1
 
 # --- Group fix and user shell ---
 groupadd $USERNAME && \
 useradd -g $USERNAME -m $USERNAME -u $OWNER_UID
 usermod -aG "$(stat -c '%G' "/var/run/docker.sock")" $USERNAME
-rm /home/$USERNAME/.cache/pip || true
+rm /home/$Uaarch64-linux-gnu-lto-dump-11SERNAME/.cache/pip || true
 rsync --chown $USERNAME:$USERNAME /home/$TEMPLATE_USERNAME/ /home/$USERNAME/ -ar
 
 quick_chown() {

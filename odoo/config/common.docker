@@ -52,7 +52,8 @@ WORKDIR /opt/src
 ADD static /var/www/html
 
 
-RUN cd /opt && tar cfz venv.tar.gz venv wodoo_pipx && rm -Rf venv wodoo_pipx && cd - 
+RUN cd /opt && tar -cf - venv wodoo_pipx | gzip -9 > venv.tar.gz && rm -Rf venv wodoo_pipx && cd -
+RUN cd /usr/ && tar -cf - share | gzip -9 > share.tar.gz && rm -Rf share && cd - 
 
 
 

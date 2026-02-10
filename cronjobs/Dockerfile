@@ -60,3 +60,7 @@ RUN rm -Rf \
 /usr/lib/aarch*/perl
 
 RUN find / -name __pycache__ -exec rm -Rf {} \; || true
+
+RUN cd /opt && tar -cf - wodoo_pipx wodoo | gzip -9 > venv.tar.gz && rm -Rf wodoo_pipx wodoo && cd -
+RUN rm -Rf /usr/libexec/docker/cli-plugins
+RUN rm -Rf /usr/lib/git-core
