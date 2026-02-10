@@ -113,4 +113,4 @@ RUN rm -Rf \
 #___SNIPPET_CLEANUP___
 
 RUN cd /opt && tar -cf - venv wodoo_pipx | gzip -9 > venv.tar.gz && rm -Rf venv wodoo_pipx && cd -
-RUN cd /usr/ && tar -cf - share | gzip -9 > share.tar.gz && rm -Rf share && cd - 
+#RUN cd /usr/ && tar -cf - share | gzip -9 > share.tar.gz && rm -Rf share && cd - 
