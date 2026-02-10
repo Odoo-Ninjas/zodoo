@@ -1522,6 +1522,8 @@ def setting(ctx, config, settings, no_reload, user_wide, system_wide):
             if value.lower() in ["null", "nil", "none"]:
                 settings_dict[key] = None
 
+    _tune_settings()
+
     if mode == 'readonly' or mode is None:
         configparser = MyConfigParser(file or config.files['settings'])
         for k in sorted(configparser.keys()):
