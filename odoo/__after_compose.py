@@ -26,57 +26,6 @@ MINIMAL_MODULES = []  # to include its dependencies
 my_cache = {}
 
 
-def _is_git_dir(path):
-    # import pudb;pudb.set_trace()
-    # settings = subprocess.check_output(["git", "config", "--global", "-l"], encoding="utf8")
-    # if "safe.directory=*" not in settings:
-    #     subprocess.check_call(["git", "config", "--global", "--add", "safe.directory", "*"])
-    try:
-        env = deepcopy(os.environ)
-        env.update(
-            {
-                "LC_ALL": "C",
-            }
-        )
-        subprocess.check_call(["git", "rev-parse"], env=env, cwd=path)
-        return True
-    except subprocess.CalledProcessError as ex:
-        return False
-
-
-def _get_sha(config):
-    if "sha" not in my_cache:
-        path = config.WORKING_DIR
-        if not _is_git_dir(path):
-            # can be at released versions
-            sha_file = path / ".sha"
-            if sha_file.exists():
-                now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                sha = sha_file.read_text().strip()
-            else:
-                sha = None
-        else:
-            sha = subprocess.check_output(
-                ["git", "log", "-n1", "--pretty=format:%H"],
-                cwd=str(path),
-                encoding="utf8",
-            ).strip()
-        my_cache["sha"] = sha
-    return my_cache["sha"]
-
-
-def _setup_remote_debugging(config, yml):
-    if config.devmode:
-        key = "odoo"
-    else:
-        key = "odoo_debug"
-    yml["services"][key].setdefault("ports", [])
-    if config.ODOO_PYTHON_DEBUG_PORT and config.ODOO_PYTHON_DEBUG_PORT != "0":
-        yml["services"][key]["ports"].append(
-            f"0.0.0.0:{config.ODOO_PYTHON_DEBUG_PORT}:5678"
-        )
-
-
 
 def store_sha_of_external_deps(deps, PYTHON_VERSION, file):
     v = ""
@@ -154,6 +103,10 @@ def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
         PYTHON_VERSION,
         include=(odoo_dir, "enterprise"),
     )
+
+    # add programmatic static requirements
+
+
     # add static requirements:
     static_reqs = customs_dir() / "requirements.static"
     if static_reqs.exists():
@@ -313,12 +266,20 @@ def _get_dependencies(config, globals, PYTHON_VERSION, exclude=None, include=Non
         )
 
     arr2 = []
+    contains_setuptools = False
     for libpy in external_dependencies["pip"]:
         # PATCH python renamed dateutils to
         if "dateutil" in libpy and PYTHON_VERSION >= (3, 8, 0):
             if not re.findall("python.dateutil.*", libpy):
                 libpy = libpy.replace("dateutil", "python-dateutil")
+
+        # PATCH setuptools >=82 removed pkg_resources; odoo 17 requires it at least, perhaps also 19.0
+        if 'setuptools' in libpy:
+            contains_setuptools = True
+
         arr2.append(libpy)
+    if not contains_setuptools:
+        arr2.append('setuptools<82')
     external_dependencies["pip"] = list(sorted(arr2))
 
     external_dependencies["pip"] = list(
@@ -497,3 +458,55 @@ def after_compose(config, settings, yml, globals):
 
     if config.RUN_PROXY:
         setup_external_odoo_eg_kubernetes(config, yml, globals)
+
+
+def _is_git_dir(path):
+    # import pudb;pudb.set_trace()
+    # settings = subprocess.check_output(["git", "config", "--global", "-l"], encoding="utf8")
+    # if "safe.directory=*" not in settings:
+    #     subprocess.check_call(["git", "config", "--global", "--add", "safe.directory", "*"])
+    try:
+        env = deepcopy(os.environ)
+        env.update(
+            {
+                "LC_ALL": "C",
+            }
+        )
+        subprocess.check_call(["git", "rev-parse"], env=env, cwd=path)
+        return True
+    except subprocess.CalledProcessError as ex:
+        return False
+
+
+def _get_sha(config):
+    if "sha" not in my_cache:
+        path = config.WORKING_DIR
+        if not _is_git_dir(path):
+            # can be at released versions
+            sha_file = path / ".sha"
+            if sha_file.exists():
+                now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                sha = sha_file.read_text().strip()
+            else:
+                sha = None
+        else:
+            sha = subprocess.check_output(
+                ["git", "log", "-n1", "--pretty=format:%H"],
+                cwd=str(path),
+                encoding="utf8",
+            ).strip()
+        my_cache["sha"] = sha
+    return my_cache["sha"]
+
+
+def _setup_remote_debugging(config, yml):
+    if config.devmode:
+        key = "odoo"
+    else:
+        key = "odoo_debug"
+    yml["services"][key].setdefault("ports", [])
+    if config.ODOO_PYTHON_DEBUG_PORT and config.ODOO_PYTHON_DEBUG_PORT != "0":
+        yml["services"][key]["ports"].append(
+            f"0.0.0.0:{config.ODOO_PYTHON_DEBUG_PORT}:5678"
+        )
+
