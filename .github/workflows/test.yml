@@ -22,6 +22,9 @@ jobs:
           mkdir ~/.odoo
           rsync ./ ~/.odoo/images/ -ar
 
+          git config --global user.email "you@example.com"
+          git config --global user.name "Your Name"
+
           pipx install gimera
           cd wodoo/src
           pipx install -e .
