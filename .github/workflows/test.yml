@@ -1,0 +1,24 @@
+name: Branch Tests
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches-ignore:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run test script
+        run: |
+          set -e
+          pipx install -e wodoo/src/wodoo
+          chmod +x ./tests.sh
+          ./tests.sh

@@ -44,7 +44,8 @@ RUN #___SNIPPET_APT_INSTALL___ \
     silversearcher-ag \
     ssh \
     vim \
-    jq
+    jq \
+    ncdu
 
 
 # --- COPY newer Python version ---
