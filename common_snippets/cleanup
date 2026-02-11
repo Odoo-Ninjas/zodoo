@@ -1,3 +1,13 @@
+# Statische Libraries löschen
+RUN find /usr -name '*.a' -delete
+
+RUN if [ -e /usr/bin/apt-get ]; then \
+apt-get purge -y build-essential gcc g++ libpq-dev && \
+apt-get autoremove -y && \
+apt-get clean -y && \
+rm -rf /var/lib/apt/lists/*; \
+fi
+
 RUN rm -rf /var/lib/apt/lists/* \
 /tmp/* \
 /var/tmp/* \
@@ -5,12 +15,23 @@ RUN rm -rf /var/lib/apt/lists/* \
 /usr/share/doc \
 /usr/share/man
 
-# Statische Libraries löschen
-RUN find /usr -name '*.a' -delete
+RUN rm -Rf \
+/tmp/* \
+/var/tmp/* \
+/var/log/* \
+/usr/share/doc \
+/usr/share/man \
+/usr/share/icons \
+/usr/share/vim \
+/usr/share/man \
+/usr/share/perl \
+/usr/share/poppler \
+/usr/lib/gcc \
+/var/cache \
+/usr/lib/git-core \
+/var/lib/dpkg \
+/usr/include \
+/etc/ssh
 
-RUN if [[ -e /usr/bin/apt-get ]]; then \
-apt-get purge build-essential gcc libpq-dev && \
-apt-get autoremove -y && \
-apt-get purge -y imagemagick-dev libmagickcore-dev libmagickwand-dev || true && \
-apt-get clean; \
-fi
+RUN find / -type d -name __pycache__  -exec rm -Rf {} + 2> /dev/null || true
+RUN rm /usr/bin/aarch64-linux-gnu-lto-dump-11 || true

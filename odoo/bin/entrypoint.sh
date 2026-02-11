@@ -21,7 +21,7 @@ if [[ -f /opt/venv.tar.gz ]]; then
 		--same-owner \
 		--xattrs \
 		--acls
-	#rm /opt/venv.tar.gz
+	rm /opt/venv.tar.gz
 	ls -lhtra /opt
 	if [[ ! -d /opt/venv ]]; then
 		echo "Fehler beim entpacken"
@@ -38,7 +38,7 @@ if [[ -f /usr/share.tar.gz ]]; then
 		--same-owner \
 		--xattrs \
 		--acls
-	#rm /usr/share.tar.gz
+	rm /usr/share.tar.gz
 	ls -lhtra /usr
 fi
 chown $OWNER_UID /home/odoo/.config -R
