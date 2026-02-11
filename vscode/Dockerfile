@@ -49,7 +49,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
 
 # --- COPY newer Python version ---
 # hadolint ignore=DL3059
-RUN #___SNIPPET_PYTHON311___
+#___SNIPPET_PYTHON311___
 
 # --- Determine VSCode download link and install ---
 RUN export SHELL=/bin/bash && \
