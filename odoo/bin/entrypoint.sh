@@ -6,7 +6,11 @@ xtract() {
 
 	if [[ -f "$archive" ]]; then
 		cd "$target_dir"
-		tar -I zstd -xpf "$archive" \
+		OPTIONS="-I zstd"
+		if [[ ! -e /usr/bin/zstd ]]; then
+			OPTIONS="-z"
+		fi
+		tar $OPTIONS -xpf "$archive" \
 			--preserve-permissions \
 			--same-owner \
 			--xattrs --xattrs-include='*' \
