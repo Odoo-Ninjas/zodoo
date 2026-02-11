@@ -9,12 +9,11 @@
 # 	EOT
 # 	chmod a+x "$path"
 # fi
-set -ex
-ls /opt -lht
+set -e
 if [[ -f /opt/venv.tar.gz ]]; then
 	cd /opt
 	tar \
-		-z \
+		--use-compress-program=zstd \
 		--extract \
 		--file=/opt/venv.tar.gz \
 		--preserve-permissions \
@@ -22,16 +21,11 @@ if [[ -f /opt/venv.tar.gz ]]; then
 		--xattrs \
 		--acls
 	rm /opt/venv.tar.gz
-	ls -lhtra /opt
-	if [[ ! -d /opt/venv ]]; then
-		echo "Fehler beim entpacken"
-		exit -1
-	fi
 fi
 if [[ -f /usr/share.tar.gz ]]; then
 	cd /usr
 	tar \
-		-z \
+		--use-compress-program=zstd \
 		--extract \
 		--file=/usr/share.tar.gz \
 		--preserve-permissions \
