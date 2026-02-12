@@ -1,2 +1,3 @@
 #!/bin/bash
+/bin/bash /odoolib/xtract_system_libs.sh || exit 1
 exec $WODOO_PYTHON /odoolib/debug.py "$@"

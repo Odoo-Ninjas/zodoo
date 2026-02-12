@@ -54,8 +54,11 @@ ADD static /var/www/html
 
 RUN #___SNIPPET_APT_INSTALL___ \
 zstd
+
+ENV ZSTDOPTIONS="-10 -T4"
+
 RUN cd /opt && #___SNIPPET_TAR___
-venv wodoo_pipx | zstd -22 --ultra -T4 > venv.tar.gz && rm -Rf venv wodoo_pipx '
+venv wodoo_pipx | zstd $ZSTDOPTIONS > venv.tar.zst && rm -Rf venv wodoo_pipx '
 
 
 
@@ -107,6 +110,6 @@ RUN rm -Rf \
 
 
 RUN cd /usr && #___SNIPPET_TAR___
-share | zstd -22 --ultra -T4 > share.tar.gz && rm -Rf share && cd - '
+share | zstd $ZSTDOPTIONS > share.tar.zst && rm -Rf share && cd - '
 
 # MARKER COMMON.DOCKER END
