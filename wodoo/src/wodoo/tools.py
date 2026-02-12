@@ -848,11 +848,8 @@ def is_docker_available():
 
 
 def _get_user_primary_group(UID):
-    try:
-        return int(UID)
-    except:
-        pass
-    id = search_env_path("id")
+    # on osx: UID=501 
+    id = shutil.which("id")
     return subprocess.check_output(
         [id, "-gn", str(UID)], encoding="utf8"
     ).strip()
@@ -862,10 +859,9 @@ def verbose(txt):
     if os.getenv("WODOO_VERBOSE") == "1":
         click.secho(txt, fg="gray")
 
-
 def __try_to_set_owner(UID, path, abort_if_failed=True, verbose=False):
     primary_group = _get_user_primary_group(UID)
-    find_command = f"find '{path}' -not -type l -not -user {UID}"
+    find_command = f"$(find '{path}' -not -type l -not -user {UID})"
     try:
         res = (
             subprocess.check_output(find_command, encoding="utf8", shell=True)
@@ -874,8 +870,7 @@ def __try_to_set_owner(UID, path, abort_if_failed=True, verbose=False):
         )
     except subprocess.CalledProcessError:
         res = []
-        find_command = f"find '{path}' -not -type l -not -group {primary_group}"
-
+    find_command = f"$(find '{path}' -not -type l -not -group {primary_group})"
     try:
         res += (
             subprocess.check_output(find_command, encoding="utf8", shell=True)
