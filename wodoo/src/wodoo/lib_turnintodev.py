@@ -89,23 +89,28 @@ def turn_into_dev_(ctx, config):
 
 
 def __collect_other_turndb2dev_sql():
+    from .odoo_config import MANIFEST
     from .odoo_config import customs_dir
 
-    dir = customs_dir() / "devscripts"
-    if not dir.exists():
-        return ""
+    cdir = customs_dir()
+    dir = cdir / "devscripts"
     sqls = []
-    for file in dir.glob("turn-into-dev.sql"):
-        sqls.append(file.read_text())
-    return "\n\n".join(sqls)
+
+    manifest = MANIFEST()
+    for file in manifest.get("neutralize", []):
+        if not file.endswith(".sql"):
+            raise NotImplementedError(file.name)
+        sqls.append({'file': cdir / file, 'mode': 'plain'})
+
+    if dir.exists():
+        for file in dir.glob("turn-into-dev.sql"):
+            sqls.append({'file': file, 'mode': 'plain'})
+    return sqls
 
 
 def __turn_into_devdb(ctx, config, conn):
     from .odoo_config import current_version
     from .myconfigparser import MyConfigParser
-
-    myconfig = MyConfigParser(config.files["settings"])
-    env = dict(map(lambda k: (k, myconfig.get(k)), myconfig.keys()))
 
     sql_file = (
         config.dirs["images"]
@@ -114,12 +119,42 @@ def __turn_into_devdb(ctx, config, conn):
         / str(int(current_version()))
         / "turndb2dev.sql"
     )
-    sql = sql_file.read_text()
+    sqls = [{'file': sql_file, 'mode': 'linebyline'}]
 
-    sql += __collect_other_turndb2dev_sql() or ""
+    sqls += __collect_other_turndb2dev_sql()
+    conn = config.get_odoo_conn()
 
+    for sqlfile in sqls:
+        sql = sqlfile['file'].read_text()
+        mode = sqlfile['mode']
+        if mode not in ['linebyline', 'plain']:
+            raise NotImplementedError(mode)
+        myconfig = MyConfigParser(config.files["settings"])
+        env = dict(map(lambda k: (k, myconfig.get(k)), myconfig.keys()))
+
+        if mode == 'plain':
+            click.secho(f"executing {sqlfile['file']}", fg='green')
+            _execute_sql(conn, sql)
+
+        elif mode == 'linebyline':
+            __execute_linebyline_sql(conn, sql, env)
+        else:
+            raise NotImplementedError(mode)
+
+    remove_webassets(conn)
+    _update_setting(
+        conn=conn,
+        key="web.base.url",
+        value=f"http://localhost:{config.proxy_port}",
+    )
+    _update_setting(
+        conn=conn,
+        key="report.url",
+        value=f"http://localhost:8069",
+    )
+
+def __execute_linebyline_sql(conn, sql, env):
     sql = __replace_all_envs_in_str(sql, env)
-
     critical = False
     for line in sql.split("\n"):
         if not line:
@@ -168,25 +203,13 @@ def __turn_into_devdb(ctx, config, conn):
             ):
                 continue
         try:
-            print(line)
+            click.secho(line, fg='green')
             _execute_sql(conn, line)
         except Exception:
             if critical:
                 raise
             msg = traceback.format_exc()
             print("failed un-critical sql:", msg)
-
-    remove_webassets(conn)
-    _update_setting(
-        conn=conn,
-        key="web.base.url",
-        value=f"http://localhost:{config.proxy_port}",
-    )
-    _update_setting(
-        conn=conn,
-        key="report.url",
-        value=f"http://localhost:8069",
-    )
 
 
 @turn_into_dev.command()
