@@ -866,17 +866,24 @@ def verbose(txt):
 def __try_to_set_owner(UID, path, abort_if_failed=True, verbose=False):
     primary_group = _get_user_primary_group(UID)
     find_command = f"find '{path}' -not -type l -not -user {UID}"
-    res = (
-        subprocess.check_output(find_command, encoding="utf8", shell=True)
-        .strip()
-        .splitlines()
-    )
-    find_command = f"find '{path}' -not -type l -not -group {primary_group}"
-    res += (
-        subprocess.check_output(find_command, encoding="utf8", shell=True)
-        .strip()
-        .splitlines()
-    )
+    try:
+        res = (
+            subprocess.check_output(find_command, encoding="utf8", shell=True)
+            .strip()
+            .splitlines()
+        )
+    except subprocess.CalledProcessError:
+        res = []
+        find_command = f"find '{path}' -not -type l -not -group {primary_group}"
+
+    try:
+        res += (
+            subprocess.check_output(find_command, encoding="utf8", shell=True)
+            .strip()
+            .splitlines()
+        )
+    except subprocess.CalledProcessError:
+        pass
     res = sorted(list(res))
     if not res:
         return
