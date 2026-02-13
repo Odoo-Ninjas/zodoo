@@ -420,12 +420,14 @@ def setup_external_odoo_eg_kubernetes(config, yml, globals):
 
 def after_compose(config, settings, yml, globals):
     # store also in clear text the requirements
+    from wodoo.odoo_config import customs_dir, MANIFEST
     shutil.copy(
         current_dir.parent / "common_snippets" / "set_docker_group.sh",
         current_dir / "set_docker_group.sh",
     )
 
     yml["services"].pop("odoo_base")
+    manifest = MANIFEST()
 
     # download python3.x version
     if float(settings["ODOO_VERSION"]) >= 13.0:

@@ -1,8 +1,10 @@
 import os
+import tempfile
 import click
 import sys
 import subprocess
 import re
+from pathlib import Path
 from .tools import _askcontinue
 from .tools import remove_webassets
 from .cli import cli, pass_config, Commands
@@ -193,31 +195,51 @@ def produce_test_lines(lines):
 
 @setup.command()
 @pass_config
+@click.option("-o", "--old", is_flag=True, help="Uses old setuptools - odoo version 11")
 @click.pass_context
-def setup_pyenv(ctx, config):
+def setup_pyenv(ctx, config, old):
     from .tools import require_homebrew
     require_homebrew()
     click.secho("Setting up pyenv...", fg="yellow")
     from .odoo_config import customs_dir
     SRC = customs_dir()
-    d = config.dirs['pyenv']
-    if d.exists():
-        __rmtree(config, d)
-    from .tools import get_best_python
-    python = get_best_python(config.ODOO_PYTHON_VERSION_SHORT)
-
-    d.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run([python, "-mvenv", str(d)], check=True)
+    projectname = config.project_name
+    subprocess.run(["pyenv", "uninstall", "-f", projectname], check=True)
+    subprocess.run(["pyenv", "install", "-s", config.ODOO_PYTHON_VERSION], check=True)
+    subprocess.run(["pyenv", "virtualenv", config.ODOO_PYTHON_VERSION, projectname], check=True)
+    pyexec = os.path.expanduser(f"~/.pyenv/versions/{projectname}/bin/python")
+    reqs = SRC / 'requirements.txt.all'
 
     if on_osx():
-        subprocess.run(["brew", "install", "libpq"], check=True)
-    subprocess.run([d / 'bin/python3', '-m', 'pip', 'install', '-r', SRC / 'requirements.txt.all'], check=True)
-    subprocess.run([d / 'bin/python3', '-m', 'pip', 'uninstall', '-y', 'psycopg2'], check=True)
-    subprocess.run([d / 'bin/python3', '-m', 'pip', 'install','psycopg2-binary'], check=True)
+        subprocess.run(["brew", "install", "pyenv-virtualenv", "libpq", "libxml2", "libxslt", "zlib", "freetype", "jpeg", "libpng", "openjpeg", "libtiff", "webp", "little-cms2", "postgresql"], check=True)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        subdir = Path(tmpdir) / "wheels"
+        if old:
+            subprocess.run([pyexec, "-mpip", "-U", "setuptools<55.0.0", "cython<3"], check=True)
+        subprocess.run([pyexec, "-mpip", "wheel","--prefer-binary", "-r", str(reqs), "-w", str(subdir)], check=True)
+        subprocess.run([pyexec, "-mpip", "install", "--no-index", "--find-links", str(subdir), "-r", str(reqs)], check=True)
 
-    vscode_setting("python.defaultInterpreterPath", str(d / 'bin' / 'python3'))
-    vscode_setting("robot.pythonPath", str(d / 'bin' / 'python3'))
 
-    click.secho(f"Pyenv setup done at {d}", fg="green")
+        # install binary version of psyco - better on platforms
+        version = _get_package_version(pyexec, "psycopg2")
+        if version >= (2,9,0):
+            subprocess.run([pyexec, "-mpip", "uninstall", "-y", f"psycopg2"], check=True)
+            subprocess.run([pyexec, "-mpip", "install", f"psycopg2-binary=={'.'.join(map(str, version))}"], check=True)
+
+    vscode_setting("python.defaultInterpreterPath", str(pyexec))
+    vscode_setting("robot.pythonPath", str(pyexec))
+
+    click.secho(f"Pyenv setup done at {pyexec}", fg="green")
+
+def _get_package_version(python, name):
+    psyco = subprocess.run([python, "-mpip", "show", name], capture_output=True, text=True, check=True).stdout.strip().splitlines()
+    version = None
+    for line in psyco:
+        if line.startswith("Version:"):
+            version = line.split(":", 1)[1].strip()
+            version = tuple(int(x) for x in version.split("."))
+            return version
+    else:
+        raise FileNotFoundError(f"Package {name} not found.")
 
 Commands.register(status)

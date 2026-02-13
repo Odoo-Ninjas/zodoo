@@ -96,7 +96,9 @@ RUN #___SNIPPET_APT_INSTALL___ \
     python3-venv \
     libcurl4-openssl-dev \
     zlib1g-dev \
-    libkrb5-dev
+    libkrb5-dev \
+    ncdu \
+    zstd
 
 
 COPY liberation-sans /usr/share/fonts/
@@ -220,3 +222,26 @@ ADD config/${ODOO_VERSION}/config ${ODOO_CONFIG_DIR}.template
 
 CMD ["sh", "-c", "/opt/wodoo_pipx/venvs/wodoo/bin/python3 /odoolib/run.py"]
 ENTRYPOINT ["/odoolib/entrypoint.sh"]
+
+#___SNIPPET_CLEANUP___
+RUN rm -Rf /opt/zodoo/.git \
+/usr/lib/libreoffice \
+/opt/python/build \
+/opt/python/Lib/test \
+/usr/bin/aarch64-linux-gnu* \
+/usr/local/bin/wkhtmltoimage \
+/usr/local/lib/python3.8/test \
+/usr/share/locale/* \
+/usr/share/man/* \
+/usr/share/doc/* \
+/usr/share/info/* \
+/usr/lib/jvm \
+/usr/lib/locale \
+/usr/lib/aarch64-linux-gnu/perl \
+/usr/lib/aarch64-linux-gnu/perl-base
+ENV ZSTDOPTIONS="-11 -T4"
+RUN cd /usr && #___SNIPPET_TAR___
+share | zstd $ZSTDOPTIONS > share.tar.zst && rm -Rf share && cd - '
+RUN cd /opt && #___SNIPPET_TAR___
+venv wodoo_pipx | zstd $ZSTDOPTIONS > venv.tar.zst && rm -Rf venv wodoo_pipx '
+RUN find /opt /usr -name '*.a' -delete

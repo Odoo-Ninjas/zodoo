@@ -2288,11 +2288,14 @@ def on_windows_wsl() -> bool:
     return "WSL_DISTRO_NAME" in os.environ or "microsoft" in open("/proc/version").read().lower()
 
 def get_best_python(desired_version):
-    pythonexec = f"python{desired_version}"
-    python_version = shutil.which(pythonexec)
-    if not python_version:
-        raise FileNotFoundError(python_version)
-    return python_version
+    try:
+        subprocess.run(["pyenv", "prefix", desired_version], check=True)
+    except subprocess.CalledProcessError:
+        subprocess.run(["pyenv", "install", desired_version], text=True, check=True)
+
+    subprocess.run(["pyenv", "local", desired_version], check=True)
+    pythonexec = subprocess.run(["pyenv", "which", 'python'], text=True, check=True, capture_output=True).stdout.strip()
+    return pythonexec
 
 def require_homebrew():
     if platform.system() != "Darwin":
