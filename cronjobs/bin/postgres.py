@@ -301,7 +301,7 @@ def _restore(
 
     filename = Path(tempfile.mktemp(suffix=".rc"))
     CMD += f" && echo '1' > {filename}"
-    print(CMD)
+    click.secho(CMD, fg='yellow')
 
     sizeoutputter = DBSizeOutputter(host, dbname, port, user, password)
     sizeoutputter.start()
@@ -314,6 +314,7 @@ def _restore(
 
     if not success and not ignore_errors:
         raise Exception("Did not fully restore.")
+
 
 
 def _get_exclude_table_param(filepath, exclude_tables):

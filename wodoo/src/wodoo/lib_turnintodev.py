@@ -122,7 +122,6 @@ def __turn_into_devdb(ctx, config, conn):
     sqls = [{'file': sql_file, 'mode': 'linebyline'}]
 
     sqls += __collect_other_turndb2dev_sql()
-    conn = config.get_odoo_conn()
 
     for sqlfile in sqls:
         sql = sqlfile['file'].read_text()
