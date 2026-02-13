@@ -20,10 +20,8 @@ xtract() {
   (
     cd "$target_dir" || exit 1
     tar "${tar_opts[@]}" -xpf "$archive" \
-      --preserve-permissions \
       --same-owner \
       --xattrs --xattrs-include='*' \
-      --acls \
       2> >(grep \
             -vF "Permission denied" \
             -vF "Cannot set POSIX ACLs" \
