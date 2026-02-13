@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
-set -x  # optional
 
 xtract() {
   local archive="$1"
