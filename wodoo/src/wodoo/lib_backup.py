@@ -414,6 +414,7 @@ def restore_db(
     dbfilter,
     dbname,
 ):
+    started = datetime.now()
     if not filename:
         filename = _inquirer_dump_file(
             config, "Choose filename to restore", dbfilter
@@ -494,6 +495,9 @@ def restore_db(
         Commands.invoke(ctx, "wait_for_container_postgres")
         if config.devmode:
             Commands.invoke(ctx, "pghba_conf_wide_open")
+
+    seconds = round((datetime.now() - started).total_seconds(), 0)
+    click.secho(f"---------------------------------\nSuccessfully restored {filename} after {seconds} seconds.\n\n", fg='green')
 
 
 def _restore_dump(

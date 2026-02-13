@@ -11,6 +11,7 @@ from .tools import __verify_password
 from .tools import __replace_all_envs_in_str
 from .tools import _update_setting
 from .tools import abort
+from datetime import datetime
 
 
 @cli.group(cls=AliasedGroup, name="dev-env")
@@ -111,6 +112,7 @@ def __collect_other_turndb2dev_sql():
 def __turn_into_devdb(ctx, config, conn):
     from .odoo_config import current_version
     from .myconfigparser import MyConfigParser
+    started = datetime.now()
 
     sql_file = (
         config.dirs["images"]
@@ -151,6 +153,8 @@ def __turn_into_devdb(ctx, config, conn):
         key="report.url",
         value=f"http://localhost:8069",
     )
+    seconds = (datetime.now() - started).total_seconds()
+    click.secho(f"Successfully applied neutralization scripts in {seconds} seconds")
 
 def __execute_linebyline_sql(conn, sql, env):
     sql = __replace_all_envs_in_str(sql, env)
