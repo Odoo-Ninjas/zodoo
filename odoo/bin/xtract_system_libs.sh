@@ -24,7 +24,10 @@ xtract() {
       --same-owner \
       --xattrs --xattrs-include='*' \
       --acls \
-      2> >(grep -vF "Permission denied" >&2 || true)
+      2> >(grep \
+            -vF "Permission denied" \
+            -vF "Cannot set POSIX ACLs" \
+            >&2 || true)
   ) && rm -f "$archive"
 }
 
