@@ -1,10 +1,5 @@
 # manage-order 999
 services:
-  wodoo_src:
-    build:
-      context: $ODOO_IMAGES/wodoo
-    profiles:
-      - auto
 
   odoo_base:
     build:
