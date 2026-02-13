@@ -351,7 +351,7 @@ def _odoo_sh(ctx, config, filename, params):
                 )
                 # change owner to OWNER_UID
                 subprocess.check_call(
-                    ["chown", str(config.owner_uid), filestore_dest, "-R"]
+                    ["chown", "-R", str(config.owner_uid), filestore_dest]
                 )
             if sqlfile.exists():
                 click.secho(f"Restoring db {sqlfile}")

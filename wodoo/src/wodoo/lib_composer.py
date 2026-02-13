@@ -583,7 +583,7 @@ def _download_images(config, images_url):
         click.secho(f"Clean repository", fg="yellow")
     click.secho("--------------------------------------------------")
     if os.getenv("SUDO_UID"):
-        subprocess.check_call(["chown", whoami(), "-R", config.dirs["images"]])
+        subprocess.check_call(["chown", "-R", whoami(), config.dirs["images"]])
     time.sleep(1.0)
 
 
