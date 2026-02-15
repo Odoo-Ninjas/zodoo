@@ -1129,11 +1129,12 @@ def _parse_modules(modules):
 @click.argument(
     "modules", nargs=-1, required=False, shell_complete=_get_available_modules
 )
+@click.option("-R", "--no-restart", default=False, is_flag=True, help="If set, no machines are restarted afterwards")
 @pass_config
 @click.pass_context
-def uninstall(ctx, config, modules):
+def uninstall(ctx, config, modules, no_restart):
     modules = _parse_modules(modules)
-    _uninstall_marked_modules(ctx, config, modules)
+    _uninstall_marked_modules(ctx, config, modules, no_restart=no_restart)
 
 
 def _uninstall_marked_modules(ctx, config, modules, no_restart=False):
@@ -1142,6 +1143,8 @@ def _uninstall_marked_modules(ctx, config, modules, no_restart=False):
     """
     from .module_tools import DBModules, Module
     from .module_tools import NotInAddonsPath
+    from .odoo_config import customs_dir
+    from .lib_talk import _xmlids
 
     assert not isinstance(modules, str)
 
@@ -1193,6 +1196,7 @@ modules = self.env['ir.module.module'].search([('state', 'in', ['to upgrade', 't
 modules = modules.filtered(lambda x: x.name in {module_comma})
 for module in modules:
     try:
+        from pathlib import Path
         print("-----------------------------------------------------------")
         print("Uninstalling: " + module.name)
         print("-----------------------------------------------------------")
@@ -1203,11 +1207,29 @@ for module in modules:
         print("ERROR UNINSTALL " + module.name)
         print(ex)
         print("-----------------------------------------------------------")
+        Path("/opt/src/uninstall.log").write_text(str(ex))
     finally:
         env.clear()
         env.cr.rollback()
             """
-        lib_shell(config, cmd)
+        while True:
+            logfile = customs_dir() / "uninstall.log"
+            logfile.exists() and logfile.unlink()
+            lib_shell(config, cmd)
+            if logfile.exists():
+                log = logfile.read_text()
+                click.secho("Error during uninstall - check log for details:\n", fg="red")
+                if 'Record does not exist or has been deleted' in log and 'ir.model.fields(' in log:
+                    match = re.search("\d+", log)
+                    if match:
+                        id = match.group(0)
+                        click.secho(f"Trying to recover by removing ir.model.fields with id {id}", fg="yellow")
+                        _xmlids(config, name=None, module=None, model="ir.model.fields", resid=id, delete=True)
+                    else:
+                        raise Exception(log)
+                else:
+                    raise Exception(log)
+
         del module
         uninstalled = True
 

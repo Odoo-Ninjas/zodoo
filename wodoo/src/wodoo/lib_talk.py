@@ -54,7 +54,7 @@ def _xmlids(config, name, module, model, resid, delete):
             map(str, map(lambda x: int(x.strip()), resid.split(",")))
         )
         where += f" AND res_id in ({resid})"
-    for name in name:
+    for name in (name or []):
         where += (
             f" and ( (model ilike '%{name}%' or "
             f"name ilike '%{name}%' or "
