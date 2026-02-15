@@ -37,11 +37,12 @@ def talk(config):
 @click.option("-M", "--module")
 @click.option("-m", "--model")
 @click.option("-r", "--resid")
+@click.option("-d", "--delete", is_flag=True)
 @pass_config
-def xmlids(config, name, module, model, resid):
-    return _xmlids(config, name, module, model, resid)
+def xmlids(config, name, module, model, resid, delete):
+    return _xmlids(config, name, module, model, resid, delete)
 
-def _xmlids(config, name, module, model, resid):
+def _xmlids(config, name, module, model, resid, delete):
     conn = config.get_odoo_conn()
     where = " where 1 = 1"
     if model:
@@ -62,7 +63,7 @@ def _xmlids(config, name, module, model, resid):
     rows = _execute_sql(
         conn,
         sql=(
-            "SELECT module||'.'|| name as xmlid, model, res_id, noupdate from ir_model_data "
+            "SELECT module||'.'|| name as xmlid, model, res_id, noupdate, id from ir_model_data "
             f"{where} "
             "order by module, name, model "
         ),
@@ -70,6 +71,18 @@ def _xmlids(config, name, module, model, resid):
         return_columns=True,
     )
     click.secho(tabulate(rows[1], rows[0], tablefmt="fancy_grid"), fg="yellow")
+    if delete:
+        for row in rows[1]:
+            click.secho(f"Deleting {row[0]}...", fg="red")
+            _execute_sql(
+                conn,
+                sql=(
+                    "DELETE FROM ir_model_data "
+                    f"WHERE id = {row[4]} "
+                ),
+                fetchall=False,
+                return_columns=False,
+            )
 
 
 @talk.command()
@@ -644,6 +657,5 @@ def rpc(config):
 
     # After exit, print a friendly message
     print("Bye! 👋")
-
 
 Commands.register(progress)
