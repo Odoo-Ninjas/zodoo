@@ -1229,6 +1229,8 @@ for module in modules:
                         raise Exception(log)
                 else:
                     raise Exception(log)
+            else:
+                break
 
         del module
         uninstalled = True
