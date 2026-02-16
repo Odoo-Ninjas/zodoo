@@ -133,6 +133,7 @@ def start_container(
             cmd,
             capture_output=True,
             text=True,
+            check=True,
         ).stdout.strip()
         if result:
             return result
@@ -191,6 +192,7 @@ def create_named_volume(volume_name):
         ["docker", "volume", "ls", "-q", "-f", f"name={volume_name}"],
         capture_output=True,
         text=True,
+        check=True,
     )
 
     if not result.stdout.strip():
@@ -243,7 +245,7 @@ def start_proxpi(config):
 @click.pass_context
 def apt_attach(ctx, config):
     subprocess.run(
-        ["docker", "exec", "-it", APT_CACHER_CONTAINER_NAME, "bash"]
+        ["docker", "exec", "-it", APT_CACHER_CONTAINER_NAME, "bash"], check=False
     )
 
 
@@ -251,21 +253,21 @@ def apt_attach(ctx, config):
 @pass_config
 @click.pass_context
 def proxpi_attach(ctx, config):
-    subprocess.run(["docker", "exec", "-it", PROXPI_CONTAINER_NAME, "bash"])
+    subprocess.run(["docker", "exec", "-it", PROXPI_CONTAINER_NAME, "bash"], check=False)
 
 
 @cache.command()
 @pass_config
 @click.pass_context
 def apt_restart(ctx, config):
-    subprocess.run(["docker", "restart", APT_CACHER_CONTAINER_NAME])
+    subprocess.run(["docker", "restart", APT_CACHER_CONTAINER_NAME], check=True)
 
 
 @cache.command()
 @pass_config
 @click.pass_context
 def pypi_restart(ctx, config):
-    subprocess.run(["docker", "restart", PROXPI_CONTAINER_NAME])
+    subprocess.run(["docker", "restart", PROXPI_CONTAINER_NAME], check=True)
 
 
 @cache.command()
@@ -273,8 +275,8 @@ def pypi_restart(ctx, config):
 @click.pass_context
 def apt_reset(ctx, config):
     click.secho("Removing squid deb proxy with volumes.")
-    subprocess.run(["docker", "rm", "-f", APT_CACHER_CONTAINER_NAME])
-    subprocess.run(["docker", "volume", "rm", APT_VOLNAME])
+    subprocess.run(["docker", "rm", "-f", APT_CACHER_CONTAINER_NAME], check=True)
+    subprocess.run(["docker", "volume", "rm", APT_VOLNAME], check=True)
 
 
 @cache.command()
@@ -282,8 +284,8 @@ def apt_reset(ctx, config):
 @click.pass_context
 def pypi_reset(ctx, config):
     click.secho("Removing proxpi with volumes.")
-    subprocess.run(["docker", "rm", "-f", PROXPI_CONTAINER_NAME])
-    subprocess.run(["docker", "volume", "rm", PROXPI_VOLNAME])
+    subprocess.run(["docker", "rm", "-f", PROXPI_CONTAINER_NAME], check=True)
+    subprocess.run(["docker", "volume", "rm", PROXPI_VOLNAME], check=True)
 
 
 @cache.command()
