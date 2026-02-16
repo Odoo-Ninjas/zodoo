@@ -326,6 +326,10 @@ def build(
             cwd=config.dirs["images"] / "wodoo",
             check=True,
         )
+        subprocess.run(
+            ["docker", "create", "--name", "wodoo_src_container", "wodoo_src"],
+            check=True,
+        )
 
     # if platform:
     #     import pudb;pudb.set_trace()
