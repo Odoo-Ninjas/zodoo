@@ -22,6 +22,23 @@ def cache(config):
 
 
 def _image_timestamp_stamp(image_name):
+    out = subprocess.check_output([
+                "docker",
+                "image",
+                "ls",
+                "--format",
+                "{{.Repository}}:{{.Tag}}"
+            ],
+            text=True,
+            encoding="utf-8",
+    )
+    for image in out.splitlines():
+        if not image:
+            continue
+        if image == f"{image_name}:latest":
+            break
+    else:
+        return arrow.get("1980-04-04").datetime
     out = subprocess.check_output(
         [
             "docker",
@@ -82,8 +99,11 @@ def start_container(
         filecontent = "\n".join(sf + [""])
         file = build_path / "container_settings"
         file.write_text(filecontent)
-        cmd = ["docker", "build", "-t", image_name, "."]
-        subprocess.run(cmd, check=True, cwd=build_path)
+        cmd = ["docker", "build", "--load", "-t", image_name, "."]
+        try:
+            subprocess.run(cmd, check=True, cwd=build_path)
+        except subprocess.CalledProcessError:
+            subprocess.run(cmd + ['--no-cache'], check=True, cwd=build_path)
         image_timestamp2 = _image_timestamp_stamp(image_name)
 
         if image_timestamp != image_timestamp2:
