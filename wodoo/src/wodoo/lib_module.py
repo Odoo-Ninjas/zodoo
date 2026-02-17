@@ -1243,7 +1243,7 @@ for module in modules:
     if modules:
         if cmd:
             click.secho(cmd, fg="yellow")
-        abort(f"Failed to uninstall: {','.join(modules)}")
+        abort(f"Failed to uninstall - it is still installed: {','.join(modules)}")
 
 
 @odoo_module.command(name="update-i18n", help="Just update translations")
