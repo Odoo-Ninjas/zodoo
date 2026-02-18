@@ -321,13 +321,24 @@ def build(
 
     # update wodoo src before:
     if not no_wodoo_update:
+        container_name = f"{config.PROJECT_NAME}_wodoo_src_container"
+        image_name = f"{config.PROJECT_NAME}_wodoo_src" 
+        # 1️⃣ Image neu bauen
         subprocess.run(
-            ["docker", "buildx", "build", "--load", "-t", "wodoo_src", "."],
+            ["docker", "buildx", "build", "--load", "-t", image_name, "."],
             cwd=config.dirs["images"] / "wodoo",
             check=True,
         )
+
+        # 2️⃣ Alten Container stoppen (falls läuft)
         subprocess.run(
-            ["docker", "create", "--name", "wodoo_src_container", "wodoo_src"],
+            ["docker", "rm", "-f", container_name],
+            check=False,  # darf fehlschlagen wenn nicht existiert
+        )
+
+        # 3️⃣ Neuen Container erstellen
+        subprocess.run(
+            ["docker", "create", "--name", container_name, image_name],
             check=True,
         )
 

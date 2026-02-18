@@ -520,6 +520,7 @@ def _replace_docker_snippets(config, dockerfilecontent):
         content = '\n'.join(remove_comments_not_snippets(snippet.read_text().splitlines()))
         plain_snippets[snippet.name.upper()] = content
 
+
     while "#___SNIPPET" in dockerfilecontent:
         counter += 1
         for snippet, content in plain_snippets.items():
@@ -532,6 +533,8 @@ def _replace_docker_snippets(config, dockerfilecontent):
                 map(str, re.findall(r"#___SNIPPET_.*", dockerfilecontent))
             )
             raise RecursionError(f"Not resolved or endless loop: ", snippets)
+    dockerfilecontent = dockerfilecontent.replace("___PROJECTNAME___", "___PROJECT_NAME___")
+    dockerfilecontent = dockerfilecontent.replace("___PROJECT_NAME___", config.project_name)
     return dockerfilecontent
 
 
@@ -1394,7 +1397,8 @@ def _merge_odoo_dockerfile(config):
     # copy dockerfile to new location
     if dockerfile1:
         click.secho(f"Copying {dockerfile1} to {config.files['odoo_docker_file']}")
-        config.files["odoo_docker_file"].write_text(Path(dockerfile1).read_text())
+        dockerfilecontent = Path(dockerfile1).read_text()
+        config.files["odoo_docker_file"].write_text(dockerfilecontent)
         appendix_dir_root = config.dirs["run.build.odoo"] / "Dockerfile.appendix.dir"
         if appendix_dir_root.exists():
             shutil.rmtree(appendix_dir_root)

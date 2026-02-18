@@ -414,6 +414,8 @@ def restore_db(
     dbfilter,
     dbname,
 ):
+    if config.get("NO_REMOVE_WEB_ASSETS_AFTER_RESTORE"):
+        no_remove_webassets = True
     started = datetime.now()
     if not filename:
         filename = _inquirer_dump_file(
