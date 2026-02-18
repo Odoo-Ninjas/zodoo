@@ -31,6 +31,13 @@ def restore(ctx, config, snap):
     postgres_volume_name = __get_postgres_volume_name(config)
     snapshot_name = snap
     __dc(config, ["stop", "-t", "1"] + ["postgres"])
+    volumes = list(filter(lambda f: f.startswith(config.project_name), map(lambda x: x.strip(), subprocess.run(["docker", "volume", "ls", "-q"], check=True, capture_output=True, text=True).stdout.strip().splitlines())))
+    if not [x for x in volumes if x == snap]:
+        near = [x for x in volumes if f"___{snap}_snapshot" in x]
+        if near:
+            snap = near[0]
+        else:
+            raise Exception(f"Snapshot {snap} not found")
     subprocess.run(
         [
             "docker",
