@@ -224,7 +224,7 @@ def down(ctx, config, machines, volumes, remove_orphans, postgres_volume):
 
     if not config.devmode:
         if not config.force:
-            abort("Please provide force option on non live systems")
+            abort("Please provide force option on production systems")
 
     print_prod_env(config)
 
