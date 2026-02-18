@@ -693,6 +693,9 @@ def update(
     from .odoo_config import MANIFEST
     from .odoo_config import customs_dir
 
+    update_strategy = config.UPDATE_STRATEGY
+    assert update_strategy in [False, None, '', 'odoo.sh'], f"Invalid update strategy: {update_strategy}"
+
     if test_tags and default_test_tags:
         abort("Conflict: parameter test-tags and default-test-tags")
 
@@ -906,6 +909,19 @@ def update(
 
         trycount = 0
         max_try_count = 5
+
+        if update_strategy == "odoo.sh":
+            click.secho(
+                "Using update strategy 'odoo.sh' - only outdated modules are updated.",
+                fg="yellow",
+                bold=True,
+            )
+        else:
+            click.secho(
+                "Using default update strategy - all modules are updated from MANIFEST['install']",
+                fg="yellow",
+                bold=True,
+            )
         while True:
             trycount += 1
             try:
@@ -917,7 +933,8 @@ def update(
                             fg="yellow",
                         )
                         _technically_update(outdated_modules)
-                _technically_update(module)
+                if update_strategy not in ["odoo.sh"]:
+                    _technically_update(module)
             except RepeatUpdate:
                 click.secho("Retrying update.")
                 if trycount >= max_try_count:
