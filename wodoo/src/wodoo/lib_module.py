@@ -696,7 +696,7 @@ def update(
     update_strategy = config.UPDATE_STRATEGY
     assert update_strategy in [False, None, '', 'odoo.sh'], f"Invalid update strategy: {update_strategy}"
 
-    if update_strategy and not param_module:
+    if update_strategy and param_module:
         click.secho(
             f"Ignoring update strategy '{update_strategy}' because a specific module list is provided.",
             fg="yellow",
@@ -924,11 +924,12 @@ def update(
                 bold=True,
             )
         else:
-            click.secho(
-                "Using default update strategy - all modules are updated from MANIFEST['install']",
-                fg="yellow",
-                bold=True,
-            )
+            source = "MANIFEST['install']"
+            txt = f"Using default update strategy - all modules are updated from {source}",
+            if param_module:
+                source = ','.join(param_module)
+                txt = f"Updating only modules and dependencies: {source}",
+            click.secho(txt, fg="yellow", bold=True)
         while True:
             trycount += 1
             try:
