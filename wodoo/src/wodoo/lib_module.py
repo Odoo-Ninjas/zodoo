@@ -696,6 +696,13 @@ def update(
     update_strategy = config.UPDATE_STRATEGY
     assert update_strategy in [False, None, '', 'odoo.sh'], f"Invalid update strategy: {update_strategy}"
 
+    if update_strategy and not param_module:
+        click.secho(
+            f"Ignoring update strategy '{update_strategy}' because a specific module list is provided.",
+            fg="yellow",
+        )
+        update_strategy = None
+
     if test_tags and default_test_tags:
         abort("Conflict: parameter test-tags and default-test-tags")
 
