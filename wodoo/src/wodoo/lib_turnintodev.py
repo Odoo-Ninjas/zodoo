@@ -142,7 +142,6 @@ def __turn_into_devdb(ctx, config, conn):
         else:
             raise NotImplementedError(mode)
 
-    remove_webassets(conn)
     _update_setting(
         conn=conn,
         key="web.base.url",
