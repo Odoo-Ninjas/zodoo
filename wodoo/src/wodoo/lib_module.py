@@ -1244,7 +1244,7 @@ for module in modules:
                 log = logfile.read_text()
                 click.secho("Error during uninstall - check log for details:\n", fg="red")
                 if 'Record does not exist or has been deleted' in log and 'ir.model.fields(' in log:
-                    match = re.search("\d+", log)
+                    match = re.search(r"\d+", log)
                     if match:
                         id = match.group(0)
                         click.secho(f"Trying to recover by removing ir.model.fields with id {id}", fg="yellow")
