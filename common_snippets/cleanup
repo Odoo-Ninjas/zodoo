@@ -30,8 +30,7 @@ RUN rm -Rf \
 /var/cache \
 /usr/lib/git-core \
 /var/lib/dpkg \
-/usr/include \
-/etc/ssh
+/usr/include 
 
 RUN find / -type d -name __pycache__  -exec rm -Rf {} + 2> /dev/null || true
 RUN rm /usr/bin/aarch64-linux-gnu-lto-dump-11 || true

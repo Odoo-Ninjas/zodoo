@@ -52,6 +52,7 @@ COPY console.key.pub /home/odoo/.ssh/authorized_keys
 RUN chmod 600 /home/odoo/.ssh/authorized_keys && \
 mkdir /home/odoo/bin
 
+RUN mkdir -p /etc/ssh
 COPY sshd_config /etc/ssh/sshd_config
 # TODO
 # RUN sudo chsh -s /bin/rbash odoo

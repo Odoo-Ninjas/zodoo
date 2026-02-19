@@ -29,7 +29,8 @@ RUN rm -Rf \
 /var/lib/apt/lists/* \
 /usr/lib/dpkg \
 /usr/lib/bfd-plugins \
-/usr/lib/git-core
+/usr/lib/git-core \
+/etc/ssh
 
 
 #/usr/lib/python*
