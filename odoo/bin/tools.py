@@ -313,10 +313,30 @@ def prepare_run(local_config=None):
 
     if os.getenv("IS_ODOO_QUEUEJOB", "") == "1" or os.getenv("ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER", "") == "1":
         # https://www.odoo.com/apps/modules/10.0/queue_job/
-        sql = "update queue_job set state='pending' where state in ('started', 'enqueued');"
         with get_conn_autoclose() as cr:
-            cr.execute(sql)
+            sql = "update queue_job set state='pending' where state in ('started', 'enqueued');"
+            if table_exists(cr, 'queue_job'):
+                if column_exists(cr, 'queue_job', 'state'):
+                    cr.execute(sql)
 
+def table_exists(cr, table):
+    cr.execute(f"SELECT to_regclass('public.{table}');")
+    table_exists = cr.fetchone()[0]
+    return table_exists
+
+def column_exists(cr, table, column):
+    # Check if column exists
+    cr.execute(f"""
+        SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+            AND table_name = '{table}'
+            AND column_name = '{column}'
+        );
+    """)
+    column_exists = cr.fetchone()[0]
+    return column_exists
 
 def get_odoo_bin(for_shell=False):
     if is_odoo_cronjob and not config.get("RUN_ODOO_CRONJOBS") == "1":
