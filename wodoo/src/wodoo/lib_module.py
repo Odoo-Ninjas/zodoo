@@ -696,6 +696,13 @@ def update(
     update_strategy = config.UPDATE_STRATEGY
     assert update_strategy in [False, None, '', 'odoo.sh'], f"Invalid update strategy: {update_strategy}"
 
+    if update_strategy and not param_module:
+        click.secho(
+            f"Ignoring update strategy '{update_strategy}' because a specific module list is provided.",
+            fg="yellow",
+        )
+        update_strategy = None
+
     if test_tags and default_test_tags:
         abort("Conflict: parameter test-tags and default-test-tags")
 
@@ -1237,7 +1244,7 @@ for module in modules:
                 log = logfile.read_text()
                 click.secho("Error during uninstall - check log for details:\n", fg="red")
                 if 'Record does not exist or has been deleted' in log and 'ir.model.fields(' in log:
-                    match = re.search("\d+", log)
+                    match = re.search(r"\d+", log)
                     if match:
                         id = match.group(0)
                         click.secho(f"Trying to recover by removing ir.model.fields with id {id}", fg="yellow")
