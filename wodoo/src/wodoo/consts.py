@@ -46,7 +46,7 @@ default_dirs = {
     "user_conf_dir": "~/.odoo",
     "delegator": "~/.odoo/delegator",
     "images": "~/.odoo/images",
-    "pyenv": "${run}/.pyenv"
+    "pyenv": "~/.pyenv/versions/${project_name}"
 }
 
 default_files = {
