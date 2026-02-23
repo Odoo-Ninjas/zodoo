@@ -101,7 +101,6 @@ RUN rm -Rf \
 /usr/local/bin/wkhtmltoimage \
 /usr/local/lib/python*/config-* \
 /usr/lib/aarch64-linux-gnu/libLLVM* \
-/usr/lib/aarch64-linux-gnu/libnode* \
 /usr/lib/aarch64*/perl \
 /usr/bin/aarch64*dump \
 /usr/lib/python3 \
