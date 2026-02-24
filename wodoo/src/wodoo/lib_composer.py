@@ -131,7 +131,6 @@ def _get_arch():
     help="like ODOO_DEMO=1;RUN_PROXY=0; you can pass internally a 'dict' here, which is converted",
 )
 @click.option("--images-url", help="default: https://github.com/marcwimmer/odoo")
-@click.option("-I", "--no-update-images", is_flag=True)
 @click.option("--no-gimera-apply", is_flag=True)
 @click.option(
     "--docker-compose",
@@ -152,7 +151,6 @@ def do_reload(
     additional_config,
     additional_config_raw,
     images_url,
-    no_update_images,
     docker_compose,
     no_gimera_apply,
     include_src,
@@ -164,8 +162,6 @@ def do_reload(
         click.secho(("Proxy Port and headless together not compatible."), fg="red")
         sys.exit(-1)
 
-    if not no_update_images:
-        _download_images(config, images_url)
     config.TARGETARCH = _get_arch()
 
     click.secho(f"Current Project Name: {config.project_name}", bold=True, fg="green")

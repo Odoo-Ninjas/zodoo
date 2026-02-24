@@ -22,7 +22,11 @@ RUN #___SNIPPET_APT_INSTALL___ \
     python3-pip \
     build-essential \
     git  \ 
-    libyaml-dev
+    libyaml-dev \
+    telnet \
+    iputils-ping \
+    net-tools 
+
 
 
 RUN install -m 0755 -d /etc/apt/keyrings
@@ -71,3 +75,5 @@ ln -s /usr/bin/ssh /root/programs/ssh
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
 COPY entrypoint.sh /entrypoint.sh
 COPY set_docker_group.sh /usr/local/bin/set_docker_group.sh
+
+

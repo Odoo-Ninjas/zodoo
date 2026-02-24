@@ -58,9 +58,7 @@ def after_compose(config, settings, yml, globals):
         click.secho("Suggested configuration file: postgres.conf", fg='blue')
         suggest_postgres_conf()
         click.secho(80 * "-", fg='yellow')
-        time.sleep(1)
         click.secho("Please tune your system!! Create the file ~/.odoo/postgres.conf - i will annoy you for your sake", fg='red')
-        time.sleep(3)
 
 def suggest_postgres_conf(workload = "oltp", max_connections: int = 100, pg_version: int = 17):
     """

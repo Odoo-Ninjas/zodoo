@@ -15,6 +15,10 @@ from contextlib import contextmanager
 import re
 import inquirer
 
+import hashlib
+from pathlib import Path
+from typing import Union
+
 try:
     import arrow
 except ImportError:
@@ -2325,3 +2329,31 @@ def load_json(content):
     except:
         click.secho(content, fg='red')
         raise
+
+
+
+
+def fast_file_hash(path: Union[str, Path], algo: str = "blake2b", chunk_size: int = 8192) -> str:
+    """
+    Compute a fast cryptographic hash of a file by streaming it in chunks.
+
+    Defaults to BLAKE2b, which is fast and secure, and available in Python stdlib.
+    For even faster (non-cryptographic) hashing, you'd need a third-party lib (e.g., xxhash).
+
+    Args:
+        path: File path.
+        algo: Hash algorithm name supported by hashlib (e.g., "blake2b", "sha256", "md5").
+        chunk_size: Read size in bytes per iteration.
+
+    Returns:
+        Hex digest string.
+    """
+    p = Path(path)
+    h = hashlib.new(algo)
+
+    with p.open("rb") as f:
+        for chunk in iter(lambda: f.read(chunk_size), b""):
+            h.update(chunk)
+
+    return h.hexdigest()
+
