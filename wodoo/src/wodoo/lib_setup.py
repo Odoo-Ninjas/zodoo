@@ -198,6 +198,7 @@ def produce_test_lines(lines):
 @click.option("-o", "--old", is_flag=True, help="Uses old setuptools - odoo version 11")
 @click.pass_context
 def setup_pyenv(ctx, config, old):
+    from .odoo_config import MANIFEST
     from .tools import require_homebrew
     require_homebrew()
     click.secho("Setting up pyenv...", fg="yellow")
@@ -210,14 +211,22 @@ def setup_pyenv(ctx, config, old):
     pyexec = os.path.expanduser(f"~/.pyenv/versions/{projectname}/bin/python")
     reqs = SRC / 'requirements.txt.all'
 
+    manifest = MANIFEST()
+    if manifest['version'] <= 15.0:
+        old = True
+        click.secho("Warning: Odoo version <= 15.0 --> old modus is set (cython<3).", fg="red")
+    if manifest['version'] <= 16.0:
+        if not old:
+            click.secho("Warning: Odoo version <= 16.0 is not compatible with latest setuptools, using old setuptools and cython versions. Use --old to suppress this warning.", fg="red")
+
     if on_osx():
         subprocess.run(["brew", "install", "pyenv-virtualenv", "libpq", "libxml2", "libxslt", "zlib", "freetype", "jpeg", "libpng", "openjpeg", "libtiff", "webp", "little-cms2", "postgresql"], check=True)
     with tempfile.TemporaryDirectory() as tmpdir:
         subdir = Path(tmpdir) / "wheels"
         if old:
-            subprocess.run([pyexec, "-mpip", "-U", "setuptools<55.0.0", "cython<3"], check=True)
-        subprocess.run([pyexec, "-mpip", "wheel","--prefer-binary", "-r", str(reqs), "-w", str(subdir)], check=True)
-        subprocess.run([pyexec, "-mpip", "install", "--no-index", "--find-links", str(subdir), "-r", str(reqs)], check=True)
+            subprocess.run([pyexec, "-mpip", "install", "-U", "setuptools<55.0.0", "cython<3", "wheel", "pip"], check=True)
+        subprocess.run([pyexec, "-mpip", "wheel","--no-build-isolation", "--prefer-binary", "-r", str(reqs), "-w", str(subdir)], check=True)
+        subprocess.run([pyexec, "-mpip", "install", "--no-build-isolation", "--no-index", "--find-links", str(subdir), "-r", str(reqs)], check=True)
 
 
         # install binary version of psyco - better on platforms
@@ -226,6 +235,7 @@ def setup_pyenv(ctx, config, old):
             subprocess.run([pyexec, "-mpip", "uninstall", "-y", f"psycopg2"], check=True)
             subprocess.run([pyexec, "-mpip", "install", f"psycopg2-binary=={'.'.join(map(str, version))}"], check=True)
 
+    vscode_setting("python.pythonPath", str(pyexec))
     vscode_setting("python.defaultInterpreterPath", str(pyexec))
     vscode_setting("robot.pythonPath", str(pyexec))
 
