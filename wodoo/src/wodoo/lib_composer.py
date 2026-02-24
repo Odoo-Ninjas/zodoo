@@ -2,6 +2,7 @@ import traceback
 import socket
 
 import threading
+from datetime import datetime
 from .tools import bashfind
 import json
 import arrow
@@ -921,15 +922,13 @@ def __run_docker_compose_config(config, contents, env):
 
     try:
         files = []
-        all_profiles = []
+        all_profiles = set()
         for i, content in enumerate(contents):
             file_path = temp_path / f"docker-compose-{str(i).zfill(5)}.yml"
             for service in content.get("services", []) or {}:
-                if not content["services"][service].get("profiles"):
-                    content["services"][service]["profiles"] = ["auto"]
+                content['services'][service].setdefault("profiles", ["auto"])
                 for profile in content["services"][service].get("profiles", []):
-                    if profile not in all_profiles:
-                        all_profiles.append(profile)
+                    all_profiles.add(profile)
 
             file_content = _yamldump(content)
             file_path.write_text(file_content)
