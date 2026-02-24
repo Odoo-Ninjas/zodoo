@@ -198,6 +198,8 @@ def create_named_volume(volume_name):
     if not result.stdout.strip():
         subprocess.run(["docker", "volume", "create", volume_name], check=True)
 
+# HACKY: the settings are put in the APT CONTAINER, because it is build; the proxpi container
+# is just an image
 def start_squid_proxy(config, empty_setup=False):
     image_name = "squid-deb-cacher-wodoo"
     create_named_volume(APT_VOLNAME)
@@ -220,7 +222,9 @@ def start_squid_proxy(config, empty_setup=False):
         port_mapping=config.APT_PROXY_IP + ":8000",
         volmappings={APT_VOLNAME: "/data"},
         stored_settings=settings,
-        startup=config.APT_PROXY_IP and config.APT_PROXY_IP != "ignore",
+        # always true otherwise building fails, if image is garbage collected
+        # startup=config.APT_PROXY_IP and config.APT_PROXY_IP != "ignore",
+        startup=True,
     )
 
 

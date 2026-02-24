@@ -341,6 +341,9 @@ def build(
             ["docker", "create", "--name", container_name, image_name],
             check=True,
         )
+        subprocess.run(
+            ["docker", "start", container_name]
+        )
 
     # if platform:
     #     import pudb;pudb.set_trace()
