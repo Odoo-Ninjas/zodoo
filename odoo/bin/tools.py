@@ -1,3 +1,7 @@
+import threading
+import socket
+import time
+import sys
 import tempfile
 import arrow
 import shutil
@@ -15,6 +19,10 @@ from wodoo.odoo_config import customs_dir
 from wodoo.odoo_config import get_conn_autoclose
 from wodoo.odoo_config import current_version
 from pathlib import Path
+import sys
+import time
+import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 pidfile = Path("/tmp/odoo.pid")
 config = odoo_config.get_settings()
@@ -157,7 +165,7 @@ def _run_autosetup():
     path = customs_dir() / "autosetup"
     if path.exists():
         for file in path.glob("*.sh"):
-            print("executing {}".format(file))
+            click.secho("executing {}".format(file))
             os.chdir(path.parent)
             subprocess.check_call(
                 [
@@ -340,22 +348,22 @@ def column_exists(cr, table, column):
 
 def get_odoo_bin(for_shell=False):
     if is_odoo_cronjob and not config.get("RUN_ODOO_CRONJOBS") == "1":
-        print("Cronjobs shall not run. Good-bye!")
+        click.secho("Cronjobs shall not run. Good-bye!")
         sys.exit(0)
 
     if is_odoo_queuejob and not config.get("RUN_ODOO_QUEUEJOBS") == "1":
-        print("Queue-Jobs shall not run. Good-bye!")
+        click.secho("Queue-Jobs shall not run. Good-bye!")
         sys.exit(0)
 
     EXEC = "odoo-bin"
     if is_odoo_cronjob:
-        print("Starting odoo cronjobs")
+        click.secho("Starting odoo cronjobs")
         CONFIG = "config_cronjob"
         if version <= 9.0:
             EXEC = "openerp-server"
 
     elif is_odoo_queuejob:
-        print("Starting odoo queuejobs")
+        click.secho("Starting odoo queuejobs")
         CONFIG = "config_queuejob"
 
     else:
@@ -386,7 +394,7 @@ def get_odoo_bin(for_shell=False):
 
 def kill_odoo():
     if pidfile.exists():
-        print("Killing Odoo")
+        click.secho("Killing Odoo")
         pid = pidfile.read_text()
         cmd = ["/bin/kill", "-9", pid]
         if (
@@ -641,49 +649,108 @@ def _get_server_wide_modules(server_wide_modules=None):
             server_wide_modules.append("queue_job")
     return server_wide_modules
 
+def wait_for_tcp(host: str, port: int, timeout: float = 60.0, interval: float = 0.5):
+    """
+    Wait until TCP port on host becomes reachable.
+    
+    :param host: Domain or IP (e.g. "localhost", "odoo", "example.com")
+    :param port: TCP port (e.g. 8069)
+    :param timeout: Max seconds to wait
+    :param interval: Seconds between retries
+    :raises TimeoutError: if not reachable in time
+    """
+    click.secho(f"Waiting for TCP {host}:{port} to become reachable...", fg="blue")
+    deadline = time.time() + timeout
+    last_error = None
+
+    while time.time() < deadline:
+        try:
+            with socket.create_connection((host, port), timeout=3):
+                click.secho(f"TCP {host}:{port} is reachable.", fg="green")
+                return  # Success
+        except OSError as e:
+            last_error = e
+            time.sleep(interval)
+
+    raise TimeoutError(
+        f"Timeout waiting for TCP {host}:{port} — last error: {last_error}"
+    )
+
 
 def _touch():
-    print("Waiting...")
+    click.secho("Warming up odoo cache.")
     INTERNAL_ODOO_PORT = os.getenv("INTERNAL_ODOO_PORT", "8069")
-    ODOO_WORKERS_WEB = int(os.getenv("ODOO_WORKERS_WEB"))
-    faileds = set()
-    MAX_TRIES = 200
-    interval = 0.3
-    max_count = int(MAX_TRIES / interval) + 1
+    ODOO_WORKERS_WEB = int(os.getenv("MAX_WARMUP_WORKERS", os.getenv("ODOO_WORKERS_WEB", "1")))
 
-    def toucher(thread_id):
-        url = f"http://localhost:{INTERNAL_ODOO_PORT}/web/login"
+    url = f"http://localhost:{INTERNAL_ODOO_PORT}/web/login"
+
+    # Einstellbar:
+    MAX_PARALLEL_WARMUP = int(os.getenv("MAX_PARALLEL_WARMUP", "4"))
+    READY_TIMEOUT_S = float(os.getenv("ODOO_READY_TIMEOUT_S", "60"))   # wie lange auf "Odoo lebt" warten
+    READY_INTERVAL_S = float(os.getenv("ODOO_READY_INTERVAL_S", "0.5"))# Poll-Intervall
+    WARMUP_REQUESTS = int(os.getenv("ODOO_WARMUP_REQUESTS", str(ODOO_WORKERS_WEB)))  # wie viele GETs insgesamt
+    PER_REQUEST_RETRIES = int(os.getenv("ODOO_WARMUP_RETRIES", "3"))
+    REQUEST_TIMEOUT_S = float(os.getenv("ODOO_REQUEST_TIMEOUT_S", "55"))
+
+    def wait_until_ready():
+        wait_for_tcp("localhost", int(INTERNAL_ODOO_PORT), timeout=READY_TIMEOUT_S, interval=READY_INTERVAL_S)
+        deadline = time.time() + READY_TIMEOUT_S
         last_ex = None
-        for i in range(max_count):
+        click.secho(f"Waiting for Odoo to become ready: {url}")
+        while time.time() < deadline:
             try:
-                print(f"Cache Warmup: Getting url {url} in thread {thread_id}")
-                r = requests.get(url, timeout=1)
+                click.secho(f"Fetching url {url}")
+                r = requests.get(url, timeout=REQUEST_TIMEOUT_S)
                 r.raise_for_status()
-                print(f"[Thread {thread_id}] HTTP GET to Odoo succeeded.")
-                break
+                click.secho("Odoo is reachable.")
+                return
             except Exception as e:
                 last_ex = e
-            time.sleep(interval)
-        else:
-            faileds.add(last_ex)
+                time.sleep(READY_INTERVAL_S)
+                click.secho(str(e))
+        raise RuntimeError(f"Odoo not reachable after {READY_TIMEOUT_S}s: {last_ex}")
 
-    for i in range(3):
-        threads = []
-        print(f"Warming up cache for {ODOO_WORKERS_WEB}")
-        for i in range(ODOO_WORKERS_WEB):
-            t = threading.Thread(target=toucher, args=(i,))
-            t.daemon = True
-            t.start()
-            if i == 0:
-                time.sleep(2)
-            time.sleep(0.05)
-            threads.append(t)
-        [x.join() for x in threads]
-        if faileds:
-            print("failed to warm up cache in odoo")
-            if i == 2:
-                for ex in faileds:
-                    print(ex)
-                sys.exit(1)
-        while faileds: faileds.pop()
-    print("Successfully warmed up Odoo Cache.")
+    def warmup_once(request_id: int):
+        last_ex = None
+        for _ in range(PER_REQUEST_RETRIES):
+            try:
+                r = requests.get(url, timeout=REQUEST_TIMEOUT_S)
+                r.raise_for_status()
+                return
+            except Exception as e:
+                last_ex = e
+                time.sleep(0.2)
+        raise last_ex
+
+    # 1) readiness check (einmal!)
+    wait_until_ready()
+    click.secho("Generally odoo is responsive, now warming up cache with multiple requests...")
+
+    # 2) warmup in kontrollierter Parallelität
+    for attempt in range(3):
+        click.secho(
+            f"Warming up Odoo cache: total requests={WARMUP_REQUESTS}, "
+            f"max parallel={MAX_PARALLEL_WARMUP}, attempt {attempt+1}/3"
+        )
+
+        failed = []
+
+        with ThreadPoolExecutor(max_workers=MAX_PARALLEL_WARMUP) as ex:
+            futures = [ex.submit(warmup_once, i) for i in range(WARMUP_REQUESTS)]
+            for f in as_completed(futures):
+                try:
+                    f.result()
+                except Exception as e:
+                    failed.append(e)
+
+        if not failed:
+            click.secho("Successfully warmed up Odoo Cache.")
+            return
+
+        click.secho(f"Warmup had {len(failed)} failures.")
+        if attempt == 2:
+            for e in failed[:10]:  # nicht unendlich spam
+                click.secho(e)
+            sys.exit(1)
+
+        time.sleep(1.0)  # kurzer backoff vor nächstem attempt

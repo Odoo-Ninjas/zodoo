@@ -289,3 +289,31 @@ time sudo -E pytest
 pipx runpip wodoo install line_profiler
 $WODOO_PYTHON -mkernprof -l -v odoo reload
 ```
+
+# Odoo warmup parameters
+
+When the Odoo container starts, the registry is loaded once per worker.
+The following parameters control how the application waits for Odoo to become ready and how it performs warmup requests to pre-fill caches.
+
+## Purpose
+
+The warmup logic:
+* Waits until Odoo is reachable
+* Sends a number of HTTP requests (usually to /web/login)
+* Forces workers to initialize
+* Warms Python caches, ORM registry, QWeb templates, etc.
+* Reduces first-user latency (cold start)
+
+# Odoo Warmup Parameters
+
+| Variable | Default | Description |
+|-----------|----------|-------------|
+| `INTERNAL_ODOO_PORT` | `8069` | Internal port where Odoo is exposed inside the container. Used to build the warmup URL. |
+| `ODOO_WORKERS_WEB` | `1` | Number of Odoo web workers. Determines how many workers should be warmed up. |
+| `MAX_WARMUP_WORKERS` | — | Optional override specifically for warmup worker count. If set, it takes precedence over `ODOO_WORKERS_WEB`. |
+| `MAX_PARALLEL_WARMUP` | `4` | Maximum number of concurrent warmup HTTP requests to avoid overloading the system during startup. |
+| `ODOO_READY_TIMEOUT_S` | `60` | Maximum time (in seconds) to wait for Odoo to become reachable. |
+| `ODOO_READY_INTERVAL_S` | `0.5` | Polling interval (in seconds) while checking if Odoo is ready. |
+| `ODOO_WARMUP_REQUESTS` | Number of workers | Total number of warmup requests to send. Defaults to the worker count to ensure each worker is initialized. |
+| `ODOO_WARMUP_RETRIES` | `3` | Number of retry attempts per warmup request in case of transient failures. |
+| `ODOO_REQUEST_TIMEOUT_S` | `55` | Timeout (in seconds) for each individual warmup HTTP request. |
