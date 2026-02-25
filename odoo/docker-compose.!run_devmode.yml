@@ -1,0 +1,6 @@
+services:
+  odoo_base:
+    labels:
+      odoo.web_container: '1'
+      compose.merge: 'odoo_base'
+      proxy_config_static: ${ODOO_IMAGES}/odoo/proxy/odoo_static_cached.conf

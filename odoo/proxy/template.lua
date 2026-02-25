@@ -29,7 +29,6 @@ local user = "{auth_user}"
 local pass_var = "{auth_pass}"
 
 -- authorization section
-ngx.log(ngx.ERR, "\nPass var:'" .. pass_var .. "' not set")
 if pass_var and pass_var ~= "" then
     -- Lookup environment variable by that name
     local pass = os.getenv(pass_var)
