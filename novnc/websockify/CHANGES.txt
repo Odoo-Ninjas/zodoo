@@ -128,4 +128,3 @@ Changes
 --------------------
 
  * Initial versioned release.
-

@@ -21,7 +21,7 @@ quick_chown() {
     rm -Rf $1.bak
 }
 install_extensions() {
-    mkdir -p "$EXTENSIONS_DIR" "$CODE_DATADIR" 
+    mkdir -p "$EXTENSIONS_DIR" "$CODE_DATADIR"
     mkdir -p "$CODE_DATADIR/User"
     chown -R "$USERNAME:$USERNAME" "$EXTENSIONS_DIR" "$CODE_DATADIR"
     cp /opt/settings.json.template "$CODE_DATADIR/User/settings.json"

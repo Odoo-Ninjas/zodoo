@@ -20,17 +20,15 @@ Provides functionalities:
 
 ### Install minimum
 
-* pipx
-* git
-* python3.13 not supported yet
+- pipx
+- git
+- python3.13 not supported yet
 
 ```
 bash <(curl -fsSL https://raw.githubusercontent.com/Odoo-Ninjas/zodoo/refs/heads/main/install.sh)
 ```
 
-
 ### optional: To be not blocked when working on btrfs/zfs volumes and so, this is suggested on dev machines:
-
 
 ```bash
 cat << 'EOF' > /etc/sudoers.d/odoo
@@ -54,7 +52,6 @@ odoo up -d
 
 ## Store settings in ./odoo of source code
 
-
 ## How to extend an existing service
 
 - make a docker-compose file like ~/.odoo/docker-compose.yml
@@ -64,27 +61,24 @@ services:
   odoo3:
     labels:
       compose.merge: base-machine
-    environment:
-      WHAT YOU WANT
-    volumes:
-      WHAT YOU WANT
-
+    environment: WHAT YOU WANT
+    volumes: WHAT YOU WANT
 ```
 
 ### Example for fixed ip addresses
 
 ```yml
 services:
-    proxy:
-        networks:
-            network1:
-                ipv4_address: 10.5.0.6
+  proxy:
+    networks:
+      network1:
+        ipv4_address: 10.5.0.6
 networks:
-    network1:
-        driver: bridge
-        ipam:
-            config:
-                - subnet: 10.5.0.0/16
+  network1:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.5.0.0/16
 ```
 
 ### Some labels
@@ -102,28 +96,27 @@ services:
 
 ### Pushing
 
-* Configure HUB_URL on the pusher side.
-* `>odoo login`
-* `>odoo build`
-* `>odoo regpush`
-* All images even base images like redis are pushed; tag name contains SHA name
+- Configure HUB_URL on the pusher side.
+- `>odoo login`
+- `>odoo build`
+- `>odoo regpush`
+- All images even base images like redis are pushed; tag name contains SHA name
 
 ### Pulling
 
-* Configure `REGISTRY=1` in settings and setup `HUB_URL`
-* `>odoo login`
-* `>odoo regpull`
-* All images will be pulled from registry
+- Configure `REGISTRY=1` in settings and setup `HUB_URL`
+- `>odoo login`
+- `>odoo regpull`
+- All images will be pulled from registry
 
 ## Services Explained
 
 ### Proxy
 
-* nodejs application
-* between user browser and odoo
-* if odoo is being restarted catches the requests, holds them and releases them to odoo if it is up again
-* manages handling of /longpolling path; so if used in custom proxy setups, just refer to that one port here
-
+- nodejs application
+- between user browser and odoo
+- if odoo is being restarted catches the requests, holds them and releases them to odoo if it is up again
+- manages handling of /longpolling path; so if used in custom proxy setups, just refer to that one port here
 
 ## Tools
 
@@ -140,40 +133,38 @@ odoo restore odoo-db <path> (or select from list)
 odoo pgactivity
 ```
 
-
 ## Configurations in ~/.odoo/settings explained
 
-| Setting      | Description|
-| :---        |    :----   |
-| PROJECT_NAME| Pasted into container names, postgres volumes and so on; please keep it as short as possible, as there are limits example docker containername 53 characters at time of writing|
-| DBNAME | Uses projectname or a configured one|
-| HUB_URL=value| user:password@host:port/paths.. to configure|
-| REGISTRY=1      | Rewrites all build and images urls to HUB_URL. Should be used on production systems to force pull only from registry and block any local buildings.|
-| POSTGRES_VERSION=13| Choose from 11, 12, 13, 14|
-| ODOO_ENABLE_DB_MANAGER| Enables the odoo db manager|
-| DEVMODE=1 | At restore runs safety scripts to disable cronjobs and mailserver and resets passwords|
-| RUN_PROXY=1| If the built-in nodejs proxy is enabled |
-| RUN_PROXY_PUBLISHED=0/1| If the proxy is reachable from outside the docker network example from 127.0.0.1:8069|
-| PROXY_PORT| The port on which you can access with plain http the odoo|
-| ODOO_IMAGES_BRANCH| The branch used for ~/.odoo/images|
-| ODOO_INSTALL_LIBPOSTAL=1| If set, then the libpostal lib is installed|
-| ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER=1 | Runs queuejobs and cronjob in the odoo container where also the web application resides|
-| ODOO_QUEUEJOBS_CHANNELS=root:40,magento2:1 | Configures queues for queuejob module |
-|NAMED_ODOO_POSTGRES_VOLUME| Use a specific external volume; not dropped with down -v command|
-|CRONJOB_DADDY_CLEANUP=0 */1 * * * ${JOB_DADDY_CLEANUP}|Turn on grandfather-principle based backup|
-|RESTART_CONTAINERS=1|Sets "restart unless-stopped" policy|
-|ODOO_DEBUG_LOGLEVEL=info,error,debug|Loglevel for debug inside odoo container|
-|APT_PROXY_IP=<ip>|Name/IP where to reach the apt-cacher on the host at buildtime from containers|
-|RUN_APT_CACHER|if 1 then host apt cacher|
-| UPDATE_STRATEGY|None--> update all modules of manifest['install'], 'odoo.sh' to update only changed modules by their version|
-| NO_REMOVE_WEB_ASSETS_AFTER_RESTORE|1-after restore web assets are not removed --no-remove-webassets"
+| Setting                                                   | Description                                                                                                                                                                     |
+| :-------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| PROJECT_NAME                                              | Pasted into container names, postgres volumes and so on; please keep it as short as possible, as there are limits example docker containername 53 characters at time of writing |
+| DBNAME                                                    | Uses projectname or a configured one                                                                                                                                            |
+| HUB_URL=value                                             | user:password@host:port/paths.. to configure                                                                                                                                    |
+| REGISTRY=1                                                | Rewrites all build and images urls to HUB_URL. Should be used on production systems to force pull only from registry and block any local buildings.                             |
+| POSTGRES_VERSION=13                                       | Choose from 11, 12, 13, 14                                                                                                                                                      |
+| ODOO_ENABLE_DB_MANAGER                                    | Enables the odoo db manager                                                                                                                                                     |
+| DEVMODE=1                                                 | At restore runs safety scripts to disable cronjobs and mailserver and resets passwords                                                                                          |
+| RUN_PROXY=1                                               | If the built-in nodejs proxy is enabled                                                                                                                                         |
+| RUN_PROXY_PUBLISHED=0/1                                   | If the proxy is reachable from outside the docker network example from 127.0.0.1:8069                                                                                           |
+| PROXY_PORT                                                | The port on which you can access with plain http the odoo                                                                                                                       |
+| ODOO_IMAGES_BRANCH                                        | The branch used for ~/.odoo/images                                                                                                                                              |
+| ODOO_INSTALL_LIBPOSTAL=1                                  | If set, then the libpostal lib is installed                                                                                                                                     |
+| ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER=1                    | Runs queuejobs and cronjob in the odoo container where also the web application resides                                                                                         |
+| ODOO_QUEUEJOBS_CHANNELS=root:40,magento2:1                | Configures queues for queuejob module                                                                                                                                           |
+| NAMED_ODOO_POSTGRES_VOLUME                                | Use a specific external volume; not dropped with down -v command                                                                                                                |
+| CRONJOB*DADDY_CLEANUP=0 */1 \_ \* \* ${JOB_DADDY_CLEANUP} | Turn on grandfather-principle based backup                                                                                                                                      |
+| RESTART_CONTAINERS=1                                      | Sets "restart unless-stopped" policy                                                                                                                                            |
+| ODOO_DEBUG_LOGLEVEL=info,error,debug                      | Loglevel for debug inside odoo container                                                                                                                                        |
+| APT_PROXY_IP=<ip>                                         | Name/IP where to reach the apt-cacher on the host at buildtime from containers                                                                                                  |
+| RUN_APT_CACHER                                            | if 1 then host apt cacher                                                                                                                                                       |
+| UPDATE_STRATEGY                                           | None--> update all modules of manifest['install'], 'odoo.sh' to update only changed modules by their version                                                                    |
+| NO_REMOVE_WEB_ASSETS_AFTER_RESTORE                        | 1-after restore web assets are not removed --no-remove-webassets"                                                                                                               |
 
 ## Odoo Server Configuration in ~/.odoo/settings/odoo.config and odoo.config.${PROJECT_NAME}
 
 Contents will be appended to [options] section of standard odoo configuration.
 
 Configuration may simple look like:
-
 
 ```
 setting1=value1
@@ -199,58 +190,39 @@ The used odoo instance must be placed in /odoo.
 
 ```yaml
 {
-    "server-wide-modules": [
-        "web",
-        "field_onchange"
-    ],
-    "python_version": "3.11.10",
-    "version": 17.0,
-    "upgrade_path": [paths to upgrade src of https://github.com/odoo/upgrade-utils],
-    "odoo_dir": "odoo", # default
-    "install": [ ...  ],
-    "uninstall": [
-        "web_tree_many2one_clickable",
-        "helpdesk_create_in_new_tab"
-    ],
-    "devmode_uninstall": [
-        "password_security",
-    ],
-    "tests": [
-        "helpdesk_security",
-        "visitreports"
-    ],
-    "before-odoo-update": [
-      ["update", "make-sure", "stock_delivery"]
-    ],
-    "addons_paths": [
-        "odoo/odoo/addons",
-        "odoo/addons",
-        "enterprise",
-        "addons_tools"
-    ]
+  "server-wide-modules": ["web", "field_onchange"],
+  "python_version": "3.11.10",
+  "version": 17.0,
+  "upgrade_path":
+    [paths to upgrade src of https://github.com/odoo/upgrade-utils],
+  "odoo_dir": "odoo", # default
+  "install": [...],
+  "uninstall": ["web_tree_many2one_clickable", "helpdesk_create_in_new_tab"],
+  "devmode_uninstall": ["password_security"],
+  "tests": ["helpdesk_security", "visitreports"],
+  "before-odoo-update": [["update", "make-sure", "stock_delivery"]],
+  "addons_paths":
+    ["odoo/odoo/addons", "odoo/addons", "enterprise", "addons_tools"],
 }
-
-
-
 ```
 
 # RobotFramework Commands
 
 ## Install modules
 
-Put #odoo-require: crm,sale_stock  in a line in your test
+Put #odoo-require: crm,sale_stock in a line in your test
 
 ## Uninstall modules
 
-Put #odoo-uninstall: partner_autocomplete  in a line in your test
+Put #odoo-uninstall: partner_autocomplete in a line in your test
 
 The partner autocomplete nerves for example.
 
 # Append to odoo docker file
 
-* make files like "Dockerfile.appendix" anywhere in your repo
-* to add files, put a directory "Dockerfile.appendix.dir" in the same level; you can
-  access files of it with COPY Dockerfile.appendix.dir/*
+- make files like "Dockerfile.appendix" anywhere in your repo
+- to add files, put a directory "Dockerfile.appendix.dir" in the same level; you can
+  access files of it with COPY Dockerfile.appendix.dir/\*
 
 # Before Reload Actions
 
@@ -263,10 +235,9 @@ EXTRA_CONFIG_your_key=value
 
 These settings are added to the config files.
 
-
 # execute success update script
 
-* file at /etc/odoo/after-update.sh is executed.
+- file at /etc/odoo/after-update.sh is executed.
 
 # Pytests
 
@@ -278,10 +249,10 @@ time sudo -E pytest
 
 # Debugging python container:
 
-* odoo debug odoo_debug  inside container type: debug<enter>
-* open url: http://hostname:port/debugpython
-* --> container is debugged; websocket and longpolling are forwarded to odoo container
-* reset cookie: http://hostname:port/debugpython_off
+- odoo debug odoo_debug inside container type: debug<enter>
+- open url: http://hostname:port/debugpython
+- --> container is debugged; websocket and longpolling are forwarded to odoo container
+- reset cookie: http://hostname:port/debugpython_off
 
 # Performance Check
 
@@ -298,22 +269,23 @@ The following parameters control how the application waits for Odoo to become re
 ## Purpose
 
 The warmup logic:
-* Waits until Odoo is reachable
-* Sends a number of HTTP requests (usually to /web/login)
-* Forces workers to initialize
-* Warms Python caches, ORM registry, QWeb templates, etc.
-* Reduces first-user latency (cold start)
+
+- Waits until Odoo is reachable
+- Sends a number of HTTP requests (usually to /web/login)
+- Forces workers to initialize
+- Warms Python caches, ORM registry, QWeb templates, etc.
+- Reduces first-user latency (cold start)
 
 # Odoo Warmup Parameters
 
-| Variable | Default | Description |
-|-----------|----------|-------------|
-| `INTERNAL_ODOO_PORT` | `8069` | Internal port where Odoo is exposed inside the container. Used to build the warmup URL. |
-| `ODOO_WORKERS_WEB` | `1` | Number of Odoo web workers. Determines how many workers should be warmed up. |
-| `MAX_WARMUP_WORKERS` | — | Optional override specifically for warmup worker count. If set, it takes precedence over `ODOO_WORKERS_WEB`. |
-| `MAX_PARALLEL_WARMUP` | `4` | Maximum number of concurrent warmup HTTP requests to avoid overloading the system during startup. |
-| `ODOO_READY_TIMEOUT_S` | `60` | Maximum time (in seconds) to wait for Odoo to become reachable. |
-| `ODOO_READY_INTERVAL_S` | `0.5` | Polling interval (in seconds) while checking if Odoo is ready. |
-| `ODOO_WARMUP_REQUESTS` | Number of workers | Total number of warmup requests to send. Defaults to the worker count to ensure each worker is initialized. |
-| `ODOO_WARMUP_RETRIES` | `3` | Number of retry attempts per warmup request in case of transient failures. |
-| `ODOO_REQUEST_TIMEOUT_S` | `55` | Timeout (in seconds) for each individual warmup HTTP request. |
+| Variable                 | Default           | Description                                                                                                  |
+| ------------------------ | ----------------- | ------------------------------------------------------------------------------------------------------------ |
+| `INTERNAL_ODOO_PORT`     | `8069`            | Internal port where Odoo is exposed inside the container. Used to build the warmup URL.                      |
+| `ODOO_WORKERS_WEB`       | `1`               | Number of Odoo web workers. Determines how many workers should be warmed up.                                 |
+| `MAX_WARMUP_WORKERS`     | —                 | Optional override specifically for warmup worker count. If set, it takes precedence over `ODOO_WORKERS_WEB`. |
+| `MAX_PARALLEL_WARMUP`    | `4`               | Maximum number of concurrent warmup HTTP requests to avoid overloading the system during startup.            |
+| `ODOO_READY_TIMEOUT_S`   | `60`              | Maximum time (in seconds) to wait for Odoo to become reachable.                                              |
+| `ODOO_READY_INTERVAL_S`  | `0.5`             | Polling interval (in seconds) while checking if Odoo is ready.                                               |
+| `ODOO_WARMUP_REQUESTS`   | Number of workers | Total number of warmup requests to send. Defaults to the worker count to ensure each worker is initialized.  |
+| `ODOO_WARMUP_RETRIES`    | `3`               | Number of retry attempts per warmup request in case of transient failures.                                   |
+| `ODOO_REQUEST_TIMEOUT_S` | `55`              | Timeout (in seconds) for each individual warmup HTTP request.                                                |

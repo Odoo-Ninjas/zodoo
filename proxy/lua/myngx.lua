@@ -47,4 +47,3 @@ function myngx.get_ip(hostname)
 end
 
 return myngx
-

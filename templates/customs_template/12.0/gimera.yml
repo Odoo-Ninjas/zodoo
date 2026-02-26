@@ -1,19 +1,19 @@
 common:
   vars:
-    VERSION: '12.0'
+    VERSION: "12.0"
 repos:
   - path: odoo
     url: https://github.com/odoo/odoo
     branch: ${VERSION}
     type: integrated
-    patches: 
+    patches:
       - patches/odoo
 
   # - path: enterprise
   #   url: https://github.com/odoo/enterprise
   #   branch: ${VERSION}
   #   type: integrated
-  #   patches: 
+  #   patches:
   #     - patches/enterprise
 
   - path: "addons_OCA/queue"
@@ -22,8 +22,6 @@ repos:
     type: integrated
     patches:
       - patches/addons_OCA/queue
-
-  
 
   # - path: "addons_OCA/account-financial-tools"
   #   url: https://github.com/OCA/account-financial-tools

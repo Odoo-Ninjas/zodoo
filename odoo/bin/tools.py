@@ -60,14 +60,20 @@ def _get_queuejob_channels():
     elif channels:
         Sum = sum(x[1] for x in channels)
     else:
-        raise Exception("Please define at least on root channel for odoo queue jobs.")
+        raise Exception(
+            "Please define at least on root channel for odoo queue jobs."
+        )
 
-    channels = ",".join(f"{x[0]}:{x[1]}" for x in [("root", Sum)] + channels_no_root)
+    channels = ",".join(
+        f"{x[0]}:{x[1]}" for x in [("root", Sum)] + channels_no_root
+    )
 
     # Why * 2; doesnt work with just * 1 - dont understand why right now;
     # Queuejobs did not start at all
     if not config.get("ODOO_QUEUEJOBS_WORKERS"):
-        config["ODOO_QUEUEJOBS_WORKERS"] = str(int(Sum * 2))  # good for all in one also
+        config["ODOO_QUEUEJOBS_WORKERS"] = str(
+            int(Sum * 2)
+        )  # good for all in one also
     return channels
 
 
@@ -94,12 +100,15 @@ def _replace_params_in_config(
         "__LIMIT_MEMORY_SOFT__", config.get("LIMIT_MEMORY_SOFT", "31000000000")
     )
 
-    server_wide_modules = ",".join(_get_server_wide_modules(server_wide_modules))
+    server_wide_modules = ",".join(
+        _get_server_wide_modules(server_wide_modules)
+    )
     content = content.replace("__SERVER_WIDE_MODULES__", server_wide_modules)
 
-
     # queuejob channels
-    content = content.replace("__ODOO_QUEUEJOBS_CHANNELS__", _get_queuejob_channels())
+    content = content.replace(
+        "__ODOO_QUEUEJOBS_CHANNELS__", _get_queuejob_channels()
+    )
 
     extra_config = []
     for setting in os.environ.keys():
@@ -107,7 +116,9 @@ def _replace_params_in_config(
             key = setting.replace("EXTRA_CONFIG_", "")
             value = os.environ[setting]
             extra_config.append(f"{key} = {value}")
-    content = content.replace("___EXTRA_ODOO_CONFIG___", '\n'.join(extra_config))
+    content = content.replace(
+        "___EXTRA_ODOO_CONFIG___", "\n".join(extra_config)
+    )
 
     # upgrade paths
     upgrade_path = upgrade_path or []
@@ -149,7 +160,9 @@ def _apply_additional_odoo_config(content, addition):
     ...
     """
     content = list(
-        filter(lambda x: not x.strip().startswith("#"), content.split("___|||___"))
+        filter(
+            lambda x: not x.strip().startswith("#"), content.split("___|||___")
+        )
     )
     assert content[0] == "[options]"
     for i, line in enumerate(content[1:], 1):
@@ -196,7 +209,9 @@ def _replace_variables_in_config_files(local_config):
         if not additional_addons_paths:
             additional_addons_paths = os.getenv("ADDITIONAL_ADDONS_PATHS")
         else:
-            additional_addons_paths += "," + os.getenv("ADDITIONAL_ADDONS_PATHS")
+            additional_addons_paths += "," + os.getenv(
+                "ADDITIONAL_ADDONS_PATHS"
+            )
 
     ADDONS_PATHS = ",".join(
         list(
@@ -204,7 +219,9 @@ def _replace_variables_in_config_files(local_config):
                 str,
                 odoo_config.get_odoo_addons_paths(
                     no_extra_addons_paths=no_extra_addons_paths,
-                    additional_addons_paths=(additional_addons_paths or "").split(","),
+                    additional_addons_paths=(
+                        additional_addons_paths or ""
+                    ).split(","),
                 ),
             )
         )
@@ -216,13 +233,17 @@ def _replace_variables_in_config_files(local_config):
         content = filepath.read_text() if filepath else string
         server_wide_modules = None
         if local_config and local_config.server_wide_modules:
-            server_wide_modules = local_config.server_wide_modules.split(",") or None
+            server_wide_modules = (
+                local_config.server_wide_modules.split(",") or None
+            )
         elif os.getenv("SERVER_WIDE_MODULES"):
             server_wide_modules = os.environ["SERVER_WIDE_MODULES"].split(",")
         if local_config and local_config.upgrade_path:
             upgrade_path = local_config.upgrade_path.split(",")
         else:
-            upgrade_path = list(filter(bool, os.getenv("UPGRADE_PATH", "").split(",")))
+            upgrade_path = list(
+                filter(bool, os.getenv("UPGRADE_PATH", "").split(","))
+            )
         upgrade_path = list(map(lambda x: x.strip(), upgrade_path))
 
         content = _replace_params_in_config(
@@ -275,7 +296,10 @@ def _replace_variables_in_config_files(local_config):
 def _apply_configuration(config_file, to_apply_config_file):
     for section in to_apply_config_file.sections():
         for k, v in to_apply_config_file[section].items():
-            if section not in config_file.sections() or k not in config_file[section]:
+            if (
+                section not in config_file.sections()
+                or k not in config_file[section]
+            ):
                 config_file[section][k] = v
 
 
@@ -319,18 +343,23 @@ def prepare_run(local_config=None):
         del path
         del out_dir
 
-    if os.getenv("IS_ODOO_QUEUEJOB", "") == "1" or os.getenv("ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER", "") == "1":
+    if (
+        os.getenv("IS_ODOO_QUEUEJOB", "") == "1"
+        or os.getenv("ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER", "") == "1"
+    ):
         # https://www.odoo.com/apps/modules/10.0/queue_job/
         with get_conn_autoclose() as cr:
             sql = "update queue_job set state='pending' where state in ('started', 'enqueued');"
-            if table_exists(cr, 'queue_job'):
-                if column_exists(cr, 'queue_job', 'state'):
+            if table_exists(cr, "queue_job"):
+                if column_exists(cr, "queue_job", "state"):
                     cr.execute(sql)
+
 
 def table_exists(cr, table):
     cr.execute(f"SELECT to_regclass('public.{table}');")
     table_exists = cr.fetchone()[0]
     return table_exists
+
 
 def column_exists(cr, table, column):
     # Check if column exists
@@ -345,6 +374,7 @@ def column_exists(cr, table, column):
     """)
     column_exists = cr.fetchone()[0]
     return column_exists
+
 
 def get_odoo_bin(for_shell=False):
     if is_odoo_cronjob and not config.get("RUN_ODOO_CRONJOBS") == "1":
@@ -524,7 +554,9 @@ def exec_odoo(
     enable_queuejobs=False,
     **kwargs,
 ):  # NOQA
-    assert not [x for x in args if "--pidfile" in x], "Not custom pidfile allowed"
+    assert not [
+        x for x in args if "--pidfile" in x
+    ], "Not custom pidfile allowed"
 
     if dokill:
         kill_odoo()
@@ -533,7 +565,9 @@ def exec_odoo(
 
     MANIFEST = odoo_config.MANIFEST()
     manifest = MANIFEST._get_data()
-    os.environ["SERVER_DIR"] = str(Path(os.environ["CUSTOMS_DIR"]) / MANIFEST.odoo_dir)
+    os.environ["SERVER_DIR"] = str(
+        Path(os.environ["CUSTOMS_DIR"]) / MANIFEST.odoo_dir
+    )
 
     EXEC, _CONFIG = get_odoo_bin(for_shell=odoo_shell)
     CONFIG = get_config_file(CONFIG or _CONFIG)
@@ -546,7 +580,9 @@ def exec_odoo(
             "-u",
             ODOO_USER,
         ]
-    cmd += __python_exe(remote_debug=remote_debug, wait_for_remote=wait_for_remote) + [
+    cmd += __python_exe(
+        remote_debug=remote_debug, wait_for_remote=wait_for_remote
+    ) + [
         EXEC,
     ]
     if odoo_shell:
@@ -621,7 +657,9 @@ def _run_shell_cmd(code, do_raise=False):
 
 def _get_server_wide_modules(server_wide_modules=None):
     if not server_wide_modules:
-        server_wide_modules = (os.getenv("SERVER_WIDE_MODULES", "") or "").split(",")
+        server_wide_modules = (
+            os.getenv("SERVER_WIDE_MODULES", "") or ""
+        ).split(",")
 
     if (
         os.getenv("IS_ODOO_QUEUEJOB", "") == "1"
@@ -649,17 +687,22 @@ def _get_server_wide_modules(server_wide_modules=None):
             server_wide_modules.append("queue_job")
     return server_wide_modules
 
-def wait_for_tcp(host: str, port: int, timeout: float = 60.0, interval: float = 0.5):
+
+def wait_for_tcp(
+    host: str, port: int, timeout: float = 60.0, interval: float = 0.5
+):
     """
     Wait until TCP port on host becomes reachable.
-    
+
     :param host: Domain or IP (e.g. "localhost", "odoo", "example.com")
     :param port: TCP port (e.g. 8069)
     :param timeout: Max seconds to wait
     :param interval: Seconds between retries
     :raises TimeoutError: if not reachable in time
     """
-    click.secho(f"Waiting for TCP {host}:{port} to become reachable...", fg="blue")
+    click.secho(
+        f"Waiting for TCP {host}:{port} to become reachable...", fg="blue"
+    )
     deadline = time.time() + timeout
     last_error = None
 
@@ -680,20 +723,33 @@ def wait_for_tcp(host: str, port: int, timeout: float = 60.0, interval: float = 
 def _touch():
     click.secho("Warming up odoo cache.")
     INTERNAL_ODOO_PORT = os.getenv("INTERNAL_ODOO_PORT", "8069")
-    ODOO_WORKERS_WEB = int(os.getenv("MAX_WARMUP_WORKERS", os.getenv("ODOO_WORKERS_WEB", "1")))
+    ODOO_WORKERS_WEB = int(
+        os.getenv("MAX_WARMUP_WORKERS", os.getenv("ODOO_WORKERS_WEB", "1"))
+    )
 
     url = f"http://localhost:{INTERNAL_ODOO_PORT}/web/login"
 
     # Einstellbar:
     MAX_PARALLEL_WARMUP = int(os.getenv("MAX_PARALLEL_WARMUP", "4"))
-    READY_TIMEOUT_S = float(os.getenv("ODOO_READY_TIMEOUT_S", "60"))   # wie lange auf "Odoo lebt" warten
-    READY_INTERVAL_S = float(os.getenv("ODOO_READY_INTERVAL_S", "0.5"))# Poll-Intervall
-    WARMUP_REQUESTS = int(os.getenv("ODOO_WARMUP_REQUESTS", str(ODOO_WORKERS_WEB)))  # wie viele GETs insgesamt
+    READY_TIMEOUT_S = float(
+        os.getenv("ODOO_READY_TIMEOUT_S", "60")
+    )  # wie lange auf "Odoo lebt" warten
+    READY_INTERVAL_S = float(
+        os.getenv("ODOO_READY_INTERVAL_S", "0.5")
+    )  # Poll-Intervall
+    WARMUP_REQUESTS = int(
+        os.getenv("ODOO_WARMUP_REQUESTS", str(ODOO_WORKERS_WEB))
+    )  # wie viele GETs insgesamt
     PER_REQUEST_RETRIES = int(os.getenv("ODOO_WARMUP_RETRIES", "3"))
     REQUEST_TIMEOUT_S = float(os.getenv("ODOO_REQUEST_TIMEOUT_S", "55"))
 
     def wait_until_ready():
-        wait_for_tcp("localhost", int(INTERNAL_ODOO_PORT), timeout=READY_TIMEOUT_S, interval=READY_INTERVAL_S)
+        wait_for_tcp(
+            "localhost",
+            int(INTERNAL_ODOO_PORT),
+            timeout=READY_TIMEOUT_S,
+            interval=READY_INTERVAL_S,
+        )
         deadline = time.time() + READY_TIMEOUT_S
         last_ex = None
         click.secho(f"Waiting for Odoo to become ready: {url}")
@@ -708,7 +764,9 @@ def _touch():
                 last_ex = e
                 time.sleep(READY_INTERVAL_S)
                 click.secho(str(e))
-        raise RuntimeError(f"Odoo not reachable after {READY_TIMEOUT_S}s: {last_ex}")
+        raise RuntimeError(
+            f"Odoo not reachable after {READY_TIMEOUT_S}s: {last_ex}"
+        )
 
     def warmup_once(request_id: int):
         last_ex = None
@@ -724,7 +782,9 @@ def _touch():
 
     # 1) readiness check (einmal!)
     wait_until_ready()
-    click.secho("Generally odoo is responsive, now warming up cache with multiple requests...")
+    click.secho(
+        "Generally odoo is responsive, now warming up cache with multiple requests..."
+    )
 
     # 2) warmup in kontrollierter Parallelität
     for attempt in range(3):
@@ -736,7 +796,9 @@ def _touch():
         failed = []
 
         with ThreadPoolExecutor(max_workers=MAX_PARALLEL_WARMUP) as ex:
-            futures = [ex.submit(warmup_once, i) for i in range(WARMUP_REQUESTS)]
+            futures = [
+                ex.submit(warmup_once, i) for i in range(WARMUP_REQUESTS)
+            ]
             for f in as_completed(futures):
                 try:
                     f.result()

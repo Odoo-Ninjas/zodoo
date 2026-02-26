@@ -155,9 +155,9 @@ def odoo17attrs(root_dir):
                         percent_d,
                         "'REPLACEME%s'" % counter_for_percent_d_replace,
                     )
-                    percent_d_results[
-                        counter_for_percent_d_replace
-                    ] = percent_d
+                    percent_d_results[counter_for_percent_d_replace] = (
+                        percent_d
+                    )
                     counter_for_percent_d_replace += 1
                 soup = bs(contents, "xml")
                 tags_with_attrs = soup.select("[attrs]")

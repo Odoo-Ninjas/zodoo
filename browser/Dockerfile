@@ -21,14 +21,14 @@ RUN \
 
 RUN \
   groupadd -g 1000 user1 && \
-  useradd -u 1000 -g 1000 -m -d /data user1 
+  useradd -u 1000 -g 1000 -m -d /data user1
 
 RUN \
   mkdir -p /var/run/sshd && \
   sed -ri 's/UsePAM yes/#UsePAM yes/g' /etc/ssh/sshd_config && \
-  sed -ri 's/#Port 22/Port 5800/g' /etc/ssh/sshd_config 
+  sed -ri 's/#Port 22/Port 5800/g' /etc/ssh/sshd_config
 
-RUN rm -rf /var/lib/apt/lists/* 
+RUN rm -rf /var/lib/apt/lists/*
 
 WORKDIR /data
 

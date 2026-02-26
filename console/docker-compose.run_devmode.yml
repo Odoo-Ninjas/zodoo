@@ -3,9 +3,9 @@ services:
     labels:
       proxy_config: ${ODOO_IMAGES}/console/proxy/console.conf
     links:
-        - webssh_console
+      - webssh_console
   webssh_console:
-    build: 
+    build:
       context: ${ODOO_IMAGES}/webssh
     restart: unless-stopped
     profiles:

@@ -57,7 +57,7 @@
     height: 8px;
     border-radius: 4px;
     margin: 5px 6px 0 0;
-    background-color: #72E34C;
+    background-color: #72e34c;
 
     &.nosignal {
       border: 1px solid #666;
@@ -72,7 +72,7 @@
     }
 
     &.active0 {
-      opacity: 1.0;
+      opacity: 1;
     }
 
     &.active1 {
@@ -142,4 +142,3 @@
   color: #eee;
   font-size: 13px;
 }
-

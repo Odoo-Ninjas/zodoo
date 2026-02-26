@@ -40,7 +40,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
     libbz2-dev \
     ncurses-dev \
     rsync \
-    pkg-config 
+    pkg-config
 
 #___SNIPPET_BUILD_PYTHON___
 

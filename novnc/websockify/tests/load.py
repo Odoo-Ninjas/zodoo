@@ -165,4 +165,3 @@ if __name__ == '__main__':
     opts.web = "."
     server = WebSocketLoadServer(WebSocketLoad, **opts.__dict__)
     server.start_server()
-

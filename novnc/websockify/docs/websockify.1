@@ -96,7 +96,7 @@ Here is an example of a vncsevrer with password-less, certificate-driven authent
 The --auth-source option takes a white-space separated list of common names. Depending on your clients certificates they can be verified email addresses, user-names or any other string used for identification.
 
 The --cafile option selects a file containing concatenated certificates of authorities trusted for validating clients. If this option is omitted, system default list of CAs is used. Upon connect, the client should supply the whole certificate chain. If your clients are known not to send intermediate certificates, they can be appended to the ca-file as well.
-            
+
 Note: Most browsers ask the user to select a certificate only while connecting via HTTPS, not WebSockets. Connecting directly to the SSL secured WebSocket may cause the browser to abort the connection. If you want to connect via noVNC, the --web option should point to a copy of noVNC, so it is loaded from the same host.
 
 .SH AUTHOR
@@ -107,4 +107,3 @@ Joel Martin (github@martintribe.org)
 https://github.com/novnc/websockify/
 
 https://github.com/novnc/websockify/wiki/
-

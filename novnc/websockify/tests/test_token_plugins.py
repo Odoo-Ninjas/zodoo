@@ -1,6 +1,6 @@
 # vim: tabstop=4 shiftwidth=4 softtabstop=4
 
-""" Unit tests for Token plugins"""
+"""Unit tests for Token plugins"""
 
 import sys
 import unittest
@@ -9,49 +9,54 @@ from jwcrypto import jwt, jwk
 
 from websockify.token_plugins import ReadOnlyTokenFile, JWTTokenApi, TokenRedis
 
+
 class ReadOnlyTokenFileTestCase(unittest.TestCase):
-    patch('os.path.isdir', MagicMock(return_value=False))
+    patch("os.path.isdir", MagicMock(return_value=False))
+
     def test_empty(self):
-        plugin = ReadOnlyTokenFile('configfile')
+        plugin = ReadOnlyTokenFile("configfile")
 
         config = ""
         pyopen = mock_open(read_data=config)
 
         with patch("websockify.token_plugins.open", pyopen, create=True):
-            result = plugin.lookup('testhost')
+            result = plugin.lookup("testhost")
 
-        pyopen.assert_called_once_with('configfile')
+        pyopen.assert_called_once_with("configfile")
         self.assertIsNone(result)
 
-    patch('os.path.isdir', MagicMock(return_value=False))
+    patch("os.path.isdir", MagicMock(return_value=False))
+
     def test_simple(self):
-        plugin = ReadOnlyTokenFile('configfile')
+        plugin = ReadOnlyTokenFile("configfile")
 
         config = "testhost: remote_host:remote_port"
         pyopen = mock_open(read_data=config)
 
         with patch("websockify.token_plugins.open", pyopen, create=True):
-            result = plugin.lookup('testhost')
+            result = plugin.lookup("testhost")
 
-        pyopen.assert_called_once_with('configfile')
+        pyopen.assert_called_once_with("configfile")
         self.assertIsNotNone(result)
         self.assertEqual(result[0], "remote_host")
         self.assertEqual(result[1], "remote_port")
 
-    patch('os.path.isdir', MagicMock(return_value=False))
+    patch("os.path.isdir", MagicMock(return_value=False))
+
     def test_tabs(self):
-        plugin = ReadOnlyTokenFile('configfile')
+        plugin = ReadOnlyTokenFile("configfile")
 
         config = "testhost:\tremote_host:remote_port"
         pyopen = mock_open(read_data=config)
 
         with patch("websockify.token_plugins.open", pyopen, create=True):
-            result = plugin.lookup('testhost')
+            result = plugin.lookup("testhost")
 
-        pyopen.assert_called_once_with('configfile')
+        pyopen.assert_called_once_with("configfile")
         self.assertIsNotNone(result)
         self.assertEqual(result[0], "remote_host")
         self.assertEqual(result[1], "remote_port")
+
 
 class JWSTokenTestCase(unittest.TestCase):
     def test_asymmetric_jws_token_plugin(self):
@@ -60,7 +65,9 @@ class JWSTokenTestCase(unittest.TestCase):
         key = jwk.JWK()
         private_key = open("./tests/fixtures/private.pem", "rb").read()
         key.import_from_pem(private_key)
-        jwt_token = jwt.JWT({"alg": "RS256"}, {'host': "remote_host", 'port': "remote_port"})
+        jwt_token = jwt.JWT(
+            {"alg": "RS256"}, {"host": "remote_host", "port": "remote_port"}
+        )
         jwt_token.make_signed_token(key)
 
         result = plugin.lookup(jwt_token.serialize())
@@ -75,21 +82,31 @@ class JWSTokenTestCase(unittest.TestCase):
         key = jwk.JWK()
         private_key = open("./tests/fixtures/private.pem", "rb").read()
         key.import_from_pem(private_key)
-        jwt_token = jwt.JWT({"alg": "RS256"}, {'host': "remote_host", 'port': "remote_port"})
+        jwt_token = jwt.JWT(
+            {"alg": "RS256"}, {"host": "remote_host", "port": "remote_port"}
+        )
         jwt_token.make_signed_token(key)
 
         result = plugin.lookup(jwt_token.serialize())
 
         self.assertIsNone(result)
 
-    @patch('time.time')
+    @patch("time.time")
     def test_jwt_valid_time(self, mock_time):
         plugin = JWTTokenApi("./tests/fixtures/public.pem")
 
         key = jwk.JWK()
         private_key = open("./tests/fixtures/private.pem", "rb").read()
         key.import_from_pem(private_key)
-        jwt_token = jwt.JWT({"alg": "RS256"}, {'host': "remote_host", 'port': "remote_port", 'nbf': 100, 'exp': 200 })
+        jwt_token = jwt.JWT(
+            {"alg": "RS256"},
+            {
+                "host": "remote_host",
+                "port": "remote_port",
+                "nbf": 100,
+                "exp": 200,
+            },
+        )
         jwt_token.make_signed_token(key)
         mock_time.return_value = 150
 
@@ -99,14 +116,22 @@ class JWSTokenTestCase(unittest.TestCase):
         self.assertEqual(result[0], "remote_host")
         self.assertEqual(result[1], "remote_port")
 
-    @patch('time.time')
+    @patch("time.time")
     def test_jwt_early_time(self, mock_time):
         plugin = JWTTokenApi("./tests/fixtures/public.pem")
 
         key = jwk.JWK()
         private_key = open("./tests/fixtures/private.pem", "rb").read()
         key.import_from_pem(private_key)
-        jwt_token = jwt.JWT({"alg": "RS256"}, {'host': "remote_host", 'port': "remote_port", 'nbf': 100, 'exp': 200 })
+        jwt_token = jwt.JWT(
+            {"alg": "RS256"},
+            {
+                "host": "remote_host",
+                "port": "remote_port",
+                "nbf": 100,
+                "exp": 200,
+            },
+        )
         jwt_token.make_signed_token(key)
         mock_time.return_value = 50
 
@@ -114,14 +139,22 @@ class JWSTokenTestCase(unittest.TestCase):
 
         self.assertIsNone(result)
 
-    @patch('time.time')
+    @patch("time.time")
     def test_jwt_late_time(self, mock_time):
         plugin = JWTTokenApi("./tests/fixtures/public.pem")
 
         key = jwk.JWK()
         private_key = open("./tests/fixtures/private.pem", "rb").read()
         key.import_from_pem(private_key)
-        jwt_token = jwt.JWT({"alg": "RS256"}, {'host': "remote_host", 'port': "remote_port", 'nbf': 100, 'exp': 200 })
+        jwt_token = jwt.JWT(
+            {"alg": "RS256"},
+            {
+                "host": "remote_host",
+                "port": "remote_port",
+                "nbf": 100,
+                "exp": 200,
+            },
+        )
         jwt_token.make_signed_token(key)
         mock_time.return_value = 250
 
@@ -134,8 +167,10 @@ class JWSTokenTestCase(unittest.TestCase):
 
         secret = open("./tests/fixtures/symmetric.key").read()
         key = jwk.JWK()
-        key.import_key(kty="oct",k=secret)
-        jwt_token = jwt.JWT({"alg": "HS256"}, {'host': "remote_host", 'port': "remote_port"})
+        key.import_key(kty="oct", k=secret)
+        jwt_token = jwt.JWT(
+            {"alg": "HS256"}, {"host": "remote_host", "port": "remote_port"}
+        )
         jwt_token.make_signed_token(key)
 
         result = plugin.lookup(jwt_token.serialize())
@@ -149,8 +184,10 @@ class JWSTokenTestCase(unittest.TestCase):
 
         secret = open("./tests/fixtures/symmetric.key").read()
         key = jwk.JWK()
-        key.import_key(kty="oct",k=secret)
-        jwt_token = jwt.JWT({"alg": "HS256"}, {'host': "remote_host", 'port': "remote_port"})
+        key.import_key(kty="oct", k=secret)
+        jwt_token = jwt.JWT(
+            {"alg": "HS256"}, {"host": "remote_host", "port": "remote_port"}
+        )
         jwt_token.make_signed_token(key)
 
         result = plugin.lookup(jwt_token.serialize())
@@ -166,10 +203,14 @@ class JWSTokenTestCase(unittest.TestCase):
         public_key_data = open("./tests/fixtures/public.pem", "rb").read()
         private_key.import_from_pem(private_key_data)
         public_key.import_from_pem(public_key_data)
-        jwt_token = jwt.JWT({"alg": "RS256"}, {'host': "remote_host", 'port': "remote_port"})
+        jwt_token = jwt.JWT(
+            {"alg": "RS256"}, {"host": "remote_host", "port": "remote_port"}
+        )
         jwt_token.make_signed_token(private_key)
-        jwe_token = jwt.JWT(header={"alg": "RSA-OAEP", "enc": "A256CBC-HS512"},
-                    claims=jwt_token.serialize())
+        jwe_token = jwt.JWT(
+            header={"alg": "RSA-OAEP", "enc": "A256CBC-HS512"},
+            claims=jwt_token.serialize(),
+        )
         jwe_token.make_encrypted_token(public_key)
 
         result = plugin.lookup(jwt_token.serialize())
@@ -178,187 +219,188 @@ class JWSTokenTestCase(unittest.TestCase):
         self.assertEqual(result[0], "remote_host")
         self.assertEqual(result[1], "remote_port")
 
+
 class TokenRedisTestCase(unittest.TestCase):
     def setUp(self):
         try:
-            import redis
+            pass
         except ImportError:
-            patcher = patch.dict(sys.modules, {'redis': MagicMock()})
+            patcher = patch.dict(sys.modules, {"redis": MagicMock()})
             patcher.start()
             self.addCleanup(patcher.stop)
 
-    @patch('redis.Redis')
+    @patch("redis.Redis")
     def test_empty(self, mock_redis):
-        plugin = TokenRedis('127.0.0.1:1234')
+        plugin = TokenRedis("127.0.0.1:1234")
 
         instance = mock_redis.return_value
         instance.get.return_value = None
 
-        result = plugin.lookup('testhost')
+        result = plugin.lookup("testhost")
 
-        instance.get.assert_called_once_with('testhost')
+        instance.get.assert_called_once_with("testhost")
         self.assertIsNone(result)
 
-    @patch('redis.Redis')
+    @patch("redis.Redis")
     def test_simple(self, mock_redis):
-        plugin = TokenRedis('127.0.0.1:1234')
+        plugin = TokenRedis("127.0.0.1:1234")
 
         instance = mock_redis.return_value
         instance.get.return_value = b'{"host": "remote_host:remote_port"}'
 
-        result = plugin.lookup('testhost')
+        result = plugin.lookup("testhost")
 
-        instance.get.assert_called_once_with('testhost')
+        instance.get.assert_called_once_with("testhost")
         self.assertIsNotNone(result)
-        self.assertEqual(result[0], 'remote_host')
-        self.assertEqual(result[1], 'remote_port')
+        self.assertEqual(result[0], "remote_host")
+        self.assertEqual(result[1], "remote_port")
 
-    @patch('redis.Redis')
+    @patch("redis.Redis")
     def test_json_token_with_spaces(self, mock_redis):
-        plugin = TokenRedis('127.0.0.1:1234')
+        plugin = TokenRedis("127.0.0.1:1234")
 
         instance = mock_redis.return_value
         instance.get.return_value = b' {"host": "remote_host:remote_port"} '
 
-        result = plugin.lookup('testhost')
+        result = plugin.lookup("testhost")
 
-        instance.get.assert_called_once_with('testhost')
+        instance.get.assert_called_once_with("testhost")
         self.assertIsNotNone(result)
-        self.assertEqual(result[0], 'remote_host')
-        self.assertEqual(result[1], 'remote_port')
+        self.assertEqual(result[0], "remote_host")
+        self.assertEqual(result[1], "remote_port")
 
-    @patch('redis.Redis')
+    @patch("redis.Redis")
     def test_text_token(self, mock_redis):
-        plugin = TokenRedis('127.0.0.1:1234')
+        plugin = TokenRedis("127.0.0.1:1234")
 
         instance = mock_redis.return_value
-        instance.get.return_value = b'remote_host:remote_port'
+        instance.get.return_value = b"remote_host:remote_port"
 
-        result = plugin.lookup('testhost')
+        result = plugin.lookup("testhost")
 
-        instance.get.assert_called_once_with('testhost')
+        instance.get.assert_called_once_with("testhost")
         self.assertIsNotNone(result)
-        self.assertEqual(result[0], 'remote_host')
-        self.assertEqual(result[1], 'remote_port')
+        self.assertEqual(result[0], "remote_host")
+        self.assertEqual(result[1], "remote_port")
 
-    @patch('redis.Redis')
+    @patch("redis.Redis")
     def test_text_token_with_spaces(self, mock_redis):
-        plugin = TokenRedis('127.0.0.1:1234')
+        plugin = TokenRedis("127.0.0.1:1234")
 
         instance = mock_redis.return_value
-        instance.get.return_value = b' remote_host:remote_port '
+        instance.get.return_value = b" remote_host:remote_port "
 
-        result = plugin.lookup('testhost')
+        result = plugin.lookup("testhost")
 
-        instance.get.assert_called_once_with('testhost')
+        instance.get.assert_called_once_with("testhost")
         self.assertIsNotNone(result)
-        self.assertEqual(result[0], 'remote_host')
-        self.assertEqual(result[1], 'remote_port')
+        self.assertEqual(result[0], "remote_host")
+        self.assertEqual(result[1], "remote_port")
 
-    @patch('redis.Redis')
+    @patch("redis.Redis")
     def test_invalid_token(self, mock_redis):
-        plugin = TokenRedis('127.0.0.1:1234')
+        plugin = TokenRedis("127.0.0.1:1234")
 
         instance = mock_redis.return_value
         instance.get.return_value = b'{"host": "remote_host:remote_port"   '
 
-        result = plugin.lookup('testhost')
+        result = plugin.lookup("testhost")
 
-        instance.get.assert_called_once_with('testhost')
+        instance.get.assert_called_once_with("testhost")
         self.assertIsNone(result)
 
     def test_src_only_host(self):
-        plugin = TokenRedis('127.0.0.1')
+        plugin = TokenRedis("127.0.0.1")
 
-        self.assertEqual(plugin._server, '127.0.0.1')
+        self.assertEqual(plugin._server, "127.0.0.1")
         self.assertEqual(plugin._port, 6379)
         self.assertEqual(plugin._db, 0)
         self.assertEqual(plugin._password, None)
 
     def test_src_with_host_port(self):
-        plugin = TokenRedis('127.0.0.1:1234')
+        plugin = TokenRedis("127.0.0.1:1234")
 
-        self.assertEqual(plugin._server, '127.0.0.1')
+        self.assertEqual(plugin._server, "127.0.0.1")
         self.assertEqual(plugin._port, 1234)
         self.assertEqual(plugin._db, 0)
         self.assertEqual(plugin._password, None)
 
     def test_src_with_host_port_db(self):
-        plugin = TokenRedis('127.0.0.1:1234:2')
+        plugin = TokenRedis("127.0.0.1:1234:2")
 
-        self.assertEqual(plugin._server, '127.0.0.1')
+        self.assertEqual(plugin._server, "127.0.0.1")
         self.assertEqual(plugin._port, 1234)
         self.assertEqual(plugin._db, 2)
         self.assertEqual(plugin._password, None)
 
     def test_src_with_host_port_db_pass(self):
-        plugin = TokenRedis('127.0.0.1:1234:2:verysecret')
+        plugin = TokenRedis("127.0.0.1:1234:2:verysecret")
 
-        self.assertEqual(plugin._server, '127.0.0.1')
+        self.assertEqual(plugin._server, "127.0.0.1")
         self.assertEqual(plugin._port, 1234)
         self.assertEqual(plugin._db, 2)
-        self.assertEqual(plugin._password, 'verysecret')
+        self.assertEqual(plugin._password, "verysecret")
 
     def test_src_with_host_empty_port_empty_db_pass(self):
-        plugin = TokenRedis('127.0.0.1:::verysecret')
+        plugin = TokenRedis("127.0.0.1:::verysecret")
 
-        self.assertEqual(plugin._server, '127.0.0.1')
+        self.assertEqual(plugin._server, "127.0.0.1")
         self.assertEqual(plugin._port, 6379)
         self.assertEqual(plugin._db, 0)
-        self.assertEqual(plugin._password, 'verysecret')
+        self.assertEqual(plugin._password, "verysecret")
 
     def test_src_with_host_empty_port_empty_db_empty_pass(self):
-        plugin = TokenRedis('127.0.0.1:::')
+        plugin = TokenRedis("127.0.0.1:::")
 
-        self.assertEqual(plugin._server, '127.0.0.1')
+        self.assertEqual(plugin._server, "127.0.0.1")
         self.assertEqual(plugin._port, 6379)
         self.assertEqual(plugin._db, 0)
         self.assertEqual(plugin._password, None)
 
     def test_src_with_host_empty_port_empty_db_no_pass(self):
-        plugin = TokenRedis('127.0.0.1::')
+        plugin = TokenRedis("127.0.0.1::")
 
-        self.assertEqual(plugin._server, '127.0.0.1')
+        self.assertEqual(plugin._server, "127.0.0.1")
         self.assertEqual(plugin._port, 6379)
         self.assertEqual(plugin._db, 0)
         self.assertEqual(plugin._password, None)
 
     def test_src_with_host_empty_port_no_db_no_pass(self):
-        plugin = TokenRedis('127.0.0.1:')
+        plugin = TokenRedis("127.0.0.1:")
 
-        self.assertEqual(plugin._server, '127.0.0.1')
+        self.assertEqual(plugin._server, "127.0.0.1")
         self.assertEqual(plugin._port, 6379)
         self.assertEqual(plugin._db, 0)
         self.assertEqual(plugin._password, None)
 
     def test_src_with_host_empty_port_db_no_pass(self):
-        plugin = TokenRedis('127.0.0.1::2')
+        plugin = TokenRedis("127.0.0.1::2")
 
-        self.assertEqual(plugin._server, '127.0.0.1')
+        self.assertEqual(plugin._server, "127.0.0.1")
         self.assertEqual(plugin._port, 6379)
         self.assertEqual(plugin._db, 2)
         self.assertEqual(plugin._password, None)
 
     def test_src_with_host_port_empty_db_pass(self):
-        plugin = TokenRedis('127.0.0.1:1234::verysecret')
+        plugin = TokenRedis("127.0.0.1:1234::verysecret")
 
-        self.assertEqual(plugin._server, '127.0.0.1')
+        self.assertEqual(plugin._server, "127.0.0.1")
         self.assertEqual(plugin._port, 1234)
         self.assertEqual(plugin._db, 0)
-        self.assertEqual(plugin._password, 'verysecret')
+        self.assertEqual(plugin._password, "verysecret")
 
     def test_src_with_host_empty_port_db_pass(self):
-        plugin = TokenRedis('127.0.0.1::2:verysecret')
+        plugin = TokenRedis("127.0.0.1::2:verysecret")
 
-        self.assertEqual(plugin._server, '127.0.0.1')
+        self.assertEqual(plugin._server, "127.0.0.1")
         self.assertEqual(plugin._port, 6379)
         self.assertEqual(plugin._db, 2)
-        self.assertEqual(plugin._password, 'verysecret')
+        self.assertEqual(plugin._password, "verysecret")
 
     def test_src_with_host_empty_port_db_empty_pass(self):
-        plugin = TokenRedis('127.0.0.1::2:')
+        plugin = TokenRedis("127.0.0.1::2:")
 
-        self.assertEqual(plugin._server, '127.0.0.1')
+        self.assertEqual(plugin._server, "127.0.0.1")
         self.assertEqual(plugin._port, 6379)
         self.assertEqual(plugin._db, 2)
         self.assertEqual(plugin._password, None)

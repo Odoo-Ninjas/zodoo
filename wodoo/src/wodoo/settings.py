@@ -67,12 +67,14 @@ def _export_settings(config, forced_values):
 
     settings.write()
 
+
 def _append_host_db_port(config, settings):
     from .tools import on_osx, on_windows_wsl
-    from .cli import cli, pass_config, Commands
+
     if on_osx() or on_windows_wsl():
         from .lib_setup import _next_port
-        for name in ['HOST_DB_PORT', 'DEBUG_PORT']:
+
+        for name in ["HOST_DB_PORT", "DEBUG_PORT"]:
             if not settings.get(name):
                 settings[name] = str(_next_port(config))
                 update_setting(config, name, settings[name])
@@ -114,19 +116,19 @@ def _collect_settings_files(config, quiet=False):
                     fg="magenta",
                 )
 
-    if not quiet:
+    if config.verbose:
         click.secho(
             "\n\nFound following extra settings files:\n", fg="cyan", bold=True
         )
 
-    for file in _files:
-        if not Path(file).exists():
-            continue
-        if not quiet:
-            click.secho(
-                f">>>>>>>>>>>>>>>>>>> {file} <<<<<<<<<<<<<<<<<", fg="cyan"
-            )
-            click.secho(file.read_text())
+        for file in _files:
+            if not Path(file).exists():
+                continue
+            if not quiet:
+                click.secho(
+                    f">>>>>>>>>>>>>>>>>>> {file} <<<<<<<<<<<<<<<<<", fg="cyan"
+                )
+                click.secho(file.read_text())
 
     return _files
 

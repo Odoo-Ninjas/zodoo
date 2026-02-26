@@ -1,9 +1,6 @@
-import json
 import time
 import hashlib
 from packaging.requirements import Requirement
-from packaging.markers import Marker
-from packaging.specifiers import SpecifierSet
 import hashlib
 from copy import deepcopy
 from datetime import datetime
@@ -28,7 +25,8 @@ my_cache = {}
 
 def after_compose(config, settings, yml, globals):
     # store also in clear text the requirements
-    from wodoo.odoo_config import customs_dir, MANIFEST
+    from wodoo.odoo_config import MANIFEST
+
     shutil.copy(
         current_dir.parent / "common_snippets" / "set_docker_group.sh",
         current_dir / "set_docker_group.sh",
@@ -53,22 +51,25 @@ def after_compose(config, settings, yml, globals):
                 python_tgz.parent.mkdir(exist_ok=True, parents=True)
                 shutil.copy(filepath, python_tgz)
 
-        PYTHON_VERSION = tuple([int(x) for x in config.ODOO_PYTHON_VERSION.split(".")])
+        PYTHON_VERSION = tuple(
+            [int(x) for x in config.ODOO_PYTHON_VERSION.split(".")]
+        )
     else:
-        PYTHON_VERSION = (3,8,3)
+        PYTHON_VERSION = (3, 8, 3)
 
     # Add remote debugging possibility in devmode
     _setup_remote_debugging(config, yml)
 
     _determine_requirements(config, yml, PYTHON_VERSION, settings, globals)
 
-    _determine_odoo_configuration(config, yml, PYTHON_VERSION, settings, globals)
+    _determine_odoo_configuration(
+        config, yml, PYTHON_VERSION, settings, globals
+    )
 
     _apply_fluentd_logging(config, yml, settings, globals)
 
     if config.RUN_PROXY:
         setup_external_odoo_eg_kubernetes(config, yml, globals)
-
 
 
 def store_sha_of_external_deps(deps, PYTHON_VERSION, file):
@@ -150,7 +151,6 @@ def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
 
     # add programmatic static requirements
 
-
     # add static requirements:
     static_reqs = customs_dir() / "requirements.static"
     if static_reqs.exists():
@@ -163,7 +163,9 @@ def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
         external_dependencies_justaddons["pip"] += static_reqs
 
     store_sha_of_external_deps(
-        external_dependencies, PYTHON_VERSION, config.WORKING_DIR / "requirements.hash"
+        external_dependencies,
+        PYTHON_VERSION,
+        config.WORKING_DIR / "requirements.hash",
     )
     store_sha_of_external_deps(
         external_dependencies_odoo,
@@ -172,7 +174,6 @@ def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
     )
 
     sha = _get_sha(config) if settings["SHA_IN_DOCKER"] == "1" else "n/a"
-    click.secho(f"Identified SHA '{sha}'", fg="yellow")
     for odoo_machine in odoo_machines:
         service = yml["services"][odoo_machine]
         py_deps = external_dependencies["pip"]
@@ -185,8 +186,8 @@ def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
         service["build"]["args"]["ODOO_REQUIREMENTS_CLEARTEXT"] = (
             ";".join(py_deps).encode("utf-8")
         ).decode("utf-8")
-        service["build"]["args"]["ODOO_DEB_REQUIREMENTS_CLEARTEXT"] = "\n".join(
-            sorted(external_dependencies["deb"])
+        service["build"]["args"]["ODOO_DEB_REQUIREMENTS_CLEARTEXT"] = (
+            "\n".join(sorted(external_dependencies["deb"]))
         )
         service["build"]["args"]["ODOO_DEB_REQUIREMENTS"] = base64.encodebytes(
             "\n".join(sorted(external_dependencies["deb"])).encode("utf-8")
@@ -194,7 +195,9 @@ def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
         service["build"]["args"]["ODOO_FRAMEWORK_REQUIREMENTS"] = (
             _filter_framework_requirements(
                 base64.encodebytes(
-                    (config.dirs["odoo_home"] / "requirements.txt").read_bytes()
+                    (
+                        config.dirs["odoo_home"] / "requirements.txt"
+                    ).read_bytes()
                 ).decode("utf-8")
             )
         )
@@ -231,7 +234,9 @@ def _dir_dirty(globals):
     from wodoo.odoo_config import customs_dir
 
     tools = globals["tools"]
-    return not tools.is_git_clean(customs_dir(), ignore_files=["requirements.txt"])
+    return not tools.is_git_clean(
+        customs_dir(), ignore_files=["requirements.txt"]
+    )
 
 
 def all_submodules_checked_out():
@@ -252,7 +257,9 @@ def cache_dir(tools):
     return path
 
 
-def _get_dependencies(config, globals, PYTHON_VERSION, exclude=None, include=None):
+def _get_dependencies(
+    config, globals, PYTHON_VERSION, exclude=None, include=None
+):
     # fetch dependencies from odoo lib requirements
     # requirements from odoo framework
     tools = globals["tools"]
@@ -288,12 +295,13 @@ def _get_dependencies(config, globals, PYTHON_VERSION, exclude=None, include=Non
         for key in sorted(external_dependencies):
             if not external_dependencies[key]:
                 continue
-            click.secho(
-                "\nDetected external dependencies {}: {}".format(
-                    key, ", ".join(map(str, external_dependencies[key]))
-                ),
-                fg="green",
-            )
+            if config.verbose:
+                click.secho(
+                    "\nDetected external dependencies {}: {}".format(
+                        key, ", ".join(map(str, external_dependencies[key]))
+                    ),
+                    fg="green",
+                )
 
     tools = globals["tools"]
 
@@ -318,12 +326,12 @@ def _get_dependencies(config, globals, PYTHON_VERSION, exclude=None, include=Non
                 libpy = libpy.replace("dateutil", "python-dateutil")
 
         # PATCH setuptools >=82 removed pkg_resources; odoo 17 requires it at least, perhaps also 19.0
-        if 'setuptools' in libpy:
+        if "setuptools" in libpy:
             contains_setuptools = True
 
         arr2.append(libpy)
     if not contains_setuptools:
-        arr2.append('setuptools<81')
+        arr2.append("setuptools<81")
     external_dependencies["pip"] = list(sorted(arr2))
 
     external_dependencies["pip"] = list(
@@ -334,14 +342,14 @@ def _get_dependencies(config, globals, PYTHON_VERSION, exclude=None, include=Non
             )
         )
     )
-    external_dependencies["pip"] = _filter_pip(external_dependencies["pip"], config)
+    external_dependencies["pip"] = _filter_pip(
+        external_dependencies["pip"], config
+    )
     return external_dependencies
 
 
-
-
 def append_odoo_requirements(config, external_dependencies, tools):
-    from wodoo.odoo_config import customs_dir, MANIFEST
+    from wodoo.odoo_config import MANIFEST
 
     manifest = MANIFEST()
     odoo_dir = manifest.get("odoo_dir", "odoo")
@@ -360,17 +368,22 @@ def append_odoo_requirements(config, external_dependencies, tools):
             package_name = req.name
             version_specifier = req.specifier
             marker = req.marker  # This is a Marker object
-            PYTHON_VERSION = ".".join(config.ODOO_PYTHON_VERSION.split(".")[:2])
-            if marker is None or marker.evaluate({"python_version": PYTHON_VERSION}):
+            PYTHON_VERSION = ".".join(
+                config.ODOO_PYTHON_VERSION.split(".")[:2]
+            )
+            if marker is None or marker.evaluate(
+                {"python_version": PYTHON_VERSION}
+            ):
                 libpy = libpy.split(";")[0].strip()
-                pass
             else:
                 continue
 
         external_dependencies["pip"].append(libpy)
 
 
-def _determine_odoo_configuration(config, yml, PYTHON_VERSION, settings, globals):
+def _determine_odoo_configuration(
+    config, yml, PYTHON_VERSION, settings, globals
+):
     files = []
     if "odoo_config_file_additions" not in config.files:
         return
@@ -429,38 +442,42 @@ def get_string_hash(input_string: str) -> str:
     hash_object = hashlib.sha256(input_string.encode("utf-8"))
     return hash_object.hexdigest()
 
+
 def setup_external_odoo_eg_kubernetes(config, yml, globals):
-    PROXY_ODOO_HOST = config.PROXY_ODOO_HOST or ''
+    PROXY_ODOO_HOST = config.PROXY_ODOO_HOST or ""
     if not PROXY_ODOO_HOST:
         return
     PROXY_ODOO_HOST_CHAT = config.PROXY_ODOO_HOST_CHAT or PROXY_ODOO_HOST
-    
-    backends = globals['load_proxy_backends'](yml)
 
-    parent = current_dir.parent / 'odoo' / 'proxy'
-    odoo_conf = (parent / 'odoo_external.conf').read_text()
-    odoo_chat_conf = (parent / 'odoo_chat_external.conf').read_text()
+    backends = globals["load_proxy_backends"](yml)
 
-    for k , v in {
+    parent = current_dir.parent / "odoo" / "proxy"
+    odoo_conf = (parent / "odoo_external.conf").read_text()
+    odoo_chat_conf = (parent / "odoo_chat_external.conf").read_text()
+
+    for k, v in {
         "upstream": PROXY_ODOO_HOST,
         "upstream_chat": PROXY_ODOO_HOST or PROXY_ODOO_HOST_CHAT,
     }.items():
+
         def r(t):
             return t.replace(f"{{{k}}}", v)
+
         if not isinstance(v, bool):
             odoo_conf = r(odoo_conf)
             odoo_chat_conf = r(odoo_chat_conf)
 
-    backends['odoo'] = {
+    backends["odoo"] = {
         "nginx_conf": odoo_conf,
         "external": PROXY_ODOO_HOST,
     }
-    backends['odoo_chat'] = {
+    backends["odoo_chat"] = {
         "nginx_conf": odoo_chat_conf,
         "external": PROXY_ODOO_HOST_CHAT,
     }
 
-    globals['apply_proxy_backends'](yml, backends)
+    globals["apply_proxy_backends"](yml, backends)
+
 
 def _is_git_dir(path):
     # import pudb;pudb.set_trace()
@@ -511,4 +528,3 @@ def _setup_remote_debugging(config, yml):
         yml["services"][key]["ports"].append(
             f"0.0.0.0:{config.ODOO_PYTHON_DEBUG_PORT}:5678"
         )
-

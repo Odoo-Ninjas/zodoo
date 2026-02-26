@@ -15,11 +15,22 @@ def lang(config):
 
 @lang.command(name="export")
 @click.argument("lang", required=True)
-@click.argument("modules", nargs=-1, required=True, shell_complete=_get_available_modules)
+@click.argument(
+    "modules", nargs=-1, required=True, shell_complete=_get_available_modules
+)
 @pass_config
 def export_i18n(config, lang, modules):
     modules = ",".join(modules)
-    __dcexec(config, ["odoo", "/odoolib/entrypoint.sh", "/odoolib/export_i18n.py", lang, modules])
+    __dcexec(
+        config,
+        [
+            "odoo",
+            "/odoolib/entrypoint.sh",
+            "/odoolib/export_i18n.py",
+            lang,
+            modules,
+        ],
+    )
 
 
 @lang.command(name="list")
@@ -44,4 +55,13 @@ def get_all_langs(config):
 @click.argument("po-file-path", required=True)
 @pass_config
 def lang_import_i18n(config, lang, po_file_path):
-    __dcrun(config, ["odoo", "/odoolib/entrypoint.sh", "/odoolib/import_i18n.py", lang, po_file_path])
+    __dcrun(
+        config,
+        [
+            "odoo",
+            "/odoolib/entrypoint.sh",
+            "/odoolib/import_i18n.py",
+            lang,
+            po_file_path,
+        ],
+    )

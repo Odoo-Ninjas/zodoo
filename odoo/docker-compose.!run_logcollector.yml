@@ -6,9 +6,9 @@ services:
         max-size: 1g
   odoo_queuejobs:
     logging:
-        options:
-            max-size: 3g
+      options:
+        max-size: 3g
   odoo_cronjobs:
     logging:
-        options:
-            max-size: 3g
+      options:
+        max-size: 3g

@@ -46,7 +46,7 @@ useradd -l -m -s /bin/bash -G sudo -p $(openssl passwd -1 odoo) odoo && \
 echo 'odoo:odoo' | chpasswd
 
 RUN mkdir ~/.ssh && chmod 700 ~/.ssh
-COPY console.key.pub /home/odoo/.ssh/authorized_keys 
+COPY console.key.pub /home/odoo/.ssh/authorized_keys
 
 
 RUN chmod 600 /home/odoo/.ssh/authorized_keys && \
@@ -66,7 +66,7 @@ export ODOO_BIN=/home/odoo/bin/odoo && \
 ln -s $WODOO_ENV_DIR/bin/odoo $ODOO_BIN
 
 COPY welcome.txt /usr/share/welcome.txt
-RUN chmod -x /etc/update-motd.d/* && rm /etc/update-motd.d -Rf 
+RUN chmod -x /etc/update-motd.d/* && rm /etc/update-motd.d -Rf
 RUN truncate -s 0 /etc/legal /etc/bash.bashrc
 COPY profile.d /home/odoo/.profile
 RUN chown odoo:odoo /home/odoo/.profile && chmod a+x /home/odoo/.profile

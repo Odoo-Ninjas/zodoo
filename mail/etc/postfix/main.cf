@@ -36,7 +36,7 @@ smtpd_reject_unlisted_recipient = no
 # recipients:
 virtual_alias_maps = pcre:/etc/postfix/virtual
 
-relayhost = 
+relayhost =
 
 #authorize subnet to send
 mynetworks_style = subnet
@@ -52,10 +52,9 @@ relay_transport = error
 unknown_local_recipient_reject_code = 450
 
 # deliver all to root@localhost
-local_recipient_maps = 
+local_recipient_maps =
 alias_maps = hash:/etc/aliases
 alias_database = hash:/etc/aliases
 
 home_mailbox = Maildir/
-mailbox_command = 
-
+mailbox_command =

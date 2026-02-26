@@ -4,7 +4,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 
 #___SNIPPET_APT_PROXY___
-RUN #___SNIPPET_APT_INSTALL___ \ 
+RUN #___SNIPPET_APT_INSTALL___ \
     nginx \
     procps \
     python3-pip \
@@ -21,11 +21,11 @@ RUN #___SNIPPET_APT_INSTALL___ \
     python3 \
     python3-pip \
     build-essential \
-    git  \ 
+    git  \
     libyaml-dev \
     telnet \
     iputils-ping \
-    net-tools 
+    net-tools
 
 
 
@@ -50,7 +50,7 @@ RUN /usr/local/bin/venv/bin/python3 -mpip install wheel --upgrade
 RUN /usr/local/bin/venv/bin/python3 -mpip install -r requirements.txt
 
 
-RUN sed -i 's/\#PermitRootLogin\ prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config 
+RUN sed -i 's/\#PermitRootLogin\ prohibit-password/PermitRootLogin yes/g' /etc/ssh/sshd_config
 RUN cat /etc/ssh/sshd_config |grep Permit
 EXPOSE 8080
 
@@ -66,7 +66,7 @@ COPY sshkey/* /root/.ssh/
 RUN chmod 500 /root/.ssh && \
 chmod 400 /root/.ssh/* && \
 echo 'Adding paths to .bash_profile' && \
-echo 'readonly PATH=$HOME/programs' >> /root/.bash_profile && \ 
+echo 'readonly PATH=$HOME/programs' >> /root/.bash_profile && \
 echo 'export PATH' >> /root/.bash_profile && \
 chmod a+x /root/programs/*  && \
 chsh -s /usr/bin/rbash && \
@@ -75,5 +75,3 @@ ln -s /usr/bin/ssh /root/programs/ssh
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
 COPY entrypoint.sh /entrypoint.sh
 COPY set_docker_group.sh /usr/local/bin/set_docker_group.sh
-
-

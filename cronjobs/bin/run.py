@@ -6,9 +6,7 @@ import os
 import sys
 import time
 import logging
-import subprocess
 from croniter import croniter
-from croniter import CroniterBadCronError
 from datetime import datetime
 import click
 
@@ -77,7 +75,10 @@ def execute(job_cmd):
     job_cmd = replace_params(job_cmd)
     if job_cmd.startswith("odoo "):
         job_cmd = (
-            "cd /opt/src;" "odoo " f"-p {os.environ['PROJECT_NAME']} " f"{job_cmd[5:]}"
+            "cd /opt/src;"
+            "odoo "
+            f"-p {os.environ['PROJECT_NAME']} "
+            f"{job_cmd[5:]}"
         )
     os.system(job_cmd)
 
@@ -141,7 +142,8 @@ def daemon():
     for job in jobs:
         logging.info("Scheduling Job: %s", job)
         logging.info(
-            "With replaced values in looks like: %s", replace_params(job["cmd"])
+            "With replaced values in looks like: %s",
+            replace_params(job["cmd"]),
         )
     logger.info("--------------------- JOBS ------------------------")
     for job in jobs:

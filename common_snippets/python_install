@@ -1,3 +1,2 @@
 COPY --from=python_builder /python /opt/python
 RUN cd /opt/python && make install > /dev/null
-

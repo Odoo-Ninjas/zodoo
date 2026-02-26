@@ -1,14 +1,13 @@
 # manage-order 999
 services:
-
   odoo_base:
     build:
-        context: ${HOST_RUN_DIR}/build.odoo
-        dockerfile: $ODOO_IMAGES/odoo/config/${ODOO_VERSION_INT}/Dockerfile
-        args:
-          ODOO_VERSION: "${ODOO_VERSION_INT}"
-          ODOO_CONFIG_DIR: ${ODOO_CONFIG_DIR}
-          ODOO_PYTHON_VERSION: ${ODOO_PYTHON_VERSION}
+      context: ${HOST_RUN_DIR}/build.odoo
+      dockerfile: $ODOO_IMAGES/odoo/config/${ODOO_VERSION_INT}/Dockerfile
+      args:
+        ODOO_VERSION: "${ODOO_VERSION_INT}"
+        ODOO_CONFIG_DIR: ${ODOO_CONFIG_DIR}
+        ODOO_PYTHON_VERSION: ${ODOO_PYTHON_VERSION}
     restart: unless-stopped
     labels:
       proxy_lua_template: ${ODOO_IMAGES}/odoo/proxy/template.lua
@@ -19,4 +18,3 @@ services:
       - ${HOST_RUN_DIR}/odoo_outdir:/opt/out_dir
       - ${HOST_RUN_DIR}/debug:/tmp/debug
       - ${ODOO_FILES}:/opt/files
-

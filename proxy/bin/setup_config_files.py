@@ -6,7 +6,9 @@ import json
 from pathlib import Path
 
 # Example JSON/dict input (replace with json.load if reading from file)
-proxy_backends = json.loads(base64.b64decode(os.environ.get("PROXY_BACKENDS", "{}")))
+proxy_backends = json.loads(
+    base64.b64decode(os.environ.get("PROXY_BACKENDS", "{}"))
+)
 sample = """
 # proxy_host: odoo:8069
 # proxy_host: os.getenv("PROXY_ODOO_HOST") or "odoo:8069"
@@ -82,7 +84,7 @@ for name, cfg in proxy_backends.items():
         )
         continue
 
-    LUA_TEMPLATE = cfg['lua_template'] or DEFAULT_LUA_TEMPLATE
+    LUA_TEMPLATE = cfg["lua_template"] or DEFAULT_LUA_TEMPLATE
 
     lua_filename = None
     if not cfg.get("external"):
@@ -91,7 +93,10 @@ for name, cfg in proxy_backends.items():
         with open(lua_filename, "w") as f:
             f.write(
                 LUA_TEMPLATE.format(
-                    hostname=host, port=port, auth_user=auth_user, auth_pass=auth_pass
+                    hostname=host,
+                    port=port,
+                    auth_user=auth_user,
+                    auth_pass=auth_pass,
                 )
             )
 

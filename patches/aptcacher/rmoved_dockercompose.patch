@@ -31,5 +31,5 @@ index 8a657ce..0000000
 -      - "8002:8000/tcp"
 -    volumes:
 -      - ./squid:/data/squid
--- 
+--
 2.43.0

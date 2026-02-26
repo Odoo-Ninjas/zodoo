@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -14,7 +14,9 @@
         --bg: #f9f9f9;
         --border: #e6e6e6;
       }
-      * { box-sizing: border-box; }
+      * {
+        box-sizing: border-box;
+      }
       body {
         font-family: Arial, sans-serif;
         margin: 0;
@@ -59,7 +61,11 @@
         border-radius: 50%;
         animation: spin 1s linear infinite;
       }
-      @keyframes spin { to { transform: rotate(360deg); } }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
 
       .timer {
         display: inline-flex;
@@ -82,7 +88,9 @@
         min-width: 2ch;
       }
 
-      .actions { margin-top: 16px; }
+      .actions {
+        margin-top: 16px;
+      }
       .btn {
         appearance: none;
         border: none;
@@ -94,24 +102,39 @@
         color: white;
         box-shadow: 0 4px 12px rgba(52, 152, 219, 0.25);
       }
-      .btn:active { transform: translateY(1px); }
+      .btn:active {
+        transform: translateY(1px);
+      }
 
-      .contact { margin-top: 18px; }
+      .contact {
+        margin-top: 18px;
+      }
       a {
         color: var(--accent);
         text-decoration: none;
         font-weight: bold;
       }
-      a:hover { text-decoration: underline; }
+      a:hover {
+        text-decoration: underline;
+      }
 
       /* accessibility helper for screen readers */
-      .sr-live { position: absolute; left: -9999px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+      .sr-live {
+        position: absolute;
+        left: -9999px;
+        top: auto;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+      }
     </style>
   </head>
   <body>
     <div class="container">
       <h1>We're Under Construction</h1>
-      <p class="subtitle">Thanks for your patience while we perform maintenance.</p>
+      <p class="subtitle">
+        Thanks for your patience while we perform maintenance.
+      </p>
 
       <div class="loader"></div>
 
@@ -142,13 +165,13 @@
     <script>
       (function () {
         var seconds = 10;
-        var el = document.getElementById('countdown');
-        var sr = document.getElementById('sr');
+        var el = document.getElementById("countdown");
+        var sr = document.getElementById("sr");
 
         function tick() {
           seconds = Math.max(0, seconds - 1);
           if (el) el.textContent = String(seconds);
-          if (sr) sr.textContent = 'Refreshing in ' + seconds + ' seconds';
+          if (sr) sr.textContent = "Refreshing in " + seconds + " seconds";
           if (seconds <= 0) {
             // In case the meta refresh is blocked or delayed
             window.location.reload();
@@ -160,7 +183,9 @@
         var interval = setInterval(tick, 1000);
 
         // Safety: stop the interval after 15s to avoid runaway timers
-        setTimeout(function () { clearInterval(interval); }, 15000);
+        setTimeout(function () {
+          clearInterval(interval);
+        }, 15000);
       })();
     </script>
   </body>

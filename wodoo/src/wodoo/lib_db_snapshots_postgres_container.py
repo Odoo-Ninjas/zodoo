@@ -1,12 +1,13 @@
 import subprocess
 from datetime import datetime
 from .tools import exec_file_in_path
-from .cli import Commands
 from .tools import __get_postgres_volume_name
 from .tools import __dc
 
+
 def _rsync_image_name(config):
     return f"{config.PROJECT_NAME}-rsync:latest"
+
 
 def __get_snapshots(config):
     vols = []
@@ -18,7 +19,9 @@ def __get_snapshots(config):
             vols.append(
                 {
                     "name": vol,
-                    "date": datetime.strptime(date, "%Y-%m-%d_T%H%M%S").isoformat(),
+                    "date": datetime.strptime(
+                        date, "%Y-%m-%d_T%H%M%S"
+                    ).isoformat(),
                 }
             )
     return list(sorted(vols, reverse=True, key=lambda x: x["date"]))
@@ -27,11 +30,27 @@ def __get_snapshots(config):
 def assert_environment(config):
     exec_file_in_path("docker")
 
+
 def restore(ctx, config, snap):
     postgres_volume_name = __get_postgres_volume_name(config)
     snapshot_name = snap
     __dc(config, ["stop", "-t", "1"] + ["postgres"])
-    volumes = list(filter(lambda f: f.startswith(config.project_name), map(lambda x: x.strip(), subprocess.run(["docker", "volume", "ls", "-q"], check=True, capture_output=True, text=True).stdout.strip().splitlines())))
+    volumes = list(
+        filter(
+            lambda f: f.startswith(config.project_name),
+            map(
+                lambda x: x.strip(),
+                subprocess.run(
+                    ["docker", "volume", "ls", "-q"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                .stdout.strip()
+                .splitlines(),
+            ),
+        )
+    )
     if not [x for x in volumes if x == snap]:
         near = [x for x in volumes if f"___{snap}_snapshot" in x]
         if near:

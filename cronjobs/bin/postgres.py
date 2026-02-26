@@ -100,7 +100,9 @@ def execute(dbname, host, port, user, password, sql):
 @click.argument("password", required=True)
 @click.argument("filepath", required=True)
 @click.option(
-    "--dumptype", type=click.Choice(["custom", "plain", "directory"]), default="custom"
+    "--dumptype",
+    type=click.Choice(["custom", "plain", "directory"]),
+    default="custom",
 )
 @click.option(
     "--pigz",
@@ -108,7 +110,9 @@ def execute(dbname, host, port, user, password, sql):
 )
 @click.option("-Z", "--compression", required=False, default=5)
 @click.option("--column-inserts", is_flag=True)
-@click.option("-T", "--exclude", multiple=True, help="Exclude Tables comma separated")
+@click.option(
+    "-T", "--exclude", multiple=True, help="Exclude Tables comma separated"
+)
 @click.option("-j", "--worker", default=1)
 def backup(
     dbname,
@@ -139,14 +143,18 @@ def backup(
     temp_filepath = None
     try:
         cr = conn.cursor()
-        cr.execute("SELECT (pg_database_size(current_database())) FROM pg_database")
+        cr.execute(
+            "SELECT (pg_database_size(current_database())) FROM pg_database"
+        )
         size = cr.fetchone()[0] * 0.7  # ct
         bytes = str(float(size)).split(".")[0]
         temp_filepath = filepath.with_name("." + filepath.name)
 
         column_inserts = column_inserts and "--column-inserts" or ""
         if column_inserts and dumptype != "plain":
-            raise Exception(f"Requires plain dumptype when column inserts set!")
+            raise Exception(
+                f"Requires plain dumptype when column inserts set!"
+            )
 
         # FOR PERFORMANCE USE os.system
         err_dump = Path(tempfile.mkstemp()[1])
@@ -250,7 +258,9 @@ def _restore(
         f"echo 'drop database if exists {dbname};' | psql {' '.join(args)} postgres"
     )
     # os.system(f"echo \"create database {dbname} ENCODING 'unicode' LC_COLLATE 'C' TEMPLATE template0;\" | psql {' '.join(args)} postgres")
-    os.system(f"echo \"create database {dbname} ;\" | psql {' '.join(args)} postgres")
+    os.system(
+        f"echo \"create database {dbname} ;\" | psql {' '.join(args)} postgres"
+    )
 
     PGRESTORE, PSQL = _get_cmd(args)
     method, needs_unzip = _get_restore_action(filepath, PGRESTORE, PSQL)
@@ -301,12 +311,14 @@ def _restore(
 
     filename = Path(tempfile.mktemp(suffix=".rc"))
     CMD += f" && echo '1' > {filename}"
-    click.secho(CMD, fg='yellow')
+    click.secho(CMD, fg="yellow")
 
     sizeoutputter = DBSizeOutputter(host, dbname, port, user, password)
     sizeoutputter.start()
     os.system(CMD)
-    click.echo(f"Restore took {(datetime.now() - started).total_seconds()} seconds")
+    click.echo(
+        f"Restore took {(datetime.now() - started).total_seconds()} seconds"
+    )
     sizeoutputter.stop()
     success = False
     if filename.exists() and filename.read_text().strip() == "1":
@@ -314,7 +326,6 @@ def _restore(
 
     if not success and not ignore_errors:
         raise Exception("Did not fully restore.")
-
 
 
 def _get_exclude_table_param(filepath, exclude_tables):
@@ -336,7 +347,9 @@ def _get_exclude_table_param(filepath, exclude_tables):
 
 
 def _get_cmd(args):
-    pgrestore_version = subprocess.check_output(["pg_restore", "--version"], encoding="utf8")
+    pgrestore_version = subprocess.check_output(
+        ["pg_restore", "--version"], encoding="utf8"
+    )
     click.secho(f"PG Client Tools Version: {pgrestore_version}")
     PGRESTORE = [
         "pg_restore",

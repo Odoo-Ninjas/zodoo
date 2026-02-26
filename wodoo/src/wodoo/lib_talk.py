@@ -42,6 +42,7 @@ def talk(config):
 def xmlids(config, name, module, model, resid, delete):
     return _xmlids(config, name, module, model, resid, delete)
 
+
 def _xmlids(config, name, module, model, resid, delete):
     conn = config.get_odoo_conn()
     where = " where 1 = 1"
@@ -54,7 +55,7 @@ def _xmlids(config, name, module, model, resid, delete):
             map(str, map(lambda x: int(x.strip()), resid.split(",")))
         )
         where += f" AND res_id in ({resid})"
-    for name in (name or []):
+    for name in name or []:
         where += (
             f" and ( (model ilike '%{name}%' or "
             f"name ilike '%{name}%' or "
@@ -76,10 +77,7 @@ def _xmlids(config, name, module, model, resid, delete):
             click.secho(f"Deleting {row[0]}...", fg="red")
             _execute_sql(
                 conn,
-                sql=(
-                    "DELETE FROM ir_model_data "
-                    f"WHERE id = {row[4]} "
-                ),
+                sql=("DELETE FROM ir_model_data " f"WHERE id = {row[4]} "),
                 fetchall=False,
                 return_columns=False,
             )
@@ -399,16 +397,13 @@ def fields(config, model, field, relation):
         fg="yellow",
     )
 
+
 @talk.command()
 @click.argument("model", required=False, default="%")
 @pass_config
 def models(config, model):
     conn = config.get_odoo_conn()
-    sql = (
-        "SELECT name, model "
-        "FROM ir_model "
-        "WHERE 1=1 "
-    )
+    sql = "SELECT name, model " "FROM ir_model " "WHERE 1=1 "
     if model:
         sql += f" AND model ilike '%{model}%' "
 
@@ -424,6 +419,7 @@ def models(config, model):
         tabulate(rows, cols, tablefmt="fancy_grid"),
         fg="yellow",
     )
+
 
 @talk.command()
 @click.option("-i", "--interval", default=5, type=int)
@@ -518,43 +514,61 @@ def views(config, name, arch, model, type, xmlid, show, module, mode):
     if module:
         # from .module_tools import Module
         # module = Module.get_by_name(module, nocache=False)
-        domain += [('arch_fs', '=ilike', f"{str(module)}/%")]
+        domain += [("arch_fs", "=ilike", f"{str(module)}/%")]
     if name:
-        domain += [('name','ilike',name)]
+        domain += [("name", "ilike", name)]
     if arch:
-        domain += [('arch_prev', 'ilike', arch)]
+        domain += [("arch_prev", "ilike", arch)]
     if type:
-        domain += [('type', 'ilike', type)]
+        domain += [("type", "ilike", type)]
     if model:
-        domain += [('model', '=', model)]
+        domain += [("model", "=", model)]
     if mode:
-        domain += [('mode', '=', mode)]
+        domain += [("mode", "=", mode)]
     if xmlid:
         id = odoo.env.ref(xmlid).id
-        domain += [('id','=',id)]
-    click.secho(f"Searching with domain: {domain}", fg='blue')
-    views = odoo.env['ir.ui.view'].search(domain)
+        domain += [("id", "=", id)]
+    click.secho(f"Searching with domain: {domain}", fg="blue")
+    views = odoo.env["ir.ui.view"].search(domain)
     rows = []
     for view in views:
-        v = odoo.env['ir.ui.view'].browse(view)
+        v = odoo.env["ir.ui.view"].browse(view)
         id = v.get_external_id()
         if id:
             for id, xmlid in id.items():
                 break
         else:
             ix, xmlid = "", ""
-        rows.append((id, v.type, v.model, xmlid, v.mode, v.inherit_id.id or '', v.arch_fs))
+        rows.append(
+            (
+                id,
+                v.type,
+                v.model,
+                xmlid,
+                v.mode,
+                v.inherit_id.id or "",
+                v.arch_fs,
+            )
+        )
     rows = sorted(rows, key=lambda x: (str(x[1]), str(x[3])))
-    click.secho(tabulate(rows, ("id", "type", "model", "xmlid",  "mode", "inherits", "filepath"), tablefmt="fancy_grid"), fg='yellow')
+    click.secho(
+        tabulate(
+            rows,
+            ("id", "type", "model", "xmlid", "mode", "inherits", "filepath"),
+            tablefmt="fancy_grid",
+        ),
+        fg="yellow",
+    )
 
     if show:
         for view in views:
-            v = odoo.env['ir.ui.view'].browse(view)
-            click.secho(f"{v.get_external_id()} {v.arch_fs}", fg='green')
+            v = odoo.env["ir.ui.view"].browse(view)
+            click.secho(f"{v.get_external_id()} {v.arch_fs}", fg="green")
             pretty_xml = ET.fromstring(v.arch_db)
             ET.indent(pretty_xml, space="    ")
-            click.secho(ET.tostring(pretty_xml, encoding="unicode"), fg='yellow')
-
+            click.secho(
+                ET.tostring(pretty_xml, encoding="unicode"), fg="yellow"
+            )
 
 
 @talk.command()
@@ -584,65 +598,78 @@ def queue_job_func_to_shell(job_command):
 
     model, func = job_command.split(").")
     model, id = model.split("(")
-    click.secho(f"env['{model}'].browse({id}).{func}", fg='green')
+    click.secho(f"env['{model}'].browse({id}).{func}", fg="green")
 
-@talk.command(help="Finds the server or window action name behind an action ID")
+
+@talk.command(
+    help="Finds the server or window action name behind an action ID"
+)
 @click.argument("action_id", required=True)
 @pass_config
 def resolve_action_id(config, action_id):
     odoo = odoorpc(config)
-    action = odoo.env['ir.actions.actions'].browse(int(action_id))
+    action = odoo.env["ir.actions.actions"].browse(int(action_id))
     type = action.type
     action = odoo.env[type].browse(action.id)
-    click.secho(action.get_external_id(), fg='green')
+    click.secho(action.get_external_id(), fg="green")
+
 
 @talk.command()
 @pass_config
 def rpc(config):
-    from prompt_toolkit.styles import Style
     from IPython.terminal.prompts import Prompts, Token
-    from IPython import get_ipython
     from IPython.terminal.embed import InteractiveShellEmbed
     from IPython.terminal.prompts import Prompts, Token
     from rich.console import Console
-    from rich.pretty import pprint
-
-
 
     # ----- pretty/colored output (rich) -----
     try:
         from rich import print as rprint
         from rich.pretty import pprint as rpprint
+
         USE_RICH = True
     except Exception:
         USE_RICH = False
 
     class OdooPrompts(Prompts):
         def in_prompt_tokens(self, cli=None):
-            return [(Token.Prompt, f"[{config.DBNAME}] [{self.shell.execution_count}]: ")]
+            return [
+                (
+                    Token.Prompt,
+                    f"[{config.DBNAME}] [{self.shell.execution_count}]: ",
+                )
+            ]
 
     odoo = odoorpc(config)
     local_vars = {"odoo": odoo, "env": odoo.env}
 
     # Build a banner
-    info_line = f"Connected to Odoo [{config.DBNAME}] @ PORT: {config.PROXY_PORT}"
+    info_line = (
+        f"Connected to Odoo [{config.DBNAME}] @ PORT: {config.PROXY_PORT}"
+    )
     tips = (
         "Examples:\n"
         "  Partner = env['res.partner']\n"
         "  Partner.search_read([], ['name'], limit=5)"
     )
     console = Console(force_terminal=True, soft_wrap=True)
-    rprint = console.print   # <-- define rprint
+    rprint = console.print  # <-- define rprint
     rprint(f"[bold green]{info_line}[/bold green]")
-    rprint("[cyan]Variables:[/cyan] [bold]odoo[/bold]  |  [cyan]Helpers:[/cyan] print (rich), pprint (rich.pretty)")
+    rprint(
+        "[cyan]Variables:[/cyan] [bold]odoo[/bold]  |  [cyan]Helpers:[/cyan] print (rich), pprint (rich.pretty)"
+    )
     rprint(tips)
 
     # Create and configure shell
     ipshell = InteractiveShellEmbed(banner1="")
-    ipshell.colors = "Linux"  # nice default; try 'Neutral' or 'LightBG' if you prefer
+    ipshell.colors = (
+        "Linux"  # nice default; try 'Neutral' or 'LightBG' if you prefer
+    )
     try:
         # True color & verbose tracebacks
-        ipshell.run_line_magic("config", "TerminalInteractiveShell.true_color = True")
+        ipshell.run_line_magic(
+            "config", "TerminalInteractiveShell.true_color = True"
+        )
         ipshell.run_line_magic("xmode", "Verbose")
     except Exception:
         pass
@@ -657,5 +684,6 @@ def rpc(config):
 
     # After exit, print a friendly message
     print("Bye! 👋")
+
 
 Commands.register(progress)

@@ -16,21 +16,21 @@ index 58003ec..af0f20a 100644
 -FROM debian:jessie
 -MAINTAINER Jack Sullivan
 +FROM debian:bullseye
- 
+
  # Install squid-deb-proxy
  RUN apt-get update -y && \
 @@ -10,6 +9,7 @@ RUN apt-get update -y && \
- 
+
  # Copy init script
  COPY entrypoint.sh /data/entrypoint.sh
 +COPY squid/etc/extra-sources.acl /data/squid/etc/extra-sources.acl
  RUN chmod +x /data/entrypoint.sh
- 
+
  # Handle user and paths
 @@ -21,4 +21,4 @@ RUN ln -sf /data/squid/etc/extra-sources.acl /etc/squid-deb-proxy/mirror-dstdoma
- 
+
  EXPOSE 8000/tcp
- 
+
 -ENTRYPOINT ["/data/entrypoint.sh"]
 +ENTRYPOINT ["/bin/bash", "/data/entrypoint.sh"]
 diff --git a/squid/etc/extra-sources.acl b/squid/etc/extra-sources.acl
@@ -45,5 +45,5 @@ index 298f06e..1842790 100644
 +apt.postgresql.org
 +ppa.launchpadcontent.net
 \ No newline at end of file
--- 
+--
 2.43.0

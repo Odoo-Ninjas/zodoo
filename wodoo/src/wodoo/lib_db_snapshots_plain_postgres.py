@@ -1,18 +1,17 @@
-import subprocess
-import click
 import arrow
 from pathlib import Path
 from datetime import datetime
-from .tools import measure_time
 from .tools import exec_file_in_path
 from .cli import Commands
-from .tools import _remove_postgres_connections, _execute_sql
 
 
 def __get_snapshots(config):
     path = Path(config.DUMPS_PATH)
     files = path.glob("*_snapshot_*")
-    return [{'name': x.name, 'date': arrow.get(x.stat().st_mtime).format()} for x in files]
+    return [
+        {"name": x.name, "date": arrow.get(x.stat().st_mtime).format()}
+        for x in files
+    ]
 
 
 def assert_environment(config):

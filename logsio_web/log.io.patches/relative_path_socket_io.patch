@@ -17,9 +17,8 @@ index 32a3e1a..cb234b5 100644
  export const createSocket = (): SocketIOClient.Socket =>
 -  socketIO()
 +  socketIO("", {"path": "/logs_socket_io"})
- 
+
  /**
   * Receives a new input event and adds it to relevant state
--- 
+--
 2.25.1
-

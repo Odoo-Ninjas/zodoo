@@ -8,7 +8,6 @@ import subprocess
 from .tools import abort
 import inquirer
 
-
 APT_CACHER_CONTAINER_NAME = "squid-deb-proxy"
 APT_VOLNAME = APT_CACHER_CONTAINER_NAME + "-data"
 PROXPI_CONTAINER_NAME = "proxpi-cacher"
@@ -22,15 +21,10 @@ def cache(config):
 
 
 def _image_timestamp_stamp(image_name):
-    out = subprocess.check_output([
-                "docker",
-                "image",
-                "ls",
-                "--format",
-                "{{.Repository}}:{{.Tag}}"
-            ],
-            text=True,
-            encoding="utf-8",
+    out = subprocess.check_output(
+        ["docker", "image", "ls", "--format", "{{.Repository}}:{{.Tag}}"],
+        text=True,
+        encoding="utf-8",
     )
     for image in out.splitlines():
         if not image:
@@ -96,7 +90,7 @@ def start_container(
         try:
             subprocess.run(cmd, check=True, cwd=build_path)
         except subprocess.CalledProcessError:
-            subprocess.run(cmd + ['--no-cache'], check=True, cwd=build_path)
+            subprocess.run(cmd + ["--no-cache"], check=True, cwd=build_path)
         image_timestamp2 = _image_timestamp_stamp(image_name)
 
         if image_timestamp != image_timestamp2:
@@ -191,6 +185,7 @@ def create_named_volume(volume_name):
     if not result.stdout.strip():
         subprocess.run(["docker", "volume", "create", volume_name], check=True)
 
+
 # HACKY: the settings are put in the APT CONTAINER, because it is build; the proxpi container
 # is just an image
 def start_squid_proxy(config, empty_setup=False):
@@ -245,7 +240,8 @@ def start_proxpi(config, empty_setup=False):
 @click.pass_context
 def apt_attach(ctx, config):
     subprocess.run(
-        ["docker", "exec", "-it", APT_CACHER_CONTAINER_NAME, "bash"], check=False
+        ["docker", "exec", "-it", APT_CACHER_CONTAINER_NAME, "bash"],
+        check=False,
     )
 
 
@@ -253,14 +249,18 @@ def apt_attach(ctx, config):
 @pass_config
 @click.pass_context
 def proxpi_attach(ctx, config):
-    subprocess.run(["docker", "exec", "-it", PROXPI_CONTAINER_NAME, "bash"], check=False)
+    subprocess.run(
+        ["docker", "exec", "-it", PROXPI_CONTAINER_NAME, "bash"], check=False
+    )
 
 
 @cache.command()
 @pass_config
 @click.pass_context
 def apt_restart(ctx, config):
-    subprocess.run(["docker", "restart", APT_CACHER_CONTAINER_NAME], check=True)
+    subprocess.run(
+        ["docker", "restart", APT_CACHER_CONTAINER_NAME], check=True
+    )
 
 
 @cache.command()
@@ -275,7 +275,9 @@ def pypi_restart(ctx, config):
 @click.pass_context
 def apt_reset(ctx, config):
     click.secho("Removing squid deb proxy with volumes.")
-    subprocess.run(["docker", "rm", "-f", APT_CACHER_CONTAINER_NAME], check=True)
+    subprocess.run(
+        ["docker", "rm", "-f", APT_CACHER_CONTAINER_NAME], check=True
+    )
     subprocess.run(["docker", "volume", "rm", APT_VOLNAME], check=True)
 
 

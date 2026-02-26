@@ -2,12 +2,10 @@ import traceback
 import socket
 
 import threading
-from datetime import datetime
 from .tools import bashfind
 import json
 import arrow
 import threading
-from tabulate import tabulate
 import time
 import collections
 import grp
@@ -67,8 +65,12 @@ def composer(config):
 
 
 @composer.command()
-@click.option("-f", "--full", is_flag=True, help="Otherwise environment is shortened.")
-@click.argument("service-name", required=False, shell_complete=_shell_complete_services)
+@click.option(
+    "-f", "--full", is_flag=True, help="Otherwise environment is shortened."
+)
+@click.argument(
+    "service-name", required=False, shell_complete=_shell_complete_services
+)
 @pass_config
 @click.pass_context
 def config(ctx, config, service_name, full=True):
@@ -131,7 +133,9 @@ def _get_arch():
     "--additional_config_raw",
     help="like ODOO_DEMO=1;RUN_PROXY=0; you can pass internally a 'dict' here, which is converted",
 )
-@click.option("--images-url", help="default: https://github.com/marcwimmer/odoo")
+@click.option(
+    "--images-url", help="default: https://github.com/marcwimmer/odoo"
+)
 @click.option("--no-gimera-apply", is_flag=True)
 @click.option(
     "--docker-compose",
@@ -160,12 +164,16 @@ def do_reload(
     from .module_tools import NotInAddonsPath
 
     if headless and proxy_port:
-        click.secho(("Proxy Port and headless together not compatible."), fg="red")
+        click.secho(
+            ("Proxy Port and headless together not compatible."), fg="red"
+        )
         sys.exit(-1)
 
     config.TARGETARCH = _get_arch()
 
-    click.secho(f"Current Project Name: {config.project_name}", bold=True, fg="green")
+    click.secho(
+        f"Current Project Name: {config.project_name}", bold=True, fg="green"
+    )
     SETTINGS_FILE = config.files.get("settings")
     if SETTINGS_FILE and SETTINGS_FILE.exists():
         SETTINGS_FILE.unlink()
@@ -177,7 +185,9 @@ def do_reload(
             additional_config_text = base64.b64decode(additional_config)
             additional_config_file.write_bytes(additional_config_text)
             additional_config = MyConfigParser(additional_config_file)
-            click.secho(f"Additional config provided in {additional_config_file}:")
+            click.secho(
+                f"Additional config provided in {additional_config_file}:"
+            )
             for line in additional_config_text.decode("utf-8").split("\n"):
                 click.secho("\t" + line)
 
@@ -248,7 +258,9 @@ def internal_reload(
 ):
     threading.current_thread().config = config
     ensure_project_name(config)
-    additional_docker_configuration_files = additional_docker_configuration_files or []
+    additional_docker_configuration_files = (
+        additional_docker_configuration_files or []
+    )
     defaults = {
         "config": config,
         "db": db,
@@ -286,7 +298,8 @@ def internal_reload(
             del addconfig
 
         if defaults:
-            click.secho(f"Additional config: {defaults}")
+            if config.verbose:
+                click.secho(f"Additional config: {defaults}")
 
     ODOO_VERSION = str(MANIFEST()["version"]).split(".")[0]
     KEY_ODOO_VERSION = f"RUN_ODOO_VERSION_{ODOO_VERSION}"
@@ -311,7 +324,8 @@ def internal_reload(
 
     if float(ODOO_VERSION) >= 17.0:
         if any(
-            config.ODOO_PYTHON_VERSION.startswith(x) for x in ["3.9.", "3.8.", "3.7."]
+            config.ODOO_PYTHON_VERSION.startswith(x)
+            for x in ["3.9.", "3.8.", "3.7."]
         ):
             abort("Invalid python version - needs at least 3.10")
 
@@ -323,7 +337,9 @@ def _tweak_config(ODOO_VERSION, config):
     PIP_OPTIONS_BASE = "--no-cache-dir --no-build-isolation "
     PIP_OPTION_NO_BUILDISOL = "--no-cache-dir --no-build-isolation "
     PIP_OPTION_INDEX_URL = f" --index-url http://{config.PIP_PROXY_IP}/index --trusted-host {config.PIP_PROXY_IP} "
-    if settings.get("PIP_PROXY_IP") == "ignore" or not settings.get("PIP_PROXY_IP"):
+    if settings.get("PIP_PROXY_IP") == "ignore" or not settings.get(
+        "PIP_PROXY_IP"
+    ):
         settings["PIP_OPTIONS"] = PIP_OPTIONS_BASE + PIP_OPTION_NO_BUILDISOL
         settings["PIP_OPTIONS_NO_BUILDISOLATION"] = PIP_OPTIONS_BASE
     else:
@@ -399,23 +415,25 @@ def _do_compose(
     """
     from .settings import _export_settings
 
-    rows = []
-    headers = ["Name", "Value"]
-    rows.append(("project-name", config.project_name))
-    rows.append(("cwd", os.getcwd()))
-    rows.append(("whoami", whoami()))
-    rows.append(("run-dir", config.dirs["run"]))
-    rows.append(("cmd", " ".join(sys.argv)))
-    if config.restrict:
-        for file in config.restrict:
-            rows.append(("restrict to", file))
-            del file
+    # rows = []
+    # headers = ["Name", "Value"]
+    # rows.append(("project-name", config.project_name))
+    # rows.append(("cwd", os.getcwd()))
+    # rows.append(("whoami", whoami()))
+    # rows.append(("run-dir", config.dirs["run"]))
+    # rows.append(("cmd", " ".join(sys.argv)))
+    # if config.restrict:
+    #     for file in config.restrict:
+    #         rows.append(("restrict to", file))
+    #         del file
 
-    click.secho(tabulate(rows, headers, tablefmt="fancy_grid"), fg="yellow")
+    # click.secho(tabulate(rows, headers, tablefmt="fancy_grid"), fg="yellow")
 
     defaults = {}
     _set_defaults(config, defaults)
-    setup_settings_file(ctx, config, db, demo, ODOO_VERSION=ODOO_VERSION, **defaults)
+    setup_settings_file(
+        ctx, config, db, demo, ODOO_VERSION=ODOO_VERSION, **defaults
+    )
     _export_settings(config, forced_values)
 
     _prepare_filesystem(config)
@@ -426,7 +444,9 @@ def _do_compose(
         config, additional_docker_configuration_files
     )
     _merge_odoo_dockerfile(config)
-    _copy_all_dockerfiles_to_run_dir_and_set_dockerfile_in_dockercompose(config)
+    _copy_all_dockerfiles_to_run_dir_and_set_dockerfile_in_dockercompose(
+        config
+    )
 
     _fix_dockercompose_config(config)
 
@@ -434,12 +454,16 @@ def _do_compose(
 
     _copy_wodoo_src(ctx, config)
 
-    click.echo(f"Built the docker-compose file: {config.files['docker_compose']}")
+    click.secho(
+        f"Built the docker-compose file: {config.files['docker_compose']}",
+        fg="green",
+    )
+
 
 def _copy_wodoo_src(ctx, config):
     src = current_dir.parent
     dest = config.dirs["run.build.odoo"] / "wodoo_src"
-    sync_folder(src, dest, excludes=['.git'])
+    sync_folder(src, dest, excludes=[".git"])
 
 
 def _fix_dockercompose_config(config):
@@ -462,8 +486,6 @@ def _copy_all_dockerfiles_to_run_dir_and_set_dockerfile_in_dockercompose(
     config,
 ):
     import yaml
-
-    from .myconfigparser import MyConfigParser
 
     content = config.files["docker_compose"].read_text()
     content = yaml.safe_load(content)
@@ -503,6 +525,7 @@ def _copy_all_dockerfiles_to_run_dir_and_set_dockerfile_in_dockercompose(
     content = _yamldump(content)
     config.files["docker_compose"].write_text(content)
 
+
 def _remove_if_lines(config, dockerfilecontent):
     # lines marked with comments like ...... # zodoo-if: DISABLE_VERIFY_PEER_HOST
     lines = dockerfilecontent.splitlines()
@@ -511,19 +534,21 @@ def _remove_if_lines(config, dockerfilecontent):
         if "# zodoo-if:" in line:
             condition = line.split("# zodoo-if:")[1].strip()
             value = getattr(config, condition.lower(), None)
-            value = value not in ["0", 0, "false", False, None, '']
+            value = value not in ["0", 0, "false", False, None, ""]
             if not value:
                 continue
         lines2.append(line)
     return "\n".join(lines2)
 
+
 def _replace_docker_snippets(config, dockerfilecontent):
     counter = 0
     plain_snippets = {}
     for snippet in (config.dirs["images"] / "common_snippets").glob("*"):
-        content = '\n'.join(remove_comments_not_snippets(snippet.read_text().splitlines()))
+        content = "\n".join(
+            remove_comments_not_snippets(snippet.read_text().splitlines())
+        )
         plain_snippets[snippet.name.upper()] = content
-
 
     while "#___SNIPPET" in dockerfilecontent:
         counter += 1
@@ -537,8 +562,12 @@ def _replace_docker_snippets(config, dockerfilecontent):
                 map(str, re.findall(r"#___SNIPPET_.*", dockerfilecontent))
             )
             raise RecursionError(f"Not resolved or endless loop: ", snippets)
-    dockerfilecontent = dockerfilecontent.replace("___PROJECTNAME___", "___PROJECT_NAME___")
-    dockerfilecontent = dockerfilecontent.replace("___PROJECT_NAME___", config.project_name)
+    dockerfilecontent = dockerfilecontent.replace(
+        "___PROJECTNAME___", "___PROJECT_NAME___"
+    )
+    dockerfilecontent = dockerfilecontent.replace(
+        "___PROJECT_NAME___", config.project_name
+    )
     return dockerfilecontent
 
 
@@ -708,7 +737,9 @@ def _execute_after_compose(config, yml):
 
                 duration = (arrow.get() - started).total_seconds()
                 if duration > 2 and config.verbose:
-                    click.secho(f"Processing took {module} seconds", fg="yellow")
+                    click.secho(
+                        f"Processing took {module} seconds", fg="yellow"
+                    )
 
     settings.write()
     return yml
@@ -763,9 +794,9 @@ def _prepare_yml_files_from_template_files(
             for file in bashfind(dir, "docker-compose*.yml"):
                 ignore = False
                 if dir == customs_dir:
-                    ignore = str(file.relative_to(customs_dir)) in manifest.get(
-                        "ignore_compose_files", []
-                    )
+                    ignore = str(
+                        file.relative_to(customs_dir)
+                    ) in manifest.get("ignore_compose_files", [])
 
                 if not ignore:
                     _files.append(file)
@@ -808,7 +839,9 @@ def _prepare_yml_files_from_template_files(
     _files = _files2
     del _files2
 
-    _prepare_docker_compose_files(config, config.files["docker_compose"], _files)
+    _prepare_docker_compose_files(
+        config, config.files["docker_compose"], _files
+    )
 
 
 def __resolve_custom_merge(whole_content, value):
@@ -840,7 +873,10 @@ def __get_sorted_contents(paths):
             order = "99999999"
         else:
             order = (
-                content.split("manage-order")[1].split("\n")[0].replace(":", "").strip()
+                content.split("manage-order")[1]
+                .split("\n")[0]
+                .replace(":", "")
+                .strip()
             )
         order = int(order)
 
@@ -867,7 +903,9 @@ def __set_environment_in_services(content):
 
         file = "$HOST_RUN_DIR/settings"
         if not [x for x in service["env_file"] if x == file]:
-            if service.get("labels", {}).get("odoo_framework.apply_env", "1") not in [
+            if service.get("labels", {}).get(
+                "odoo_framework.apply_env", "1"
+            ) not in [
                 0,
                 "0",
                 "false",
@@ -901,7 +939,9 @@ def post_process_complete_yaml_config(config, yml):
 
     # set container name to service name (to avoid dns names with _1)
     for service in yml["services"]:
-        yml["services"][service]["container_name"] = f"{config.project_name}_{service}"
+        yml["services"][service][
+            "container_name"
+        ] = f"{config.project_name}_{service}"
         # yml['services'][service]['hostname'] = service # otherwise odoo pgcli does not work
 
     # set label from configuration settings starting with DOCKER_LABEL=123
@@ -933,8 +973,10 @@ def __run_docker_compose_config(config, contents, env):
         for i, content in enumerate(contents):
             file_path = temp_path / f"docker-compose-{str(i).zfill(5)}.yml"
             for service in content.get("services", []) or {}:
-                content['services'][service].setdefault("profiles", ["auto"])
-                for profile in content["services"][service].get("profiles", []):
+                content["services"][service].setdefault("profiles", ["auto"])
+                for profile in content["services"][service].get(
+                    "profiles", []
+                ):
                     all_profiles.add(profile)
 
             file_content = _yamldump(content)
@@ -987,7 +1029,9 @@ def __run_docker_compose_config(config, contents, env):
                 cmdline2 = buildcmd(files[: i + 1])
                 try:
                     click.secho(f"Testing {file}...", fg="green")
-                    conf = subprocess.check_output(cmdline2, cwd=temp_path, env=d)
+                    conf = subprocess.check_output(
+                        cmdline2, cwd=temp_path, env=d
+                    )
                 except:
                     click.secho(f"{file}:\n", fg="yellow")
                     click.secho(file.read_text())
@@ -1064,10 +1108,11 @@ def _prepare_docker_compose_files(config, dest_file, paths):
     env = dict(map(lambda k: (k, myconfig.get(k)), myconfig.keys()))
 
     paths = list(filter(lambda x: _use_file(config, x), paths))
-    click.secho(f"\nUsing docker-compose files:", fg="green", bold=True)
-    for path in paths:
-        click.secho(str(path), fg="green")
-        del path
+    if config.verbose:
+        click.secho(f"\nUsing docker-compose files:", fg="green", bold=True)
+        for path in paths:
+            click.secho(str(path), fg="green")
+            del path
 
     # make one big compose file
     contents = __get_sorted_contents(paths)
@@ -1178,7 +1223,9 @@ def _apply_variables(config, contents, env):
     import yaml
 
     # add static yaml content to each machine
-    default_network = yaml.safe_load(config.files["config/default_network"].read_text())
+    default_network = yaml.safe_load(
+        config.files["config/default_network"].read_text()
+    )
 
     # extract further networks
     for content in contents:
@@ -1235,7 +1282,9 @@ def toggle_settings(ctx, config):
     questions = [
         inquirer.Checkbox(
             "run",
-            message="What services to run? {}/{}".format(config.customs, config.dbname),
+            message="What services to run? {}/{}".format(
+                config.customs, config.dbname
+            ),
             choices=choices,
             default=default,
         )
@@ -1391,17 +1440,23 @@ def _merge_odoo_dockerfile(config):
         if "odoo/images/odoo" in dockerfile:
             shutil.copy(dockerfile, config.files["odoo_docker_file"])
             dockerfile1 = dockerfile
-            service["build"]["dockerfile"] = str(config.files["odoo_docker_file"])
+            service["build"]["dockerfile"] = str(
+                config.files["odoo_docker_file"]
+            )
         del dockerfile
     content = _yamldump(content)
     config.files["docker_compose"].write_text(content)
 
     # copy dockerfile to new location
     if dockerfile1:
-        click.secho(f"Copying {dockerfile1} to {config.files['odoo_docker_file']}")
+        click.secho(
+            f"Copying {dockerfile1} to {config.files['odoo_docker_file']}"
+        )
         dockerfilecontent = Path(dockerfile1).read_text()
         config.files["odoo_docker_file"].write_text(dockerfilecontent)
-        appendix_dir_root = config.dirs["run.build.odoo"] / "Dockerfile.appendix.dir"
+        appendix_dir_root = (
+            config.dirs["run.build.odoo"] / "Dockerfile.appendix.dir"
+        )
         if appendix_dir_root.exists():
             shutil.rmtree(appendix_dir_root)
 
@@ -1474,50 +1529,59 @@ def _complete_setting_name(ctx, param, incomplete):
 
     res = set([x["name"].strip() for x in params])
     if incomplete:
-        res = list(filter(lambda x: x.lower().startswith(incomplete.lower()), res))
+        res = list(
+            filter(lambda x: x.lower().startswith(incomplete.lower()), res)
+        )
     return sorted(res)
 
 
 @composer.command()
 @pass_config
 @click.pass_context
-@click.argument("settings", required=False, shell_complete=_complete_setting_name, nargs=-1)
+@click.argument(
+    "settings", required=False, shell_complete=_complete_setting_name, nargs=-1
+)
 @click.option("-R", "--no-reload", is_flag=True)
-@click.option("-u", "--user-wide", is_flag=True, help="updates ~/.odoo/settings")
-@click.option("-s", "--system-wide", is_flag=True, help="updates /etc/odoo/settings")
+@click.option(
+    "-u", "--user-wide", is_flag=True, help="updates ~/.odoo/settings"
+)
+@click.option(
+    "-s", "--system-wide", is_flag=True, help="updates /etc/odoo/settings"
+)
 def setting(ctx, config, settings, no_reload, user_wide, system_wide):
     from .myconfigparser import MyConfigParser
 
     if user_wide:
-        file = config.files['user_settings']
+        file = config.files["user_settings"]
     elif system_wide:
-        file = config.files['system_settings']
+        file = config.files["system_settings"]
     else:
         file = None
 
-
     settings_dict = {}
+
     def _parse_settings():
         mode = None
         for setting in settings:
             value = None
             try:
                 key, value = setting.split("=", 1)
-                if mode and mode != 'write':
+                if mode and mode != "write":
                     raise abort("Cannot  readonly and writeonly settings.")
-                mode = 'write'
+                mode = "write"
 
             except ValueError:
                 key = setting
-                if mode and mode != 'readonly':
+                if mode and mode != "readonly":
                     raise abort("Cannot  readonly and writeonly settings.")
-                mode = 'readonly'
+                mode = "readonly"
                 settings_dict[key] = None
             key = key.strip()
             if value:
                 value = value.strip()
             settings_dict[key] = value
         return mode
+
     mode = _parse_settings()
 
     if not settings_dict:
@@ -1535,14 +1599,16 @@ def setting(ctx, config, settings, no_reload, user_wide, system_wide):
 
     _tune_settings()
 
-    if mode == 'readonly' or mode is None:
-        configparser = MyConfigParser(file or config.files['settings'])
+    if mode == "readonly" or mode is None:
+        configparser = MyConfigParser(file or config.files["settings"])
         for k in sorted(configparser.keys()):
             if any(name.lower() in k.lower() for name in settings_dict.keys()):
                 click.secho(f"{k}={configparser[k]}")
-    elif mode == 'write':
+    elif mode == "write":
         for key, value in settings_dict.items():
-            update_setting(config, key, value, null=value is None, setting_file=file)
+            update_setting(
+                config, key, value, null=value is None, setting_file=file
+            )
             click.secho(f"{key}={value}", fg="green")
         if not no_reload:
             ctx.invoke(do_reload)
@@ -1605,7 +1671,9 @@ def queuejob_channels(ctx, config, name, amount):
     channels = content.split(",")
 
     if name:
-        channels = list(filter(lambda x: x.strip().split(":")[0] != name, channels))
+        channels = list(
+            filter(lambda x: x.strip().split(":")[0] != name, channels)
+        )
         channels.append(f"{name}:{amount}")
         file.write_text(",".join(channels))
         click.secho("Now restart the queuejob container", fg="yellow")
@@ -1659,7 +1727,7 @@ def final_notes(config):
     if on_osx() or on_windows_wsl():
         if not config.dirs["pyenv"].exists():
             click.secho(
-                "\nPlease setup your local python environment with pyenv to debug locally.\nRun:",
+                "\nPlease setup your local python environment with pyenv to debug locally.\n",
                 fg="yellow",
             )
             click.secho("odoo setup-pyenv", fg="green", bold=True)
@@ -1695,44 +1763,51 @@ def setup_launch_json(config):
         map(lambda x: f"${{workspaceFolder}}/{x}", manifest["addons_paths"])
     )
     HOME = os.getenv("HOME")
-    server_wide_modules = ",".join(manifest.get("server_wide_modules", [])) or 'web'
+    server_wide_modules = (
+        ",".join(manifest.get("server_wide_modules", [])) or "web"
+    )
     from .myconfigparser import MyConfigParser  # NOQA
+
     myconfig = MyConfigParser(config.files["settings"])
 
     for debugconfig in template["configurations"]:
         args = {
             "--database": config.dbname,
-            "--db_host":db_host,
-            "--db_port":db_port,
-            "--db_user":config.DB_USER,
-            "--db_password":config.DB_PWD,
+            "--db_host": db_host,
+            "--db_port": db_port,
+            "--db_user": config.DB_USER,
+            "--db_password": config.DB_PWD,
             "--addons-path": addons_path,
-            "--workers":0,
+            "--workers": 0,
             "--max-cron-threads": 0,
             "--data-dir": f"{HOME}/.odoo/files",
-            "--load":server_wide_modules,
+            "--load": server_wide_modules,
         }
-        lines = debugconfig['args']
-        debugconfig['args'] = []
+        lines = debugconfig["args"]
+        debugconfig["args"] = []
         for line in lines:
             for k in myconfig.keys():
                 line = line.replace(f"{{{k}}}", myconfig.get(k))
-            debugconfig['args'].append(line)
-        for k,v in args.items():
-            lines = [x for x in debugconfig['args'] if not x.startswith(k + "=")]
+            debugconfig["args"].append(line)
+        for k, v in args.items():
+            lines = [
+                x for x in debugconfig["args"] if not x.startswith(k + "=")
+            ]
             lines.append(f"{k}={v}")
-            debugconfig['args'] = lines
+            debugconfig["args"] = lines
         debugconfig["python"] = str(config.dirs["pyenv"] / "bin/python3")
-        serverReadyAction = debugconfig.get('serverReadyAction')
+        serverReadyAction = debugconfig.get("serverReadyAction")
         if serverReadyAction:
-            serverReadyAction['uriFormat'] = serverReadyAction['uriFormat'].replace(
-                "xxxx", str(config.DEBUG_PORT)
-            )
+            serverReadyAction["uriFormat"] = serverReadyAction[
+                "uriFormat"
+            ].replace("xxxx", str(config.DEBUG_PORT))
 
     for taskconfig in template["tasks"]:
-        cmd = taskconfig['command']
+        cmd = taskconfig["command"]
+
         def b(var):
             return "1" if var else "0"
+
         cmd = f"RUN_POSTGRES={b(config.run_postgres)} {cmd}"
         cmd = f"ON_OSX={b(on_osx())} {cmd}"
         cmd = f"ON_WINDOWS_WSL={b(on_windows_wsl())} {cmd}"
@@ -1745,7 +1820,8 @@ def setup_launch_json(config):
 
     content["configurations"] = [
         x
-        for x in content.get("configurations")        if x.get("name") not in template_config_names
+        for x in content.get("configurations")
+        if x.get("name") not in template_config_names
     ]
     content_task["tasks"] = [
         x
@@ -1760,21 +1836,22 @@ def setup_launch_json(config):
     setup_vscode_settings(config)
     click.secho(f"VSCode launch.json updated at {launch_json}", fg="green")
 
+
 def setup_vscode_settings(config):
     parent_dir = Path(config.customs_dir) / ".vscode"
     parent_dir.mkdir(parents=True, exist_ok=True)
 
-    file = parent_dir / 'settings.json'
+    file = parent_dir / "settings.json"
     if file.exists():
         content = load_json(file.read_text())
     else:
         content = {}
-    content['python.analysis.extraPaths'] = []
+    content["python.analysis.extraPaths"] = []
     manifest = MANIFEST()
     root = "${workspaceFolder}"
-    content['python.analysis.extraPaths'].append(root)
-    for path in manifest['addons_paths']:
-        content['python.analysis.extraPaths'].append(f"{root}/{path}")
+    content["python.analysis.extraPaths"].append(root)
+    for path in manifest["addons_paths"]:
+        content["python.analysis.extraPaths"].append(f"{root}/{path}")
     file.write_text(json.dumps(content, indent=4))
 
 

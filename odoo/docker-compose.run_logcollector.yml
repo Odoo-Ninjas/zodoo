@@ -10,5 +10,5 @@ services:
         #fluentd-address: fluentd:24224
         fluentd-address: unix://$HOME/.fluentd.sock.$PROJECT_NAME/sock
         #fluentd-address: unix://var/lib/docker/volumes/${PROJECT_NAME}_fluentd_socket/_data/sock
-        fluentd-async: 'true'
+        fluentd-async: "true"
         tag: odoo.log.__SERVICE__

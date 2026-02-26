@@ -55,7 +55,7 @@ firefox 4.0b9 - no WebSockets
     Minimum Latency:                  7.00
     Maximum Latency:                  75.00
 
-    - First 1000 sent in 13 seconds 
+    - First 1000 sent in 13 seconds
     - Second 1000 sent in 12 seconds
     - Third 1000 sent in 12 seconds
 
@@ -111,4 +111,3 @@ Opera 11 - no Websockets
 
     - average starts at around 290ms
     - time for each 1000 packets: 23s, 38s, 65s
-

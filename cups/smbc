@@ -50,4 +50,3 @@ echo "$errtxt" | grep -i 'BAD_NETWORK_NAME' >/dev/null && return 4
 
 # success! -> CUPS_BACKEND_OK
 return 0
-

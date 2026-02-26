@@ -1,1 +1,91 @@
-[{"package": "pyyaml", "version": "5.4.1", "deps": []}, {"package": "arrow", "version": "1.2.0", "deps": [{"package": "python-dateutil", "version": "2.8.2"}, {"package": "six", "version": "1.16.0"}]}, {"package": "click", "version": "8.0.1", "deps": []}, {"package": "click-default-group", "version": "1.2.2", "deps": [{"package": "click", "version": "8.0.1"}]}, {"package": "pathlib", "version": "1.0.1", "deps": []}, {"package": "inquirer", "version": "2.7.0", "deps": [{"package": "readchar", "version": "2.0.1"}, {"package": "wcwidth", "version": "0.2.5"}, {"package": "six", "version": "1.16.0"}, {"package": "python-editor", "version": "1.0.4"}, {"package": "blessed", "version": "1.17.6"}]}, {"package": "retrying", "version": "1.3.3", "deps": [{"package": "six", "version": "1.16.0"}]}, {"package": "humanize", "version": "3.12.0", "deps": [{"package": "setuptools", "version": "45.2.0"}]}, {"package": "passlib", "version": "1.7.4", "deps": []}, {"package": "tabulate", "version": "0.8.9", "deps": []}, {"package": "psycopg2-binary", "version": "2.9.1", "deps": []}, {"package": "requests", "version": "2.22.0", "deps": []}, {"package": "lxml", "version": "4.6.3", "deps": []}, {"package": "psutil", "version": "5.8.0", "deps": []}, {"package": "gitpython", "version": "3.1.17", "deps": [{"package": "smmap", "version": "4.0.0"}, {"package": "gitdb", "version": "4.0.7"}]}, {"package": "docker-compose", "version": "1.27.3", "deps": [{"package": "distro", "version": "1.5.0"}, {"package": "requests", "version": "2.22.0"}, {"package": "docopt", "version": "0.6.2"}, {"package": "pyyaml", "version": "5.4.1"}, {"package": "bcrypt", "version": "3.2.0"}, {"package": "docker", "version": "4.4.4"}, {"package": "pynacl", "version": "1.3.0"}, {"package": "cached-property", "version": "1.5.2"}, {"package": "jsonschema", "version": "3.2.0"}, {"package": "python-dotenv", "version": "0.19.0"}, {"package": "six", "version": "1.16.0"}, {"package": "cryptography", "version": "2.8"}, {"package": "dockerpty", "version": "0.4.1"}, {"package": "websocket-client", "version": "0.59.0"}, {"package": "pycparser", "version": "2.20"}, {"package": "texttable", "version": "1.6.4"}, {"package": "cffi", "version": "1.14.6"}]}, {"package": "iscompatible", "version": "0.1.1", "deps": []}, {"package": "buttervolume", "version": "3.7", "deps": [{"package": "waitress", "version": "2.0.0"}, {"package": "beautifulsoup4", "version": "4.10.0"}, {"package": "soupsieve", "version": "2.2.1"}, {"package": "webtest", "version": "3.0.0"}, {"package": "bottle", "version": "0.12.19"}, {"package": "webob", "version": "1.8.7"}, {"package": "urllib3", "version": "1.25.8"}, {"package": "requests-unixsocket", "version": "0.2.0"}]}]
+[
+  { "package": "pyyaml", "version": "5.4.1", "deps": [] },
+  {
+    "package": "arrow",
+    "version": "1.2.0",
+    "deps": [
+      { "package": "python-dateutil", "version": "2.8.2" },
+      { "package": "six", "version": "1.16.0" }
+    ]
+  },
+  { "package": "click", "version": "8.0.1", "deps": [] },
+  {
+    "package": "click-default-group",
+    "version": "1.2.2",
+    "deps": [{ "package": "click", "version": "8.0.1" }]
+  },
+  { "package": "pathlib", "version": "1.0.1", "deps": [] },
+  {
+    "package": "inquirer",
+    "version": "2.7.0",
+    "deps": [
+      { "package": "readchar", "version": "2.0.1" },
+      { "package": "wcwidth", "version": "0.2.5" },
+      { "package": "six", "version": "1.16.0" },
+      { "package": "python-editor", "version": "1.0.4" },
+      { "package": "blessed", "version": "1.17.6" }
+    ]
+  },
+  {
+    "package": "retrying",
+    "version": "1.3.3",
+    "deps": [{ "package": "six", "version": "1.16.0" }]
+  },
+  {
+    "package": "humanize",
+    "version": "3.12.0",
+    "deps": [{ "package": "setuptools", "version": "45.2.0" }]
+  },
+  { "package": "passlib", "version": "1.7.4", "deps": [] },
+  { "package": "tabulate", "version": "0.8.9", "deps": [] },
+  { "package": "psycopg2-binary", "version": "2.9.1", "deps": [] },
+  { "package": "requests", "version": "2.22.0", "deps": [] },
+  { "package": "lxml", "version": "4.6.3", "deps": [] },
+  { "package": "psutil", "version": "5.8.0", "deps": [] },
+  {
+    "package": "gitpython",
+    "version": "3.1.17",
+    "deps": [
+      { "package": "smmap", "version": "4.0.0" },
+      { "package": "gitdb", "version": "4.0.7" }
+    ]
+  },
+  {
+    "package": "docker-compose",
+    "version": "1.27.3",
+    "deps": [
+      { "package": "distro", "version": "1.5.0" },
+      { "package": "requests", "version": "2.22.0" },
+      { "package": "docopt", "version": "0.6.2" },
+      { "package": "pyyaml", "version": "5.4.1" },
+      { "package": "bcrypt", "version": "3.2.0" },
+      { "package": "docker", "version": "4.4.4" },
+      { "package": "pynacl", "version": "1.3.0" },
+      { "package": "cached-property", "version": "1.5.2" },
+      { "package": "jsonschema", "version": "3.2.0" },
+      { "package": "python-dotenv", "version": "0.19.0" },
+      { "package": "six", "version": "1.16.0" },
+      { "package": "cryptography", "version": "2.8" },
+      { "package": "dockerpty", "version": "0.4.1" },
+      { "package": "websocket-client", "version": "0.59.0" },
+      { "package": "pycparser", "version": "2.20" },
+      { "package": "texttable", "version": "1.6.4" },
+      { "package": "cffi", "version": "1.14.6" }
+    ]
+  },
+  { "package": "iscompatible", "version": "0.1.1", "deps": [] },
+  {
+    "package": "buttervolume",
+    "version": "3.7",
+    "deps": [
+      { "package": "waitress", "version": "2.0.0" },
+      { "package": "beautifulsoup4", "version": "4.10.0" },
+      { "package": "soupsieve", "version": "2.2.1" },
+      { "package": "webtest", "version": "3.0.0" },
+      { "package": "bottle", "version": "0.12.19" },
+      { "package": "webob", "version": "1.8.7" },
+      { "package": "urllib3", "version": "1.25.8" },
+      { "package": "requests-unixsocket", "version": "0.2.0" }
+    ]
+  }
+]

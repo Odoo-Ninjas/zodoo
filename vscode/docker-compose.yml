@@ -36,7 +36,7 @@ services:
       ROBO_WEBDRIVER_KILL_SWITCH: curl http://seleniumvnc:4445/restart
 
       SELENIUM_TIMEOUT: 15
-      CURRENT_HOST_RUN_DIR: /home/user1/.odoo/run/current 
+      CURRENT_HOST_RUN_DIR: /home/user1/.odoo/run/current
       VSCODE_PERMA_EXTENSIONS_FOLDER: /home/user1/.odoo/run/current/vscode-perma-extensions
       VSIX_DIR: /opt/vsix
     volumes:

@@ -4,4 +4,3 @@ create table console_log (
     line character varying,
     tag character varying
 );
-

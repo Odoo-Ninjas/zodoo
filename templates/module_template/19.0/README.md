@@ -1,6 +1,5 @@
-#1 ___module_name___
+#1 **_module_name_**
 
 #2 Contributors
 
-* Author <email@domain.de>
-
+- Author <email@domain.de>

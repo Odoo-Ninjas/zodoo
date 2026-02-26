@@ -1,5 +1,5 @@
 local incoming_headers = ngx.req.get_headers()
-local request_proto = 
+local request_proto =
     incoming_headers["x-forwarded-proto"]
     or ngx.var.http_x_forwarded_proto   -- Nginx var (if set by previous hop)
     or "http"

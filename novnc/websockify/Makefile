@@ -8,4 +8,3 @@ rebind.so: rebind.o
 
 clean:
 	rm -f rebind.o rebind.so
-

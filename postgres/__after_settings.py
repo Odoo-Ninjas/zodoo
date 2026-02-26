@@ -1,11 +1,3 @@
-import random
-import stat
-import os
-import platform
-from pathlib import Path
-import inspect
-
-
 def after_settings(settings, config):
     if settings.get("USE_DOCKER", "1") == "0":
         settings["RUN_POSTGRES"] = "0"

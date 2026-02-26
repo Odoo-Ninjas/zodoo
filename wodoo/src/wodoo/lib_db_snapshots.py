@@ -25,7 +25,7 @@ def _setup_manager(config):
     elif ttype == "btrfs":
         from . import lib_db_snapshots_docker_btrfs as snapshot_manager
     elif config.RUN_POSTGRES:
-         from . import lib_db_snapshots_postgres_container as snapshot_manager
+        from . import lib_db_snapshots_postgres_container as snapshot_manager
     else:
         from . import lib_db_snapshots_plain_postgres as snapshot_manager
     config.__choose_snapshot = __choose_snapshot

@@ -10,4 +10,3 @@ Authors
 ------------
 
 * Marc Wimmer <marc@zebroo.de>
-

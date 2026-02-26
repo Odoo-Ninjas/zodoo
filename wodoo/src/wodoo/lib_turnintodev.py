@@ -2,12 +2,10 @@ import traceback
 import arrow
 import re
 import click
-from .tools import remove_webassets
 from .tools import _execute_sql
 from .cli import cli, pass_config, Commands
 from .lib_clickhelpers import AliasedGroup
 from .tools import __hash_odoo_password
-from .tools import __verify_password
 from .tools import __replace_all_envs_in_str
 from .tools import _update_setting
 from .tools import abort
@@ -101,17 +99,18 @@ def __collect_other_turndb2dev_sql():
     for file in manifest.get("neutralize", []):
         if not file.endswith(".sql"):
             raise NotImplementedError(file.name)
-        sqls.append({'file': cdir / file, 'mode': 'plain'})
+        sqls.append({"file": cdir / file, "mode": "plain"})
 
     if dir.exists():
         for file in dir.glob("turn-into-dev.sql"):
-            sqls.append({'file': file, 'mode': 'plain'})
+            sqls.append({"file": file, "mode": "plain"})
     return sqls
 
 
 def __turn_into_devdb(ctx, config, conn):
     from .odoo_config import current_version
     from .myconfigparser import MyConfigParser
+
     started = datetime.now()
 
     sql_file = (
@@ -121,23 +120,23 @@ def __turn_into_devdb(ctx, config, conn):
         / str(int(current_version()))
         / "turndb2dev.sql"
     )
-    sqls = [{'file': sql_file, 'mode': 'linebyline'}]
+    sqls = [{"file": sql_file, "mode": "linebyline"}]
 
     sqls += __collect_other_turndb2dev_sql()
 
     for sqlfile in sqls:
-        sql = sqlfile['file'].read_text()
-        mode = sqlfile['mode']
-        if mode not in ['linebyline', 'plain']:
+        sql = sqlfile["file"].read_text()
+        mode = sqlfile["mode"]
+        if mode not in ["linebyline", "plain"]:
             raise NotImplementedError(mode)
         myconfig = MyConfigParser(config.files["settings"])
         env = dict(map(lambda k: (k, myconfig.get(k)), myconfig.keys()))
 
-        if mode == 'plain':
-            click.secho(f"executing {sqlfile['file']}", fg='green')
+        if mode == "plain":
+            click.secho(f"executing {sqlfile['file']}", fg="green")
             _execute_sql(conn, sql)
 
-        elif mode == 'linebyline':
+        elif mode == "linebyline":
             __execute_linebyline_sql(conn, sql, env)
         else:
             raise NotImplementedError(mode)
@@ -153,7 +152,10 @@ def __turn_into_devdb(ctx, config, conn):
         value=f"http://localhost:8069",
     )
     seconds = (datetime.now() - started).total_seconds()
-    click.secho(f"Successfully applied neutralization scripts in {seconds} seconds")
+    click.secho(
+        f"Successfully applied neutralization scripts in {seconds} seconds"
+    )
+
 
 def __execute_linebyline_sql(conn, sql, env):
     sql = __replace_all_envs_in_str(sql, env)
@@ -205,7 +207,7 @@ def __execute_linebyline_sql(conn, sql, env):
             ):
                 continue
         try:
-            click.secho(line, fg='green')
+            click.secho(line, fg="green")
             _execute_sql(conn, line)
         except Exception:
             if critical:
@@ -244,9 +246,7 @@ def remove_settings(config, settings):
             DELETE FROM
                 ir_config_parameter
             WHERE key='{}'
-        """.format(
-                setting
-            ),
+        """.format(setting),
         )
 
 

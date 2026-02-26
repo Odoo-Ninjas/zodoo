@@ -89,10 +89,11 @@ class Config(object):
     @project_name.setter
     def project_name(self, value):
         self._project_name = value
-        if os.getenv("DOCKER_HOST_RUN_DIR") and os.getenv("DOCKER_MACHINE") == "1":
-            self.HOST_RUN_DIR = (
-                Path(os.environ["DOCKER_HOST_RUN_DIR"])
-            )
+        if (
+            os.getenv("DOCKER_HOST_RUN_DIR")
+            and os.getenv("DOCKER_MACHINE") == "1"
+        ):
+            self.HOST_RUN_DIR = Path(os.environ["DOCKER_HOST_RUN_DIR"])
         elif self._project_name:
             self.HOST_RUN_DIR = (
                 Path(os.environ["HOME"]) / ".odoo" / "run" / self._project_name
@@ -129,7 +130,7 @@ class Config(object):
 
     @property
     def odoo_version(self):
-        return float(self.manifest['version'])
+        return float(self.manifest["version"])
 
     def __getattribute__(self, name):
         try:
@@ -183,7 +184,6 @@ class Config(object):
 
         host, port, user, password = get_postgres_connection_params(
             force_inside_container=force_inside_container
-
         )
         conn = DBConnection(self.dbname, host, port, user, password)
         return conn

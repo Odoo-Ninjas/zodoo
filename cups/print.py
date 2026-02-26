@@ -5,14 +5,12 @@ import uuid
 import traceback
 import logging
 import sys
-import os
 import cups
-import shutil
 
-FORMAT = '[%(levelname)s] %(name) -12s %(asctime)s %(message)s'
+FORMAT = "[%(levelname)s] %(name) -12s %(asctime)s %(message)s"
 logging.basicConfig(format=FORMAT)
 logging.getLogger().setLevel(logging.DEBUG)
-logger = logging.getLogger('')  # root handler
+logger = logging.getLogger("")  # root handler
 
 assert sys.argv[1]
 assert sys.argv[2]
@@ -29,9 +27,9 @@ while True:
 
         for file in PATH.glob("**/*.pdf"):
             printer_queue = file.parent.name
-            id = str(uuid.uuid4()).replace(u'-', u'')
+            id = str(uuid.uuid4()).replace("-", "")
             conn = cups.Connection()
-            logger.info(u"Printing {} to queue: {}".format(file, printer_queue))
+            logger.info("Printing {} to queue: {}".format(file, printer_queue))
             try:
                 conn.printFile(str(printer_queue), str(file), str(id), {})
                 file.rename(PRINTED / file.name)

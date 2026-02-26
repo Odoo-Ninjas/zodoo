@@ -1,12 +1,10 @@
-docker-mosquitto
-================
+# docker-mosquitto
 
 Docker image for mosquitto
 
 [![Docker Stars](https://img.shields.io/docker/stars/toke/mosquitto.svg)](https://hub.docker.com/r/toke/mosquitto/)
 [![Docker Pulls](https://img.shields.io/docker/pulls/toke/mosquitto.svg)](https://hub.docker.com/r/toke/mosquitto/)
 [![](https://images.microbadger.com/badges/image/toke/mosquitto.svg)](https://microbadger.com/images/toke/mosquitto "Get your own image badge on microbadger.com")
-
 
 ## Run
 
@@ -15,7 +13,6 @@ Docker image for mosquitto
 Exposes Port 1883 (MQTT) 9001 (Websocket MQTT)
 
 ## Running with persistence
-
 
 ### Local directories / External Configuration
 
@@ -77,7 +74,6 @@ The example uses a docker volume named `mosquitto_data` (see above).
     [Install]
     WantedBy=local.target
 
-
 ## Build
 
     git clone https://github.com/toke/docker-mosquitto.git
@@ -95,16 +91,15 @@ easy to migrate to it.
 
 docker-mosquitto was written by:
 
-* **Thomas Kerpe** | [web](https://toke.de/) | [mail](mailto:web@toke.de) | [GitHub](https://github.com/toke/)
-* With contributions from:
- * [Andrea Pinazzi](https://github.com/onip)
- * [m0se](https://github.com/m0se)
- * [David Medinets](https://github.com/medined)
- * [Gavin de Kock](https://github.com/gavindekock)
- * [Raphael Ahrens](https://github.com/tantSinnister)
+- **Thomas Kerpe** | [web](https://toke.de/) | [mail](mailto:web@toke.de) | [GitHub](https://github.com/toke/)
+- With contributions from:
+- [Andrea Pinazzi](https://github.com/onip)
+- [m0se](https://github.com/m0se)
+- [David Medinets](https://github.com/medined)
+- [Gavin de Kock](https://github.com/gavindekock)
+- [Raphael Ahrens](https://github.com/tantSinnister)
 
 License: [BSD 3-Clause](https://tldrlegal.com/license/bsd-3-clause-license-%28revised%29)
-
 
 ## Contact
 

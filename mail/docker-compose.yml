@@ -1,12 +1,12 @@
 # manage-order: 5000
-version: '3.3'
+version: "3.3"
 volumes:
   mailstorage:
   mailsqlite:
 
 services:
   mail:
-    build: 
+    build:
       context: $ODOO_IMAGES/mail
 
     profiles:
@@ -17,7 +17,7 @@ services:
       - $ODOO_IMAGES/mail/bin:/opt/bin
 
   roundcube:
-    build: 
+    build:
       context: $ODOO_IMAGES/roundcube
     labels:
       proxy_config: ${ODOO_IMAGES}/roundcube/proxy/roundcube.conf

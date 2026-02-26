@@ -5,7 +5,7 @@
  *
  * Overload (LD_PRELOAD) bind system call. If REBIND_PORT_OLD and
  * REBIND_PORT_NEW environment variables are set then bind on the new
- * port (of localhost) instead of the old port. 
+ * port (of localhost) instead of the old port.
  *
  * This allows a bridge/proxy (such as websockify) to run on the old port and
  * translate traffic to/from the new port.

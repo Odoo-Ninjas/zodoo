@@ -1,5 +1,5 @@
 #manage-order: 5000
-version: '3.3'
+version: "3.3"
 volumes:
   libreoffice_exchange:
 
@@ -18,4 +18,4 @@ services:
       LIBREOFFICE_SEND: /opt/libreoffice/1
       LIBREOFFICE_RECEIVE: /opt/libreoffice/2
     depends_on:
-        - libreoffice
+      - libreoffice

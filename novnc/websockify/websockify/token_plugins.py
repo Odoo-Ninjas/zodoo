@@ -8,7 +8,7 @@ import json
 logger = logging.getLogger(__name__)
 
 
-class BasePlugin():
+class BasePlugin:
     def __init__(self, src):
         self.source = src
 
@@ -26,8 +26,9 @@ class ReadOnlyTokenFile(BasePlugin):
 
     def _load_targets(self):
         if os.path.isdir(self.source):
-            cfg_files = [os.path.join(self.source, f) for
-                         f in os.listdir(self.source)]
+            cfg_files = [
+                os.path.join(self.source, f) for f in os.listdir(self.source)
+            ]
         else:
             cfg_files = [self.source]
 
@@ -35,12 +36,15 @@ class ReadOnlyTokenFile(BasePlugin):
         index = 1
         for f in cfg_files:
             for line in [l.strip() for l in open(f).readlines()]:
-                if line and not line.startswith('#'):
+                if line and not line.startswith("#"):
                     try:
-                        tok, target = re.split(':', line)
-                        self._targets[tok] = target.strip().rsplit(':', 1)
+                        tok, target = re.split(":", line)
+                        self._targets[tok] = target.strip().rsplit(":", 1)
                     except ValueError:
-                        logger.error("Syntax error in %s on line %d" % (self.source, index))
+                        logger.error(
+                            "Syntax error in %s on line %d"
+                            % (self.source, index)
+                        )
                 index += 1
 
     def lookup(self, token):
@@ -65,6 +69,7 @@ class TokenFile(ReadOnlyTokenFile):
 
         return super().lookup(token)
 
+
 class TokenFileName(BasePlugin):
     # source is a directory
     # token is filename
@@ -72,13 +77,15 @@ class TokenFileName(BasePlugin):
     def __init__(self, src):
         super().__init__(src)
         if not os.path.isdir(src):
-            raise Exception(f"TokenFileName plugin requires a directory: {src}")
-    
+            raise Exception(
+                f"TokenFileName plugin requires a directory: {src}"
+            )
+
     def lookup(self, token):
         token = os.path.basename(token)
         path = os.path.join(self.source, token)
         if os.path.exists(path):
-            return open(path).read().strip().split(':')
+            return open(path).read().strip().split(":")
         else:
             return None
 
@@ -91,9 +98,9 @@ class BaseTokenAPI(BasePlugin):
     # in this file can be used w/o unnecessary dependencies
 
     def process_result(self, resp):
-        host, port = resp.text.split(':')
-        port = port.encode('ascii','ignore')
-        return [ host, port ]
+        host, port = resp.text.split(":")
+        port = port.encode("ascii", "ignore")
+        return [host, port]
 
     def lookup(self, token):
         import requests
@@ -112,7 +119,7 @@ class JSONTokenApi(BaseTokenAPI):
 
     def process_result(self, resp):
         resp_json = resp.json()
-        return (resp_json['host'], resp_json['port'])
+        return (resp_json["host"], resp_json["port"])
 
 
 class JWTTokenApi(BasePlugin):
@@ -127,7 +134,7 @@ class JWTTokenApi(BasePlugin):
             key = jwk.JWK()
 
             try:
-                with open(self.source, 'rb') as key_file:
+                with open(self.source, "rb") as key_file:
                     key_data = key_file.read()
             except Exception as e:
                 logger.error("Error loading key file: %s" % str(e))
@@ -137,39 +144,41 @@ class JWTTokenApi(BasePlugin):
                 key.import_from_pem(key_data)
             except:
                 try:
-                    key.import_key(k=key_data.decode('utf-8'),kty='oct')
+                    key.import_key(k=key_data.decode("utf-8"), kty="oct")
                 except:
-                    logger.error('Failed to correctly parse key data!')
+                    logger.error("Failed to correctly parse key data!")
                     return None
 
             try:
                 token = jwt.JWT(key=key, jwt=token)
                 parsed_header = json.loads(token.header)
 
-                if 'enc' in parsed_header:
+                if "enc" in parsed_header:
                     # Token is encrypted, so we need to decrypt by passing the claims to a new instance
                     token = jwt.JWT(key=key, jwt=token.claims)
 
                 parsed = json.loads(token.claims)
 
-                if 'nbf' in parsed:
+                if "nbf" in parsed:
                     # Not Before is present, so we need to check it
-                    if time.time() < parsed['nbf']:
-                        logger.warning('Token can not be used yet!')
+                    if time.time() < parsed["nbf"]:
+                        logger.warning("Token can not be used yet!")
                         return None
 
-                if 'exp' in parsed:
+                if "exp" in parsed:
                     # Expiration time is present, so we need to check it
-                    if time.time() > parsed['exp']:
-                        logger.warning('Token has expired!')
+                    if time.time() > parsed["exp"]:
+                        logger.warning("Token has expired!")
                         return None
 
-                return (parsed['host'], parsed['port'])
+                return (parsed["host"], parsed["port"])
             except Exception as e:
                 logger.error("Failed to parse token: %s" % str(e))
                 return None
         except ImportError:
-            logger.error("package jwcrypto not found, are you sure you've installed it correctly?")
+            logger.error(
+                "package jwcrypto not found, are you sure you've installed it correctly?"
+            )
             return None
 
 
@@ -224,9 +233,10 @@ class TokenRedis(BasePlugin):
 
           pip install redis
     """
+
     def __init__(self, src):
         try:
-            import redis
+            pass
         except ImportError:
             logger.error("Unable to load redis module")
             sys.exit()
@@ -260,24 +270,33 @@ class TokenRedis(BasePlugin):
                 raise ValueError
             self._port = int(self._port)
             self._db = int(self._db)
-            logger.info("TokenRedis backend initilized (%s:%s)" %
-                  (self._server, self._port))
+            logger.info(
+                "TokenRedis backend initilized (%s:%s)"
+                % (self._server, self._port)
+            )
         except ValueError:
-            logger.error("The provided --token-source='%s' is not in the "
-                         "expected format <host>[:<port>[:<db>[:<password>]]]" %
-                         src)
+            logger.error(
+                "The provided --token-source='%s' is not in the "
+                "expected format <host>[:<port>[:<db>[:<password>]]]" % src
+            )
             sys.exit()
 
     def lookup(self, token):
         try:
             import redis
         except ImportError:
-            logger.error("package redis not found, are you sure you've installed them correctly?")
+            logger.error(
+                "package redis not found, are you sure you've installed them correctly?"
+            )
             sys.exit()
 
         logger.info("resolving token '%s'" % token)
-        client = redis.Redis(host=self._server, port=self._port,
-                             db=self._db, password=self._password)
+        client = redis.Redis(
+            host=self._server,
+            port=self._port,
+            db=self._db,
+            password=self._password,
+        )
         stuff = client.get(token)
         if stuff is None:
             return None
@@ -289,14 +308,17 @@ class TokenRedis(BasePlugin):
                     combo = json.loads(responseStr)
                     host, port = combo["host"].split(":")
                 except ValueError:
-                    logger.error("Unable to decode JSON token: %s" %
-                                 responseStr)
+                    logger.error(
+                        "Unable to decode JSON token: %s" % responseStr
+                    )
                     return None
                 except KeyError:
-                    logger.error("Unable to find 'host' key in JSON token: %s" %
-                                 responseStr)
+                    logger.error(
+                        "Unable to find 'host' key in JSON token: %s"
+                        % responseStr
+                    )
                     return None
-            elif re.match(r'\S+:\S+', responseStr):
+            elif re.match(r"\S+:\S+", responseStr):
                 host, port = responseStr.split(":")
             else:
                 logger.error("Unable to parse token: %s" % responseStr)
@@ -327,7 +349,7 @@ class UnixDomainSocketDirectory(BasePlugin):
             if not stat.S_ISSOCK(os.stat(uds_path).st_mode):
                 return None
 
-            return [ 'unix_socket', uds_path ]
+            return ["unix_socket", uds_path]
         except Exception as e:
-                logger.error("Error finding unix domain socket: %s" % str(e))
-                return None
+            logger.error("Error finding unix domain socket: %s" % str(e))
+            return None

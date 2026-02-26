@@ -1,5 +1,4 @@
-Log.io - File Input
-===================
+# Log.io - File Input
 
 Powered by [node.js](http://nodejs.org) + [socket.io](http://socket.io)
 
@@ -13,9 +12,9 @@ A **file input** watches log files for changes, sends new messages to the **serv
 
 ## Terminology
 
-**Stream** - A logical designation for a group of messages that relate to one another.  Examples include an application name, a topic name, or a backend service name.
+**Stream** - A logical designation for a group of messages that relate to one another. Examples include an application name, a topic name, or a backend service name.
 
-**Source** - A physical designation for a group of messages that originate from the same source.  Examples include a server name, a service provider name, or a filename.
+**Source** - A physical designation for a group of messages that originate from the same source. Examples include a server name, a service provider name, or a filename.
 
 **Input** - A (stream, source) pair.
 
@@ -43,9 +42,9 @@ log.io-file-input
 
 ## File input configuration
 
-Inputs are created by associating file paths with stream and source names in a configuration file.  By default, the file input looks for configuration in `~/.log.io/inputs/file.json`, and can be overridden with the environment variable `LOGIO_FILE_INPUT_CONFIG_PATH`.
+Inputs are created by associating file paths with stream and source names in a configuration file. By default, the file input looks for configuration in `~/.log.io/inputs/file.json`, and can be overridden with the environment variable `LOGIO_FILE_INPUT_CONFIG_PATH`.
 
-Input paths can be a file path, directory path or a [glob](https://en.wikipedia.org/wiki/Glob_(programming)).  Additionally, watcher options can be provided for more fine-grained control over file watching mechanics and performance. See the [chokidar](https://github.com/paulmillr/chokidar) documentation for more information.
+Input paths can be a file path, directory path or a [glob](<https://en.wikipedia.org/wiki/Glob_(programming)>). Additionally, watcher options can be provided for more fine-grained control over file watching mechanics and performance. See the [chokidar](https://github.com/paulmillr/chokidar) documentation for more information.
 
 Sample configuration file:
 
@@ -70,18 +69,17 @@ Sample configuration file:
         "path": "/var/log/**/*.log",
         "watcherOptions": {
           "ignored": "*.txt",
-          "depth": 99,
+          "depth": 99
         }
       }
     }
   ]
 }
-
 ```
 
 ## Server TCP interface
 
-The file input connects to the server via TCP, and writes properly formatted strings to the socket.  Custom inputs can send messages to the server using the following commands, each of which ends with a null character:
+The file input connects to the server via TCP, and writes properly formatted strings to the socket. Custom inputs can send messages to the server using the following commands, each of which ends with a null character:
 
 Send a log message
 

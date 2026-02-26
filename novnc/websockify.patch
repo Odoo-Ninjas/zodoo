@@ -25,10 +25,9 @@ index b6f103c..ce0c49b 100644
 +                    token = args['path'][0].split("?token=")[1]
 +                else:
 +                    token = None
- 
+
          if token is None:
 -            raise self.server.EClose("Token not present")
 +            raise self.server.EClose(f"Token not present: {args}")
- 
+
          result_pair = target_plugin.lookup(token)
- 

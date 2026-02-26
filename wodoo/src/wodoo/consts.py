@@ -42,11 +42,13 @@ default_dirs = {
     "run_native_requirements": "${run}/requirements",  # requirement files
     "run_native_out_dir": "${run}/odoo_outdir",
     "odoo_tools": "$odoo_home",
-    "odoo_data_dir": os.getenv("odoo_data_dir") or os.getenv("ODOO_DATA_DIR") or "~/.odoo/files",
+    "odoo_data_dir": os.getenv("odoo_data_dir")
+    or os.getenv("ODOO_DATA_DIR")
+    or "~/.odoo/files",
     "user_conf_dir": "~/.odoo",
     "delegator": "~/.odoo/delegator",
     "images": "~/.odoo/images",
-    "pyenv": "~/.pyenv/versions/${project_name}"
+    "pyenv": "~/.pyenv/versions/${project_name}",
 }
 
 default_files = {
@@ -60,8 +62,8 @@ default_files = {
     "project_docker_compose.home": "~/.odoo/docker-compose.yml",
     "project_docker_compose.home.project": "~/.odoo/docker-compose.${project_name}.yml",
     "project_docker_compose.local": "${working_dir}/.odoo/docker-compose.${project_name}.yml",
-    "system_settings": '/etc/odoo/settings',
-    "user_settings": '~/.odoo/settings',
+    "system_settings": "/etc/odoo/settings",
+    "user_settings": "~/.odoo/settings",
     "docker_bin": _search_path("docker"),
     "docker_compose": "${run}/docker-compose.yml",
     "docker_compose_bin": None,
@@ -82,15 +84,21 @@ default_files = {
     "start-dev": "~/.odoo/start-dev",
     "delegator_registry": "${delegator}/registry.json",
     "pgcli_history": "${run}/pgcli_history",
-    'build.settings': '${run}/build.settings',
+    "build.settings": "${run}/build.settings",
 }
 
 try:
-    subprocess.run([str(_search_path("docker")), "compose"], check=True, capture_output=True)
+    subprocess.run(
+        [str(_search_path("docker")), "compose"],
+        check=True,
+        capture_output=True,
+    )
     default_files["docker_compose_bin"] = [_search_path("docker"), "compose"]
 except (subprocess.CalledProcessError, FileNotFoundError):
     try:
-        default_files["docker_compose_bin"] = [str(_search_path("docker-compose"))]
+        default_files["docker_compose_bin"] = [
+            str(_search_path("docker-compose"))
+        ]
     except (subprocess.CalledProcessError, FileNotFoundError):
         default_files["docker_compose_bin"] = None
 

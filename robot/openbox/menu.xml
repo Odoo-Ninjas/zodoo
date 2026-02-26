@@ -1,15 +1,16 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<openbox_menu xmlns="http://openbox.org/"
-              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-              xsi:schemaLocation="http://openbox.org/
+<?xml version="1.0" encoding="UTF-8" ?>
+<openbox_menu
+	xmlns="http://openbox.org/"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://openbox.org/
               file:///usr/share/openbox/menu.xsd">
     <menu id="root-menu" label="Openbox Menu">
         <item label="Terminal">
             <action name="Execute">
                 <command>
-                    xterm -e "cat /etc/welcome.txt; 
-                    cd $CUSTOMS_DIR; WINDOW_ID=$(xdotool search --name "xterm" | head -n 1); 
-                    xdotool windowmove $WINDOW_ID $BROWSER_WIDTH 0; 
+                    xterm -e "cat /etc/welcome.txt;
+                    cd $CUSTOMS_DIR; WINDOW_ID=$(xdotool search --name "xterm" | head -n 1);
+                    xdotool windowmove $WINDOW_ID $BROWSER_WIDTH 0;
                     TERMINAL_WIDTH=$((DISPLAY_WIDTH - BROWSER_WIDTH));
                     xdotool windowsize $WINDOW_ID $TERMINAL_WIDTH $BROWSER_HEIGHT;
                     bash;

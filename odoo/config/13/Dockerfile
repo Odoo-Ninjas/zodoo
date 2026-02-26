@@ -221,7 +221,7 @@ WORKDIR /opt/odoo
 RUN python3 -mpip install debugpy docker
 RUN mkdir /opt/venv; ln -s /usr/bin /opt/venv/bin
 RUN python3 -mpip install pipx
-RUN python3 -mpipx ensurepath 
+RUN python3 -mpipx ensurepath
 COPY config/$ODOO_VERSION/constraints.txt /opt/constraints.txt
 ENV WODOO_SRC=/opt/wodoo
 ENV WODOO_PIPX_HOME=/opt/wodoo_pipx
@@ -238,7 +238,7 @@ RUN apt-get install -y build-essential \
         libxslt1-dev \
         libffi-dev \
         libpq-dev \
-        pkg-config 
+        pkg-config
 RUN \
 export PIPX_HOME="${WODOO_PIPX_HOME}" && \
 export PIPX_BIN_DIR=/usr/local/bin && \

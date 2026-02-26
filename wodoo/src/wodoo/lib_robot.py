@@ -434,7 +434,9 @@ def _run_test(
 
     unique_robotname = f"robot_{uuid.uuid4()}"
     # copy robot and seleniumdriver template to have an instance
-    selenium_service_name = _clone_seleniumdriver_template(ctx, config, unique_robotname)
+    selenium_service_name = _clone_seleniumdriver_template(
+        ctx, config, unique_robotname
+    )
 
     token = arrow.get().strftime("%Y-%m-%d_%H%M%S_") + str(uuid.uuid4())
     data = json.dumps(
@@ -468,7 +470,9 @@ def _run_test(
         )
     else:
         try:
-            Commands.invoke(ctx, "up", daemon=True, machines=[selenium_service_name])
+            Commands.invoke(
+                ctx, "up", daemon=True, machines=[selenium_service_name]
+            )
             __dcrun(config, params, pass_stdin=data, interactive=True)
         finally:
             # ensure that the seleniumdriver is stopped
@@ -494,14 +498,18 @@ def _run_test(
     )
     return res
 
+
 def _clone_seleniumdriver_template(ctx, config, appendix):
     import yaml
-    yml = yaml.safe_load(open(config.files['docker_compose'], "r"))
-    
+
+    yml = yaml.safe_load(open(config.files["docker_compose"], "r"))
+
     service_name = f"seleniumdriver_{appendix}"
-    yml['services'][service_name] = deepcopy(yml['services']['seleniumdriver_template'])
-    yml['services'][service_name]['container_name'] = service_name
-    config.files['docker_compose'].write_text(_yamldump(yml))
+    yml["services"][service_name] = deepcopy(
+        yml["services"]["seleniumdriver_template"]
+    )
+    yml["services"][service_name]["container_name"] = service_name
+    config.files["docker_compose"].write_text(_yamldump(yml))
     return service_name
 
 

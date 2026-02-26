@@ -1,8 +1,8 @@
 #manage-order: 5001
 services:
-  
+
   # webssh:
-  #   build: 
+  #   build:
   #     context: ${ODOO_IMAGES}/webssh
   #   restart: unless-stopped
   #   profiles:

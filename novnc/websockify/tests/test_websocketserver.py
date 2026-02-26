@@ -1,5 +1,5 @@
+"""Unit tests for websocketserver"""
 
-""" Unit tests for websocketserver """
 import unittest
 from unittest.mock import patch, MagicMock
 
@@ -19,7 +19,10 @@ class HttpWebSocketTest(unittest.TestCase):
         websock.assert_called_once_with(sock)
         self.assertEqual(sock.request_handler, req_obj)
 
-    @patch("websockify.websocketserver.WebSocket.__init__", MagicMock(autospec=True))
+    @patch(
+        "websockify.websocketserver.WebSocket.__init__",
+        MagicMock(autospec=True),
+    )
     def test_send_response(self):
         # Given
         req_obj = MagicMock()
@@ -31,7 +34,10 @@ class HttpWebSocketTest(unittest.TestCase):
         # Then
         req_obj.send_response.assert_called_once_with(200, "message")
 
-    @patch("websockify.websocketserver.WebSocket.__init__", MagicMock(autospec=True))
+    @patch(
+        "websockify.websocketserver.WebSocket.__init__",
+        MagicMock(autospec=True),
+    )
     def test_send_response_default_message(self):
         # Given
         req_obj = MagicMock()
@@ -43,7 +49,10 @@ class HttpWebSocketTest(unittest.TestCase):
         # Then
         req_obj.send_response.assert_called_once_with(200, None)
 
-    @patch("websockify.websocketserver.WebSocket.__init__", MagicMock(autospec=True))
+    @patch(
+        "websockify.websocketserver.WebSocket.__init__",
+        MagicMock(autospec=True),
+    )
     def test_send_header(self):
         # Given
         req_obj = MagicMock()
@@ -55,7 +64,10 @@ class HttpWebSocketTest(unittest.TestCase):
         # Then
         req_obj.send_header.assert_called_once_with("keyword", "value")
 
-    @patch("websockify.websocketserver.WebSocket.__init__", MagicMock(autospec=True))
+    @patch(
+        "websockify.websocketserver.WebSocket.__init__",
+        MagicMock(autospec=True),
+    )
     def test_end_headers(self):
         # Given
         req_obj = MagicMock()
@@ -66,4 +78,3 @@ class HttpWebSocketTest(unittest.TestCase):
 
         # Then
         req_obj.end_headers.assert_called_once_with()
-

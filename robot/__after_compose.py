@@ -1,18 +1,14 @@
-import sys
-from copy import deepcopy
-import re
-import base64
-import click
-import yaml
 import inspect
 import os
-import subprocess
 import shutil
 from pathlib import Path
 import inspect
 import os
 from pathlib import Path
-current_dir = Path(os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe()))))
+
+current_dir = Path(
+    os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+)
 dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 
 
@@ -21,15 +17,13 @@ def after_compose(config, settings, yml, globals):
         current_dir.parent / "common_snippets" / "set_docker_group.sh",
         current_dir / "set_docker_group.sh",
     )
-    src = current_dir.parent / 'wodoo' / 'src'
-    dest = current_dir / 'wodoo_src'
-    globals['tools'].sync_folder(src, dest, excludes=['.git'])
+    src = current_dir.parent / "wodoo" / "src"
+    dest = current_dir / "wodoo_src"
+    globals["tools"].sync_folder(src, dest, excludes=[".git"])
 
     # store also in clear text the requirements
-    from wodoo.tools import get_services
-    from pathlib import Path
-    if not yml.get('services', {}).get('robot'):
+    if not yml.get("services", {}).get("robot"):
         return
-    service = yml['services']['robot']
-    if 'build' in service:
-        service['build']['args']['OWNER_UID'] = config.owner_uid
+    service = yml["services"]["robot"]
+    if "build" in service:
+        service["build"]["args"]["OWNER_UID"] = config.owner_uid

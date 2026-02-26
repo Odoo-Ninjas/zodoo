@@ -22,7 +22,7 @@ services:
         max-size: "10m"
         max-file: "10"
         compress: "true"
-  
+
   fluentd_cronjobs:
     build: $ODOO_IMAGES/logcollector/cronjobs
     restart: unless-stopped

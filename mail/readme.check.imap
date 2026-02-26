@@ -28,7 +28,7 @@ server: From: sender@example.com
 server: Subject: Test message
 server: To: recipient@example.com
 server: Message-Id: <20040120203404.CCCC18555.mx1.example.com@client.example.com>
-server: 
+server:
 server: This is a test message.
 server: )
 server: a4 OK Fetch completed.

@@ -356,7 +356,7 @@ def build(
     settings = MyConfigParser(config.files["settings"])
 
     buildsettings = {}
-    last_settings_file = config.files['build.settings']
+    last_settings_file = config.files["build.settings"]
     last_content = []
     if last_settings_file.exists():
         last_content = json.loads(last_settings_file.read_text())
@@ -370,9 +370,14 @@ def build(
     compose = None
 
     if last_content != dump_settings(buildsettings):
-        click.secho("Build settings changed since last build, rebuilding all services with build context.", fg="yellow")
+        click.secho(
+            "Build settings changed since last build, rebuilding all services with build context.",
+            fg="yellow",
+        )
         compose = load_compose(config)
-        _place_buildsettings_for_every_service(compose, dump_settings(buildsettings))
+        _place_buildsettings_for_every_service(
+            compose, dump_settings(buildsettings)
+        )
 
     ensure_project_name(config)
     if plain:
@@ -397,14 +402,17 @@ def build(
     )
     last_settings_file.write_text(json.dumps(buildsettings))
 
+
 def load_compose(config):
     import yaml
+
     return yaml.safe_load(config.files["docker_compose"].read_text())
+
 
 def _place_buildsettings_for_every_service(compose_yml, buildsettings):
     content = []
     for item in buildsettings:
-        content.append(f"export {item[0]}=\"{item[1]}\"")
+        content.append(f'export {item[0]}="{item[1]}"')
     content = "\n".join(content)
     for service in compose_yml["services"]:
         if "build" in compose_yml["services"][service]:
@@ -412,13 +420,18 @@ def _place_buildsettings_for_every_service(compose_yml, buildsettings):
                 path = Path(compose_yml["services"][service]["build"])
                 if path.is_file():
                     path = path.parent
-            elif context := (compose_yml["services"][service]["build"] or {}).get('context'):
+            elif context := (
+                compose_yml["services"][service]["build"] or {}
+            ).get("context"):
                 path = Path(context)
             else:
-                raise NotImplementedError(f"Could not determine build path for service {service}")
+                raise NotImplementedError(
+                    f"Could not determine build path for service {service}"
+                )
             filepath = path / "buildsettings.env"
             filepath.write_text(content)
-            __assure_gitignore(path / '.gitignore', filepath.name)
+            __assure_gitignore(path / ".gitignore", filepath.name)
+
 
 @docker.command()
 @click.argument(
@@ -692,13 +705,33 @@ def docker_sizes(context, config, name):
             return True
         return name in fname
 
-    image_names = list(filter(match, map(lambda x: f"{config.project_name}-{x}", yaml.safe_load(output)["services"].keys(),))
+    image_names = list(
+        filter(
+            match,
+            map(
+                lambda x: f"{config.project_name}-{x}",
+                yaml.safe_load(output)["services"].keys(),
+            ),
+        )
     )
     sizes = {}
     for imagename in image_names:
-        click.secho(f"Analyzing {imagename} ...", fg='yellow')
+        click.secho(f"Analyzing {imagename} ...", fg="yellow")
         try:
-            out = subprocess.check_output(["docker", "run", "--rm", "--entrypoint", "/bin/sh", imagename, "-c", "du -sh /"], text=True, stderr=subprocess.DEVNULL)
+            out = subprocess.check_output(
+                [
+                    "docker",
+                    "run",
+                    "--rm",
+                    "--entrypoint",
+                    "/bin/sh",
+                    imagename,
+                    "-c",
+                    "du -sh /",
+                ],
+                text=True,
+                stderr=subprocess.DEVNULL,
+            )
             out = out.splitlines()
             if out:
                 out = out[0]
@@ -712,11 +745,13 @@ def docker_sizes(context, config, name):
         out = out.split("\t")[0]
         sizes[imagename] = out
     recs = []
+
     def _get_size(imagename):
         r = sizes.get(imagename, None)
         if r is None:
             r = sizes.get(imagename.replace("-", "_"), None)
         return r
+
     for name in sorted(image_names, key=lambda x: x[0]):
         if not name:
             continue

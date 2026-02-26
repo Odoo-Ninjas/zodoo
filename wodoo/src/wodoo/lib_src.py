@@ -25,7 +25,6 @@ from .tools import odoorpc
 from .tools import _output_clipboard_csv
 from .tools import _get_available_modules
 
-
 ADDONS_OCA = "addons_OCA"
 
 
@@ -43,13 +42,19 @@ def _find_duplicate_modules():
     _identify_duplicate_modules(all_modules)
 
 
-def _apply_gimera_if_required(ctx, path, content, force_do=False, no_fetch=None):
+def _apply_gimera_if_required(
+    ctx, path, content, force_do=False, no_fetch=None
+):
     from gimera.gimera import apply as gimera
 
     with cwd(path):
         for repo in content["repos"]:
             repo_path = path / repo["path"]
-            if repo["type"] == "submodule" or force_do or not repo_path.exists():
+            if (
+                repo["type"] == "submodule"
+                or force_do
+                or not repo_path.exists()
+            ):
                 ctx.invoke(
                     gimera,
                     repos=[repo["path"]],
@@ -133,7 +138,9 @@ def update_ast(filename):
     click.echo("Updating ast - can take about one minute")
     update_cache(filename or None)
     click.echo(
-        "Updated ast - took {} seconds".format((datetime.now() - started).seconds)
+        "Updated ast - took {} seconds".format(
+            (datetime.now() - started).seconds
+        )
     )
 
 
@@ -211,7 +218,9 @@ class OdooShRepo(object):
     def __init__(self, version):
         self.envkey = "ODOOSH_REPO"
         if self.envkey not in os.environ.keys():
-            abort("Please define ODOOSH_REPO env to point to checked out Ninja-Odoosh.")
+            abort(
+                "Please define ODOOSH_REPO env to point to checked out Ninja-Odoosh."
+            )
         self.version = str(version)
         self.root = Path(os.environ["ODOOSH_REPO"])
         self.ocapath = self.root / "OCA"
@@ -220,7 +229,9 @@ class OdooShRepo(object):
 
     def iterate_all_modules(self, version, path=None):
         path = path or self.ocapath
-        for path in bashfind(path=self.root, type="d", wholename=f"*/{version}/*"):
+        for path in bashfind(
+            path=self.root, type="d", wholename=f"*/{version}/*"
+        ):
             if ".git" in path.parts:
                 continue
             if path.parent.name != str(version):
@@ -233,7 +244,9 @@ class OdooShRepo(object):
         from .module_tools import Modules
 
         modules = Modules()
-        all_modules = modules.get_all_modules_installed_by_manifest(current_modules)
+        all_modules = modules.get_all_modules_installed_by_manifest(
+            current_modules
+        )
         for module in self.iterate_all_modules(current_version()):
             manifest = module.manifest_dict
             if manifest.get("auto_install"):
@@ -295,7 +308,9 @@ def rewrite_manifest(config, ctx):
     manifest.rewrite()
 
 
-@src.command(help="Fetches OCA modules from odoo.sh ninja mentioned in MANIFEST")
+@src.command(
+    help="Fetches OCA modules from odoo.sh ninja mentioned in MANIFEST"
+)
 @click.argument(
     "module",
     nargs=-1,
@@ -458,7 +473,8 @@ def delete_modules_not_in_manifest(config, ctx, dry_run):
 def restore_view(config, ctx, path):
     odoo = odoorpc(config)
     langs = [
-        x.code for x in odoo.env["res.lang"].browse(odoo.env["res.lang"].search([]))
+        x.code
+        for x in odoo.env["res.lang"].browse(odoo.env["res.lang"].search([]))
     ]
     path = Path(path)
     content = path.read_text()
@@ -505,7 +521,8 @@ def grab_views(config, ctx):
     stats = {"views": 0}
     q = Queue()
     langs = [
-        x.code for x in odoo.env["res.lang"].browse(odoo.env["res.lang"].search([]))
+        x.code
+        for x in odoo.env["res.lang"].browse(odoo.env["res.lang"].search([]))
     ]
 
     def check_view():
@@ -571,7 +588,9 @@ def grab_views(config, ctx):
     if all_files:
         for file in all_files:
             file.unlink()
-            click.secho(f"View does not exist anymore: {file.relative_to(root)}")
+            click.secho(
+                f"View does not exist anymore: {file.relative_to(root)}"
+            )
 
 
 @src.command()
@@ -626,7 +645,9 @@ def compare_views(config, ctx, threads, match):
                         Path("/tmp/1").write_bytes(
                             pretty_xml(file_content.encode("utf8"))
                         )
-                        Path("/tmp/2").write_bytes(pretty_xml(_arch.encode("utf8")))
+                        Path("/tmp/2").write_bytes(
+                            pretty_xml(_arch.encode("utf8"))
+                        )
                         subprocess.run(
                             ["/bin/diff", "--color", "-w", "/tmp/1", "/tmp/2"]
                         )
@@ -644,7 +665,9 @@ def compare_views(config, ctx, threads, match):
                 content = file.read_text()
                 if ".xmlid." in file.stem:
                     try:
-                        module, name, lang = file.stem.split(".xmlid.")[1].split(".", 4)
+                        module, name, lang = file.stem.split(".xmlid.")[
+                            1
+                        ].split(".", 4)
                         model = file.stem.split(".xmlid.")[0]
                     except:
                         click.secho(

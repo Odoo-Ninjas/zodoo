@@ -19,7 +19,7 @@ echo "🟢 Starting xpra VNC viewer session to $VNC_SERVER ..."
 pkill -9 -f xpra || true
 
 
-mkdir -p /run/user/1001/xpra 
+mkdir -p /run/user/1001/xpra
 vncpasswd -f <<< "$VNC_PASSWORD" > /run/user/1001/vncpasswd
 chmod 600 /run/user/1001/vncpasswd
 
@@ -39,4 +39,4 @@ xpra start \
     --webcam=no \
     --microphone=no \
     --keyboard-raw=yes \
-    --speaker=no 
+    --speaker=no

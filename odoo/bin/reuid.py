@@ -4,16 +4,22 @@ import pwd
 import subprocess
 import sys
 
+
 def run(cmd):
     print(">>", " ".join(cmd))
     subprocess.check_call(cmd)
+
 
 def main():
     parser = argparse.ArgumentParser(
         description="Find user by OLD_UID and change it to NEW_UID."
     )
-    parser.add_argument("--old-uid", type=int, required=True, help="Existing UID to search for")
-    parser.add_argument("--new-uid", type=int, required=True, help="New UID to assign")
+    parser.add_argument(
+        "--old-uid", type=int, required=True, help="Existing UID to search for"
+    )
+    parser.add_argument(
+        "--new-uid", type=int, required=True, help="New UID to assign"
+    )
     args = parser.parse_args()
 
     old_uid = args.old_uid
@@ -32,7 +38,9 @@ def main():
     # 2) Safety check: existiert new_uid schon?
     try:
         other = pwd.getpwuid(new_uid)
-        print(f"ABBRUCH: UID {new_uid} existiert schon und gehört zu '{other.pw_name}'.")
+        print(
+            f"ABBRUCH: UID {new_uid} existiert schon und gehört zu '{other.pw_name}'."
+        )
         sys.exit(0)
     except KeyError:
         pass  # UID ist frei
@@ -42,6 +50,7 @@ def main():
 
     print("Fertig.")
     print(f"Neue UID von '{username}': {pwd.getpwnam(username).pw_uid}")
+
 
 if __name__ == "__main__":
     main()

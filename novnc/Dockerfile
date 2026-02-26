@@ -20,7 +20,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
         build-essential \
         procps \
         git \
-        rsync \ 
+        rsync \
         libffi-dev \
         python3-venv
 RUN python3 -mvenv /venv

@@ -3,7 +3,6 @@ from collections import Counter
 import shutil
 import tempfile
 
-
 try:
     import arrow
 except Exception:
@@ -122,7 +121,9 @@ class MANIFEST_CLASS(object):
 
         system_addons_paths = res.get("addons_paths_system", [])
         if system_addons_paths:
-            res['addons_paths'] = system_addons_paths + res.get('addons_paths', []) 
+            res["addons_paths"] = system_addons_paths + res.get(
+                "addons_paths", []
+            )
         return res
 
     def __getitem__(self, key):
@@ -177,7 +178,11 @@ def current_version():
 
 def get_postgres_connection_params(force_inside_container=None):
     config = get_settings()
-    inside_container = am_i_inside_docker_container() if force_inside_container is None else force_inside_container
+    inside_container = (
+        am_i_inside_docker_container()
+        if force_inside_container is None
+        else force_inside_container
+    )
     if (
         not inside_container
         and os.getenv("DOCKER_MACHINE") != "1"

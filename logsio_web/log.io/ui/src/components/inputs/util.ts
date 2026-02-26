@@ -3,12 +3,12 @@
  */
 export const getDiodeClass = (lastPing: number | null): string => {
   if (!lastPing) {
-    return 'nosignal'
+    return "nosignal";
   }
-  const timeDiff = new Date().getTime() - lastPing
+  const timeDiff = new Date().getTime() - lastPing;
   if (timeDiff < 10000) {
-    const activeNum = Math.floor(timeDiff / 1000)
-    return `active${activeNum}`
+    const activeNum = Math.floor(timeDiff / 1000);
+    return `active${activeNum}`;
   }
-  return 'inactive'
-}
+  return "inactive";
+};

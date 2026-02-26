@@ -227,4 +227,3 @@ RUN pip install $(cat /etc/pip_options) zeep==3.4.0
 RUN pip install $(cat /etc/pip_options) sentry-sdk==0.19.5
 
 WORKDIR /opt/odoo
-

@@ -111,11 +111,15 @@ def pgactivity(config):
 @click.option("-P", "--password", required=False)
 @pass_config
 def pgcli(config, dbname, params, host, port, user, password):
-    from .tools import DBConnection
+    pass
 
     print_prod_env(config)
     dbname = dbname or config.dbname
-    return _pgcli(config, params, dbname=dbname,)
+    return _pgcli(
+        config,
+        params,
+        dbname=dbname,
+    )
 
 
 @db.command()
@@ -127,7 +131,11 @@ def pgcli(config, dbname, params, host, port, user, password):
 def psql(config, dbname, params, sql, non_interactive):
     dbname = dbname or config.dbname
     return _psql(
-        config, params, sql=sql, interactive=not non_interactive, dbname=dbname, 
+        config,
+        params,
+        sql=sql,
+        interactive=not non_interactive,
+        dbname=dbname,
     )
 
 
@@ -143,7 +151,7 @@ def _psql(
     bin_on_host = False
     if use_docker_container is None:
         if not am_i_inside_docker_container():
-            test  = _search_path(bin)
+            test = _search_path(bin)
             if test:
                 bin_on_host = True
 
@@ -154,7 +162,9 @@ def _psql(
     elif not bin_on_host:
         use_docker_container = True
 
-    conn = config.get_odoo_conn(force_inside_container=use_docker_container).clone(dbname=dbname)
+    conn = config.get_odoo_conn(
+        force_inside_container=use_docker_container
+    ).clone(dbname=dbname)
     if dbname:
         conn = conn.clone(dbname)
 
@@ -178,7 +188,9 @@ def _psql(
         cmd += [
             dbname,
         ]
-        click.secho(f"Connecting to {conn.host}:{conn.port}/{dbname}", fg="green")
+        click.secho(
+            f"Connecting to {conn.host}:{conn.port}/{dbname}", fg="green"
+        )
 
         if use_docker_container:
             __dcrun(
@@ -245,10 +257,24 @@ def aggressive_drop_db(config, conn, dbname):
     is_flag=True,
     help="No progress, but allows interactive debugging",
 )
-@click.option("-m", "--modules", multiple=True, help="Install these modules", shell_complete=_get_available_modules)
+@click.option(
+    "-m",
+    "--modules",
+    multiple=True,
+    help="Install these modules",
+    shell_complete=_get_available_modules,
+)
 @pass_config
 @click.pass_context
-def reset_db(ctx, config, dbname, do_not_install_base, no_overwrite, no_progress, modules):
+def reset_db(
+    ctx,
+    config,
+    dbname,
+    do_not_install_base,
+    no_overwrite,
+    no_progress,
+    modules,
+):
     import psycopg2
 
     collatec = True
@@ -309,7 +335,7 @@ def reset_db(ctx, config, dbname, do_not_install_base, no_overwrite, no_progress
             Commands.invoke(
                 ctx,
                 "update",
-                module=','.join(modules),
+                module=",".join(modules),
                 since_git_sha=False,
                 no_restart=True,
                 no_dangling_check=True,

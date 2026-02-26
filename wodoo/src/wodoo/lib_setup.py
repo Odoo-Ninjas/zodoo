@@ -1,7 +1,6 @@
 import os
 import tempfile
 import click
-import sys
 import subprocess
 import re
 from pathlib import Path
@@ -14,11 +13,11 @@ from .tools import whoami
 from .tools import abort
 from .tools import is_git_clean
 from .tools import on_osx, on_windows_wsl
-from .tools import __rmtree
 from .tools import update_setting
 from .tools import vscode_setting
 
 ALL_PORTS = ["PROXY_PORT", "DEBUG_PORT", "HOST_DB_PORT"]
+
 
 @cli.group(cls=AliasedGroup)
 @pass_config
@@ -30,15 +29,21 @@ def setup(config):
 @pass_config
 @click.pass_context
 def next_port(ctx, config):
-    ports = ["PROXY_PORT", "DEBUG_PORT" ]
+    ports = ["PROXY_PORT", "DEBUG_PORT"]
     if on_osx() or on_windows_wsl():
         ports += ["HOST_DB_PORT"]
     _setup_port(ctx, config, ports)
 
+
 def _setup_port(ctx, config, required_ports):
     for required_port in required_ports:
-        if getattr(config, required_port) and str(getattr(config, required_port)) != "80":
-            click.secho(f"Port is already configured: {getattr(config, required_port)}")
+        if (
+            getattr(config, required_port)
+            and str(getattr(config, required_port)) != "80"
+        ):
+            click.secho(
+                f"Port is already configured: {getattr(config, required_port)}"
+            )
             continue
         # perhaps not reloaded:
         settings = config.files["project_settings"]
@@ -46,7 +51,10 @@ def _setup_port(ctx, config, required_ports):
         if settings.exists():
             content = settings.read_text() if settings.exists() else ""
             # hacky...with =80
-            if f"{required_port}=" in content and "{required_port}=80" not in content:
+            if (
+                f"{required_port}=" in content
+                and "{required_port}=80" not in content
+            ):
                 click.secho(f"Already configured: {content}")
                 return
         port = _next_port(config)
@@ -55,6 +63,7 @@ def _setup_port(ctx, config, required_ports):
             f"Configured {required_port}: {port}. Please reload and restart machines."
         )
 
+
 def _next_port(config):
     PORTS = set((2000,))  # usually starting with 1023
     parentfolder = config.dirs["user_conf_dir"]
@@ -62,7 +71,9 @@ def _next_port(config):
         lines = [
             x
             for x in file.read_text().splitlines()
-            if any(x.startswith(SETTING_NAME + "=") for SETTING_NAME in ALL_PORTS)
+            if any(
+                x.startswith(SETTING_NAME + "=") for SETTING_NAME in ALL_PORTS
+            )
         ]
         for line in lines:
             for port in re.findall(r"\d+", line):
@@ -131,16 +142,18 @@ def _status(config):
         click.secho(getattr(config, key))
 
 
-@click.option('-I', '--no-install', is_flag=True)
+@click.option("-I", "--no-install", is_flag=True)
 @setup.command(help="Upgrade wodoo")
 @pass_config
 @click.pass_context
 def upgrade(ctx, config, no_install):
 
     if not is_git_clean(config.dirs["images"]):
-        abort(f"Directory {config.dirs['images']} is not clean, please commit or stash your changes before upgrading.")
+        abort(
+            f"Directory {config.dirs['images']} is not clean, please commit or stash your changes before upgrading."
+        )
 
-    click.secho("Pulling wodoo from git repository...", fg='yellow')
+    click.secho("Pulling wodoo from git repository...", fg="yellow")
     result = subprocess.run(
         [
             "git",
@@ -164,11 +177,12 @@ def upgrade(ctx, config, no_install):
 
     # Check for typical "no changes" messages
     if "Already up to date." in output or "Already up-to-date." in output:
-        click.secho("No changes pulled; skipping reinstall.", fg='cyan')
+        click.secho("No changes pulled; skipping reinstall.", fg="cyan")
     else:
         if not no_install:
             _reinstall()
-    __try_to_set_owner(whoami(), config.dirs['images'], abort_if_failed=False)
+    __try_to_set_owner(whoami(), config.dirs["images"], abort_if_failed=False)
+
 
 def _reinstall():
     path = os.path.expanduser("~/.odoo/images/wodoo/src")
@@ -176,7 +190,10 @@ def _reinstall():
         subprocess.check_call(["pipx", "uninstall", "wodoo"], shell=False)
     except subprocess.CalledProcessError:
         pass
-    subprocess.check_call(["pipx", "install", "--force", "-e", path], shell=False)
+    subprocess.check_call(
+        ["pipx", "install", "--force", "-e", path], shell=False
+    )
+
 
 @setup.command(help="Reinstall wodoo python")
 def reinstall():
@@ -195,45 +212,126 @@ def produce_test_lines(lines):
 
 @setup.command()
 @pass_config
-@click.option("-o", "--old", is_flag=True, help="Uses old setuptools - odoo version 11")
+@click.option(
+    "-o", "--old", is_flag=True, help="Uses old setuptools - odoo version 11"
+)
 @click.pass_context
 def setup_pyenv(ctx, config, old):
     from .odoo_config import MANIFEST
     from .tools import require_homebrew
+
     require_homebrew()
     click.secho("Setting up pyenv...", fg="yellow")
     from .odoo_config import customs_dir
+
     SRC = customs_dir()
     projectname = config.project_name
     subprocess.run(["pyenv", "uninstall", "-f", projectname], check=True)
-    subprocess.run(["pyenv", "install", "-s", config.ODOO_PYTHON_VERSION], check=True)
-    subprocess.run(["pyenv", "virtualenv", config.ODOO_PYTHON_VERSION, projectname], check=True)
+    subprocess.run(
+        ["pyenv", "install", "-s", config.ODOO_PYTHON_VERSION], check=True
+    )
+    subprocess.run(
+        ["pyenv", "virtualenv", config.ODOO_PYTHON_VERSION, projectname],
+        check=True,
+    )
     pyexec = os.path.expanduser(f"~/.pyenv/versions/{projectname}/bin/python")
-    reqs = SRC / 'requirements.txt.all'
+    reqs = SRC / "requirements.txt.all"
 
     manifest = MANIFEST()
-    if manifest['version'] <= 15.0:
+    if manifest["version"] <= 15.0:
         old = True
-        click.secho("Warning: Odoo version <= 15.0 --> old modus is set (cython<3).", fg="red")
-    if manifest['version'] <= 16.0:
+        click.secho(
+            "Warning: Odoo version <= 15.0 --> old modus is set (cython<3).",
+            fg="red",
+        )
+    if manifest["version"] <= 16.0:
         if not old:
-            click.secho("Warning: Odoo version <= 16.0 is not compatible with latest setuptools, using old setuptools and cython versions. Use --old to suppress this warning.", fg="red")
+            click.secho(
+                "Warning: Odoo version <= 16.0 is not compatible with latest setuptools, using old setuptools and cython versions. Use --old to suppress this warning.",
+                fg="red",
+            )
 
     if on_osx():
-        subprocess.run(["brew", "install", "pyenv-virtualenv", "libpq", "libxml2", "libxslt", "zlib", "freetype", "jpeg", "libpng", "openjpeg", "libtiff", "webp", "little-cms2", "postgresql"], check=True)
+        subprocess.run(
+            [
+                "brew",
+                "install",
+                "pyenv-virtualenv",
+                "libpq",
+                "libxml2",
+                "libxslt",
+                "zlib",
+                "freetype",
+                "jpeg",
+                "libpng",
+                "openjpeg",
+                "libtiff",
+                "webp",
+                "little-cms2",
+                "postgresql",
+            ],
+            check=True,
+        )
     with tempfile.TemporaryDirectory() as tmpdir:
         subdir = Path(tmpdir) / "wheels"
         if old:
-            subprocess.run([pyexec, "-mpip", "install", "-U", "setuptools<55.0.0", "cython<3", "wheel", "pip"], check=True)
-        subprocess.run([pyexec, "-mpip", "wheel","--no-build-isolation", "--prefer-binary", "-r", str(reqs), "-w", str(subdir)], check=True)
-        subprocess.run([pyexec, "-mpip", "install", "--no-build-isolation", "--no-index", "--find-links", str(subdir), "-r", str(reqs)], check=True)
-
+            subprocess.run(
+                [
+                    pyexec,
+                    "-mpip",
+                    "install",
+                    "-U",
+                    "setuptools<55.0.0",
+                    "cython<3",
+                    "wheel",
+                    "pip",
+                ],
+                check=True,
+            )
+        subprocess.run(
+            [
+                pyexec,
+                "-mpip",
+                "wheel",
+                "--no-build-isolation",
+                "--prefer-binary",
+                "-r",
+                str(reqs),
+                "-w",
+                str(subdir),
+            ],
+            check=True,
+        )
+        subprocess.run(
+            [
+                pyexec,
+                "-mpip",
+                "install",
+                "--no-build-isolation",
+                "--no-index",
+                "--find-links",
+                str(subdir),
+                "-r",
+                str(reqs),
+            ],
+            check=True,
+        )
 
         # install binary version of psyco - better on platforms
         version = _get_package_version(pyexec, "psycopg2")
-        if version >= (2,9,0):
-            subprocess.run([pyexec, "-mpip", "uninstall", "-y", f"psycopg2"], check=True)
-            subprocess.run([pyexec, "-mpip", "install", f"psycopg2-binary=={'.'.join(map(str, version))}"], check=True)
+        if version >= (2, 9, 0):
+            subprocess.run(
+                [pyexec, "-mpip", "uninstall", "-y", f"psycopg2"], check=True
+            )
+            subprocess.run(
+                [
+                    pyexec,
+                    "-mpip",
+                    "install",
+                    f"psycopg2-binary=={'.'.join(map(str, version))}",
+                ],
+                check=True,
+            )
 
     vscode_setting("python.pythonPath", str(pyexec))
     vscode_setting("python.defaultInterpreterPath", str(pyexec))
@@ -241,8 +339,18 @@ def setup_pyenv(ctx, config, old):
 
     click.secho(f"Pyenv setup done at {pyexec}", fg="green")
 
+
 def _get_package_version(python, name):
-    psyco = subprocess.run([python, "-mpip", "show", name], capture_output=True, text=True, check=True).stdout.strip().splitlines()
+    psyco = (
+        subprocess.run(
+            [python, "-mpip", "show", name],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        .stdout.strip()
+        .splitlines()
+    )
     version = None
     for line in psyco:
         if line.startswith("Version:"):
@@ -251,5 +359,6 @@ def _get_package_version(python, name):
             return version
     else:
         raise FileNotFoundError(f"Package {name} not found.")
+
 
 Commands.register(status)

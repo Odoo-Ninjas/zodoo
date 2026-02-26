@@ -10,7 +10,7 @@ services:
       - auto
     privileged: true
     restart: "unless-stopped"
-    command: ['sleep']
+    command: ["sleep"]
     environment:
       - PROJECT_NAME=${PROJECT_NAME}
     volumes:

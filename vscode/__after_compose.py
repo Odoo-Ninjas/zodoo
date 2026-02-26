@@ -18,6 +18,6 @@ def after_compose(config, settings, yml, globals):
         current_dir / "bin" / "set_docker_group.sh",
     )
 
-    src = current_dir.parent / 'wodoo' / 'src'
-    dest = current_dir / 'wodoo_src'
-    globals['tools'].sync_folder(src, dest, excludes=['.git'])
+    src = current_dir.parent / "wodoo" / "src"
+    dest = current_dir / "wodoo_src"
+    globals["tools"].sync_folder(src, dest, excludes=[".git"])

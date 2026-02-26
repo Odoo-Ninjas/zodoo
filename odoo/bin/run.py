@@ -7,6 +7,7 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 import subprocess
 import sys
+
 print("Starting up odoo")
 prepare_run()
 
@@ -19,6 +20,7 @@ if os.getenv("IS_ODOO_DEBUG") == "1":
 LEVEL = os.getenv("ODOO_LOG_LEVEL", "debug")
 WODOO_PYTHON = os.getenv("WODOO_PYTHON")
 
+
 class OnlyIndexHandler(SimpleHTTPRequestHandler):
     def list_directory(self, path):
         # Disable directory listing
@@ -26,14 +28,18 @@ class OnlyIndexHandler(SimpleHTTPRequestHandler):
         return None
 
     def do_GET(self):
-        if self.path in ('/', '/index.html'):
-            self.path = '/index.html'
+        if self.path in ("/", "/index.html"):
+            self.path = "/index.html"
         return super().do_GET()
+
 
 if os.getenv("UPDATE_ON_STARTUP") == "1":
     try:
-        subprocess.run([
-            WODOO_PYTHON, "/odoolib/update_on_startup.py"], check=True, cwd="/opt/src")
+        subprocess.run(
+            [WODOO_PYTHON, "/odoolib/update_on_startup.py"],
+            check=True,
+            cwd="/opt/src",
+        )
     except subprocess.CalledProcessError as e:
         PORT = 8069
         os.chdir("/var/www/html")  # folder containing index.html
@@ -42,7 +48,7 @@ if os.getenv("UPDATE_ON_STARTUP") == "1":
             httpd.serve_forever()
 exec_odoo(
     None,
-    f'--log-level={LEVEL}',
-    f'--log-handler=:{LEVEL.upper()}',
+    f"--log-level={LEVEL}",
+    f"--log-handler=:{LEVEL.upper()}",
     touch_url=TOUCH_URL,
 )

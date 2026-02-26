@@ -1,30 +1,30 @@
-import InputRegistry from './inputs'
+import InputRegistry from "./inputs";
 
 export type ServerConfig = {
   messageServer: {
-    port: number,
-    host: string
-  },
+    port: number;
+    host: string;
+  };
   httpServer: {
-    port: number,
-    host: string
-  },
-  debug?: boolean,
+    port: number;
+    host: string;
+  };
+  debug?: boolean;
   basicAuth?: {
-    realm: string,
+    realm: string;
     users: {
-      [username: string]: string,
-    }
-  },
-}
+      [username: string]: string;
+    };
+  };
+};
 
 export type MessageHandlerFunction = (
   config: ServerConfig,
   inputs: InputRegistry,
   io: SocketIO.Server,
-  msgParts: Array<string>
-) => Promise<void>
+  msgParts: Array<string>,
+) => Promise<void>;
 
 export type MessageHandlers = {
-  [messageType: string]: MessageHandlerFunction,
-}
+  [messageType: string]: MessageHandlerFunction;
+};

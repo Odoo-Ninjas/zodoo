@@ -2,7 +2,6 @@
 import traceback
 import time
 import os
-import sys
 import threading
 import subprocess
 import click
@@ -19,16 +18,18 @@ from tools import kill_odoo
 
 config = get_settings()
 DEBUGGER_WATCH = Path(os.environ["DEBUGGER_WATCH"])
-#print("Watching file {}".format(DEBUGGER_WATCH))
+# print("Watching file {}".format(DEBUGGER_WATCH))
 customs_dir = Path(os.environ["CUSTOMS_DIR"])
 profiling = False
 
 import os
 import platform
 
+
 def clear_terminal():
     command = "cls" if platform.system() == "Windows" else "clear"
     os.system(command)
+
 
 def watch_file_and_kill():
     while True:
@@ -42,7 +43,14 @@ def watch_file_and_kill():
 
 
 class Debugger(object):
-    def __init__(self, sync_common_modules, wait_for_remote, remote_debugging, loglevel, enable_queuejobs):
+    def __init__(
+        self,
+        sync_common_modules,
+        wait_for_remote,
+        remote_debugging,
+        loglevel,
+        enable_queuejobs,
+    ):
         self.odoolib_path = Path(os.environ["ODOOLIB"])
         self.sync_common_modules = sync_common_modules
         self.first_run = True
@@ -59,7 +67,7 @@ class Debugger(object):
         if not cmd[0].startswith("/"):
             cmd = ["python3"] + cmd
         env2 = os.environ.copy()
-        env2['ODOO_DEBUGGING'] = "1"
+        env2["ODOO_DEBUGGING"] = "1"
         proc = subprocess.run(cmd, cwd=self.odoolib_path, env=env2)  # exitcode
         res = proc.returncode == 0
         sane_tty()
@@ -93,13 +101,16 @@ class Debugger(object):
         kill_odoo()
         click.secho("UPDATE STARTED - please wait ...", fg="green")
         PARAMS_CONST = [f"--log={self.loglevel.lower()}"]
-        if config["DEVMODE"] == "1" and config.get("NO_QWEB_DELETE", "") != "1":
+        if (
+            config["DEVMODE"] == "1"
+            and config.get("NO_QWEB_DELETE", "") != "1"
+        ):
             PARAMS_CONST += ["--delete-qweb"]
         if cmd == "update_module":
             PARAMS_CONST += ["--no-tests"]
         res = self.execpy(
             [
-                os.environ['WODOO_PYTHON'],
+                os.environ["WODOO_PYTHON"],
                 "/odoolib/update_modules.py",
                 module,
             ]
@@ -132,7 +143,7 @@ class Debugger(object):
             )
         self.execpy(
             [
-                os.environ['WODOO_PYTHON'],
+                os.environ["WODOO_PYTHON"],
                 "unit_test.py",
                 self.last_unit_test,
             ]
@@ -142,13 +153,17 @@ class Debugger(object):
     def action_export_lang(self, lang, module):
         kill_odoo()
         subprocess.call(["/usr/bin/reset"])
-        self.execpy([os.environ['WODOO_PYTHON'], "export_i18n.py", lang, module])
+        self.execpy(
+            [os.environ["WODOO_PYTHON"], "export_i18n.py", lang, module]
+        )
         self.trigger_restart()
 
     def action_import_lang(self, lang, filepath):
         kill_odoo()
         self.execpy(["/usr/bin/reset"])
-        if self.execpy([os.environ['WODOO_PYTHON'], "import_i18n.py", lang, filepath]):
+        if self.execpy(
+            [os.environ["WODOO_PYTHON"], "import_i18n.py", lang, filepath]
+        ):
             self.trigger_restart()
 
     def trigger_restart(self):
@@ -202,7 +217,9 @@ class Debugger(object):
 
                 elif action[0] in ["last_unit_test"]:
                     kill_odoo()
-                    thread1 = threading.Thread(target=self.action_last_unittest)
+                    thread1 = threading.Thread(
+                        target=self.action_last_unittest
+                    )
                     thread1.daemon = True
                     thread1.start()
 
@@ -283,7 +300,10 @@ def command_debug(
     os.environ["ODOO_WORKERS_WEB"] = str(web_workers)
     profiling = profile
     if profile:
-        click.secho("Profiling enabled - set @profile at defs to see the metrics", fg="green")
+        click.secho(
+            "Profiling enabled - set @profile at defs to see the metrics",
+            fg="green",
+        )
     prepare_run()
 
     os.environ["WODOO_LOGLEVEL"] = loglevel
@@ -293,7 +313,7 @@ def command_debug(
         wait_for_remote=wait_for_remote,
         remote_debugging=remote_debugging,
         loglevel=loglevel,
-        enable_queuejobs=enable_queuejobs
+        enable_queuejobs=enable_queuejobs,
     ).endless_loop()
 
 

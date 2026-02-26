@@ -1,11 +1,6 @@
-import stat
 import sys
-import os
 import click
-import platform
-import subprocess
 from pathlib import Path
-import inspect
 
 
 def after_settings(settings, config):

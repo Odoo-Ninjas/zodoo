@@ -144,7 +144,7 @@ RUN hash -r && \
     pip3 install cython==0.29.35
 RUN pip3 install 'setuptools<58.0'
 RUN pip3 install psycopg2 pyinotify python-magic wand pycups pudb numpy
-RUN pip3 install -r /root/odoo_requirements.txt 
+RUN pip3 install -r /root/odoo_requirements.txt
 RUN pip3 install -r /root/requirements.txt
 #p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3
 
@@ -156,7 +156,7 @@ WORKDIR /opt/odoo
 RUN python3 -mpip install debugpy docker
 RUN mkdir /opt/venv; ln -s /usr/bin /opt/venv/bin
 RUN python3 -mpip install pipx
-RUN python3 -mpipx ensurepath 
+RUN python3 -mpipx ensurepath
 COPY config/$ODOO_VERSION/constraints.txt /opt/constraints.txt
 ENV WODOO_SRC=/opt/wodoo
 ENV WODOO_PIPX_HOME=/opt/wodoo_pipx
@@ -177,7 +177,7 @@ echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
 RUN pip3 install $(cat /etc/pip_options) lxml==4.6.0
 
 RUN apt-get update && apt-get install -y libodbc1 unixodbc-dev unixodbc
-RUN pip3 install $(cat /etc/pip_options) requests-oauth2client faker requests_oauthlib 
+RUN pip3 install $(cat /etc/pip_options) requests-oauth2client faker requests_oauthlib
 
 
 

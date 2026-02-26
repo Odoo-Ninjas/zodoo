@@ -11,4 +11,4 @@
     sleep 1
   done
 ) &
-vncviewer -passwd /run/user/1001/vncpasswd $VNC_SERVER 
+vncviewer -passwd /run/user/1001/vncpasswd $VNC_SERVER

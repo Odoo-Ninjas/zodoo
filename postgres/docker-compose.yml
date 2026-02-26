@@ -6,7 +6,7 @@ services:
     image: ubuntu:22.04
     volumes:
       - $HOST_RUN_DIR:/opt/hostrundir
-    entrypoint: ["/bin/sh","-c"]
+    entrypoint: ["/bin/sh", "-c"]
     profiles:
       - auto
     command:

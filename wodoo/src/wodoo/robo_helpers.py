@@ -18,7 +18,7 @@ Resource          ../path/to/robot_utils/keywords/odoo_ee.robot
 Test Requirement installed
     Log To Console                  Check if test requirement is ok
     ${modules}=  					Odoo Search Records  model=ir.module.module  domain=[('name', '=', 'required_by_robot1')]  count=False
-	Should Be Equal as Strings    	${modules[0].state}  installed
+        Should Be Equal as Strings    	${modules[0].state}  installed
     Log To Console                  Module requirements checked
 
 

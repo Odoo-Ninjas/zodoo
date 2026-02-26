@@ -3,7 +3,6 @@ import os
 import time
 import subprocess
 import sys
-import signal
 
 # Exit early if NO_SOFFICE is set to "1"
 if os.environ.get("NO_SOFFICE") == "1":
@@ -16,7 +15,7 @@ while True:
             ["pkill", "-9", "-f", r"soffice\.bin.*socket.*port=2002"],
             check=True,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+            stderr=subprocess.DEVNULL,
         )
         time.sleep(2)
     except subprocess.CalledProcessError:
@@ -28,15 +27,18 @@ while True:
     if os.path.exists(soffice_path):
         subprocess.Popen(
             [
-                "sudo", "-u", "odoo",
+                "sudo",
+                "-u",
+                "odoo",
                 soffice_path,
-                "--headless", "--calc",
-                '--accept=socket,host=127.0.0.1,port=2002;urp;StarOffice.ServiceManager'
+                "--headless",
+                "--calc",
+                "--accept=socket,host=127.0.0.1,port=2002;urp;StarOffice.ServiceManager",
             ],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            start_new_session=True
+            start_new_session=True,
         )
         # Equivalent to `reset` in terminal (optional: here just print a newline)
         print("\033c", end="", flush=True)

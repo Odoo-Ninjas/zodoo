@@ -19,7 +19,7 @@ RUN /usr/bin/python3.11 -m venv "$WODOO_ENV_DIR" && \
 RUN \
 if [ "$ODOO_VERSION"  != '11' ]; then \
      PIPX_HOME="${WODOO_PIPX_HOME}" \
-     PIPX_BIN_DIR=/usr/local/bin \ 
+     PIPX_BIN_DIR=/usr/local/bin \
      PIP_VERBOSE=1 \
      PIPX_DEFAULT_PYTHON=$WODOO_PYTHON \
      $WODOO_PYTHON \

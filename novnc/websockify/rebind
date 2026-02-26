@@ -15,4 +15,3 @@ export REBIND_PORT_OLD="${1}"; shift
 export REBIND_PORT_NEW="${1}"; shift
 
 LD_PRELOAD=${mydir}/rebind.so "${@}"
-

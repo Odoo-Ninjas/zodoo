@@ -63,7 +63,7 @@ class MyConfigParser:
                         fg="red",
                     )
                     continue
-                (key, val) = line.rstrip("\n").split("=", 1)
+                key, val = line.rstrip("\n").split("=", 1)
                 val = val.strip()
                 val = val.strip('"')
                 val = val.strip("'")
@@ -92,7 +92,7 @@ class MyConfigParser:
                 if line.startswith("#") or len(line) <= 1:
                     yield line
                     continue
-                (key, val) = line.rstrip("\n").split("=", 1)
+                key, val = line.rstrip("\n").split("=", 1)
                 key = key.strip()
                 if key in self.remove_keys:
                     self.remove_keys.remove(key)

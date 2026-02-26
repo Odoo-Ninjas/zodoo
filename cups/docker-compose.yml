@@ -1,5 +1,5 @@
 #manage-order: 5000
-version: '3.3'
+version: "3.3"
 volumes:
   cupsdatatoprint:
 
@@ -9,17 +9,16 @@ services:
     ports:
       - "${CUPS_PORT}:631"
     volumes:
-      - ${HOST_RUN_DIR}/cups/to_print:/opt/toprint 
-      - ${HOST_RUN_DIR}/cups/printed:/opt/printed 
+      - ${HOST_RUN_DIR}/cups/to_print:/opt/toprint
+      - ${HOST_RUN_DIR}/cups/printed:/opt/printed
       - ${HOST_RUN_DIR}/cups/printer_setup:/opt/printer_setup
     environment:
       WATCHPATH: /opt/toprint
       PRINTED_PATH: /opt/printed
       CONF_ROOT: /opt/printer_setup
-    restart: 'unless-stopped'
+    restart: "unless-stopped"
   odoo_base:
     volumes:
-      - cupsdatatoprint:/opt/toprint 
+      - cupsdatatoprint:/opt/toprint
     environment:
       CUPS_TOPRINT: /opt/toprint
-

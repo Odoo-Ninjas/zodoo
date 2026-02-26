@@ -6,7 +6,7 @@ repos:
     url: https://github.com/odoo/odoo
     branch: "${VERSION}"
     type: integrated
-    patches: 
+    patches:
       - odoo.patches
 
   - path: "addons_OCA/queue"

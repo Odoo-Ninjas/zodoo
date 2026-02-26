@@ -63,7 +63,7 @@ COPY start.sh /usr/local/bin/start.sh
 RUN \
 chmod +x /usr/local/bin/entrypoint.sh && \
 chmod +x /usr/local/bin/maximize_all_windows.py && \
-chmod +x /usr/local/bin/start.sh 
+chmod +x /usr/local/bin/start.sh
 ENV DISPLAY=:100
 RUN mkdir -p /root/.fluxbox
 

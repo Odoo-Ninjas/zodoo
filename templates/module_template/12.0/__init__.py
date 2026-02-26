@@ -1,8 +1,8 @@
 # def post_load():
-    # pass
+# pass
 
 # def post_init_hook(cr, pool):
-    # pass
+# pass
 
 from .models import *
 from .tests import *

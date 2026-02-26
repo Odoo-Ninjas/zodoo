@@ -1,13 +1,11 @@
-Running Websockify as a Windows service
-=======================================
+# Running Websockify as a Windows service
 
-Installation and configuration
-------------------------------
+## Installation and configuration
 
 Download the following software:
 
- * Python, from https://www.python.org/downloads/windows/
- * SrvAny, from http://simpleauto.byethost8.com/Zip/SrvAny.zip
+- Python, from https://www.python.org/downloads/windows/
+- SrvAny, from http://simpleauto.byethost8.com/Zip/SrvAny.zip
 
 Note that there is [a modern alternative for SrvAny](https://github.com/rwmjones/rhsrvany),
 but that project does not provide binaries.
@@ -44,8 +42,7 @@ In the Windows Control Panel, under Services, a new "Websockify" service will
 appear. In its properties dialog, you can change the startup type, e.g. make
 it start automatically at boot. Or, you can start the service manually.
 
-Uninstallation
---------------
+## Uninstallation
 
 If you want to remove the service, first set its startup type to Manual, then
 reboot the PC. Then run this command using the Administrator command prompt:
@@ -58,4 +55,3 @@ SrvAny.exe -remove Websockify
 
 After that, you will be able to remove the `C:\Program Files\websockify`
 directory completely.
-

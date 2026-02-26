@@ -1,5 +1,4 @@
-Log.io - Real-time log monitoring in your browser
-=================================================
+# Log.io - Real-time log monitoring in your browser
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache2.0)
 [![Version](https://img.shields.io/badge/node-%3E%3D%2012-brightgreen)](https://nodejs.org/)
@@ -13,9 +12,9 @@ A **file input** watches log files for changes, sends new messages to the **serv
 
 ## Terminology
 
-**Stream** - A logical designation for a group of messages that relate to one another.  Examples include an application name, a topic name, or a backend service name.
+**Stream** - A logical designation for a group of messages that relate to one another. Examples include an application name, a topic name, or a backend service name.
 
-**Source** - A physical designation for a group of messages that originate from the same source.  Examples include a server name, a service provider name, or a filename.
+**Source** - A physical designation for a group of messages that originate from the same source. Examples include a server name, a service provider name, or a filename.
 
 **Input** - A (stream, source) pair.
 
@@ -46,12 +45,13 @@ Browse to http://localhost:6688
 ## Install & run input
 
 Begin sending log messages to the server via:
+
 - [log.io-file-input](https://www.npmjs.com/package/log.io-file-input)
 - A custom TCP input that implements the interface described below
 
 ## Server configuration
 
-There are two servers: the message server, which receives TCP messages from message inputs, and the HTTP server, which receives requests from browsers.  By default, the application looks for configuration in `~/.log.io/server.json`, and can be overridden with the environment variable `LOGIO_SERVER_CONFIG_PATH`.
+There are two servers: the message server, which receives TCP messages from message inputs, and the HTTP server, which receives requests from browsers. By default, the application looks for configuration in `~/.log.io/server.json`, and can be overridden with the environment variable `LOGIO_SERVER_CONFIG_PATH`.
 
 Sample configuration file:
 
@@ -74,11 +74,12 @@ Sample configuration file:
   }
 }
 ```
+
 `basicAuth` and `debug` are both optional keys that can be omitted.
 
 ## Server TCP interface
 
-The file input connects to the server via TCP, and writes properly formatted strings to the socket.  Custom inputs can send messages to the server using the following commands, each of which ends with a null character:
+The file input connects to the server via TCP, and writes properly formatted strings to the socket. Custom inputs can send messages to the server using the following commands, each of which ends with a null character:
 
 Send a log message
 

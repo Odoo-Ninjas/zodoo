@@ -1,7 +1,5 @@
 #!/usr/bin/python3
 
-import datetime
-import threading
 import subprocess
 import time
 import os
@@ -9,12 +7,13 @@ import logging
 
 INPUT = os.getenv("INPUT")
 OUTPUT = os.getenv("OUTPUT")
-FORMAT = '[%(levelname)s] %(name) -12s %(asctime)s %(message)s'
+FORMAT = "[%(levelname)s] %(name) -12s %(asctime)s %(message)s"
 logging.basicConfig(format=FORMAT)
 logging.getLogger().setLevel(logging.DEBUG)
-logger = logging.getLogger('')  # root handler
+logger = logging.getLogger("")  # root handler
 
 logger.info("Starting libreoffice converter daemon")
+
 
 def setup_dir(d):
     if not os.path.exists(d):
@@ -32,15 +31,18 @@ while True:
         filepath = os.path.join(INPUT, filename)
 
         try:
-            subprocess.check_call([
-                "/usr/bin/soffice",
-                "--headless",
-                "--convert-to",
-                "pdf",
-                "--outdir",
-                OUTPUT,
-                filepath
-            ], timeout=10)
+            subprocess.check_call(
+                [
+                    "/usr/bin/soffice",
+                    "--headless",
+                    "--convert-to",
+                    "pdf",
+                    "--outdir",
+                    OUTPUT,
+                    filepath,
+                ],
+                timeout=10,
+            )
         except Exception:
             logger.error("Error converting File: {}".format(filename))
         finally:

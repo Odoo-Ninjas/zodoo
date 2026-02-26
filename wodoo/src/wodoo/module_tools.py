@@ -14,7 +14,6 @@ from .tools import __try_to_set_owner as try_to_set_owner
 from .tools import measure_time
 from .tools import whoami
 from .tools import abort
-from .tools import __rmtree as rmtree
 from .tools import pretty_xml
 from .tools import bashfind
 from .tools import __assure_gitignore
@@ -55,6 +54,7 @@ def module_or_string(module):
         return module
     if isinstance(module, Module):
         return module.name
+
 
 def module_name(module):
     if isinstance(module, str):
@@ -230,7 +230,9 @@ class DBModules(object):
                 yield mod
 
     @classmethod
-    def get_uninstalled_modules_where_others_depend_on(clazz, going_to_uninstall_modules):
+    def get_uninstalled_modules_where_others_depend_on(
+        clazz, going_to_uninstall_modules
+    ):
         sql = """
             select
                 d.name
@@ -248,20 +250,23 @@ class DBModules(object):
                 m.state in ('installed', 'to install', 'to upgrade')
             and
                 mprior.state = 'uninstalled'
-            and 
+            and
                 mprior.name not in (%s)
             ;
         """ % (
-(
-                ','.join(
+            (
+                ",".join(
                     map(
-                        lambda x: f"'{module_name(x)}'", (
-                            going_to_uninstall_modules or ["_______"]))))
+                        lambda x: f"'{module_name(x)}'",
+                        (going_to_uninstall_modules or ["_______"]),
+                    )
+                )
+            )
         )
         with get_conn_autoclose() as cr:
             if not _exists_table(cr, "ir_module_module"):
                 return []
-            cr.execute(sql )
+            cr.execute(sql)
             return [x[0] for x in cr.fetchall()]
 
     @classmethod
@@ -409,7 +414,7 @@ def make_customs(config, ctx, path, version, odoosh):
 
 
 def get_template_dir(config):
-    return config.dirs['images'] / 'templates'
+    return config.dirs["images"] / "templates"
 
 
 def make_module(config, parent_path, module_name):
@@ -996,24 +1001,17 @@ class Modules(object):
             libname = _extract_python_libname(dep)
             if not libname:
                 return []
-            try:
-                reqs = iscompatible.parse_requirements(dep)
-            except Exception as ex:
-                raise
+            reqs = iscompatible.parse_requirements(dep)
             reqs = list(reqs)
             if reqs:
                 for i in range(len(reqs)):
-                    try:
-                        reqs[i] = list(reqs[i])
-                        reqs[i][1] = iscompatible.string_to_tuple(reqs[i][1])
-                    except:
-                        raise
+                    reqs[i] = list(reqs[i])
+                    reqs[i][1] = iscompatible.string_to_tuple(reqs[i][1])
             return libname, tuple(reqs)
 
         reqs = {}
         for dep in list(filter(_filter, pydeps)):
             dep = STRIP(dep)
-            print(dep)
             libname, version = _make_tuples(dep)
             reqs.setdefault(libname, []).append(version)
         """

@@ -1,19 +1,19 @@
 common:
   vars:
-    VERSION: '16.0'
+    VERSION: "16.0"
 repos:
   - path: odoo
     url: https://github.com/odoo/odoo
     branch: ${VERSION}
     type: integrated
-    patches: 
+    patches:
       - patches/odoo
 
   # - path: enterprise
   #   url: https://github.com/odoo/enterprise
   #   branch: ${VERSION}
   #   type: integrated
-  #   patches: 
+  #   patches:
   #     - patches/enterprise
 
   - path: "addons_OCA/queue"

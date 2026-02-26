@@ -1,11 +1,11 @@
 services:
     # novnc:
-    #     build: 
+    #     build:
     #       context: $ODOO_IMAGES/novnc
     #       args:
     #         APT_PROXY_IP: ${APT_PROXY_IP}
     #     restart: "unless-stopped"
-    #     ports: 
+    #     ports:
     #       - "0.0.0.0:6080:6080"
     #     profiles:
     #       - manual

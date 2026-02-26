@@ -5,4 +5,3 @@ workers = 0
 #log_level = debug
 log_handler = :ERROR
 log_level = error
-

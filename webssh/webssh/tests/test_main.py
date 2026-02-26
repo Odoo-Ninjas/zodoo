@@ -13,10 +13,10 @@ class TestMain(unittest.TestCase):
 
         handler.redirecting = None
         server_settings = dict()
-        app_listen(app, 80, '127.0.0.1', server_settings)
+        app_listen(app, 80, "127.0.0.1", server_settings)
         self.assertFalse(handler.redirecting)
 
         handler.redirecting = None
-        server_settings = dict(ssl_options='enabled')
-        app_listen(app, 80, '127.0.0.1', server_settings)
+        server_settings = dict(ssl_options="enabled")
+        app_listen(app, 80, "127.0.0.1", server_settings)
         self.assertTrue(handler.redirecting)

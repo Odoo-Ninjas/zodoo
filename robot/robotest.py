@@ -1,10 +1,7 @@
 # pylint: disable=import-outside-toplevel
-import click
 import sys
 import uuid
-import selenium
 import base64
-from copy import deepcopy
 import shutil
 import os
 import arrow
@@ -14,10 +11,8 @@ from pathlib import Path
 import threading
 import logging
 import threading
-from tabulate import tabulate
 from robot import rebot, run
 from dotenv import load_dotenv
-
 
 FORMAT = "[%(levelname)s] %(name) -12s %(asctime)s %(message)s"
 logging.basicConfig(format=FORMAT)
@@ -80,7 +75,9 @@ def _run_test(
     tags=None,
     **run_parameters,
 ):
-    assert browser in Browsers, f"Invalid browser {browser} - not in {Browsers.keys()}"
+    assert (
+        browser in Browsers
+    ), f"Invalid browser {browser} - not in {Browsers.keys()}"
     browser = Browsers[browser]
 
     results = [
@@ -154,7 +151,9 @@ def _run_test(
     [x.join() for x in threads]  # pylint: disable=W0106
 
     success_rate = (
-        not results and 0 or len([x for x in results if x["ok"]]) / len(results) * 100
+        not results
+        and 0
+        or len([x for x in results if x["ok"]]) / len(results) * 100
     )
 
     durations = list(map(lambda x: x["duration"], results))
@@ -189,7 +188,9 @@ def _run_tests(params, test_files, output_dir):
         # build robot command: pass all params from data as
         # parameters to the command call
         logger.info(
-            ("Running test %s " "using output dir %s"), test_file.name, output_sub_dir
+            ("Running test %s " "using output dir %s"),
+            test_file.name,
+            output_sub_dir,
         )
         output_sub_dir.mkdir(parents=True, exist_ok=True)
 
@@ -207,7 +208,8 @@ def _run_tests(params, test_files, output_dir):
         run_test_result["name"] = test_file.stem
         test_results.append(run_test_result)
         logger.info(
-            ("Test finished in %s " "seconds."), run_test_result.get("duration")
+            ("Test finished in %s " "seconds."),
+            run_test_result.get("duration"),
         )
         collect_all_reports(test_file, output_sub_dir)
 
@@ -295,9 +297,9 @@ Smoke Test Robot
     temp_file = Path(f"{uuid.uuid4()}.robot")
     try:
         temp_file.write_text(robot_code)
-        old_width, old_height = os.environ.get("BROWSER_WIDTH"), os.environ.get(
-            "BROWSER_HEIGHT"
-        )
+        old_width, old_height = os.environ.get(
+            "BROWSER_WIDTH"
+        ), os.environ.get("BROWSER_HEIGHT")
         os.environ["BROWSER_WIDTH"] = "800"
         os.environ["BROWSER_HEIGHT"] = "600"
         result = run(temp_file)
@@ -325,10 +327,23 @@ def restart_selenium_driver():
     logger.info("Restarting seleniumdriver container")
     SELENIUM_SERVICE_NAME = os.environ["SELENIUM_SERVICE_NAME"]
     subprocess.run(
-        ["odoo", "-p", os.environ["project_name"], "kill", SELENIUM_SERVICE_NAME, "--brutal"]
+        [
+            "odoo",
+            "-p",
+            os.environ["project_name"],
+            "kill",
+            SELENIUM_SERVICE_NAME,
+            "--brutal",
+        ]
     )
     subprocess.run(
-        ["odoo", "-p", os.environ["project_name"], "restart", SELENIUM_SERVICE_NAME]
+        [
+            "odoo",
+            "-p",
+            os.environ["project_name"],
+            "restart",
+            SELENIUM_SERVICE_NAME,
+        ]
     )
     logger.info("Restarted seleniumdriver container")
     wait_for_port(SELENIUM_SERVICE_NAME, 4444)
@@ -351,9 +366,9 @@ if __name__ == "__main__":
         raise
     del archive
 
-    SELENIUM_SERVICE_NAME = params.pop('SELENIUM_SERVICE_NAME')
+    SELENIUM_SERVICE_NAME = params.pop("SELENIUM_SERVICE_NAME")
     os.environ["SELENIUM_SERVICE_NAME"] = SELENIUM_SERVICE_NAME
-    os.environ['ROBO_WEBDRIVER_HOST'] = f"{SELENIUM_SERVICE_NAME}:4444"
+    os.environ["ROBO_WEBDRIVER_HOST"] = f"{SELENIUM_SERVICE_NAME}:4444"
     os.environ["ROBOT_REMOTE_DEBUGGING"] = "1" if params.get("debug") else "0"
     if params["params"].get("headless"):
         os.environ["MOZ_HEADLESS"] = "1"

@@ -1,114 +1,114 @@
 # manage-order 1000
 volumes:
-    robo_upload_files:
+  robo_upload_files:
 
 services:
-    seleniumvnc:
-        build:
-            context: ${ODOO_IMAGES}/selenium_customized
-        labels:
-            proxy_config: ${ODOO_IMAGES}/robot/proxy/selenium.conf
-        shm_size: 4gb
-        environment:
-            - XPRA_RESIZE_DISPLAY=1
-            - XPRA_HTML5_BASE=/code/
-            - VNC_SERVER=seleniumdriver:5900
-            - VNC_PASSWORD=secret
-        # ports: 
-        #     - 5901:5900
-        volumes:
-            - ${ODOO_IMAGES}/selenium_customized/start.sh:/usr/local/bin/start.sh
-            - ${ODOO_IMAGES}/selenium_customized/entrypoint.sh:/usr/local/bin/entrypoint.sh
+  seleniumvnc:
+    build:
+      context: ${ODOO_IMAGES}/selenium_customized
+    labels:
+      proxy_config: ${ODOO_IMAGES}/robot/proxy/selenium.conf
+    shm_size: 4gb
+    environment:
+      - XPRA_RESIZE_DISPLAY=1
+      - XPRA_HTML5_BASE=/code/
+      - VNC_SERVER=seleniumdriver:5900
+      - VNC_PASSWORD=secret
+    # ports:
+    #     - 5901:5900
+    volumes:
+      - ${ODOO_IMAGES}/selenium_customized/start.sh:/usr/local/bin/start.sh
+      - ${ODOO_IMAGES}/selenium_customized/entrypoint.sh:/usr/local/bin/entrypoint.sh
 
-    seleniumdriver:
-        image: selenium/standalone-chromium:138.0
-        shm_size: 4gb
-        expose:
-            - 4444
-        # ports: 
-        #     - 5901:5900
-        volumes:
-            - robo_upload_files:/tmp/robo_upload_files
-        environment:
-            - SE_NODE_MAX_SESSIONS=1
-            - SE_SESSION_REQUEST_TIMEOUT=300
+  seleniumdriver:
+    image: selenium/standalone-chromium:138.0
+    shm_size: 4gb
+    expose:
+      - 4444
+    # ports:
+    #     - 5901:5900
+    volumes:
+      - robo_upload_files:/tmp/robo_upload_files
+    environment:
+      - SE_NODE_MAX_SESSIONS=1
+      - SE_SESSION_REQUEST_TIMEOUT=300
 
-    seleniumdriver_template:
-        image: selenium/standalone-chromium:138.0
-        shm_size: 4gb
-        # vnc possible at: http://localhost:7900/?autoconnect=1&password=secret⁠.
-        # ports:
-        #   - 7900:7900
-        expose:
-            - 4444
-        volumes:
-            - robo_upload_files:/tmp/robo_upload_files
-        environment:
-            - SE_NODE_MAX_SESSIONS=1
-            - SE_SESSION_REQUEST_TIMEOUT=300
+  seleniumdriver_template:
+    image: selenium/standalone-chromium:138.0
+    shm_size: 4gb
+    # vnc possible at: http://localhost:7900/?autoconnect=1&password=secret⁠.
+    # ports:
+    #   - 7900:7900
+    expose:
+      - 4444
+    volumes:
+      - robo_upload_files:/tmp/robo_upload_files
+    environment:
+      - SE_NODE_MAX_SESSIONS=1
+      - SE_SESSION_REQUEST_TIMEOUT=300
 
-    robot:
-        build:
-            context: $ODOO_IMAGES/robot
-        cap_add:
-            # required by vscode
-            - SYS_ADMIN
-        shm_size: 4gb
-        privileged: true
-        environment:
-            CUSTOMS_DIR: /opt/src
-            OUTPUT_DIR: /opt/output
-            OWNER_UID: ${OWNER_UID}
-            ODOO_HOME: /opt/src
-            BROWSER_WIDTH: 1920
-            BROWSER_HEIGHT: 1080
-            SETTINGS_FILE: /opt/robot/.odoo/run/${PROJECT_NAME}/settings
-            ROBO_NO_UI_HIGHLIGHTING: 0
-            ROBO_ODOO_HOST: http://proxy:80
-            ROBO_UPLOAD_FILES_DIR_LOCAL: /tmp/robo_upload_files
-            ROBO_UPLOAD_FILES_DIR_BROWSER_DRIVER: /tmp/robo_upload_files
-            ROBO_WEBDRIVER_BROWSER: chrome
-            ROBO_FORCE_HEADLESS: 0
-            ROBO_PARAMS_FILE: /opt/robot/robo_params.json
-            ROBO_NO_SCREENHOTS: "0"
-        profiles:
-            - auto
-        extra_hosts:
-            - "host.docker.internal:host-gateway"
-        volumes:
-            - ${HOST_RUN_DIR}/odoo_outdir/robot_output:/opt/output
-            - ${ODOO_IMAGES}/robot/robotest.py:/opt/robot/robotest.py
-            - ${ODOO_IMAGES}/robot/keywords:/opt/robot/keywords
-            - ${ODOO_IMAGES}/robot/library:/opt/robot/library
-            - ${HOST_CUSTOMS_DIR}:/opt/src
-            - ${HOST_CUSTOMS_DIR}:${HOST_CUSTOMS_DIR}
-            - "${HOST_RUN_DIR}:/opt/robot/.odoo/run/$PROJECT_NAME"
-            - "${ODOO_IMAGES}:/opt/robot/.odoo/images"
-            - "${ODOO_IMAGES}:$ODOO_IMAGES"
-            - /var/run/docker.sock:/var/run/docker.sock
-            - /var/lib/docker:/var/lib/docker
-            - robo_upload_files:/tmp/robo_upload_files
+  robot:
+    build:
+      context: $ODOO_IMAGES/robot
+    cap_add:
+      # required by vscode
+      - SYS_ADMIN
+    shm_size: 4gb
+    privileged: true
+    environment:
+      CUSTOMS_DIR: /opt/src
+      OUTPUT_DIR: /opt/output
+      OWNER_UID: ${OWNER_UID}
+      ODOO_HOME: /opt/src
+      BROWSER_WIDTH: 1920
+      BROWSER_HEIGHT: 1080
+      SETTINGS_FILE: /opt/robot/.odoo/run/${PROJECT_NAME}/settings
+      ROBO_NO_UI_HIGHLIGHTING: 0
+      ROBO_ODOO_HOST: http://proxy:80
+      ROBO_UPLOAD_FILES_DIR_LOCAL: /tmp/robo_upload_files
+      ROBO_UPLOAD_FILES_DIR_BROWSER_DRIVER: /tmp/robo_upload_files
+      ROBO_WEBDRIVER_BROWSER: chrome
+      ROBO_FORCE_HEADLESS: 0
+      ROBO_PARAMS_FILE: /opt/robot/robo_params.json
+      ROBO_NO_SCREENHOTS: "0"
+    profiles:
+      - auto
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ${HOST_RUN_DIR}/odoo_outdir/robot_output:/opt/output
+      - ${ODOO_IMAGES}/robot/robotest.py:/opt/robot/robotest.py
+      - ${ODOO_IMAGES}/robot/keywords:/opt/robot/keywords
+      - ${ODOO_IMAGES}/robot/library:/opt/robot/library
+      - ${HOST_CUSTOMS_DIR}:/opt/src
+      - ${HOST_CUSTOMS_DIR}:${HOST_CUSTOMS_DIR}
+      - "${HOST_RUN_DIR}:/opt/robot/.odoo/run/$PROJECT_NAME"
+      - "${ODOO_IMAGES}:/opt/robot/.odoo/images"
+      - "${ODOO_IMAGES}:$ODOO_IMAGES"
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker:/var/lib/docker
+      - robo_upload_files:/tmp/robo_upload_files
 
-    robot_file_browser:
-        labels:
-            proxy_config: ${ODOO_IMAGES}/robot/proxy/output.conf
-        build: $ODOO_IMAGES/static_file_browser
-        restart: unless-stopped
-        profiles:
-            - auto
-        networks:
-            - default
-        environment:
-            - FILE_FOLDER=/robot_output
-            - URL_PATH=/robot-output
-        volumes:
-            - $HOST_RUN_DIR/run/intercom:/intercom
-            - $ODOO_IMAGES/static_file_browser/app/server.js:/usr/src/app/server.js
-            - ${HOST_CUSTOMS_DIR}:/usr/src/app/odoo
-            - ${HOST_RUN_DIR}/odoo_outdir/robot_output:/robot_output
+  robot_file_browser:
+    labels:
+      proxy_config: ${ODOO_IMAGES}/robot/proxy/output.conf
+    build: $ODOO_IMAGES/static_file_browser
+    restart: unless-stopped
+    profiles:
+      - auto
+    networks:
+      - default
+    environment:
+      - FILE_FOLDER=/robot_output
+      - URL_PATH=/robot-output
+    volumes:
+      - $HOST_RUN_DIR/run/intercom:/intercom
+      - $ODOO_IMAGES/static_file_browser/app/server.js:/usr/src/app/server.js
+      - ${HOST_CUSTOMS_DIR}:/usr/src/app/odoo
+      - ${HOST_RUN_DIR}/odoo_outdir/robot_output:/robot_output
 
-        logging:
-            driver: "json-file"
-            options:
-                max-size: "10m"
-                max-file: "3"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

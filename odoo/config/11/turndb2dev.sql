@@ -12,4 +12,3 @@ insert into ir_config_parameter(key, value) values('report.url', 'http://localho
 --set not-critical
 
 /*if-table-exists caldav_cal*/ update caldav_cal set password = '1';
-

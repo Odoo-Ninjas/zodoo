@@ -1,11 +1,12 @@
 # def pre_init_hook(cr):
-    # pass
+# pass
 
 # def post_init_hook(cr, registry):
-    # pass
+# pass
 
 # def uninstall_hook(cr, registry):
-    # pass
+# pass
 
 from . import models
-#from . import tests
+
+# from . import tests

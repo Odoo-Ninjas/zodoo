@@ -450,9 +450,11 @@ def _is_container_running(config, machine_name):
 def is_up(config, *machine_name):
     assert len(machine_name) == 1
     click.echo(
-        "Running"
-        if _is_container_running(config, machine_name[0])
-        else "Not Running",
+        (
+            "Running"
+            if _is_container_running(config, machine_name[0])
+            else "Not Running"
+        ),
         machine_name[0],
     )
 
@@ -694,7 +696,7 @@ def get_docker_version():
     try:
         docker = search_env_path("docker")
     except FileNotFoundError:
-        return (0,0,0)
+        return (0, 0, 0)
     version = subprocess.check_output(
         [docker, "--version"], encoding="utf8"
     ).strip()
@@ -852,7 +854,7 @@ def is_docker_available():
 
 
 def _get_user_primary_group(UID):
-    # on osx: UID=501 
+    # on osx: UID=501
     id = shutil.which("id")
     return subprocess.check_output(
         [id, "-gn", str(UID)], encoding="utf8"
@@ -862,6 +864,7 @@ def _get_user_primary_group(UID):
 def verbose(txt):
     if os.getenv("WODOO_VERBOSE") == "1":
         click.secho(txt, fg="gray")
+
 
 def __try_to_set_owner(UID, path, abort_if_failed=True, verbose=False):
     primary_group = _get_user_primary_group(UID)
@@ -894,7 +897,9 @@ def __try_to_set_owner(UID, path, abort_if_failed=True, verbose=False):
             except:
                 try:
                     if Path(line).exists():
-                        subprocess.check_output(["sudo", "chown", str(UID), line])
+                        subprocess.check_output(
+                            ["sudo", "chown", str(UID), line]
+                        )
                 except Exception as ex:
                     if abort_if_failed:
                         abort(
@@ -904,7 +909,9 @@ def __try_to_set_owner(UID, path, abort_if_failed=True, verbose=False):
 
             try:
                 if Path.exists(line):
-                    subprocess.check_output(["chgrp", str(primary_group), line])
+                    subprocess.check_output(
+                        ["chgrp", str(primary_group), line]
+                    )
             except:
                 try:
                     if Path.exists(line):
@@ -1008,6 +1015,7 @@ def remove_webassets(conn):
     click.echo("Removing web assets")
 
     from .odoo_config import current_version
+
     conn = conn.get_psyco_connection()
     cr = conn.cursor()
 
@@ -1152,8 +1160,9 @@ def abort(msg, nr=1):
     click.secho(msg, fg="red", bold=True)
     sys.exit(nr)
 
+
 def rsync_progress_param():
-    test = subprocess.check_output(["rsync", "--version"], encoding='utf8')
+    test = subprocess.check_output(["rsync", "--version"], encoding="utf8")
     version = test.splitlines()[0]
     match = re.search(r"\brsync\s+version\s+(\d+)\.(\d+)\.(\d+)\b", version)
     version = tuple(map(int, match.groups()))
@@ -1971,7 +1980,9 @@ def start_postgres_if_local(ctx, config):
 def update_setting(config, name, value, null=None, setting_file=None):
     from .myconfigparser import MyConfigParser
 
-    configparser = MyConfigParser(setting_file or config.files["project_settings"])
+    configparser = MyConfigParser(
+        setting_file or config.files["project_settings"]
+    )
     if null:
         configparser.pop(name)
     else:
@@ -2082,13 +2093,16 @@ def remove_comments(content):
     ]
     return content
 
+
 def remove_comments_not_snippets(content):
     content = [
         line.strip()
         for line in content
-        if line.strip() and (not line.startswith("#") or line.startswith("#___SNIPPET"))
+        if line.strip()
+        and (not line.startswith("#") or line.startswith("#___SNIPPET"))
     ]
     return content
+
 
 def copy_into_docker(strcontent, container_name, dest_path):
     with autocleanpaper() as tfile:
@@ -2253,7 +2267,9 @@ def odoorpc(config):
     odoo = odoorpc_module.ODOO("localhost", port=int(config.PROXY_PORT))
     for password in [None, "1", "admin"]:
         try:
-            odoo.login(config.DBNAME, "admin", password or config.DEFAULT_DEV_PASSWORD)
+            odoo.login(
+                config.DBNAME, "admin", password or config.DEFAULT_DEV_PASSWORD
+            )
         except:
             pass
         else:
@@ -2264,6 +2280,7 @@ def odoorpc(config):
         odoo.login(config.DBNAME, "admin", password)
 
     return odoo
+
 
 def am_i_inside_docker_container():
     from pathlib import Path
@@ -2285,20 +2302,33 @@ def am_i_inside_docker_container():
 def on_osx() -> bool:
     return platform.system() == "Darwin"
 
+
 def on_windows_wsl() -> bool:
-    if not Path('/proc/version').exists():
+    if not Path("/proc/version").exists():
         return False
-    return "WSL_DISTRO_NAME" in os.environ or "microsoft" in open("/proc/version").read().lower()
+    return (
+        "WSL_DISTRO_NAME" in os.environ
+        or "microsoft" in open("/proc/version").read().lower()
+    )
+
 
 def get_best_python(desired_version):
     try:
         subprocess.run(["pyenv", "prefix", desired_version], check=True)
     except subprocess.CalledProcessError:
-        subprocess.run(["pyenv", "install", desired_version], text=True, check=True)
+        subprocess.run(
+            ["pyenv", "install", desired_version], text=True, check=True
+        )
 
     subprocess.run(["pyenv", "local", desired_version], check=True)
-    pythonexec = subprocess.run(["pyenv", "which", 'python'], text=True, check=True, capture_output=True).stdout.strip()
+    pythonexec = subprocess.run(
+        ["pyenv", "which", "python"],
+        text=True,
+        check=True,
+        capture_output=True,
+    ).stdout.strip()
     return pythonexec
+
 
 def require_homebrew():
     if platform.system() != "Darwin":
@@ -2310,8 +2340,10 @@ def require_homebrew():
             "Install it from https://brew.sh and re-run this command."
         )
 
+
 def vscode_setting(key, value):
     from .odoo_config import customs_dir
+
     path = customs_dir() or Path(os.getcwd())
     vscode = path / ".vscode" / "settings.json"
     vscode.parent.mkdir(parents=True, exist_ok=True)
@@ -2322,17 +2354,18 @@ def vscode_setting(key, value):
     content[key] = value
     vscode.write_text(json.dumps(content, indent=4))
 
+
 def load_json(content):
     try:
         return json.loads(content)
     except:
-        click.secho(content, fg='red')
+        click.secho(content, fg="red")
         raise
 
 
-
-
-def fast_file_hash(path: Union[str, Path], algo: str = "blake2b", chunk_size: int = 8192) -> str:
+def fast_file_hash(
+    path: Union[str, Path], algo: str = "blake2b", chunk_size: int = 8192
+) -> str:
     """
     Compute a fast cryptographic hash of a file by streaming it in chunks.
 
@@ -2355,4 +2388,3 @@ def fast_file_hash(path: Union[str, Path], algo: str = "blake2b", chunk_size: in
             h.update(chunk)
 
     return h.hexdigest()
-

@@ -65,7 +65,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 #___SNIPPET_APT_PROXY___
 #___SNIPPET_UPDATE_CA_CERTIFICATES___
 #___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
-RUN #___SNIPPET_APT_INSTALL___ \ 
+RUN #___SNIPPET_APT_INSTALL___ \
     build-essential \
     libxml2-dev \
     libxslt1-dev \

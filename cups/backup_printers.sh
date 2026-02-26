@@ -5,7 +5,7 @@
 
 while true;
 do
-	
+
 	cd /etc/cups || exit -1
 	latest_file="$(ls -lta|grep printers.conf |head -n1| awk '{print $(NF-0)}')"
 

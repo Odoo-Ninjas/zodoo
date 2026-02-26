@@ -3,10 +3,6 @@ from collections import defaultdict
 import click
 import os
 import sys
-from pathlib import Path
-from time import sleep
-from wodoo import odoo_config
-from wodoo.module_tools import delete_qweb as do_delete_qweb
 from wodoo.module_tools import DBModules
 from wodoo.odoo_config import MANIFEST
 from wodoo.odoo_config import current_version
@@ -44,7 +40,9 @@ def update_translations(modules):
     def _get_lang_update_line(module):
         ref = f"env.ref('base.module_{module}')"
         if current_version() <= 13.0:
-            cmd = f"{ref}.with_context(overwrite=True)._update_translations()\n"
+            cmd = (
+                f"{ref}.with_context(overwrite=True)._update_translations()\n"
+            )
         else:
             cmd = f"{ref}._update_translations(overwrite=True)\n"
         return cmd
@@ -78,7 +76,9 @@ def update(config, mode, modules):
         print(mode, modules)
 
         if mode == "i":
-            modules = [x for x in modules if not DBModules.is_module_installed(x)]
+            modules = [
+                x for x in modules if not DBModules.is_module_installed(x)
+            ]
             if not modules:
                 return
 
@@ -132,7 +132,9 @@ def update_module_list(config):
         click.secho("No update module list flag set. Not updating.")
         return
 
-    rc = _run_shell_cmd("env['ir.module.module'].update_list(); env.cr.commit()")
+    rc = _run_shell_cmd(
+        "env['ir.module.module'].update_list(); env.cr.commit()"
+    )
     if rc:
         sys.exit(rc)
 
@@ -154,7 +156,9 @@ def _get_to_install_modules(config, modules):
                     update_module_list(config)
                     listed = DBModules.is_module_listed(module)
                 elif not listed:
-                    raise Exception(("Module not found to " f"update: {module}"))
+                    raise Exception(
+                        ("Module not found to " f"update: {module}")
+                    )
 
                 if not listed:
                     raise Exception(
@@ -238,7 +242,7 @@ def main(
     server_wide_modules,
     test_tags,
     log,
-    upgrade_path
+    upgrade_path,
 ):
     # region config
     config.interactive = not non_interactive
@@ -271,7 +275,11 @@ def main(
     to_install_modules = list(_get_to_install_modules(config, modules))
 
     # install server wide modules and/or update them
-    if not no_install_server_wide_first and not modules or tuple(modules) == ("all",):
+    if (
+        not no_install_server_wide_first
+        and not modules
+        or tuple(modules) == ("all",)
+    ):
         server_wide_modules = config.manifest["server-wide-modules"]
         # leave out base modules
         server_wide_modules = list(

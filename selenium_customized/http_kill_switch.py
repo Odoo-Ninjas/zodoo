@@ -12,7 +12,9 @@ Requires:  psutil   →  pip install psutil
 import http.server, json, logging, os, subprocess, sys
 import psutil
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s  %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s %(levelname)s  %(message)s"
+)
 LOG = logging.getLogger(__name__)
 
 # ─── Resolve bind address from env ─────────────────────────────────────────────
@@ -21,7 +23,9 @@ try:
     BIND_IP, BIND_PORT = bind_env.split(":")
     BIND_PORT = int(BIND_PORT)
 except ValueError:
-    LOG.critical("WEBDRIVER_KILLSWITCH_BINDING must be ip:port (got %r)", bind_env)
+    LOG.critical(
+        "WEBDRIVER_KILLSWITCH_BINDING must be ip:port (got %r)", bind_env
+    )
     sys.exit(1)
 
 
@@ -40,7 +44,7 @@ def hard_restart() -> int:
 
     cmd = proc.cmdline()
     LOG.info("Killing geckodriver pid=%s", proc.pid)
-    proc.kill()              # immediate SIGKILL
+    proc.kill()  # immediate SIGKILL
     proc.wait(timeout=10)
 
     LOG.info("Restarting geckodriver with same args")
@@ -73,4 +77,6 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     LOG.info("Binding to http://%s:%s  (GET /restart)", BIND_IP, BIND_PORT)
-    http.server.ThreadingHTTPServer((BIND_IP, BIND_PORT), Handler).serve_forever()
+    http.server.ThreadingHTTPServer(
+        (BIND_IP, BIND_PORT), Handler
+    ).serve_forever()
