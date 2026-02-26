@@ -1236,8 +1236,7 @@ def __assure_gitignore(gitignore_file, content):
     exists = [l for l in filecontent.splitlines() if l.strip() == content]
     if not exists:
         with p.open("a") as f:
-            f.write(content)
-            f.write("\n")
+            f.write("\n" + content + "\n")
 
 
 def __needs_docker(config):

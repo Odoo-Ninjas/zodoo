@@ -82,6 +82,7 @@ default_files = {
     "start-dev": "~/.odoo/start-dev",
     "delegator_registry": "${delegator}/registry.json",
     "pgcli_history": "${run}/pgcli_history",
+    'build.settings': '${run}/build.settings',
 }
 
 try:

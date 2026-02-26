@@ -1,4 +1,5 @@
 import time
+import json
 import click
 
 import re
@@ -13,6 +14,8 @@ from .tools import ensure_project_name
 from .tools import print_prod_env
 from .tools import _shell_complete_machines
 from .tools import _shell_complete_services
+from .tools import __assure_gitignore
+from pathlib import Path
 
 
 @cli.group(cls=AliasedGroup)
@@ -340,18 +343,36 @@ def build(
     include_source,
     platform,
 ):
-    import yaml
     from .lib_cached_build import start_squid_proxy, start_proxpi
 
     from .myconfigparser import MyConfigParser
 
+    def dump_settings(settings):
+        a = []
+        for key in sorted(settings.keys()):
+            a.append((key, settings[key]))
+        return a
+
     settings = MyConfigParser(config.files["settings"])
 
+    buildsettings = {}
+    last_settings_file = config.files['build.settings']
+    last_content = []
+    if last_settings_file.exists():
+        last_content = json.loads(last_settings_file.read_text())
     if settings.get("RUN_APT_CACHER") in ["1", ""]:
-        start_squid_proxy(config)
-        start_proxpi(config)
+        buildsettings.update(start_squid_proxy(config))
+        buildsettings.update(start_proxpi(config))
     else:
-        start_squid_proxy(config, empty_setup=True)
+        buildsettings.update(start_squid_proxy(config, empty_setup=True))
+        buildsettings.update(start_proxpi(config, empty_setup=True))
+
+    compose = None
+
+    if last_content != dump_settings(buildsettings):
+        click.secho("Build settings changed since last build, rebuilding all services with build context.", fg="yellow")
+        compose = load_compose(config)
+        _place_buildsettings_for_every_service(compose, dump_settings(buildsettings))
 
     ensure_project_name(config)
     if plain:
@@ -359,7 +380,6 @@ def build(
     from .lib_control_with_docker import build as lib_build
 
     if not machines:
-        compose = yaml.safe_load(config.files["docker_compose"].read_text())
         machines = []
         for service in compose["services"]:
             if not compose["services"][service].get("build", {}).get("imgage"):
@@ -375,7 +395,30 @@ def build(
         include_source,
         platform=platform,
     )
+    last_settings_file.write_text(json.dumps(buildsettings))
 
+def load_compose(config):
+    import yaml
+    return yaml.safe_load(config.files["docker_compose"].read_text())
+
+def _place_buildsettings_for_every_service(compose_yml, buildsettings):
+    content = []
+    for item in buildsettings:
+        content.append(f"export {item[0]}=\"{item[1]}\"")
+    content = "\n".join(content)
+    for service in compose_yml["services"]:
+        if "build" in compose_yml["services"][service]:
+            if isinstance(compose_yml["services"][service]["build"], str):
+                path = Path(compose_yml["services"][service]["build"])
+                if path.is_file():
+                    path = path.parent
+            elif context := (compose_yml["services"][service]["build"] or {}).get('context'):
+                path = Path(context)
+            else:
+                raise NotImplementedError(f"Could not determine build path for service {service}")
+            filepath = path / "buildsettings.env"
+            filepath.write_text(content)
+            __assure_gitignore(path / '.gitignore', filepath.name)
 
 @docker.command()
 @click.argument(

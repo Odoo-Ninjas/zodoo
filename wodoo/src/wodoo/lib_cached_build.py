@@ -62,7 +62,6 @@ def start_container(
     build_path,
     network,
     port_mapping,
-    stored_settings,
     startup=True,
     volmappings=None,
 ):
@@ -93,12 +92,6 @@ def start_container(
             image_timestamp = _image_timestamp_stamp(image_name)
         except:
             image_timestamp = arrow.get("1980-04-04")
-        sf = ["#temporary file - do not edit --"]
-        for k, v in sorted(stored_settings.items(), key=lambda k: k[0]):
-            sf.append(f"export {k}='{v}'")
-        filecontent = "\n".join(sf + [""])
-        file = build_path / "container_settings"
-        file.write_text(filecontent)
         cmd = ["docker", "build", "--load", "-t", image_name, "."]
         try:
             subprocess.run(cmd, check=True, cwd=build_path)
@@ -205,14 +198,10 @@ def start_squid_proxy(config, empty_setup=False):
     create_named_volume(APT_VOLNAME)
     settings = {
         "APT_PROXY_IP": config.APT_PROXY_IP,
-        "PIP_PROXY_IP": config.PIP_PROXY_IP,
         "APT_OPTIONS": config.APT_OPTIONS,
-        "PIP_OPTIONS": config.PIP_OPTIONS,
-        "PIP_OPTIONS_NO_BUILDISOLATION": config.PIP_OPTIONS_NO_BUILDISOLATION,
     }
     if empty_setup:
         settings["APT_PROXY_IP"] = ""
-        settings["PIP_PROXY_IP"] = ""
     start_container(
         config,
         APT_CACHER_CONTAINER_NAME,
@@ -221,16 +210,23 @@ def start_squid_proxy(config, empty_setup=False):
         network="aptcache-net",
         port_mapping=config.APT_PROXY_IP + ":8000",
         volmappings={APT_VOLNAME: "/data"},
-        stored_settings=settings,
         # always true otherwise building fails, if image is garbage collected
         # startup=config.APT_PROXY_IP and config.APT_PROXY_IP != "ignore",
         startup=True,
     )
+    return settings
 
 
-def start_proxpi(config):
+def start_proxpi(config, empty_setup=False):
     image_name = "epicwink/proxpi"
     create_named_volume(PROXPI_VOLNAME)
+    settings = {
+        "PIP_PROXY_IP": config.PIP_PROXY_IP,
+        "PIP_OPTIONS": config.PIP_OPTIONS,
+        "PIP_OPTIONS_NO_BUILDISOLATION": config.PIP_OPTIONS_NO_BUILDISOLATION,
+    }
+    if empty_setup:
+        settings["PIP_PROXY_IP"] = ""
     start_container(
         config,
         PROXPI_CONTAINER_NAME,
@@ -239,9 +235,9 @@ def start_proxpi(config):
         network="proxpi-net",
         volmappings={PROXPI_VOLNAME: "/tmp"},
         port_mapping=config.PIP_PROXY_IP + ":5000",
-        stored_settings=None,
         startup=config.PIP_PROXY_IP and config.PIP_PROXY_IP != "ignore",
     )
+    return settings
 
 
 @cache.command()

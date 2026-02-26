@@ -1,5 +1,6 @@
 ENV DEBIAN_FRONTEND=noninteractive
-COPY --from=squid-deb-cacher-wodoo:latest /opt/container_settings /etc/proxy_settings
+COPY  buildsettings.env /etc/proxy_settings
+COPY  buildsettings.env /opt/container_settings
 
 RUN . /etc/proxy_settings && env | grep '^APT_OPTIONS=' | cut -d= -f2- > /etc/apt_options
 RUN . /etc/proxy_settings && env | grep '^PIP_OPTIONS=' | cut -d= -f2- > /etc/pip_options
