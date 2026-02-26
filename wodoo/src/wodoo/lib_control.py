@@ -322,12 +322,6 @@ def attach(ctx, config, machine):
 @click.option("-p", "--plain", is_flag=True)
 @click.option("-s", "--include-source", is_flag=True)
 @click.option(
-    "-W",
-    "--no-wodoo-update",
-    is_flag=True,
-    help="If set, latest wodoo not put inside built containers. Reduces build time if you know what you are doing.",
-)
-@click.option(
     "--platform",
     type=click.Choice(["linux/amd64", "linux/arm64"], case_sensitive=False),
     default=None,
@@ -345,7 +339,6 @@ def build(
     plain,
     include_source,
     platform,
-    no_wodoo_update,
 ):
     import yaml
     from .lib_cached_build import start_squid_proxy, start_proxpi
@@ -381,7 +374,6 @@ def build(
         push,
         include_source,
         platform=platform,
-        no_wodoo_update=no_wodoo_update,
     )
 
 

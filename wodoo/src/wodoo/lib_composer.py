@@ -432,7 +432,14 @@ def _do_compose(
 
     _redo_if_settings_missing(ctx, config)
 
+    _copy_wodoo_src(ctx, config)
+
     click.echo(f"Built the docker-compose file: {config.files['docker_compose']}")
+
+def _copy_wodoo_src(ctx, config):
+    src = current_dir.parent
+    dest = config.dirs["run.build.odoo"] / "wodoo_src"
+    sync_folder(src, dest, excludes=['.git'])
 
 
 def _fix_dockercompose_config(config):

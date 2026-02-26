@@ -292,7 +292,6 @@ def build(
     push=False,
     include_source=False,
     platform=None,
-    no_wodoo_update=False,
 ):
     """
     no parameter all machines, first parameter machine name and passes other params; e.g. ./odoo build asterisk --no-cache"
@@ -319,31 +318,6 @@ def build(
         ).strip()
     # options += ["--platform", platform]
 
-    # update wodoo src before:
-    if not no_wodoo_update:
-        container_name = f"{config.PROJECT_NAME}_wodoo_src_container"
-        image_name = f"{config.PROJECT_NAME}_wodoo_src" 
-        # 1️⃣ Image neu bauen
-        subprocess.run(
-            ["docker", "buildx", "build", "--load", "-t", image_name, "."],
-            cwd=config.dirs["images"] / "wodoo",
-            check=True,
-        )
-
-        # 2️⃣ Alten Container stoppen (falls läuft)
-        subprocess.run(
-            ["docker", "rm", "-f", container_name],
-            check=False,  # darf fehlschlagen wenn nicht existiert
-        )
-
-        # 3️⃣ Neuen Container erstellen
-        subprocess.run(
-            ["docker", "create", "--name", container_name, image_name],
-            check=True,
-        )
-        subprocess.run(
-            ["docker", "start", container_name]
-        )
 
     # if platform:
     #     import pudb;pudb.set_trace()
