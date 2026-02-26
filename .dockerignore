@@ -1,0 +1,15 @@
+.git
+**/.git
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.log
+**/*.tmp
+**/.DS_Store
+**/node_modules/
+**/.venv/
+**/.mypy_cache/
+**/.pytest_cache/
+**/.cache/
+**/dist/
+**/build/

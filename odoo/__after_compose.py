@@ -26,6 +26,50 @@ MINIMAL_MODULES = []  # to include its dependencies
 my_cache = {}
 
 
+def after_compose(config, settings, yml, globals):
+    # store also in clear text the requirements
+    from wodoo.odoo_config import customs_dir, MANIFEST
+    shutil.copy(
+        current_dir.parent / "common_snippets" / "set_docker_group.sh",
+        current_dir / "set_docker_group.sh",
+    )
+
+    yml["services"].pop("odoo_base")
+    manifest = MANIFEST()
+
+    # download python3.x version
+    if float(settings["ODOO_VERSION"]) >= 13.0:
+        python_tgz = (
+            config.dirs["images"]
+            / "odoo"
+            / "python"
+            / f"Python-{settings['ODOO_PYTHON_VERSION']}.tgz"
+        )
+        if not python_tgz.exists():
+            v = settings["ODOO_PYTHON_VERSION"]
+            url = f"https://www.python.org/ftp/python/{v}/Python-{v}.tgz"
+            click.secho(f"Downloading {url}")
+            with globals["tools"].download_file(url) as filepath:
+                python_tgz.parent.mkdir(exist_ok=True, parents=True)
+                shutil.copy(filepath, python_tgz)
+
+        PYTHON_VERSION = tuple([int(x) for x in config.ODOO_PYTHON_VERSION.split(".")])
+    else:
+        PYTHON_VERSION = (3,8,3)
+
+    # Add remote debugging possibility in devmode
+    _setup_remote_debugging(config, yml)
+
+    _determine_requirements(config, yml, PYTHON_VERSION, settings, globals)
+
+    _determine_odoo_configuration(config, yml, PYTHON_VERSION, settings, globals)
+
+    _apply_fluentd_logging(config, yml, settings, globals)
+
+    if config.RUN_PROXY:
+        setup_external_odoo_eg_kubernetes(config, yml, globals)
+
+
 
 def store_sha_of_external_deps(deps, PYTHON_VERSION, file):
     v = ""
@@ -417,50 +461,6 @@ def setup_external_odoo_eg_kubernetes(config, yml, globals):
     }
 
     globals['apply_proxy_backends'](yml, backends)
-
-def after_compose(config, settings, yml, globals):
-    # store also in clear text the requirements
-    from wodoo.odoo_config import customs_dir, MANIFEST
-    shutil.copy(
-        current_dir.parent / "common_snippets" / "set_docker_group.sh",
-        current_dir / "set_docker_group.sh",
-    )
-
-    yml["services"].pop("odoo_base")
-    manifest = MANIFEST()
-
-    # download python3.x version
-    if float(settings["ODOO_VERSION"]) >= 13.0:
-        python_tgz = (
-            config.dirs["images"]
-            / "odoo"
-            / "python"
-            / f"Python-{settings['ODOO_PYTHON_VERSION']}.tgz"
-        )
-        if not python_tgz.exists():
-            v = settings["ODOO_PYTHON_VERSION"]
-            url = f"https://www.python.org/ftp/python/{v}/Python-{v}.tgz"
-            click.secho(f"Downloading {url}")
-            with globals["tools"].download_file(url) as filepath:
-                python_tgz.parent.mkdir(exist_ok=True, parents=True)
-                shutil.copy(filepath, python_tgz)
-
-        PYTHON_VERSION = tuple([int(x) for x in config.ODOO_PYTHON_VERSION.split(".")])
-    else:
-        PYTHON_VERSION = (3,8,3)
-
-    # Add remote debugging possibility in devmode
-    _setup_remote_debugging(config, yml)
-
-    _determine_requirements(config, yml, PYTHON_VERSION, settings, globals)
-
-    _determine_odoo_configuration(config, yml, PYTHON_VERSION, settings, globals)
-
-    _apply_fluentd_logging(config, yml, settings, globals)
-
-    if config.RUN_PROXY:
-        setup_external_odoo_eg_kubernetes(config, yml, globals)
-
 
 def _is_git_dir(path):
     # import pudb;pudb.set_trace()

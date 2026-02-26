@@ -7,7 +7,7 @@ ENV WODOO_SRC=/opt/wodoo
 ENV WODOO_PIPX_HOME=/opt/wodoo_pipx
 ENV WODOO_ENV_DIR=/opt/wodoo_pipx/venvs/wodoo
 ENV WODOO_PYTHON=$WODOO_ENV_DIR/bin/python3
-ADD wodoo_src/ "$WODOO_SRC"
+COPY wodoo_src/ /opt/wodoo
 
 #___SNIPPET_PYTHON311___
 
