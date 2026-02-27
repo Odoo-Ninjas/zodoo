@@ -103,10 +103,6 @@ def start_container(
             click.secho(
                 "============================================", fg="yellow"
             )
-            click.secho("\n".join(sf + [""]), fg="yellow")
-            click.secho(
-                "============================================", fg="yellow"
-            )
 
     if not startup:
         # important that config files are written above
