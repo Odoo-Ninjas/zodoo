@@ -8,6 +8,9 @@ done > /etc/envvars.conf
 # setup config files
 python3 /usr/local/bin/setup_config_files.py || exit 1
 
+# run construction site
+python3 /usr/local/bin/static_webserver.py $CONSTRUCTION_SITE_PORT /opt/construction_site/index.html &
+
 # fix rights;-
 chmod a+r -R "$CONF_DIR" "$LUA_DIR" /usr/local/openresty/nginx/static
 chown nobody:nobody -R "$CONF_DIR" "$LUA_DIR" /usr/local/openresty/nginx/static

@@ -11,7 +11,10 @@ services:
       - LUA_DIR=/usr/local/openresty/nginx/lua
       - CONF_DIR=/usr/local/openresty/nginx/conf.d
       - LUA_TEMPLATE=/opt/template.lua
+      - PROXY_EXCHANGE=/var/proxy_exchange
+      - CONSTRUCTION_SITE_PORT=3333
     volumes:
+      - $HOST_RUN_DIR/proxy_exchange:/var/proxy_exchange
       - $HOST_RUN_DIR/proxy:/etc/proxy
       - $HOST_RUN_DIR/run/intercom:/intercom
       - ${HOST_RUN_DIR}/odoo_outdir/robot_output:/robot_output

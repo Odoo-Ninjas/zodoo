@@ -32,13 +32,15 @@ repos:
       - id: check-json
       - id: check-xml
       - id: trailing-whitespace
-      - id: check-byte-order-marker
+      - id: fix-byte-order-marker
       - id: check-merge-conflict
       - id: end-of-file-fixer
       - id: check-docstring-first
-      - id: fix-encoding-pragma
-        args:
-          - --remove
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.15.0 # oder aktuelle Version
+    hooks:
+      - id: pyupgrade
+        args: [--py39-plus] # an deine Python-Version anpassen
   - repo: https://github.com/pre-commit/mirrors-prettier
     rev: v4.0.0-alpha.8
     hooks:
