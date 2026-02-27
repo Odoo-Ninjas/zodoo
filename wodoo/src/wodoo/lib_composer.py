@@ -24,6 +24,7 @@ import copy
 import click
 from . import module_tools
 from . import tools
+from .tools import __assure_gitignore
 from .tools import get_latest_python_patch_version
 from .tools import update_setting
 from .tools import __replace_all_envs_in_str
@@ -334,7 +335,7 @@ def _tweak_config(ODOO_VERSION, config):
     from .myconfigparser import MyConfigParser
 
     settings = MyConfigParser(config.files["settings"])
-    PIP_OPTIONS_BASE = "--no-cache-dir --no-build-isolation "
+    PIP_OPTIONS_BASE = "--no-cache-dir --no-build-isolation --retries 20 --timeout 120 "
     PIP_OPTION_NO_BUILDISOL = "--no-cache-dir --no-build-isolation "
     PIP_OPTION_INDEX_URL = f" --index-url http://{config.PIP_PROXY_IP}/index --trusted-host {config.PIP_PROXY_IP} "
     if settings.get("PIP_PROXY_IP") == "ignore" or not settings.get(
@@ -440,24 +441,62 @@ def _do_compose(
     _tweak_config(ODOO_VERSION, config)
     _execute_after_settings(config)
 
-    _prepare_yml_files_from_template_files(
+    yamlcompose =_prepare_yml_files_from_template_files(
         config, additional_docker_configuration_files
     )
-    _merge_odoo_dockerfile(config)
+    _merge_odoo_dockerfile(config, yamlcompose)
     _copy_all_dockerfiles_to_run_dir_and_set_dockerfile_in_dockercompose(
-        config
+        config, yamlcompose
     )
 
-    _fix_dockercompose_config(config)
+    _fix_dockercompose_config(config, yamlcompose)
 
     _redo_if_settings_missing(ctx, config)
 
     _copy_wodoo_src(ctx, config)
 
+    _dump_yamlcompose(config, yamlcompose)
+
+    _export_container_buildsettings(ctx, config, yamlcompose)
+
     click.secho(
         f"Built the docker-compose file: {config.files['docker_compose']}",
         fg="green",
     )
+
+def _dump_yamlcompose(config, yamlcompose):
+    dest_file = config.files["docker_compose"]
+    from .tools import atomic_write
+    with atomic_write(dest_file) as file:
+        file.write_text(_yamldump(yamlcompose))
+
+
+def _export_container_buildsettings(ctx, config, yamlcompose):
+    from .lib_cached_build import get_container_settings
+    buildsettings = get_container_settings(config)
+
+    content = []
+    for key in sorted(buildsettings.keys()):
+        value = buildsettings[key]
+        content.append(f'export {key}="{value}"')
+    content = "\n".join(content) + "\n"
+    for service in yamlcompose["services"]:
+        if "build" in yamlcompose["services"][service]:
+            if isinstance(yamlcompose["services"][service]["build"], str):
+                path = Path(yamlcompose["services"][service]["build"])
+                if path.is_file():
+                    path = path.parent
+            elif context := (
+                yamlcompose["services"][service]["build"] or {}
+            ).get("context"):
+                path = Path(context)
+            else:
+                raise NotImplementedError(
+                    f"Could not determine build path for service {service}"
+                )
+            filepath = path / "buildsettings.env"
+            filepath.write_text(content)
+            __assure_gitignore(path / ".gitignore", filepath.name)
 
 
 def _copy_wodoo_src(ctx, config):
@@ -466,33 +505,29 @@ def _copy_wodoo_src(ctx, config):
     sync_folder(src, dest, excludes=[".git"])
 
 
-def _fix_dockercompose_config(config):
+def _fix_dockercompose_config(config, yamlcompose):
     import yaml
 
-    content = config.files["docker_compose"].read_text()
-    content = yaml.safe_load(content)
-    for service_name in content["services"]:
-        service = content["services"][service_name]
+    for service_name in yamlcompose["services"]:
+        service = yamlcompose["services"][service_name]
 
         # docker 23 makes repititions
         if service.get("profiles"):
             service["profiles"] = list(set(service["profiles"]))
 
-    content = _yamldump(content)
-    config.files["docker_compose"].write_text(content)
+    _dump_yamlcompose(config, yamlcompose)
 
 
 def _copy_all_dockerfiles_to_run_dir_and_set_dockerfile_in_dockercompose(
     config,
+    yamlcompose,
 ):
     import yaml
 
-    content = config.files["docker_compose"].read_text()
-    content = yaml.safe_load(content)
     images_dir = config.dirs["images"]
     to_del = set()
-    for service_name in content["services"]:
-        service = content["services"][service_name]
+    for service_name in yamlcompose["services"]:
+        service = yamlcompose["services"][service_name]
         if service.get("image"):
             continue
         buildcontext = service.get("build", {}).get("context")
@@ -522,8 +557,7 @@ def _copy_all_dockerfiles_to_run_dir_and_set_dockerfile_in_dockercompose(
             to_del.add(src_dockerfile)
         service["build"]["dockerfile"] = str(trgt_dockerfile)
     [x.unlink() for x in to_del]
-    content = _yamldump(content)
-    config.files["docker_compose"].write_text(content)
+
 
 
 def _remove_if_lines(config, dockerfilecontent):
@@ -839,9 +873,10 @@ def _prepare_yml_files_from_template_files(
     _files = _files2
     del _files2
 
-    _prepare_docker_compose_files(
+    yamlcompose = _prepare_docker_compose_files(
         config, config.files["docker_compose"], _files
     )
+    return yamlcompose
 
 
 def __resolve_custom_merge(whole_content, value):
@@ -1099,7 +1134,6 @@ def dict_merge(dct, merge_dct):
 
 def _prepare_docker_compose_files(config, dest_file, paths):
     from .myconfigparser import MyConfigParser
-    from .tools import atomic_write
 
     if not dest_file:
         raise Exception("require destination path")
@@ -1125,8 +1159,7 @@ def _prepare_docker_compose_files(config, dest_file, paths):
     content = post_process_complete_yaml_config(config, content)
     content = _execute_after_compose(config, content)
     create_directories(config, content)
-    with atomic_write(dest_file) as file:
-        file.write_text(_yamldump(content))
+    return content
 
 
 def create_directories(config, content):
@@ -1414,7 +1447,7 @@ def get_docker_host_ip():
         abort(str(e))
 
 
-def _merge_odoo_dockerfile(config):
+def _merge_odoo_dockerfile(config, yamlcompose):
     """
     If customs contains dockerfile, then append their execution
     in the main dockerfile of odoo
@@ -1426,11 +1459,9 @@ def _merge_odoo_dockerfile(config):
         config.dirs["run.build.odoo"],
     )
 
-    content = config.files["docker_compose"].read_text()
-    content = yaml.safe_load(content)
     dockerfile1 = None
-    for service in content["services"]:
-        service = content["services"][service]
+    for service in yamlcompose["services"]:
+        service = yamlcompose["services"][service]
         dockerfile = service.get("build", {})
         if isinstance(dockerfile, str):
             continue
@@ -1444,8 +1475,6 @@ def _merge_odoo_dockerfile(config):
                 config.files["odoo_docker_file"]
             )
         del dockerfile
-    content = _yamldump(content)
-    config.files["docker_compose"].write_text(content)
 
     # copy dockerfile to new location
     if dockerfile1:

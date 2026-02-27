@@ -1,12 +1,11 @@
 ENV DEBIAN_FRONTEND=noninteractive
-COPY  buildsettings.env /etc/proxy_settings
 COPY  buildsettings.env /opt/container_settings
 
-RUN . /etc/proxy_settings && env | grep '^APT_OPTIONS=' | cut -d= -f2- > /etc/apt_options
-RUN . /etc/proxy_settings && env | grep '^PIP_OPTIONS=' | cut -d= -f2- > /etc/pip_options
-RUN . /etc/proxy_settings && env | grep '^PIP_OPTIONS_NO_BUILDISOLATION=' | cut -d= -f2- > /etc/pip_options_no_buildisolation
+RUN . /opt/container_settings && env | grep '^APT_OPTIONS=' | cut -d= -f2- > /etc/apt_options
+RUN . /opt/container_settings && env | grep '^PIP_OPTIONS=' | cut -d= -f2- > /etc/pip_options
+RUN . /opt/container_settings && env | grep '^PIP_OPTIONS_NO_BUILDISOLATION=' | cut -d= -f2- > /etc/pip_options_no_buildisolation
 
-RUN . /etc/proxy_settings && ( if [ -n "$APT_PROXY_IP" ] && [ "$APT_PROXY_IP" != "ignore" ]; then \
+RUN . /opt/container_settings && ( if [ -n "$APT_PROXY_IP" ] && [ "$APT_PROXY_IP" != "ignore" ]; then \
       echo "Acquire::http::Proxy \"http://${APT_PROXY_IP}\";" > /etc/apt/apt.conf.d/01proxy; \
     fi )
 RUN apt-get $(cat /etc/apt_options) update
@@ -14,6 +13,6 @@ RUN apt-get $(cat /etc/apt_options) update
 RUN \
 echo '#!/bin/bash' > /etc/apt_install && \
 echo 'set -x' >> /etc/apt_install && \
-echo '. /etc/proxy_settings' >> /etc/apt_install && \
+echo '. /opt/container_settings' >> /etc/apt_install && \
 echo 'apt $APT_OPTIONS install "$@"' >> /etc/apt_install && \
 chmod a+x /etc/apt_install

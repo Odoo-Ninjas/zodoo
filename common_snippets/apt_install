@@ -1,1 +1,1 @@
-touch /etc/proxy_settings && . /etc/proxy_settings && apt-get $(cat /etc/apt_options) update && apt-get install $(cat /etc/apt_options) -y --no-install-recommends
+touch /opt/container_settings && . /opt/container_settings && apt-get $(cat /etc/apt_options) update && apt-get install $(cat /etc/apt_options) -y --no-install-recommends
