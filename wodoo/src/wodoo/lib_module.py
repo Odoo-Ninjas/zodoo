@@ -676,382 +676,405 @@ def update(
 
 
     """
-    started = arrow.get()
+    from .odoo_config import customs_dir
 
-    if float(config.odoo_version) < 14.0:
-        no_progress = True
+    updateinprogress = config.dirs["run"] / "proxy_exchange" / "odoo_update"
+    updateinprogress.write_text("1")
+    try:
 
-    param_module = module
+        started = arrow.get()
 
-    if recover_view_error and not non_interactive:
-        abort(
-            "Recover view error requires non interactive execution (stdout parse required)"
-        )
+        if float(config.odoo_version) < 14.0:
+            no_progress = True
 
-    click.secho(
-        (
+        param_module = module
+
+        if recover_view_error and not non_interactive:
+            abort(
+                "Recover view error requires non interactive execution (stdout parse required)"
+            )
+
+        click.secho(
             "Started with parameters: \n"
             f"no_dangling_check: {no_dangling_check}\n"
             f"modules: {module}\n"
         )
-    )
-    click.secho(
-        """
-           _                               _       _
-          | |                             | |     | |
-  ___   __| | ___   ___    _   _ _ __   __| | __ _| |_ ___
- / _ \\ / _` |/ _ \\ / _ \\  | | | | '_ \\ / _` |/ _` | __/ _ \\
-| (_) | (_| | (_) | (_) | | |_| | |_) | (_| | (_| | ||  __/
- \\___/ \\__,_|\\___/ \\___/   \\__,_| .__/ \\__,_|\\__,_|\\__\\___|
-                                | |
-                                |_|
-    """,
-        fg="green",
-    )
-    from .module_tools import DBModules, Module
-    from .odoo_config import MANIFEST
-    from .odoo_config import customs_dir
-
-    update_strategy = config.UPDATE_STRATEGY
-    assert update_strategy in [
-        False,
-        None,
-        "",
-        "odoo.sh",
-    ], f"Invalid update strategy: {update_strategy}"
-
-    if update_strategy and param_module:
         click.secho(
-            f"Ignoring update strategy '{update_strategy}' because a specific module list is provided.",
-            fg="yellow",
+            """
+            _                               _       _
+            | |                             | |     | |
+    ___   __| | ___   ___    _   _ _ __   __| | __ _| |_ ___
+    / _ \\ / _` |/ _ \\ / _ \\  | | | | '_ \\ / _` |/ _` | __/ _ \\
+    | (_) | (_| | (_) | (_) | | |_| | |_) | (_| | (_| | ||  __/
+    \\___/ \\__,_|\\___/ \\___/   \\__,_| .__/ \\__,_|\\__,_|\\__\\___|
+                                    | |
+                                    |_|
+        """,
+            fg="green",
         )
-        update_strategy = None
+        from .module_tools import DBModules, Module
+        from .odoo_config import MANIFEST
+        from .odoo_config import customs_dir
 
-    if test_tags and default_test_tags:
-        abort("Conflict: parameter test-tags and default-test-tags")
+        update_strategy = config.UPDATE_STRATEGY
+        assert update_strategy in [
+            False,
+            None,
+            "",
+            "odoo.sh",
+        ], f"Invalid update strategy: {update_strategy}"
 
-    if dry_run:
-        no_restart = True
-
-    update_log_file = customs_dir() / "update.log"
-    update_log_file.write_text("")
-    __try_to_set_owner(
-        int(config.owner_uid),
-        update_log_file,
-        verbose=True,
-    )
-    if is_docker_available() and not dry_run:
-        start_postgres_if_local(ctx, config)
-    manifest = MANIFEST()
-    if manifest.get("before-odoo-update", []) and not no_scripts:
-        if os.getenv("NO_BEFORE_ODOO_COMMAND") != "1":
-            click.secho("Running before-odoo-update", fg="yellow")
-            if dry_run:
-                click.secho(
-                    f"Would run before-odoo-update commands: {manifest.get('before-odoo-update',[])}"
-                )
-            else:
-                _exec_commands(
-                    ctx, config, manifest.get("before-odoo-update", [])
-                )
-
-    def _get_module_name(x):
-        if isinstance(x, str):
-            return x
-        return x.name
-
-    def display_modules(modules):
-        modules = sorted(map(_get_module_name, modules))
-        maxsize = max(len(x) for x in modules)
-        lines = []
-        for i in range(0, len(modules), 3):
-            row = modules[i : i + 3]
-            lines.append("".join(word.ljust(maxsize + 3) for word in row))
-        for line in lines:
-            print(line)
-
-    def _perform_install(module):
-        if since_git_sha and module:
-            raise Exception("Conflict: since-git-sha and modules")
-        if since_git_sha:
-            module = _get_modules_since_git_sha(since_git_sha)
-
-            if not module:
-                click.secho("No module update required - exiting.")
-                return
-        else:
-            module = _parse_modules(module)
-
-        if not module and not since_git_sha:
-            module = _get_default_modules_to_update(
-                config, manifest.get("uninstall", [])
+        if update_strategy and param_module:
+            click.secho(
+                f"Ignoring update strategy '{update_strategy}' because a specific module list is provided.",
+                fg="yellow",
             )
+            update_strategy = None
 
-        def _get_outdated_modules():
-            return list(
-                map(
-                    lambda x: x.name,
-                    set(_get_outdated_versioned_modules_of_deptree(module)),
-                )
-            )
+        if test_tags and default_test_tags:
+            abort("Conflict: parameter test-tags and default-test-tags")
 
-        if not no_restart:
-            if config.use_docker and is_docker_available():
-                Commands.invoke(
-                    ctx, "kill", machines=get_services(config, "odoo_base")
-                )
-                if config.run_redis:
-                    Commands.invoke(ctx, "up", machines=["redis"], daemon=True)
-                if config.run_postgres:
-                    Commands.invoke(
-                        ctx, "up", machines=["postgres"], daemon=True
+        if dry_run:
+            no_restart = True
+
+        update_log_file = customs_dir() / "update.log"
+        update_log_file.write_text("")
+        __try_to_set_owner(
+            int(config.owner_uid),
+            update_log_file,
+            verbose=True,
+        )
+        if is_docker_available() and not dry_run:
+            start_postgres_if_local(ctx, config)
+        manifest = MANIFEST()
+        if manifest.get("before-odoo-update", []) and not no_scripts:
+            if os.getenv("NO_BEFORE_ODOO_COMMAND") != "1":
+                click.secho("Running before-odoo-update", fg="yellow")
+                if dry_run:
+                    click.secho(
+                        f"Would run before-odoo-update commands: {manifest.get('before-odoo-update',[])}"
                     )
-                Commands.invoke(ctx, "wait_for_container_postgres")
-
-        if not no_dangling_check:
-            _do_dangling_check(ctx, config, dangling_modules, non_interactive)
-        if installed_modules:
-            module += __get_installed_modules(config)
-        if dangling_modules:
-            module += [x[0] for x in DBModules.get_dangling_modules()]
-        module = list(filter(bool, module))
-        if not module:
-            raise Exception("no modules to update")
-
-        def _effective_test_tags():
-            if default_test_tags:
-                return ",".join(
-                    f"at_install/{x},post_install{x},standard/{x}"
-                    for x in module
-                )
-            else:
-                return test_tags or ""
-
-        click.echo("Run module update")
-        if (
-            config.odoo_update_start_notification_touch_file_in_container
-            and not dry_run
-        ):
-            Path(
-                config.odoo_update_start_notification_touch_file_in_container
-            ).write_text(datetime.now().strftime(DTF))
-
-        def _technically_update(modules):
-            if dry_run:
-                click.secho("Would update now modules: ")
-                display_modules(modules)
-                return
-            if not no_progress:
-                progress = ProgressBarDaemon(interval=0.2)
-                progress.start()
-            output = []
-
-            def _eval_progress(line):
-                def extract_progress(text):
-                    """Extracts module name and progress values from text like 'Loading module documents_project (192/510)'."""
-                    match = re.search(
-                        r"Loading module ([\w_]+) \((\d+)/(\d+)\)", text
-                    )
-                    if match:
-                        module_name, current, total = match.groups()
-                        return module_name, int(current), int(total)
-                    return None, None, None
-
-                module, prog, total = extract_progress(line)
-                if total:
-                    prog = int(prog)
-                    total = int(total)
-                    progress.update_progress(module, prog, total)
-                output.append(line)
-
-            try:
-                modules = list(
-                    map(
-                        lambda x: x.name if isinstance(x, Module) else x,
-                        modules,
-                    )
-                )
-                params = [",".join(modules)]
-                if no_extra_addons_paths:
-                    params += ["--no-extra-addons-paths"]
-                if non_interactive:
-                    params += ["--non-interactive"]
-                if no_install_server_wide_first:
-                    params += ["--no-install-server-wide-first"]
-                if no_update_module_list:
-                    params += ["--no-update-modulelist"]
-                if no_dangling_check:
-                    params += ["--no-dangling-check"]
-                if i18n:
-                    params += ["--i18n"]
-                if not tests:
-                    params += ["--no-tests"]
-                if _effective_test_tags():
-                    params += ["--test-tags=" + _effective_test_tags()]
-                if server_wide_modules:
-                    params += ["--server-wide-modules", server_wide_modules]
-                if manifest.get("upgrade_path", []):
-                    params += [
-                        "--upgrade-path",
-                        ",".join(manifest["upgrade_path"]),
-                    ]
-                if log:
-                    params += [f"--log={log}"]
-                params += ["--config-file=" + config_file]
-                rc = list(
-                    _exec_update(
-                        config,
-                        params,
-                        non_interactive=not no_progress,  # because of progressbar; non_interactive if not stdout else True,
-                        write_to_console=(
-                            _eval_progress if not no_progress else None
-                        ),
-                        # write_to_console=lambda line: progress.write(line),
-                    )
-                )
-                if len(rc) == 1:
-                    rc = rc[0]
                 else:
-                    rc, output = rc
+                    _exec_commands(
+                        ctx, config, manifest.get("before-odoo-update", [])
+                    )
 
-                if stdout:
-                    Path(stdout).write_text(output)
+        def _get_module_name(x):
+            if isinstance(x, str):
+                return x
+            return x.name
 
-                if not no_progress:
-                    update_log_file.write_text("".join(output))
+        def display_modules(modules):
+            modules = sorted(map(_get_module_name, modules))
+            maxsize = max(len(x) for x in modules)
+            lines = []
+            for i in range(0, len(modules), 3):
+                row = modules[i : i + 3]
+                lines.append("".join(word.ljust(maxsize + 3) for word in row))
+            for line in lines:
+                print(line)
 
-                if rc:
-                    if not no_progress:
-                        click.secho(update_log_file.read_text())
-                    if recover_view_error:
-                        try:
-                            _try_to_recover_view_error(config, output)
-                        except RepeatUpdate as ex:
-                            _technically_update(ex.affected_modules)
-                        except Exception as ex:
-                            raise UpdateException(module) from ex
-                        else:
-                            raise Exception(
-                                f"Error at update - please check logs"
-                            )
-                    else:
-                        raise UpdateException(module)
+        def _perform_install(module):
+            if since_git_sha and module:
+                raise Exception("Conflict: since-git-sha and modules")
+            if since_git_sha:
+                module = _get_modules_since_git_sha(since_git_sha)
 
-            except UpdateException:
-                raise
-            except RepeatUpdate:
-                raise
-            except Exception as ex:
-                click.echo(traceback.format_exc())
-                ctx.invoke(
-                    show_install_state, suppress_error=no_dangling_check
+                if not module:
+                    click.secho("No module update required - exiting.")
+                    return
+            else:
+                module = _parse_modules(module)
+
+            if not module and not since_git_sha:
+                module = _get_default_modules_to_update(
+                    config, manifest.get("uninstall", [])
                 )
-                raise Exception(
-                    (
+
+            def _get_outdated_modules():
+                return list(
+                    map(
+                        lambda x: x.name,
+                        set(
+                            _get_outdated_versioned_modules_of_deptree(module)
+                        ),
+                    )
+                )
+
+            if not no_restart:
+                if config.use_docker and is_docker_available():
+                    Commands.invoke(
+                        ctx, "kill", machines=get_services(config, "odoo_base")
+                    )
+                    if config.RUN_PROXY:
+                        Commands.invoke(
+                            ctx, "up", machines=["proxy"], daemon=True
+                        )
+                    if config.run_redis:
+                        Commands.invoke(
+                            ctx, "up", machines=["redis"], daemon=True
+                        )
+                    if config.run_postgres:
+                        Commands.invoke(
+                            ctx, "up", machines=["postgres"], daemon=True
+                        )
+                    Commands.invoke(ctx, "wait_for_container_postgres")
+
+            if not no_dangling_check:
+                _do_dangling_check(
+                    ctx, config, dangling_modules, non_interactive
+                )
+            if installed_modules:
+                module += __get_installed_modules(config)
+            if dangling_modules:
+                module += [x[0] for x in DBModules.get_dangling_modules()]
+            module = list(filter(bool, module))
+            if not module:
+                raise Exception("no modules to update")
+
+            def _effective_test_tags():
+                if default_test_tags:
+                    return ",".join(
+                        f"at_install/{x},post_install{x},standard/{x}"
+                        for x in module
+                    )
+                else:
+                    return test_tags or ""
+
+            click.echo("Run module update")
+            if (
+                config.odoo_update_start_notification_touch_file_in_container
+                and not dry_run
+            ):
+                Path(
+                    config.odoo_update_start_notification_touch_file_in_container
+                ).write_text(datetime.now().strftime(DTF))
+
+            def _technically_update(modules):
+                if dry_run:
+                    click.secho("Would update now modules: ")
+                    display_modules(modules)
+                    return
+                if not no_progress:
+                    progress = ProgressBarDaemon(interval=0.2)
+                    progress.start()
+                output = []
+
+                def _eval_progress(line):
+                    def extract_progress(text):
+                        """Extracts module name and progress values from text like 'Loading module documents_project (192/510)'."""
+                        match = re.search(
+                            r"Loading module ([\w_]+) \((\d+)/(\d+)\)", text
+                        )
+                        if match:
+                            module_name, current, total = match.groups()
+                            return module_name, int(current), int(total)
+                        return None, None, None
+
+                    module, prog, total = extract_progress(line)
+                    if total:
+                        prog = int(prog)
+                        total = int(total)
+                        progress.update_progress(module, prog, total)
+                    output.append(line)
+
+                try:
+                    modules = list(
+                        map(
+                            lambda x: x.name if isinstance(x, Module) else x,
+                            modules,
+                        )
+                    )
+                    params = [",".join(modules)]
+                    if no_extra_addons_paths:
+                        params += ["--no-extra-addons-paths"]
+                    if non_interactive:
+                        params += ["--non-interactive"]
+                    if no_install_server_wide_first:
+                        params += ["--no-install-server-wide-first"]
+                    if no_update_module_list:
+                        params += ["--no-update-modulelist"]
+                    if no_dangling_check:
+                        params += ["--no-dangling-check"]
+                    if i18n:
+                        params += ["--i18n"]
+                    if not tests:
+                        params += ["--no-tests"]
+                    if _effective_test_tags():
+                        params += ["--test-tags=" + _effective_test_tags()]
+                    if server_wide_modules:
+                        params += [
+                            "--server-wide-modules",
+                            server_wide_modules,
+                        ]
+                    if manifest.get("upgrade_path", []):
+                        params += [
+                            "--upgrade-path",
+                            ",".join(manifest["upgrade_path"]),
+                        ]
+                    if log:
+                        params += [f"--log={log}"]
+                    params += ["--config-file=" + config_file]
+                    rc = list(
+                        _exec_update(
+                            config,
+                            params,
+                            non_interactive=not no_progress,  # because of progressbar; non_interactive if not stdout else True,
+                            write_to_console=(
+                                _eval_progress if not no_progress else None
+                            ),
+                            # write_to_console=lambda line: progress.write(line),
+                        )
+                    )
+                    if len(rc) == 1:
+                        rc = rc[0]
+                    else:
+                        rc, output = rc
+
+                    if stdout:
+                        Path(stdout).write_text(output)
+
+                    if not no_progress:
+                        update_log_file.write_text("".join(output))
+
+                    if rc:
+                        if not no_progress:
+                            click.secho(update_log_file.read_text())
+                        if recover_view_error:
+                            try:
+                                _try_to_recover_view_error(config, output)
+                            except RepeatUpdate as ex:
+                                _technically_update(ex.affected_modules)
+                            except Exception as ex:
+                                raise UpdateException(module) from ex
+                            else:
+                                raise Exception(
+                                    f"Error at update - please check logs"
+                                )
+                        else:
+                            raise UpdateException(module)
+
+                except UpdateException:
+                    raise
+                except RepeatUpdate:
+                    raise
+                except Exception as ex:
+                    click.echo(traceback.format_exc())
+                    ctx.invoke(
+                        show_install_state, suppress_error=no_dangling_check
+                    )
+                    raise Exception(
                         "Error at /update_modules.py - "
                         "aborting update process."
-                    )
-                ) from ex
-            finally:
-                if not no_progress:
-                    progress.stop()
+                    ) from ex
+                finally:
+                    if not no_progress:
+                        progress.stop()
 
-        trycount = 0
-        max_try_count = 5
+            trycount = 0
+            max_try_count = 5
 
-        if update_strategy == "odoo.sh":
-            click.secho(
-                "Using update strategy 'odoo.sh' - only outdated modules are updated.",
-                fg="yellow",
-                bold=True,
-            )
-        else:
-            source = "MANIFEST['install']"
-            txt = (
-                f"Using default update strategy - all modules are updated from {source}",
-            )
-            if param_module:
-                source = ",".join(param_module)
-                txt = (f"Updating only modules and dependencies: {source}",)
-            click.secho(txt, fg="yellow", bold=True)
-        while True:
-            trycount += 1
-            try:
-                if not no_outdated_modules:
-                    outdated_modules = _get_outdated_modules()
-                    if outdated_modules:
-                        click.secho(
-                            f"Outdated modules: {','.join(outdated_modules)}",
-                            fg="yellow",
-                        )
-                        _technically_update(outdated_modules)
-                if update_strategy not in ["odoo.sh"]:
-                    _technically_update(module)
-            except RepeatUpdate:
-                click.secho("Retrying update.")
-                if trycount >= max_try_count:
-                    raise
+            if update_strategy == "odoo.sh":
+                click.secho(
+                    "Using update strategy 'odoo.sh' - only outdated modules are updated.",
+                    fg="yellow",
+                    bold=True,
+                )
             else:
-                break
+                source = "MANIFEST['install']"
+                txt = (
+                    f"Using default update strategy - all modules are updated from {source}",
+                )
+                if param_module:
+                    source = ",".join(param_module)
+                    txt = (
+                        f"Updating only modules and dependencies: {source}",
+                    )
+                click.secho(txt, fg="yellow", bold=True)
+            while True:
+                trycount += 1
+                try:
+                    if not no_outdated_modules:
+                        outdated_modules = _get_outdated_modules()
+                        if outdated_modules:
+                            click.secho(
+                                f"Outdated modules: {','.join(outdated_modules)}",
+                                fg="yellow",
+                            )
+                            _technically_update(outdated_modules)
+                    if update_strategy not in ["odoo.sh"]:
+                        _technically_update(module)
+                except RepeatUpdate:
+                    click.secho("Retrying update.")
+                    if trycount >= max_try_count:
+                        raise
+                else:
+                    break
 
-        if (
-            not no_restart
-            and config.use_docker
-            and os.getenv("DOCKER_MACHINE") != "1"
-        ):
-            Commands.invoke(ctx, "restart", machines=["odoo"])
-            if config.run_odoocronjobs:
-                Commands.invoke(ctx, "restart", machines=["odoo_cronjobs"])
-            if config.run_queuejobs:
-                Commands.invoke(ctx, "restart", machines=["odoo_queuejobs"])
-            Commands.invoke(ctx, "up", daemon=True)
+            if (
+                not no_restart
+                and config.use_docker
+                and os.getenv("DOCKER_MACHINE") != "1"
+            ):
+                Commands.invoke(ctx, "restart", machines=["odoo"])
+                if config.run_odoocronjobs:
+                    Commands.invoke(ctx, "restart", machines=["odoo_cronjobs"])
+                if config.run_queuejobs:
+                    Commands.invoke(
+                        ctx, "restart", machines=["odoo_queuejobs"]
+                    )
+                Commands.invoke(ctx, "up", daemon=True)
 
-        Commands.invoke(ctx, "status")
-        if config.odoo_update_start_notification_touch_file_in_container:
-            Path(
-                config.odoo_update_start_notification_touch_file_in_container
-            ).write_text("0")
+            Commands.invoke(ctx, "status")
+            if config.odoo_update_start_notification_touch_file_in_container:
+                Path(
+                    config.odoo_update_start_notification_touch_file_in_container
+                ).write_text("0")
 
-    if not uninstall:
-        _perform_install(module)
+        if not uninstall:
+            _perform_install(module)
 
-    _uninstall_devmode_modules(ctx, config, manifest, dry_run=dry_run)
+        _uninstall_devmode_modules(ctx, config, manifest, dry_run=dry_run)
 
-    all_modules = (
-        not param_module
-        or len(param_module) == 1
-        and param_module[0] in ["all", "base", False, None, ""]
-    )
-
-    if uninstall or all_modules:
-        _uninstall_marked_modules(
-            ctx, config, manifest.get("uninstall", []), no_restart
+        all_modules = (
+            not param_module
+            or len(param_module) == 1
+            and param_module[0] in ["all", "base", False, None, ""]
         )
 
-    # check danglings
-    if not no_dangling_check and all_modules:
-        ctx.invoke(show_install_state, suppress_error=False)
+        if uninstall or all_modules:
+            _uninstall_marked_modules(
+                ctx, config, manifest.get("uninstall", []), no_restart
+            )
 
-    if check_install_state:
-        _do_check_install_state(
-            ctx, config, module, all_modules, no_dangling_check
+        # check danglings
+        if not no_dangling_check and all_modules:
+            ctx.invoke(show_install_state, suppress_error=False)
+
+        if check_install_state:
+            _do_check_install_state(
+                ctx, config, module, all_modules, no_dangling_check
+            )
+
+        _set_sha(config)
+
+        duration = (arrow.get() - started).total_seconds()
+        date = arrow.get().strftime("%Y-%m-%d %H:%M:%S")
+
+        if not no_restart:
+            _execute_after_update_scripts(config)
+
+        click.secho(
+            f"Update done at {date} - duration {duration}s", fg="yellow"
         )
-
-    _set_sha(config)
-
-    duration = (arrow.get() - started).total_seconds()
-    date = arrow.get().strftime("%Y-%m-%d %H:%M:%S")
-
-    if not no_restart:
-        _execute_after_update_scripts(config)
-
-    click.secho(f"Update done at {date} - duration {duration}s", fg="yellow")
-    if not no_progress:
-        click.secho("Update-log here: ./update.log")
-        __assure_gitignore(
-            customs_dir() / ".gitignore",
-            update_log_file.relative_to(customs_dir()),
-        )
+        if not no_progress:
+            click.secho("Update-log here: ./update.log")
+            __assure_gitignore(
+                customs_dir() / ".gitignore",
+                update_log_file.relative_to(customs_dir()),
+            )
+    finally:
+        updateinprogress.write_text("0")
 
 
 def _execute_after_update_scripts(config):
@@ -1143,7 +1166,7 @@ def show_dangling():
     if dangling:
         click.echo("Displaying dangling modules:")
         for row in dangling:
-            click.echo("{}: {}".format(row[0], row[1]))
+            click.echo(f"{row[0]}: {row[1]}")
     return bool(dangling)
 
 
@@ -1185,10 +1208,8 @@ def _do_dangling_check(ctx, config, dangling_modules, non_interactive):
         if (
             non_interactive
             or input(
-                (
-                    "Uninstallable modules found - "
-                    "shall I set them to 'uninstalled'? [y/N]"
-                )
+                "Uninstallable modules found - "
+                "shall I set them to 'uninstalled'? [y/N]"
             ).lower()
             == "y"
         ):
@@ -1269,10 +1290,8 @@ def _uninstall_marked_modules(ctx, config, modules, no_restart=False):
                         "auto_install"
                     ):
                         errors.append(
-                            (
-                                f"{objmod.name} has {desc.name} as descendant "
-                                "which is still in the install section"
-                            )
+                            f"{objmod.name} has {desc.name} as descendant "
+                            "which is still in the install section"
                         )
         except NotInAddonsPath:
             pass
@@ -1422,7 +1441,7 @@ def show_install_state(config, suppress_error=False, missing_as_error=False):
     if dangling:
         click.echo("Displaying dangling modules:")
     for row in dangling:
-        click.echo("{}: {}".format(row[0], row[1]))
+        click.echo(f"{row[0]}: {row[1]}")
 
     # get modules, that are not installed:
     missing = DBModules.check_if_all_modules_from_install_are_installed(
@@ -1434,12 +1453,10 @@ def show_install_state(config, suppress_error=False, missing_as_error=False):
     if not suppress_error:
         if dangling or (missing_as_error and missing):
             abort(
-                (
-                    "Dangling modules detected - "
-                    " please fix installation problems and retry! \n"
-                    f"Dangling: {dangling}\n"
-                    f"Missing: {missing}\n"
-                )
+                "Dangling modules detected - "
+                " please fix installation problems and retry! \n"
+                f"Dangling: {dangling}\n"
+                f"Missing: {missing}\n"
             )
 
 
@@ -2023,10 +2040,8 @@ def _get_modules_since_git_sha(sha):
 
     module = list(filter(lambda x: x in MANIFEST()["install"], module))
     click.secho(
-        (
-            "Following modules changed since last sha "
-            f"(filtered to manifest): {' '.join(module)}"
-        )
+        "Following modules changed since last sha "
+        f"(filtered to manifest): {' '.join(module)}"
     )
     return module
 
