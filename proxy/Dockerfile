@@ -1,9 +1,8 @@
 FROM openresty/openresty:alpine
 # Install Python3 + pip
 RUN apk add --no-cache \
-    python3=3.11.8-r0 \
-    py3-pip=23.2.1-r0
-
+    python3=3.12.12-r0 \
+    py3-pip=25.1.1-r0
 EXPOSE 80
 COPY run.sh /run.sh
 COPY nginx.conf /usr/local/openresty/nginx/conf/nginx.conf
