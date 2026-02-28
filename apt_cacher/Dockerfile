@@ -23,6 +23,5 @@ RUN ln -sf /data/squid/etc/extra-sources.acl /etc/squid-deb-proxy/mirror-dstdoma
 EXPOSE 8000/tcp
 
 ENTRYPOINT ["/bin/bash", "/data/entrypoint.sh"]
-COPY container_settings /opt/container_settings
 
 COPY squid/etc/10-extra.conf /etc/squid-deb-proxy/conf.d/10-extra.conf

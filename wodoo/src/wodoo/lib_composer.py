@@ -500,7 +500,7 @@ def _export_container_buildsettings(ctx, config, yamlcompose):
 
 
 def _copy_wodoo_src(ctx, config):
-    src = current_dir.parent
+    src = config.dirs['images'] / 'wodoo' / 'src'
     dest = config.dirs["run.build.odoo"] / "wodoo_src"
     sync_folder(src, dest, excludes=[".git"])
 
