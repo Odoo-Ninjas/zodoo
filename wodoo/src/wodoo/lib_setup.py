@@ -217,27 +217,21 @@ def produce_test_lines(lines):
 )
 @click.pass_context
 def setup_pyenv(ctx, config, old):
-    from .odoo_config import MANIFEST
-    from .tools import require_homebrew
+    _setup_robo_pyenv(ctx, config)
+    _setup_odoo_pyenv(ctx, config, old)
 
-    require_homebrew()
-    click.secho("Setting up pyenv...", fg="yellow")
+
+def _setup_odoo_pyenv(ctx, config, old):
+    from .odoo_config import MANIFEST
+
+    name = config.project_name
     from .odoo_config import customs_dir
 
     SRC = customs_dir()
-    projectname = config.project_name
-    subprocess.run(["pyenv", "uninstall", "-f", projectname], check=True)
-    subprocess.run(
-        ["pyenv", "install", "-s", config.ODOO_PYTHON_VERSION], check=True
-    )
-    subprocess.run(
-        ["pyenv", "virtualenv", config.ODOO_PYTHON_VERSION, projectname],
-        check=True,
-    )
-    pyexec = os.path.expanduser(f"~/.pyenv/versions/{projectname}/bin/python")
-    reqs = SRC / "requirements.txt.all"
-
+    python_version = config.ODOO_PYTHON_VERSION
+    reqfile = SRC / "requirements.txt.all"
     manifest = MANIFEST()
+
     if manifest["version"] <= 15.0:
         old = True
         click.secho(
@@ -250,6 +244,32 @@ def setup_pyenv(ctx, config, old):
                 "Warning: Odoo version <= 16.0 is not compatible with latest setuptools, using old setuptools and cython versions. Use --old to suppress this warning.",
                 fg="red",
             )
+    pyexec = _setup_pyenv(ctx, config, name, old, reqfile, python_version)
+    vscode_setting("python.pythonPath", str(pyexec))
+    vscode_setting("python.defaultInterpreterPath", str(pyexec))
+
+    (SRC / ".python-version").write_text(name)
+    __assure_gitignore(SRC / ".gitignore", ".python-version")
+
+
+def _setup_robo_pyenv(ctx, config):
+    name = "zodoo-robot"
+    python_version = "3.12.11"
+    pyexec = _setup_pyenv(
+        ctx,
+        config,
+        name,
+        False,
+        config.dirs["images"] / "robot" / "requirements.txt",
+        python_version,
+    )
+    vscode_setting("robotcode.pythonPath", str(pyexec))
+
+
+def _setup_pyenv(ctx, config, name, old, reqfile, python_version):
+    from .tools import require_homebrew
+
+    require_homebrew()
 
     if on_osx():
         subprocess.run(
@@ -272,6 +292,17 @@ def setup_pyenv(ctx, config, old):
             ],
             check=True,
         )
+
+    click.secho(f"Setting up pyenv {name} {python_version}...", fg="yellow")
+
+    subprocess.run(["pyenv", "uninstall", "-f", name], check=True)
+    subprocess.run(["pyenv", "install", "-s", python_version], check=True)
+    subprocess.run(
+        ["pyenv", "virtualenv", python_version, name],
+        check=True,
+    )
+    pyexec = os.path.expanduser(f"~/.pyenv/versions/{name}/bin/python")
+
     with tempfile.TemporaryDirectory() as tmpdir:
         subdir = Path(tmpdir) / "wheels"
         if old:
@@ -288,6 +319,20 @@ def setup_pyenv(ctx, config, old):
                 ],
                 check=True,
             )
+        else:
+            subprocess.run(
+                [
+                    pyexec,
+                    "-mpip",
+                    "install",
+                    "-U",
+                    "setuptools",
+                    "cython",
+                    "wheel",
+                    "pip",
+                ],
+                check=True,
+            )
         subprocess.run(
             [
                 pyexec,
@@ -296,7 +341,7 @@ def setup_pyenv(ctx, config, old):
                 "--no-build-isolation",
                 "--prefer-binary",
                 "-r",
-                str(reqs),
+                str(reqfile),
                 "-w",
                 str(subdir),
             ],
@@ -312,7 +357,7 @@ def setup_pyenv(ctx, config, old):
                 "--find-links",
                 str(subdir),
                 "-r",
-                str(reqs),
+                str(reqfile),
             ],
             check=True,
         )
@@ -321,7 +366,7 @@ def setup_pyenv(ctx, config, old):
         version = _get_package_version(pyexec, "psycopg2")
         if version >= (2, 9, 0):
             subprocess.run(
-                [pyexec, "-mpip", "uninstall", "-y", f"psycopg2"], check=True
+                [pyexec, "-mpip", "uninstall", "-y", "psycopg2"], check=True
             )
             subprocess.run(
                 [
@@ -333,14 +378,8 @@ def setup_pyenv(ctx, config, old):
                 check=True,
             )
 
-    vscode_setting("python.pythonPath", str(pyexec))
-    vscode_setting("python.defaultInterpreterPath", str(pyexec))
-    vscode_setting("robot.pythonPath", str(pyexec))
-
-    (SRC / ".python-version").write_text(projectname)
-    __assure_gitignore(SRC / ".gitignore", ".python-version")
-
     click.secho(f"Pyenv setup done at {pyexec}", fg="green")
+    return pyexec
 
 
 def _get_package_version(python, name):
