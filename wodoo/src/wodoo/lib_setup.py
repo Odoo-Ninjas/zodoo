@@ -15,6 +15,7 @@ from .tools import is_git_clean
 from .tools import on_osx, on_windows_wsl
 from .tools import update_setting
 from .tools import vscode_setting
+from .tools import __assure_gitignore
 
 ALL_PORTS = ["PROXY_PORT", "DEBUG_PORT", "HOST_DB_PORT"]
 
@@ -65,7 +66,7 @@ def _setup_port(ctx, config, required_ports):
 
 
 def _next_port(config):
-    PORTS = set((2000,))  # usually starting with 1023
+    PORTS = {2000}  # usually starting with 1023
     parentfolder = config.dirs["user_conf_dir"]
     for file in parentfolder.glob("settings.*"):
         lines = [
@@ -166,8 +167,7 @@ def upgrade(ctx, config, no_install):
             "--quiet",
         ],
         cwd=config.dirs["images"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         encoding="utf-8",
         text=True,
         env={**os.environ, "LANG": "C", "LC_ALL": "C"},
@@ -336,6 +336,9 @@ def setup_pyenv(ctx, config, old):
     vscode_setting("python.pythonPath", str(pyexec))
     vscode_setting("python.defaultInterpreterPath", str(pyexec))
     vscode_setting("robot.pythonPath", str(pyexec))
+
+    (SRC / ".python-version").write_text(projectname)
+    __assure_gitignore(SRC / ".gitignore", ".python-version")
 
     click.secho(f"Pyenv setup done at {pyexec}", fg="green")
 
