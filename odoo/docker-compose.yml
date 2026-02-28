@@ -18,3 +18,4 @@ services:
       - ${HOST_RUN_DIR}/odoo_outdir:/opt/out_dir
       - ${HOST_RUN_DIR}/debug:/tmp/debug
       - ${ODOO_FILES}:/opt/files
+      - ${HOST_RUN_DIR}/proxy_exchange:/var/run/proxy_exchange

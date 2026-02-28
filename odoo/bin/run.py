@@ -1,6 +1,7 @@
 import os
 from tools import prepare_run
 from tools import exec_odoo
+from tools import set_proxy_update_modules
 from tools import is_odoo_cronjob
 from tools import is_odoo_queuejob
 from http.server import HTTPServer, SimpleHTTPRequestHandler
@@ -46,6 +47,9 @@ if os.getenv("UPDATE_ON_STARTUP") == "1":
         with HTTPServer(("", PORT), OnlyIndexHandler) as httpd:
             print(f"Serving construction-site port {PORT}")
             httpd.serve_forever()
+
+set_proxy_update_modules(False)
+
 exec_odoo(
     None,
     f"--log-level={LEVEL}",

@@ -130,7 +130,7 @@ def _replace_params_in_config(
         content = content.replace(key, value)
 
     for key in config.keys():
-        content = content.replace("__{}__".format(key), config[key])
+        content = content.replace(f"__{key}__", config[key])
 
     # exchange existing configurations
     return content
@@ -178,7 +178,7 @@ def _run_autosetup():
     path = customs_dir() / "autosetup"
     if path.exists():
         for file in path.glob("*.sh"):
-            click.secho("executing {}".format(file))
+            click.secho(f"executing {file}")
             os.chdir(path.parent)
             subprocess.check_call(
                 [
@@ -816,3 +816,9 @@ def _touch():
             sys.exit(1)
 
         time.sleep(1.0)  # kurzer backoff vor nächstem attempt
+
+
+def set_proxy_update_modules(enabled):
+    Path("/var/run/proxy_exchange/update_odoo").write_text(
+        "1" if enabled else "0"
+    )
