@@ -679,7 +679,8 @@ def update(
     from .odoo_config import customs_dir
 
     updateinprogress = config.dirs["run"] / "proxy_exchange" / "odoo_update"
-    updateinprogress.write_text("1")
+    if not config.DEVMODE:
+        updateinprogress.write_text("1")
     try:
 
         started = arrow.get()
