@@ -2,202 +2,65 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Odoo is being updated</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Maintenance</title>
     <style>
       :root {
-        --odoo-purple: #875a7b;
-        --bg1: #0f0f14;
-        --bg2: #1a1622;
-        --card: rgba(255, 255, 255, 0.06);
-        --card-border: rgba(255, 255, 255, 0.12);
-        --text: rgba(255, 255, 255, 0.92);
-        --muted: rgba(255, 255, 255, 0.68);
-        --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+        --primary: #875a7b;
+        --bg: #111118;
+        --text: #ffffff;
+        --muted: rgba(255, 255, 255, 0.65);
       }
 
       * {
         box-sizing: border-box;
       }
-      html,
-      body {
-        height: 100%;
-      }
+
       body {
         margin: 0;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         font-family:
-          ui-sans-serif,
           system-ui,
           -apple-system,
           Segoe UI,
           Roboto,
           Helvetica,
           Arial,
-          "Apple Color Emoji",
-          "Segoe UI Emoji";
+          sans-serif;
+        background: var(--bg);
         color: var(--text);
-        background:
-          radial-gradient(
-            1200px 800px at 20% 20%,
-            rgba(135, 90, 123, 0.22),
-            transparent 60%
-          ),
-          radial-gradient(
-            900px 700px at 80% 30%,
-            rgba(135, 90, 123, 0.14),
-            transparent 55%
-          ),
-          radial-gradient(
-            900px 900px at 50% 90%,
-            rgba(255, 255, 255, 0.05),
-            transparent 60%
-          ),
-          linear-gradient(180deg, var(--bg1), var(--bg2));
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        text-align: center;
         padding: 24px;
       }
 
-      .wrap {
-        width: min(860px, 100%);
-        display: grid;
-        grid-template-columns: 1.1fr 0.9fr;
-        gap: 18px;
-        align-items: stretch;
-      }
-
-      @media (max-width: 760px) {
-        .wrap {
-          grid-template-columns: 1fr;
-        }
-      }
-
-      .card {
-        background: var(--card);
-        border: 1px solid var(--card-border);
-        border-radius: 20px;
-        box-shadow: var(--shadow);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        overflow: hidden;
-        position: relative;
-      }
-
-      .card::before {
-        content: "";
-        position: absolute;
-        inset: -2px;
-        background:
-          radial-gradient(
-            420px 200px at 20% 0%,
-            rgba(135, 90, 123, 0.45),
-            transparent 60%
-          ),
-          radial-gradient(
-            360px 220px at 80% 10%,
-            rgba(135, 90, 123, 0.25),
-            transparent 55%
-          );
-        opacity: 0.55;
-        pointer-events: none;
-        filter: blur(8px);
-      }
-
-      .content {
-        position: relative;
-        padding: 28px 28px 24px 28px;
-      }
-
-      .badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 10px;
-        padding: 8px 12px;
-        border-radius: 999px;
-        border: 1px solid rgba(135, 90, 123, 0.5);
-        background: rgba(135, 90, 123, 0.12);
-        color: rgba(255, 255, 255, 0.88);
-        font-weight: 600;
-        letter-spacing: 0.2px;
-        font-size: 13px;
-      }
-
-      .dot {
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        background: var(--odoo-purple);
-        box-shadow: 0 0 0 4px rgba(135, 90, 123, 0.22);
+      .container {
+        max-width: 480px;
       }
 
       h1 {
-        margin: 14px 0 10px;
-        font-size: clamp(28px, 3.6vw, 40px);
-        line-height: 1.06;
-        letter-spacing: -0.5px;
+        font-size: 32px;
+        margin: 0 0 12px;
+        font-weight: 600;
       }
 
       p {
-        margin: 0;
+        margin: 0 0 24px;
         color: var(--muted);
         font-size: 16px;
-        line-height: 1.55;
-        max-width: 48ch;
-      }
-
-      .actions {
-        margin-top: 18px;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-      }
-
-      .pill {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 10px 12px;
-        border-radius: 12px;
-        border: 1px solid rgba(255, 255, 255, 0.14);
-        background: rgba(255, 255, 255, 0.05);
-        color: rgba(255, 255, 255, 0.78);
-        font-size: 13px;
-      }
-
-      .pill b {
-        color: rgba(255, 255, 255, 0.92);
-        font-weight: 700;
-      }
-
-      .right {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        padding: 26px;
-        position: relative;
-        min-height: 220px;
-      }
-
-      .spinner-wrap {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 14px;
-        text-align: center;
-        position: relative;
-        z-index: 1;
+        line-height: 1.5;
       }
 
       .spinner {
-        width: 72px;
-        height: 72px;
+        width: 48px;
+        height: 48px;
+        margin: 0 auto 20px;
         border-radius: 50%;
-        border: 7px solid rgba(255, 255, 255, 0.14);
-        border-top-color: var(--odoo-purple);
-        border-right-color: rgba(135, 90, 123, 0.55);
-        animation: spin 1.05s linear infinite;
-        box-shadow: 0 10px 30px rgba(135, 90, 123, 0.18);
+        border: 4px solid rgba(255, 255, 255, 0.15);
+        border-top-color: var(--primary);
+        animation: spin 1s linear infinite;
       }
 
       @keyframes spin {
@@ -206,169 +69,22 @@
         }
       }
 
-      .status {
-        font-size: 14px;
-        color: rgba(255, 255, 255, 0.72);
-      }
-
-      .status strong {
-        color: rgba(255, 255, 255, 0.92);
-        font-weight: 700;
-      }
-
-      .progress {
-        width: min(320px, 100%);
-        height: 10px;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.08);
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        overflow: hidden;
-      }
-
-      .bar {
-        height: 100%;
-        width: 42%;
-        background: linear-gradient(
-          90deg,
-          rgba(135, 90, 123, 0.35),
-          var(--odoo-purple),
-          rgba(135, 90, 123, 0.35)
-        );
-        background-size: 200% 100%;
-        animation: shimmer 1.6s ease-in-out infinite;
-        border-radius: 999px;
-      }
-
-      @keyframes shimmer {
-        0% {
-          transform: translateX(-20%);
-          filter: saturate(1.1);
-        }
-        50% {
-          transform: translateX(30%);
-          filter: saturate(1.4);
-        }
-        100% {
-          transform: translateX(-20%);
-          filter: saturate(1.1);
-        }
-      }
-
-      .footer {
-        margin-top: 14px;
-        font-size: 12px;
-        color: rgba(255, 255, 255, 0.52);
-      }
-
-      /* Subtle construction icon */
-      .cone {
-        width: 64px;
-        height: 64px;
-        display: grid;
-        place-items: center;
-        border-radius: 18px;
-        border: 1px solid rgba(135, 90, 123, 0.45);
-        background: rgba(135, 90, 123, 0.12);
-        margin-top: 6px;
-      }
-
-      .cone svg {
-        width: 34px;
-        height: 34px;
-        opacity: 0.95;
-      }
-      .sr-only {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        padding: 0;
-        margin: -1px;
-        overflow: hidden;
-        clip: rect(0, 0, 0, 0);
-        white-space: nowrap;
-        border: 0;
+      .hint {
+        font-size: 13px;
+        color: rgba(255, 255, 255, 0.45);
       }
     </style>
   </head>
 
   <body>
-    <main class="wrap" role="main">
-      <section class="card">
-        <div class="content">
-          <div class="badge">
-            <span class="dot" aria-hidden="true"></span>
-            Scheduled maintenance
-          </div>
-
-          <h1>Odoo is being updated</h1>
-          <p>
-            We’re applying updates and performing a few optimizations. The
-            service will be back shortly. Thanks for your patience.
-          </p>
-
-          <div class="actions" aria-label="Status details">
-            <span class="pill"
-              ><b>What’s happening:</b> Upgrade in progress</span
-            >
-            <span class="pill"><b>Impact:</b> Temporarily unavailable</span>
-            <span class="pill"><b>ETA:</b> A few minutes</span>
-          </div>
-
-          <div class="footer">
-            Tip: If you’re seeing this for a while, try refreshing in a moment.
-          </div>
-        </div>
-      </section>
-
-      <aside class="card right" aria-label="Loading indicator">
-        <div class="spinner-wrap">
-          <div class="cone" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none">
-              <path
-                d="M12 3c-.6 0-1.1.33-1.38.86L4.2 17.8c-.55 1.18.32 2.2 1.62 2.2h12.36c1.3 0 2.17-1.02 1.62-2.2L13.38 3.86C13.1 3.33 12.6 3 12 3Z"
-                fill="currentColor"
-                style="color: var(--odoo-purple)"
-              />
-              <path
-                d="M8.2 14.2h7.6"
-                stroke="rgba(255,255,255,.85)"
-                stroke-width="1.6"
-                stroke-linecap="round"
-              />
-              <path
-                d="M7.2 16.9h9.6"
-                stroke="rgba(255,255,255,.75)"
-                stroke-width="1.6"
-                stroke-linecap="round"
-              />
-              <path
-                d="M9.1 11.7h5.8"
-                stroke="rgba(255,255,255,.95)"
-                stroke-width="1.6"
-                stroke-linecap="round"
-              />
-            </svg>
-            <span class="sr-only">Maintenance</span>
-          </div>
-
-          <div
-            class="spinner"
-            role="status"
-            aria-live="polite"
-            aria-label="Loading"
-          >
-            <span class="sr-only">Loading…</span>
-          </div>
-
-          <div class="progress" aria-hidden="true">
-            <div class="bar"></div>
-          </div>
-
-          <div class="status">
-            Please keep this page open — <strong>we’ll be right back</strong>.
-          </div>
-        </div>
-      </aside>
-    </main>
+    <div class="container">
+      <div class="spinner" aria-hidden="true"></div>
+      <h1>System is being updated</h1>
+      <p>
+        We’re currently performing maintenance. The service will be available
+        again shortly.
+      </p>
+      <div class="hint">Please refresh this page in a few minutes.</div>
+    </div>
   </body>
 </html>
