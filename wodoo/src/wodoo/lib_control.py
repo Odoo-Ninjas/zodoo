@@ -1,5 +1,4 @@
 import time
-import json
 import click
 
 import re
@@ -14,8 +13,6 @@ from .tools import ensure_project_name
 from .tools import print_prod_env
 from .tools import _shell_complete_machines
 from .tools import _shell_complete_services
-from .tools import __assure_gitignore
-from pathlib import Path
 
 
 @cli.group(cls=AliasedGroup)
@@ -576,7 +573,7 @@ def transfer_volume_content(context, config, show_all, filter, no_backup):
     questions = [
         inquirer.List(
             "volume",
-            message="Select source:".format(config.customs, config.dbname),
+            message=f"Select source {config.customs} {config.dbname}:",
             choices=volumes1,
         ),
     ]
@@ -589,9 +586,7 @@ def transfer_volume_content(context, config, show_all, filter, no_backup):
     questions = [
         inquirer.List(
             "volume",
-            message="Select Destination:".format(
-                config.customs, config.dbname
-            ),
+            message=f"Select Destination {config.customs} {config.dbname}:",
             choices=volumes2,
         ),
     ]

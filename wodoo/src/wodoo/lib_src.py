@@ -196,11 +196,11 @@ def setup_venv(config):
         / str(current_version())
         / "requirements.txt"
     )
-    click.secho("pip3 install -r {}".format(requirements1))
+    click.secho(f"pip3 install -r {requirements1}")
 
 
-class OdooShRepo(object):
-    class Module(object):
+class OdooShRepo:
+    class Module:
         def __init__(self, path):
             self.path = Path(path)
             if not self.path.exists():
@@ -294,7 +294,7 @@ class OdooShRepo(object):
 def _get_available_oca_modules(ctx, param, incomplete):
     sh = OdooShRepo(current_version())
     modules = sh.find_module(incomplete, exact_match=False)
-    matches = [str(x) for x in sorted(set([x.name for x in modules]))]
+    matches = [str(x) for x in sorted({x.name for x in modules})]
     if incomplete:
         matches = matches[:10]
     return matches

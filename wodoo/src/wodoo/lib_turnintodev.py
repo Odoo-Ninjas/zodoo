@@ -77,12 +77,10 @@ def hash_password(config, password):
 def turn_into_dev_(ctx, config):
     if not config.devmode and not config.force:
         raise Exception(
-            (
-                "When applying this sql scripts, "
-                "the database is not usable anymore "
-                "for production environments.\n"
-                "Please set DEVMODE=1 to allow this"
-            )
+            "When applying this sql scripts, "
+            "the database is not usable anymore "
+            "for production environments.\n"
+            "Please set DEVMODE=1 to allow this"
         )
     __turn_into_devdb(ctx, config, config.get_odoo_conn())
 

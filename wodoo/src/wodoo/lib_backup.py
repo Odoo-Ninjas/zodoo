@@ -298,15 +298,13 @@ def _restore_wodoo_bin(ctx, config, filepath, verify):
     click.secho(f"Identified mountpoint {mountpoint}", fg="yellow")
     with autocleanpaper() as scriptfile:
         scriptfile.write_text(
-            (
-                "#!/bin/bash\n"
-                "set -e\n"
-                f"rm -Rf '{mountpoint}'\n"
-                f"mkdir '{mountpoint}'\n"
-                f"cd '{mountpoint}'\n"
-                f"tail '{filepath}' -c +{cutoff + 1} | "
-                f"pigz -dc | tar x\n"
-            )
+            "#!/bin/bash\n"
+            "set -e\n"
+            f"rm -Rf '{mountpoint}'\n"
+            f"mkdir '{mountpoint}'\n"
+            f"cd '{mountpoint}'\n"
+            f"tail '{filepath}' -c +{cutoff + 1} | "
+            f"pigz -dc | tar x\n"
         )
         for mode in ["", "sudo"]:
             try:
@@ -744,10 +742,8 @@ def __apply_dump_permissions(filepath):
 def _backup_wodoobin(ctx, config, filename):
     if not config.run_postgres:
         abort(
-            (
-                "Binary ZIP requires own postgres container. DB is also "
-                "stopped for that."
-            )
+            "Binary ZIP requires own postgres container. DB is also "
+            "stopped for that."
         )
     conn = config.get_odoo_conn()
     version = None

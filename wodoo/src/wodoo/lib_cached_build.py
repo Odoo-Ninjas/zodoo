@@ -181,19 +181,22 @@ def create_named_volume(volume_name):
     if not result.stdout.strip():
         subprocess.run(["docker", "volume", "create", volume_name], check=True)
 
+
 def get_container_settings(config):
     settings = {
         "APT_PROXY_IP": config.APT_PROXY_IP,
         "APT_OPTIONS": config.APT_OPTIONS,
     }
-    if settings['APT_PROXY_IP'] == "ignore":
+    if settings["APT_PROXY_IP"] == "ignore":
         settings["APT_PROXY_IP"] = ""
-    settings.update( {
-        "PIP_PROXY_IP": config.PIP_PROXY_IP,
-        "PIP_OPTIONS": config.PIP_OPTIONS,
-        "PIP_OPTIONS_NO_BUILDISOLATION": config.PIP_OPTIONS_NO_BUILDISOLATION,
-    })
-    if settings['PIP_PROXY_IP'] == "ignore":
+    settings.update(
+        {
+            "PIP_PROXY_IP": config.PIP_PROXY_IP,
+            "PIP_OPTIONS": config.PIP_OPTIONS,
+            "PIP_OPTIONS_NO_BUILDISOLATION": config.PIP_OPTIONS_NO_BUILDISOLATION,
+        }
+    )
+    if settings["PIP_PROXY_IP"] == "ignore":
         settings["PIP_PROXY_IP"] = ""
     return settings
 

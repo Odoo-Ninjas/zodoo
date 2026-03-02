@@ -1,4 +1,4 @@
-class GlobalCommands(object):
+class GlobalCommands:
     # so commands can call other commands
     def __init__(self):
         self.commands = {}
@@ -12,7 +12,7 @@ class GlobalCommands(object):
     def invoke(self, ctx, cmd, missing_ok=False, *args, **kwargs):
         if cmd not in self.commands:
             if not missing_ok:
-                raise Exception("CMD not found: {}".format(cmd))
+                raise Exception(f"CMD not found: {cmd}")
             else:
                 return
         return ctx.invoke(self.commands[cmd], *args, **kwargs)
