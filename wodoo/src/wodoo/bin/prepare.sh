@@ -1,15 +1,15 @@
 #!/bin/bash
+set -x
 
 if [[ "$RUN_POSTGRES" == "1" ]]; then
 	odoo up -d postgres
 fi
 
-PYENV_DIR="$HOME/.odoo/run/${PROJECTNAME}/.pyenv/bin/python3"
-if [[ ! -f "$PYENV_DIR" ]]; then
+if ! pyenv versions --bare | grep -qx "$PROJECTNAME"; then
 	echo "Pyenv not yet initialized. Installing by odoo setup-pyenv"
 	odoo setup-pyenv
 fi
-if [[ "$DEVMODE" != "1" ]]; then
+if [[ "$DEVMODE" == "1" ]]; then
 
 	if [[ "$RUN_POSTGRES" != "1" ]]; then
 		msg="Careful: you seem to debug a non local database!"

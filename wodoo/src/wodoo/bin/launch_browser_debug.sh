@@ -2,7 +2,7 @@
 set -x
 
 current_dir=$(dirname "$0")
-/bin/bash ${current_dir}/prepare.sh
+/bin/bash ${current_dir}/prepare.sh || exit -1
 
 if [[ "$ON_OSX" == "1" ]]; then
 	/bin/bash "$current_dir/open_once_osx.sh" ${PROJECTNAME}  ${PORT}
