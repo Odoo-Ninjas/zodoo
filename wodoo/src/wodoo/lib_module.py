@@ -983,9 +983,7 @@ def update(
                 )
             else:
                 source = "MANIFEST['install']"
-                txt = (
-                    f"Using default update strategy - all modules are updated from {source}",
-                )
+                txt = f"Using default update strategy - all modules are updated from {source}"
                 if param_module:
                     source = ",".join(param_module)
                     txt = (
