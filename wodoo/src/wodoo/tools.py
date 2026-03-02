@@ -867,7 +867,22 @@ def verbose(txt):
 def __try_to_set_owner(UID, path, abort_if_failed=True, verbose=False):
     primary_group = _get_user_primary_group(UID)
     fnd = shutil.which("find")
-    find_command = f"$({fnd} '{path}' -not -type l -not -user {UID})"
+    find_command = [
+        fnd,
+        path,
+        "-not",
+        "-type",
+        "l",
+        "(",
+        "-not",
+        "-user",
+        str(UID),
+        "-o",
+        "-not",
+        "-group",
+        primary_group,
+        ")",
+    ]
     try:
         res = (
             subprocess.check_output(find_command, encoding="utf8")
@@ -876,17 +891,6 @@ def __try_to_set_owner(UID, path, abort_if_failed=True, verbose=False):
         )
     except subprocess.CalledProcessError:
         res = []
-    find_command = (
-        f"$({fnd} '{path}' -not -type l -not -group {primary_group})"
-    )
-    try:
-        res += (
-            subprocess.check_output(find_command, encoding="utf8")
-            .strip()
-            .splitlines()
-        )
-    except subprocess.CalledProcessError:
-        pass
     res = sorted(list(res))
     if not res:
         return
