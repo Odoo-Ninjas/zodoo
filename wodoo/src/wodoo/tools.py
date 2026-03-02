@@ -117,7 +117,7 @@ def exe(*params, **kwparams):
     return socket_obj.execute(config["DBNAME"], uid, pwd, *params, **kwparams)
 
 
-class DBConnection(object):
+class DBConnection:
     def __init__(self, dbname, host, port, user, pwd):
         assert dbname
         assert host
@@ -130,7 +130,7 @@ class DBConnection(object):
         self.pwd = pwd
 
     def shortstr(self):
-        return "{}:{}/{}".format(self.host, self.port, self.dbname)
+        return f"{self.host}:{self.port}/{self.dbname}"
 
     def clone(self, dbname=None):
         result = deepcopy(self)
@@ -209,7 +209,7 @@ def __append_line(path, line):
     if not Path(path).exists():
         content = ""
     else:
-        with open(path, "r") as f:
+        with open(path) as f:
             content = f.read().strip()
     content += "\n" + line
     with open(path, "w") as f:
@@ -218,7 +218,7 @@ def __append_line(path, line):
 
 def __read_file(path, error=True):
     try:
-        with open(path, "r") as f:
+        with open(path) as f:
             return f.read()
     except Exception:
         if not error:
@@ -382,11 +382,9 @@ def _wait_postgres(config, timeout=600):
                 # if running containers wait for health state:
                 if not postgres_containers:
                     abort(
-                        (
-                            "No running postgres container found. "
-                            "Perhaps you have to start it with "
-                            "'odoo up -d postgres' first?"
-                        )
+                        "No running postgres container found. "
+                        "Perhaps you have to start it with "
+                        "'odoo up -d postgres' first?"
                     )
 
                 raise Exception(
@@ -498,7 +496,7 @@ def _remove_postgres_connections(connection, dbname, sql_afterwards=""):
 
 def __rename_db_drop_target(conn, from_db, to_db):
     if to_db in ("postgres", "template1"):
-        raise Exception("Invalid: {}".format(to_db))
+        raise Exception(f"Invalid: {to_db}")
     _remove_postgres_connections(conn, from_db)
     _remove_postgres_connections(conn, to_db)
     _execute_sql(
@@ -593,7 +591,7 @@ def __dcrun(
         cmd += ["--name", name]
     cmd += ["--rm"]
     for k, v in env.items():
-        cmd += ["-e{}={}".format(k, v)]
+        cmd += [f"-e{k}={v}"]
     cmd += cmd2
     del cmd2
     cmd = __get_cmd(config) + cmd
@@ -647,11 +645,11 @@ def _askcontinue(config, msg=None):
 def _wait_for_port(host, port, timeout=None):
     res = tcp_wait.open(port, host=host, timeout=timeout)
     if not res and timeout:
-        raise Exception("Timeout elapsed waiting for {}:{}".format(host, port))
+        raise Exception(f"Timeout elapsed waiting for {host}:{port}")
 
 
 def __replace_in_file(filepath, text, replacewith):
-    with open(filepath, "r") as f:
+    with open(filepath) as f:
         content = f.read()
     content = content.replace(text, replacewith)
     with open(filepath, "w") as f:
@@ -666,9 +664,9 @@ def __rm_file_if_exists(path):
 def __rmtree(config, path):
     path = str(path)
     if not path or path == "/":
-        raise Exception("Not allowed: {}".format(path))
+        raise Exception(f"Not allowed: {path}")
     if not path.startswith("/"):
-        raise Exception("Not allowed: {}".format(path))
+        raise Exception(f"Not allowed: {path}")
     if config:
         if not any(
             path.startswith(str(config.dirs["odoo_home"]) + x)
@@ -868,19 +866,22 @@ def verbose(txt):
 
 def __try_to_set_owner(UID, path, abort_if_failed=True, verbose=False):
     primary_group = _get_user_primary_group(UID)
-    find_command = f"$(find '{path}' -not -type l -not -user {UID})"
+    fnd = shutil.which("find")
+    find_command = f"$({fnd} '{path}' -not -type l -not -user {UID})"
     try:
         res = (
-            subprocess.check_output(find_command, encoding="utf8", shell=True)
+            subprocess.check_output(find_command, encoding="utf8")
             .strip()
             .splitlines()
         )
     except subprocess.CalledProcessError:
         res = []
-    find_command = f"$(find '{path}' -not -type l -not -group {primary_group})"
+    find_command = (
+        f"$({fnd} '{path}' -not -type l -not -group {primary_group})"
+    )
     try:
         res += (
-            subprocess.check_output(find_command, encoding="utf8", shell=True)
+            subprocess.check_output(find_command, encoding="utf8")
             .strip()
             .splitlines()
         )
@@ -894,7 +895,7 @@ def __try_to_set_owner(UID, path, abort_if_failed=True, verbose=False):
             try:
                 if Path(line).exists():
                     subprocess.check_output(["chown", str(UID), line])
-            except:
+            except Exception:
                 try:
                     if Path(line).exists():
                         subprocess.check_output(
@@ -912,13 +913,13 @@ def __try_to_set_owner(UID, path, abort_if_failed=True, verbose=False):
                     subprocess.check_output(
                         ["chgrp", str(primary_group), line]
                     )
-            except:
+            except Exception:
                 try:
                     if Path.exists(line):
                         subprocess.check_output(
                             ["sudo", "chgrp", str(primary_group), line]
                         )
-                except:
+                except Exception:
                     pass
 
         except FileNotFoundError:
@@ -1002,7 +1003,7 @@ def _dropdb(config, conn, dbname):
             ]
             answer = inquirer.prompt(questions)
             if answer["name"] != dbname:
-                abort((f"Dropping aborted - you did not answer: {dbname}"))
+                abort(f"Dropping aborted - you did not answer: {dbname}")
     else:
         click.echo(f"Database does not exist yet: {dbname}")
     click.echo("Stopping all services and creating new database")
@@ -1180,7 +1181,7 @@ def sync_folder(dir, dest_dir, excludes=None):
     dest_dir = Path(dest_dir)
     dest_dir.mkdir(exist_ok=True, parents=True)
     if not dir or not dest_dir or len(str(dir)) < 5 or len(str(dest_dir)) < 5:
-        raise Exception("invalid dirs: {} {}".format(dir, dest_dir))
+        raise Exception(f"invalid dirs: {dir} {dest_dir}")
 
     if platform.system() in ["Linux", "Darwin"]:
         cmd = [
@@ -1193,7 +1194,7 @@ def sync_folder(dir, dest_dir, excludes=None):
             "--delete-after",
         ]
         for exclude in excludes or []:
-            cmd += ["--exclude={}".format(exclude)]
+            cmd += [f"--exclude={exclude}"]
         subprocess.check_call(cmd)
     else:
         raise NotImplementedError()
@@ -1442,7 +1443,7 @@ def _binary_zip(folder, destpath):
     assert not destpath.exists()
     if not Path(folder).exists():
         raise Exception(f"Could not zip folder: {folder}")
-    os.system((f"cd '{folder}' && tar c . | pv | pigz > '{destpath}'"))
+    os.system(f"cd '{folder}' && tar c . | pv | pigz > '{destpath}'")
     if not destpath.exists():
         raise Exception(f"file {destpath} not generated")
 
