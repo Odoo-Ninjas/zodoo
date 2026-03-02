@@ -13,6 +13,8 @@ print("Starting up odoo")
 prepare_run()
 
 TOUCH_URL = not is_odoo_cronjob and not is_odoo_queuejob
+if os.getenv("DEVMODE") == "1":
+    TOUCH_URL = False
 
 if os.getenv("IS_ODOO_DEBUG") == "1":
     print("Exiting - just here for debugging")
