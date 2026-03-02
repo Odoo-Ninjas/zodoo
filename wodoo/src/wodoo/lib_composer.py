@@ -335,7 +335,9 @@ def _tweak_config(ODOO_VERSION, config):
     from .myconfigparser import MyConfigParser
 
     settings = MyConfigParser(config.files["settings"])
-    PIP_OPTIONS_BASE = "--no-cache-dir --no-build-isolation --retries 20 --timeout 120 "
+    PIP_OPTIONS_BASE = (
+        "--no-cache-dir --no-build-isolation --retries 20 --timeout 120 "
+    )
     PIP_OPTION_NO_BUILDISOL = "--no-cache-dir --no-build-isolation "
     PIP_OPTION_INDEX_URL = f" --index-url http://{config.PIP_PROXY_IP}/index --trusted-host {config.PIP_PROXY_IP} "
     if settings.get("PIP_PROXY_IP") == "ignore" or not settings.get(
@@ -441,7 +443,7 @@ def _do_compose(
     _tweak_config(ODOO_VERSION, config)
     _execute_after_settings(config)
 
-    yamlcompose =_prepare_yml_files_from_template_files(
+    yamlcompose = _prepare_yml_files_from_template_files(
         config, additional_docker_configuration_files
     )
     _merge_odoo_dockerfile(config, yamlcompose)
@@ -464,15 +466,18 @@ def _do_compose(
         fg="green",
     )
 
+
 def _dump_yamlcompose(config, yamlcompose):
     dest_file = config.files["docker_compose"]
     from .tools import atomic_write
+
     with atomic_write(dest_file) as file:
         file.write_text(_yamldump(yamlcompose))
 
 
 def _export_container_buildsettings(ctx, config, yamlcompose):
     from .lib_cached_build import get_container_settings
+
     buildsettings = get_container_settings(config)
 
     content = []
@@ -500,13 +505,13 @@ def _export_container_buildsettings(ctx, config, yamlcompose):
 
 
 def _copy_wodoo_src(ctx, config):
-    src = config.dirs['images'] / 'wodoo' / 'src'
+    src = config.dirs["images"] / "wodoo" / "src"
     dest = config.dirs["run.build.odoo"] / "wodoo_src"
     sync_folder(src, dest, excludes=[".git"])
 
 
 def _fix_dockercompose_config(config, yamlcompose):
-    import yaml
+    pass
 
     for service_name in yamlcompose["services"]:
         service = yamlcompose["services"][service_name]
@@ -522,7 +527,7 @@ def _copy_all_dockerfiles_to_run_dir_and_set_dockerfile_in_dockercompose(
     config,
     yamlcompose,
 ):
-    import yaml
+    pass
 
     images_dir = config.dirs["images"]
     to_del = set()
@@ -557,7 +562,6 @@ def _copy_all_dockerfiles_to_run_dir_and_set_dockerfile_in_dockercompose(
             to_del.add(src_dockerfile)
         service["build"]["dockerfile"] = str(trgt_dockerfile)
     [x.unlink() for x in to_del]
-
 
 
 def _remove_if_lines(config, dockerfilecontent):
@@ -712,8 +716,7 @@ def _iterate_services(config, yml):
         order = int(value[1].get("labels", {}).get("compose.order", 99999999))
         return order
 
-    for service_name, service in sorted(yml["services"].items(), key=sort):
-        yield service_name, service
+    yield from sorted(yml["services"].items(), key=sort)
 
 
 def _execute_after_compose(config, yml):
@@ -1268,7 +1271,7 @@ def _apply_variables(config, contents, env):
         if isinstance(content, str):
             from .tools import abort
 
-            abort((f"Invalid content {content}"))
+            abort(f"Invalid content {content}")
         for networkname, network in content.get("networks", {}).items():
             default_network["networks"][networkname] = network
 
@@ -1340,7 +1343,7 @@ def _use_file(config, path):
             splatform = platform.system().lower()
             if on_windows_wsl():
                 splatform = "windows"
-            pl = "platform_{}".format(splatform)
+            pl = f"platform_{splatform}"
             if not any(pl in x for x in path.parts):
                 return False
         return True
@@ -1363,7 +1366,7 @@ def _use_file(config, path):
                     return False
                 return True
 
-            run_key = "RUN_{}".format(path.parent.name).upper()
+            run_key = f"RUN_{path.parent.name}".upper()
             if hasattr(config, run_key) and not getattr(config, run_key):
                 return False
 
@@ -1452,7 +1455,6 @@ def _merge_odoo_dockerfile(config, yamlcompose):
     If customs contains dockerfile, then append their execution
     in the main dockerfile of odoo
     """
-    import yaml
 
     sync_folder(
         config.dirs["images"] / "odoo",
@@ -1556,7 +1558,7 @@ def _complete_setting_name(ctx, param, incomplete):
         name = name.split("=")[0]
         params.append({"name": name, "doc": doc})
 
-    res = set([x["name"].strip() for x in params])
+    res = {x["name"].strip() for x in params}
     if incomplete:
         res = list(
             filter(lambda x: x.lower().startswith(incomplete.lower()), res)
@@ -1842,7 +1844,7 @@ def setup_launch_json(config):
         cmd = f"ON_WINDOWS_WSL={b(on_windows_wsl())} {cmd}"
         cmd = f"PROJECTNAME={config.project_name} {cmd}"
         cmd = f"PORT={config.DEBUG_PORT} {cmd}"
-        cmd = f"DEVMODE={config.DEVMODE} {cmd}"
+        cmd = f"DEVMODE={b(config.DEVMODE)} {cmd}"
         taskconfig["command"] = cmd
 
     template_config_names = [x["name"] for x in template["configurations"]]
