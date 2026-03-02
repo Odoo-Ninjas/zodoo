@@ -47,9 +47,17 @@ if click:
                             if sub_name.startswith(cmd_name):
                                 sub_matches.append((name, sub_name, cmd))
 
-                if len(sub_matches) == 1:
-                    _, sub_name, parent_cmd = sub_matches[0]
-                    return parent_cmd.get_command(ctx, sub_name)
+                # Prefer exact match among subgroup matches
+                if len(sub_matches) > 1:
+                    exact = [
+                        (p, s, c) for p, s, c in sub_matches if s == cmd_name
+                    ]
+                    if exact:
+                        sub_matches = exact
+
+            if len(sub_matches) == 1:
+                _, sub_name, parent_cmd = sub_matches[0]
+                return parent_cmd.get_command(ctx, sub_name)
 
             # 6. Ambiguous → show all candidates
             all_matches = [(None, n) for n in matched_names] + [
