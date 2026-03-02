@@ -4,56 +4,95 @@ if click:
 
     class AliasedGroup(click.Group):
         """
-        Uses startswith to match command
+        Uses startswith to match command. Lazy-loads commands only when matched.
         """
 
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._commands_cache = None
+
+        def _get_all_commands(self, ctx):
+            if self._commands_cache is None:
+                self._commands_cache = self.list_commands(ctx)
+            return self._commands_cache
+
         def get_command(self, ctx, cmd_name):
+            # 1. Exact match – fastest path
             rv = click.Group.get_command(self, ctx, cmd_name)
             if rv is not None:
                 return rv
-            matches = list(
-                filter(
-                    lambda x: x[1].startswith(cmd_name),
-                    map(
-                        lambda y: (click.Group.get_command(self, ctx, y), y),
-                        self.list_commands(ctx),
-                    ),
-                )
-            )
-            # search recursivley
-            for _cmd_name in self.list_commands(ctx):
-                cmd = click.Group.get_command(self, ctx, _cmd_name)
-                if type(cmd) == type(self):
-                    filtered = filter(
-                        lambda cmd: cmd.startswith(cmd_name),
-                        cmd.list_commands(ctx),
-                    )
-                    matches += list(
-                        map(
-                            lambda cmd_name: (
-                                cmd.get_command(ctx, cmd_name),
-                                _cmd_name,
-                            ),
-                            filtered,
-                        )
-                    )
 
-            if len(matches) > 1:
-                # try to reduce to exact match
-                try_matches = list(
-                    filter(lambda match: match[0].name == cmd_name, matches)
-                )
-                if try_matches:
-                    matches = try_matches
+            all_commands = self._get_all_commands(ctx)
 
-            if len(matches) == 1:
-                cmd = matches[0][0]
-                # print("Using command: {}.{}".format(self.name, cmd.name))
-                return matches[0][0]
-            elif len(matches) > 1:
+            # 2. Prefix-match on top-level names only (no get_command yet)
+            matched_names = [n for n in all_commands if n.startswith(cmd_name)]
+
+            # 3. Prefer exact over ambiguous prefix matches
+            if len(matched_names) > 1:
+                exact = [n for n in matched_names if n == cmd_name]
+                if exact:
+                    matched_names = exact
+
+            # 4. Unique top-level match → return without searching subgroups
+            if len(matched_names) == 1:
+                return click.Group.get_command(self, ctx, matched_names[0])
+
+            # 5. No top-level match → search subgroups lazily
+            sub_matches = []
+            if not matched_names:
+                for name in all_commands:
+                    cmd = click.Group.get_command(self, ctx, name)
+                    if isinstance(cmd, type(self)):
+                        for sub_name in cmd.list_commands(ctx):
+                            if sub_name.startswith(cmd_name):
+                                sub_matches.append((name, sub_name, cmd))
+
+                if len(sub_matches) == 1:
+                    _, sub_name, parent_cmd = sub_matches[0]
+                    return parent_cmd.get_command(ctx, sub_name)
+
+            # 6. Ambiguous → show all candidates
+            all_matches = [(None, n) for n in matched_names] + [
+                (p, s) for p, s, _ in sub_matches
+            ]
+            if all_matches:
                 click.echo(
                     "Not unique command: {}\n\n".format(
-                        "\n\t".join(x[1] + "/" + x[0].name for x in matches)
+                        "\n\t".join(
+                            (p + "/" if p else "") + s for p, s in all_matches
+                        )
                     )
                 )
             return None
+
+        def shell_complete(self, ctx, incomplete):
+            from click.shell_completion import CompletionItem
+
+            results = []
+
+            # Top-level commands matching prefix
+            for name in self.list_commands(ctx):
+                if name.startswith(incomplete):
+                    cmd = click.Group.get_command(self, ctx, name)
+                    if cmd is not None:
+                        results.append(
+                            CompletionItem(name, help=cmd.get_short_help_str())
+                        )
+
+            # No top-level matches → flatten subgroup commands
+            if not results:
+                for name in self.list_commands(ctx):
+                    cmd = click.Group.get_command(self, ctx, name)
+                    if isinstance(cmd, type(self)):
+                        for sub_name in cmd.list_commands(ctx):
+                            if sub_name.startswith(incomplete):
+                                sub_cmd = cmd.get_command(ctx, sub_name)
+                                if sub_cmd is not None:
+                                    results.append(
+                                        CompletionItem(
+                                            sub_name,
+                                            help=sub_cmd.get_short_help_str(),
+                                        )
+                                    )
+
+            return results
