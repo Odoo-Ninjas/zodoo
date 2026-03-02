@@ -28,10 +28,12 @@ if click:
             matched_names = [n for n in all_commands if n.startswith(cmd_name)]
 
             # 3. Prefer exact over ambiguous prefix matches
-            if len(matched_names) > 1:
+            if len(matched_names) >= 1:
                 exact = [n for n in matched_names if n == cmd_name]
                 if exact:
                     matched_names = exact
+                else:
+                    matched_names = []
 
             # 4. Unique top-level match → return without searching subgroups
             if len(matched_names) == 1:
