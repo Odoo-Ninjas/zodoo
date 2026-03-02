@@ -2,17 +2,19 @@
 set -euo pipefail
 
 # Usage:
-#   ./open_local.sh <id> <port>
+#   ./open_local.sh <id> <port> [browser]
 # Example:
-#   ./open_local.sh mydb 8069
+#   ./open_local.sh mydb 8069 firefox
 #
+# browser: chrome | firefox | safari (optional, auto-detects if omitted)
 # <id> is kept for compatibility with your current call-site,
 # but no marker file is needed anymore.
 
 ID="${1:-}"
 PORT="${2:-}"
+BROWSER="${3:-}"
 if [[ -z "${PORT}" ]]; then
-  echo "Usage: $0 <id> <port>" >&2
+  echo "Usage: $0 <id> <port> [chrome|firefox|safari]" >&2
   exit 1
 fi
 
@@ -45,6 +47,22 @@ on run argv
       set active tab index to (index of newTab)
     end tell
     activate
+    return "OPENED"
+  end tell
+end run
+APPLESCRIPT
+}
+
+activate_or_open_in_firefox() {
+  /usr/bin/osascript <<'APPLESCRIPT' "${URL}"
+on run argv
+  set theUrl to item 1 of argv
+  tell application "Firefox"
+    if not (running) then return "NOT_RUNNING"
+    activate
+    -- Firefox hat keine direkte Tab-URL-Abfrage via AppleScript,
+    -- daher öffnen wir einfach die URL über open location
+    open location theUrl
     return "OPENED"
   end tell
 end run
@@ -86,18 +104,39 @@ end run
 APPLESCRIPT
 }
 
-# Prefer Chrome if it's running; else Safari if it's running; else open default browser.
-res="$(activate_or_open_in_chrome || true)"
-if [[ "$res" == "FOUND" || "$res" == "OPENED" ]]; then
-  echo "Chrome: $res -> $URL"
-  exit 0
-fi
+open_in_browser() {
+  local name="$1"
+  local fn="$2"
+  local res
+  res="$($fn || true)"
+  if [[ "$res" == "FOUND" || "$res" == "OPENED" ]]; then
+    echo "$name: $res -> $URL"
+    exit 0
+  fi
+}
 
-res="$(activate_or_open_in_safari || true)"
-if [[ "$res" == "FOUND" || "$res" == "OPENED" ]]; then
-  echo "Safari: $res -> $URL"
-  exit 0
-fi
-
-echo "No supported browser running; opening default: $URL"
-open "$URL"
+case "$(echo "${BROWSER}" | tr '[:upper:]' '[:lower:]')" in
+  chrome)
+    open_in_browser "Chrome" activate_or_open_in_chrome
+    echo "Chrome not running; opening default: $URL"
+    open "$URL"
+    ;;
+  firefox)
+    open_in_browser "Firefox" activate_or_open_in_firefox
+    echo "Firefox not running; opening default: $URL"
+    open "$URL"
+    ;;
+  safari)
+    open_in_browser "Safari" activate_or_open_in_safari
+    echo "Safari not running; opening default: $URL"
+    open "$URL"
+    ;;
+  *)
+    # Auto-detect: prefer Chrome, then Firefox, then Safari
+    open_in_browser "Chrome"  activate_or_open_in_chrome
+    open_in_browser "Firefox" activate_or_open_in_firefox
+    open_in_browser "Safari"  activate_or_open_in_safari
+    echo "No supported browser running; opening default: $URL"
+    open "$URL"
+    ;;
+esac
