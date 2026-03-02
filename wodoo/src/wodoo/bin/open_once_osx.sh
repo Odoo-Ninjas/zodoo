@@ -21,87 +21,40 @@ fi
 URL="http://localhost:${PORT}"
 
 activate_or_open_in_chrome() {
-  /usr/bin/osascript <<'APPLESCRIPT' "${URL}"
-on run argv
-  set theUrl to item 1 of argv
-  tell application "Google Chrome"
-    if not (running) then return "NOT_RUNNING"
-
-    repeat with w in windows
-      repeat with t in tabs of w
-        if (URL of t as text) is theUrl then
-          set active tab index of w to (index of t)
-          set index of w to 1
-          activate
-          return "FOUND"
-        end if
-      end repeat
-    end repeat
-
-    -- Not found: open a new tab (prefer existing window)
-    if (count of windows) is 0 then
-      make new window
-    end if
-    tell window 1
-      set newTab to make new tab with properties {URL:theUrl}
-      set active tab index to (index of newTab)
-    end tell
-    activate
-    return "OPENED"
-  end tell
-end run
-APPLESCRIPT
+  local running
+  running=$(/usr/bin/osascript -e 'tell application "System Events" to return (exists process "Google Chrome")' 2>/dev/null || echo "false")
+  if [[ "$running" != "true" ]]; then
+    echo "NOT_RUNNING"
+    return
+  fi
+  open -a "Google Chrome" "$URL"
+  /usr/bin/osascript -e 'tell application "Google Chrome" to activate' 2>/dev/null || true
+  echo "OPENED"
 }
 
 activate_or_open_in_firefox() {
-  /usr/bin/osascript <<'APPLESCRIPT' "${URL}"
-on run argv
-  set theUrl to item 1 of argv
-  tell application "Firefox"
-    if not (running) then return "NOT_RUNNING"
-    activate
-    -- Firefox hat keine direkte Tab-URL-Abfrage via AppleScript,
-    -- daher öffnen wir einfach die URL über open location
-    open location theUrl
-    return "OPENED"
-  end tell
-end run
-APPLESCRIPT
+  local running
+  running=$(/usr/bin/osascript -e 'tell application "System Events" to return (exists process "Firefox")' 2>/dev/null || echo "false")
+  if [[ "$running" != "true" ]]; then
+    echo "NOT_RUNNING"
+    return
+  fi
+  # open -a umgeht den Standardbrowser und öffnet direkt in Firefox
+  open -a Firefox "$URL"
+  /usr/bin/osascript -e 'tell application "Firefox" to activate' 2>/dev/null || true
+  echo "OPENED"
 }
 
 activate_or_open_in_safari() {
-  /usr/bin/osascript <<'APPLESCRIPT' "${URL}"
-on run argv
-  set theUrl to item 1 of argv
-  tell application "Safari"
-    if not (running) then return "NOT_RUNNING"
-
-    repeat with w in windows
-      repeat with t in tabs of w
-        try
-          if (URL of t as text) is theUrl then
-            set current tab of w to t
-            set index of w to 1
-            activate
-            return "FOUND"
-          end if
-        end try
-      end repeat
-    end repeat
-
-    -- Not found: open a new tab (prefer existing window)
-    if (count of windows) is 0 then
-      make new document
-    end if
-    tell window 1
-      set newTab to make new tab with properties {URL:theUrl}
-      set current tab to newTab
-    end tell
-    activate
-    return "OPENED"
-  end tell
-end run
-APPLESCRIPT
+  local running
+  running=$(/usr/bin/osascript -e 'tell application "System Events" to return (exists process "Safari")' 2>/dev/null || echo "false")
+  if [[ "$running" != "true" ]]; then
+    echo "NOT_RUNNING"
+    return
+  fi
+  open -a Safari "$URL"
+  /usr/bin/osascript -e 'tell application "Safari" to activate' 2>/dev/null || true
+  echo "OPENED"
 }
 
 open_in_browser() {
