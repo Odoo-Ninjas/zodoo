@@ -39,10 +39,9 @@ def bakery(config):
 
 @bakery.command()
 @click.argument("params", nargs=-1)
-@click.option("-I", "--no-update-images", is_flag=True)
 @pass_config
 @click.pass_context
-def bake(ctx, config, params, no_update_images):
+def bake(ctx, config, params):
     from .odoo_config import customs_dir
     from tabulate import tabulate
 
@@ -79,7 +78,6 @@ def bake(ctx, config, params, no_update_images):
         ctx,
         "reload",
         additional_config_raw=metadata_str,
-        no_update_images=no_update_images,
     )
     output_env_file = customs_dir() / f"{config.project_name}.env"
     output_env_file.write_text(

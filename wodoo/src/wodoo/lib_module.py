@@ -986,9 +986,7 @@ def update(
                 txt = f"Using default update strategy - all modules are updated from {source}"
                 if param_module:
                     source = ",".join(param_module)
-                    txt = (
-                        f"Updating only modules and dependencies: {source}",
-                    )
+                    txt = f"Updating only modules and dependencies: {source}"
                 click.secho(txt, fg="yellow", bold=True)
             while True:
                 trycount += 1
