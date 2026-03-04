@@ -1631,10 +1631,13 @@ def setting(ctx, config, settings, no_reload, user_wide, system_wide):
     _tune_settings()
 
     if mode == "readonly" or mode is None:
-        configparser = MyConfigParser(file or config.files["settings"])
-        for k in sorted(configparser.keys()):
-            if any(name.lower() in k.lower() for name in settings_dict.keys()):
-                click.secho(f"{k}={configparser[k]}")
+        if file or config.files.get("settings"):
+            configparser = MyConfigParser(file or config.files["settings"])
+            for k in sorted(configparser.keys()):
+                if any(
+                    name.lower() in k.lower() for name in settings_dict.keys()
+                ):
+                    click.secho(f"{k}={configparser[k]}")
     elif mode == "write":
         for key, value in settings_dict.items():
             update_setting(
