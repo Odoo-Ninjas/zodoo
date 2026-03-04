@@ -9,6 +9,7 @@ services:
     labels:
       proxy_config: ${ODOO_IMAGES}/robot/proxy/selenium.conf
     shm_size: 4gb
+    mem_limit: 4g
     environment:
       - XPRA_RESIZE_DISPLAY=1
       - XPRA_HTML5_BASE=/code/
@@ -23,6 +24,7 @@ services:
   seleniumdriver:
     image: selenium/standalone-chromium:138.0
     shm_size: 4gb
+    mem_limit: 4g
     expose:
       - 4444
     # ports:
@@ -36,6 +38,7 @@ services:
   seleniumdriver_template:
     image: selenium/standalone-chromium:138.0
     shm_size: 4gb
+    mem_limit: 4g
     # vnc possible at: http://localhost:7900/?autoconnect=1&password=secret⁠.
     # ports:
     #   - 7900:7900

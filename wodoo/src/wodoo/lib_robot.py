@@ -40,7 +40,7 @@ def setup(ctx, config):
     from .odoo_config import MANIFEST, customs_dir
     import yaml
 
-    content = yaml.safe_load(open(customs_dir() / "gimera.yml", "r"))
+    content = yaml.safe_load(open(customs_dir() / "gimera.yml"))
     for branch in content["repos"]:
         if ROBOT_UTILS_GIT in branch["url"]:
             break
@@ -278,8 +278,9 @@ def run(
     for i in range(int(repeat)):
         if not config.force and repeat > 1:
             if not repeat_no_init:
-                abort(
-                    "CAUTION: Repeat is set, but not force mode, so database is not recreated."
+                click.secho(
+                    "CAUTION: Repeat is set, but not force mode, so database is not recreated.",
+                    fg="red",
                 )
 
         if config.force and not no_install_further_modules:
@@ -512,7 +513,7 @@ def _remove_service(
 ):
     import yaml
 
-    yml = yaml.safe_load(open(config.files["docker_compose"], "r"))
+    yml = yaml.safe_load(open(config.files["docker_compose"]))
     popped = []
 
     if service_name:
@@ -537,7 +538,7 @@ def _remove_service(
 def _clone_seleniumdriver_template(ctx, config, appendix):
     import yaml
 
-    yml = yaml.safe_load(open(config.files["docker_compose"], "r"))
+    yml = yaml.safe_load(open(config.files["docker_compose"]))
     service_name = f"{SELDRIVER_PREFIX}{appendix}"
     yml["services"][service_name] = deepcopy(
         yml["services"]["seleniumdriver_template"]
