@@ -20,9 +20,11 @@ from .tools import abort
 from .tools import __assure_gitignore
 from .tools import _get_available_robottests
 from .tools import _yamldump
+from .tools import atomic_write
 from pathlib import Path
 
 ROBOT_UTILS_GIT = "marcwimmer/odoo-robot_utils"
+SELDRIVER_PREFIX = "seleniumdriver_"
 
 
 @cli.group(cls=AliasedGroup)
@@ -437,79 +439,112 @@ def _run_test(
     selenium_service_name = _clone_seleniumdriver_template(
         ctx, config, unique_robotname
     )
+    try:
 
-    token = arrow.get().strftime("%Y-%m-%d_%H%M%S_") + str(uuid.uuid4())
-    data = json.dumps(
-        {
-            "test_files": list(map(str, filenames)),
-            "token": token,
-            "results_file": results_file or "",
-            "debug": debug,
-            "params": params(),
-            "SELENIUM_SERVICE_NAME": selenium_service_name,
-        }
-    )
-    data = base64.b64encode(data.encode("utf-8")).decode("utf8")
-
-    params = [
-        "robot",
-    ]
-
-    from .odoo_config import customs_dir
-
-    workingdir = customs_dir() / (Path(os.getcwd()).relative_to(customs_dir()))
-    click.secho(f"Changing working dir: {workingdir}")
-    os.chdir(workingdir)
-
-    click.secho(f"Starting test: {params}")
-    if os.getenv("IS_COBOT_CONTAINER") == "1":
-        Path("/tmp/archive").write_text(data)
-        subprocess.run(
-            ["/usr/bin/python3", "/opt/robot/robotest.py"],
-            env=os.environ,
+        token = arrow.get().strftime("%Y-%m-%d_%H%M%S_") + str(uuid.uuid4())
+        data = json.dumps(
+            {
+                "test_files": list(map(str, filenames)),
+                "token": token,
+                "results_file": results_file or "",
+                "debug": debug,
+                "params": params(),
+                "SELENIUM_SERVICE_NAME": selenium_service_name,
+            }
         )
-    else:
-        try:
-            Commands.invoke(
-                ctx, "up", daemon=True, machines=[selenium_service_name]
-            )
-            __dcrun(config, params, pass_stdin=data, interactive=True)
-        finally:
-            # ensure that the seleniumdriver is stopped
-            Commands.invoke(ctx, "kill", machines=[selenium_service_name])
-            Commands.invoke(ctx, "rm", machines=[selenium_service_name])
-            click.secho(
-                f"Stopped seleniumdriver {selenium_service_name} container",
-                fg="yellow",
-            )
-    del data
+        data = base64.b64encode(data.encode("utf-8")).decode("utf8")
 
-    output_path = config.HOST_RUN_DIR / "odoo_outdir" / "robot_output"
-    from .robo_helpers import _eval_robot_output
+        params = [
+            "robot",
+        ]
 
-    res = _eval_robot_output(
-        config,
-        output_path,
-        started,
-        output_json,
-        token,
-        rm_tokendir=not keep_token_dir,
-        results_file=results_file,
-    )
+        from .odoo_config import customs_dir
+
+        workingdir = customs_dir() / (
+            Path(os.getcwd()).relative_to(customs_dir())
+        )
+        click.secho(f"Changing working dir: {workingdir}")
+        os.chdir(workingdir)
+
+        click.secho(f"Starting test: {params}")
+        if os.getenv("IS_COBOT_CONTAINER") == "1":
+            Path("/tmp/archive").write_text(data)
+            subprocess.run(
+                ["/usr/bin/python3", "/opt/robot/robotest.py"],
+                env=os.environ,
+            )
+        else:
+            try:
+                Commands.invoke(
+                    ctx, "up", daemon=True, machines=[selenium_service_name]
+                )
+                __dcrun(config, params, pass_stdin=data, interactive=True)
+            finally:
+                # ensure that the seleniumdriver is stopped
+                Commands.invoke(ctx, "kill", machines=[selenium_service_name])
+                Commands.invoke(ctx, "rm", machines=[selenium_service_name])
+                click.secho(
+                    f"Stopped seleniumdriver {selenium_service_name} container",
+                    fg="yellow",
+                )
+        del data
+
+        output_path = config.HOST_RUN_DIR / "odoo_outdir" / "robot_output"
+        from .robo_helpers import _eval_robot_output
+
+        res = _eval_robot_output(
+            config,
+            output_path,
+            started,
+            output_json,
+            token,
+            rm_tokendir=not keep_token_dir,
+            results_file=results_file,
+        )
+    finally:
+        _remove_service(config, selenium_service_name, unique_robotname)
+
     return res
+
+
+def _remove_service(
+    config, service_name=None, unique_appendix=None, service_prefix=None
+):
+    import yaml
+
+    yml = yaml.safe_load(open(config.files["docker_compose"], "r"))
+    popped = []
+
+    if service_name:
+        yml["services"].pop(service_name, None)
+        popped.append(service_name)
+    with atomic_write(config.files["docker_compose"]) as file:
+        file.write_text(_yamldump(yml))
+
+    for was_popped in popped:
+        result = subprocess.run(
+            ["docker", "ps", "-a", "--filter", f"name={was_popped}", "-q"],
+            capture_output=True,
+            text=True,
+        )
+        container_ids = result.stdout.strip().split()
+        if container_ids:
+            subprocess.run(["docker", "rm", "-f"] + container_ids, check=False)
+
+    return service_name
 
 
 def _clone_seleniumdriver_template(ctx, config, appendix):
     import yaml
 
     yml = yaml.safe_load(open(config.files["docker_compose"], "r"))
-
-    service_name = f"seleniumdriver_{appendix}"
+    service_name = f"{SELDRIVER_PREFIX}{appendix}"
     yml["services"][service_name] = deepcopy(
         yml["services"]["seleniumdriver_template"]
     )
     yml["services"][service_name]["container_name"] = service_name
-    config.files["docker_compose"].write_text(_yamldump(yml))
+    with atomic_write(config.files["docker_compose"]) as file:
+        file.write_text(_yamldump(yml))
     return service_name
 
 
@@ -549,6 +584,8 @@ def run_all(
     from .robo_helpers import _get_all_robottest_files
     from .odoo_config import customs_dir
 
+    _remove_service(config, service_prefix=SELDRIVER_PREFIX)
+
     if not config.DEVMODE:
         abort("Devmode required to run robotests")
     customsdir = customs_dir()
@@ -582,10 +619,10 @@ def run_all(
             except Exception as ex:
                 retry += 1
                 click.secho(
-                    f"Retry at _prepare_fresh_robotest because of {ex}",
+                    f"Retry at {file} because of {ex}",
                     fg="yellow",
                 )
-                time.sleep(random.randint(20, 60))
+                time.sleep(random.randint(2, 8))
 
 
 @robot.command()

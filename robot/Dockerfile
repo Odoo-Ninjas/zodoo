@@ -36,7 +36,6 @@ RUN echo 'robot ALL=NOPASSWD:SETENV: ALL' > /etc/sudoers.d/robot
 
 USER root
 #___SNIPPET_WODOO___
-#RUN find /opt/robot/.* -not -user robot -exec chown -R robot -Rv {} \; >/dev/null 2>&1
 
 RUN mkdir -p /opt/robot/.local && chown robot /opt/robot /opt/robot/.local
 USER robot

@@ -114,7 +114,7 @@ def _run_test(
                 + vars_command
                 + [
                     "--outputdir",
-                    effective_output_dir,
+                    str(effective_output_dir),
                 ]
             )
             if dryrun:
@@ -123,14 +123,15 @@ def _run_test(
                 for tag in tags.split(","):
                     tag = tag.strip()
                     cmd += ["--include", tag]
-            cmd += [effective_test_file]
+            cmd += [str(effective_test_file)]
             return cmd
 
         cmd = _get_cmd(dryrun=False)
 
         try:
             CUSTOMS_DIR = os.environ["CUSTOMS_DIR"]
-            subprocess.run(cmd, check=True, encoding="utf8", cwd=CUSTOMS_DIR)
+            print(f"Running command: {' '.join(cmd)} in {CUSTOMS_DIR}")
+            subprocess.run(cmd, check=True, text=True, cwd=CUSTOMS_DIR)
         except subprocess.CalledProcessError:
             success = False
         else:
