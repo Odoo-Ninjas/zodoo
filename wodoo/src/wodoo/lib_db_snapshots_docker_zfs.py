@@ -138,9 +138,9 @@ def _get_zfs_pool_or_zfs_parent(path):
             encoding="utf8",
         ).splitlines()
     except subprocess.CalledProcessError:
-        abort(f"No zfs pool found for {path}")
+        raise NotZFS(f"No zfs pool found for {path}", path)
     if not findmnt:
-        abort(f"No zfs pool found for {path}")
+        raise NotZFS(f"No zfs pool found for {path}", path)
     zfspool = findmnt[1].strip()
     return zfspool
 
