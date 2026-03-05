@@ -4,105 +4,58 @@ if click:
 
     class AliasedGroup(click.Group):
         """
-        Uses startswith to match command. Lazy-loads commands only when matched.
+        Uses startswith to match command
         """
 
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self._commands_cache = None
-
-        def _get_all_commands(self, ctx):
-            if self._commands_cache is None:
-                self._commands_cache = self.list_commands(ctx)
-            return self._commands_cache
+        def list_commands(self, ctx):
+            top_level = super().list_commands(ctx)
+            nested = []
+            for name in top_level:
+                cmd = click.Group.get_command(self, ctx, name)
+                if type(cmd) == type(self):
+                    nested.extend(cmd.list_commands(ctx))
+            # deduplicate, preserve top-level order first
+            seen = set(top_level)
+            extra = [n for n in nested if n not in seen]
+            return top_level + extra
 
         def get_command(self, ctx, cmd_name):
-            # 1. Exact match – fastest path
             rv = click.Group.get_command(self, ctx, cmd_name)
             if rv is not None:
                 return rv
 
-            all_commands = self._get_all_commands(ctx)
+            all_names = self.list_commands(ctx)
 
-            # 2. Prefix-match on top-level names only (no get_command yet)
-            matched_names = [n for n in all_commands if n.startswith(cmd_name)]
+            # top-level prefix matches — only load commands whose name matches
+            matches = []
+            for n in all_names:
+                if n.startswith(cmd_name):
+                    resolved = click.Group.get_command(self, ctx, n)
+                    if resolved is not None:
+                        matches.append((resolved, n))
 
-            # 3. Prefer exact over ambiguous prefix matches
-            if len(matched_names) >= 1:
-                exact = [n for n in matched_names if n == cmd_name]
-                if exact:
-                    matched_names = exact
-                else:
-                    matched_names = []
-
-            # 4. Unique top-level match → return without searching subgroups
-            if len(matched_names) == 1:
-                return click.Group.get_command(self, ctx, matched_names[0])
-
-            # 5. No top-level match → search subgroups lazily
-            sub_matches = []
-            if not matched_names:
-                for name in all_commands:
-                    cmd = click.Group.get_command(self, ctx, name)
-                    if isinstance(cmd, type(self)):
-                        for sub_name in cmd.list_commands(ctx):
-                            if sub_name.startswith(cmd_name):
-                                sub_matches.append((name, sub_name, cmd))
-
-                # Prefer exact match among subgroup matches
-                if len(sub_matches) > 1:
-                    exact = [
-                        (p, s, c) for p, s, c in sub_matches if s == cmd_name
+            # search recursively in subgroups
+            for _cmd_name in all_names:
+                cmd = click.Group.get_command(self, ctx, _cmd_name)
+                if type(cmd) == type(self):
+                    matches += [
+                        (cmd.get_command(ctx, c), _cmd_name)
+                        for c in cmd.list_commands(ctx)
+                        if c.startswith(cmd_name)
                     ]
-                    if exact:
-                        sub_matches = exact
 
-            if len(sub_matches) == 1:
-                _, sub_name, parent_cmd = sub_matches[0]
-                return parent_cmd.get_command(ctx, sub_name)
+            if len(matches) > 1:
+                # try to reduce to exact match
+                try_matches = [m for m in matches if m[0].name == cmd_name]
+                if try_matches:
+                    matches = try_matches
 
-            # 6. Ambiguous → show all candidates
-            all_matches = [(None, n) for n in matched_names] + [
-                (p, s) for p, s, _ in sub_matches
-            ]
-            if all_matches:
+            if len(matches) == 1:
+                return matches[0][0]
+            elif len(matches) > 1:
                 click.echo(
                     "Not unique command: {}\n\n".format(
-                        "\n\t".join(
-                            (p + "/" if p else "") + s for p, s in all_matches
-                        )
+                        "\n\t".join(x[1] + "/" + x[0].name for x in matches)
                     )
                 )
             return None
-
-        def shell_complete(self, ctx, incomplete):
-            from click.shell_completion import CompletionItem
-
-            results = []
-
-            # Top-level commands matching prefix
-            for name in self.list_commands(ctx):
-                if name.startswith(incomplete):
-                    cmd = click.Group.get_command(self, ctx, name)
-                    if cmd is not None:
-                        results.append(
-                            CompletionItem(name, help=cmd.get_short_help_str())
-                        )
-
-            # No top-level matches → flatten subgroup commands
-            if not results:
-                for name in self.list_commands(ctx):
-                    cmd = click.Group.get_command(self, ctx, name)
-                    if isinstance(cmd, type(self)):
-                        for sub_name in cmd.list_commands(ctx):
-                            if sub_name.startswith(incomplete):
-                                sub_cmd = cmd.get_command(ctx, sub_name)
-                                if sub_cmd is not None:
-                                    results.append(
-                                        CompletionItem(
-                                            sub_name,
-                                            help=sub_cmd.get_short_help_str(),
-                                        )
-                                    )
-
-            return results
