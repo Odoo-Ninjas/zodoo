@@ -679,7 +679,8 @@ def update(
     from .odoo_config import customs_dir
 
     updateinprogress = config.dirs["run"] / "proxy_exchange" / "odoo_update"
-    if not config.DEVMODE:
+    updateinprogress.parent.mkdir(parents=True, exist_ok=True)
+    if not config.DEVMODE and updateinprogress:
         updateinprogress.write_text("1")
     try:
 
