@@ -819,6 +819,6 @@ def _touch():
 
 
 def set_proxy_update_modules(enabled):
-    Path("/var/run/proxy_exchange/update_odoo").write_text(
-        "1" if enabled else "0"
-    )
+    p = Path("/var/run/proxy_exchange/update_odoo")
+    if p.parent.exists():
+        p.write_text("1" if enabled else "0")
