@@ -5,7 +5,7 @@ CMD ["postgres"]
 RUN #___SNIPPET_APT_INSTALL___ \
 postgresql-server-dev-17 python-dev build-essential git python3-pip procps sockstat && \
 #___SNIPPET_APT_INSTALL___ \
-postgresql-17-postgis-3 ncdu
+postgresql-17-postgis-3 postgresql-17-pgvector ncdu
 
 
 COPY config* /
