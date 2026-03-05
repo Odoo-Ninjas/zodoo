@@ -39,3 +39,4 @@ pudb==2022.1.2
 names==0.3.0
 tabulate==0.8.10
 OdooRPC
+pyyaml

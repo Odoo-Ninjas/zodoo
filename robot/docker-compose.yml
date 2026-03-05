@@ -74,6 +74,7 @@ services:
       ROBO_FORCE_HEADLESS: 0
       ROBO_PARAMS_FILE: /opt/robot/robo_params.json
       ROBO_NO_SCREENHOTS: "0"
+      HOST_RUN_DIR: /opt/robot/.odoo/run/${PROJECT_NAME}
     profiles:
       - auto
     extra_hosts:
@@ -85,12 +86,13 @@ services:
       - ${ODOO_IMAGES}/robot/library:/opt/robot/library
       - ${HOST_CUSTOMS_DIR}:/opt/src
       - ${HOST_CUSTOMS_DIR}:${HOST_CUSTOMS_DIR}
-      - "${HOST_RUN_DIR}:/opt/robot/.odoo/run/$PROJECT_NAME"
+      - "${HOST_RUN_DIR}:/opt/robot/.odoo/run/${PROJECT_NAME}"
       - "${ODOO_IMAGES}:/opt/robot/.odoo/images"
       - "${ODOO_IMAGES}:$ODOO_IMAGES"
       - /var/run/docker.sock:/var/run/docker.sock
       - /var/lib/docker:/var/lib/docker
       - robo_upload_files:/tmp/robo_upload_files
+      - ${HOME}/.odoo:${HOME}/.odoo
 
   robot_file_browser:
     labels:
