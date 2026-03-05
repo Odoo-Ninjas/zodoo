@@ -365,7 +365,7 @@ def _setup_pyenv(ctx, config, name, old, reqfile, python_version):
         # install binary version of psyco - better on platforms
         try:
             version = _get_package_version(pyexec, "psycopg2")
-        except FileNotFoundError:
+        except (FileNotFoundError, subprocess.CalledProcessError):
             version = _get_package_version(pyexec, "psycopg2-binary")
         if version >= (2, 9, 0):
             subprocess.run(
