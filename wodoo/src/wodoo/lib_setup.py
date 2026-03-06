@@ -229,13 +229,15 @@ def _setup_odoo_pyenv(ctx, config, old):
 
     SRC = customs_dir()
     python_version = config.ODOO_PYTHON_VERSION
+    python_version_int = tuple(map(int, python_version.split(".")))
+    python_version_int2 = python_version_int[:2]
     reqfile = SRC / "requirements.txt.all"
     manifest = MANIFEST()
 
-    if manifest["version"] <= 15.0:
+    if python_version_int2 < (3, 11):
         old = True
         click.secho(
-            "Warning: Odoo version <= 15.0 --> old modus is set (cython<3).",
+            f"Warning: Python {python_version} < 3.11 --> old modus is set (cython<3, setuptools<55).",
             fg="red",
         )
     if manifest["version"] <= 16.0:
