@@ -28,7 +28,7 @@ from .tools import _get_available_modules
 ADDONS_OCA = "addons_OCA"
 
 
-@cli.group(cls=AliasedGroup)
+@cli.group(cls=AliasedGroup, help="Source code and project management (init, modules, gimera).")
 @pass_config
 def src(config):
     pass

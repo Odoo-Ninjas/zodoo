@@ -20,13 +20,13 @@ from .tools import __assure_gitignore
 ALL_PORTS = ["PROXY_PORT", "DEBUG_PORT", "HOST_DB_PORT"]
 
 
-@cli.group(cls=AliasedGroup)
+@cli.group(cls=AliasedGroup, help="Setup and maintenance commands (ports, web assets, upgrade, status).")
 @pass_config
 def setup(config):
     pass
 
 
-@setup.command()
+@setup.command(help="Find and assign the next free port for PROXY_PORT, DEBUG_PORT (and HOST_DB_PORT on macOS/WSL).")
 @pass_config
 @click.pass_context
 def next_port(ctx, config):

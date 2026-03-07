@@ -40,7 +40,7 @@ def db(config):
     )
 
 
-@db.command()
+@db.command(help="Check that the database connection is working.")
 @pass_config
 def db_health_check(config):
     conn = config.get_odoo_conn()
@@ -55,7 +55,7 @@ def db_health_check(config):
         click.secho(("Success"), fg="green")
 
 
-@db.command()
+@db.command(help="Drop a database. Requires DEVMODE or -f (force).")
 @click.argument("dbname", required=True)
 @pass_config
 def drop_db(config, dbname):
@@ -69,7 +69,7 @@ def drop_db(config, dbname):
     click.echo(f"Database {dbname} dropped.")
 
 
-@db.command()
+@db.command(help="Show live PostgreSQL activity (like htop for the database).")
 @pass_config
 def pgactivity(config):
     from .tools import DBConnection
@@ -102,7 +102,7 @@ def pgactivity(config):
     )
 
 
-@db.command()
+@db.command(help="Open an enhanced interactive PostgreSQL CLI (pgcli) with autocomplete.")
 @click.argument("dbname", required=False)
 @click.argument("params", nargs=-1)
 @click.option("-h", "--host", required=False)
@@ -122,7 +122,7 @@ def pgcli(config, dbname, params, host, port, user, password):
     )
 
 
-@db.command()
+@db.command(help="Open a standard psql CLI. Use --sql to run a query non-interactively.")
 @click.argument("dbname", required=False)
 @click.argument("params", nargs=-1)
 @click.option("--sql", required=False)
