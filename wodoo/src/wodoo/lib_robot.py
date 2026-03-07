@@ -286,6 +286,15 @@ def run(
         if config.force and not no_install_further_modules:
             _prepare_fresh_robotest(ctx)
 
+        if config.RUN_POSTGRES:
+            Commands.invoke(
+                ctx,
+                "up",
+                machines=["postgres"],
+                daemon=True,
+                no_recreate=True,
+            )
+            Commands.invoke(ctx, "wait_for_container_postgres")
         if install_odoo_modules:
 
             def not_installed(module):

@@ -88,12 +88,12 @@ def dev(ctx, config, build, kill):
     proxy_port = myconfig["PROXY_PORT"]
     roundcube_port = myconfig["ROUNDCUBE_PORT"]
     click.secho(
-        "Proxy Port: http://{}:{}".format(ip, proxy_port),
+        f"Proxy Port: http://{ip}:{proxy_port}",
         fg="green",
         bold=True,
     )
     click.secho(
-        "Mailclient : http://{}:{}".format(ip, roundcube_port),
+        f"Mailclient : http://{ip}:{roundcube_port}",
         fg="green",
         bold=True,
     )
@@ -142,7 +142,7 @@ def do_kill(ctx, config, machines=[], brutal=False, profile="auto"):
 
     if not brutal:
         for machine in (config.safe_kill or "").split(","):
-            if getattr(config, "run_{}".format(machine)):
+            if getattr(config, f"run_{machine}"):
                 SAFE_KILL.append(machine)
 
     machines = list(machines)
@@ -196,6 +196,7 @@ def up(
     remove_orphans=True,
     profile="all",
     force_recreate=False,
+    no_recreate=None,
 ):
     machines = list(machines)
     from .consts import resolve_profiles
@@ -207,6 +208,8 @@ def up(
     ]
     if force_recreate:
         options += ["--force-recreate"]
+    if no_recreate:
+        options += ["--no-recreate"]
     if daemon:
         options += ["-d"]
     if remove_orphans:
@@ -357,7 +360,7 @@ def debug(ctx, config, machine, ports, cmd=None):
     cmd_prefix = []
     for i, filepath in enumerate(src_files):
         dest = config.files["debugging_composer"]
-        dest = dest.parent / dest.name.replace(".yml", ".{}.yml".format(i))
+        dest = dest.parent / dest.name.replace(".yml", f".{i}.yml")
         shutil.copy(filepath, dest)
         __replace_in_file(dest, "__PORT__", ports or "33284")
         __replace_in_file(dest, "${NAME}", machine)
