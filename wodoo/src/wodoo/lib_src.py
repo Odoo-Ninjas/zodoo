@@ -101,9 +101,22 @@ def find_duplicate_modules(config, ctx):
 @click.argument("path", required=True)
 @click.argument("version", required=False)
 @click.option("--odoosh", is_flag=True)
+@click.option(
+    "--ai",
+    "ai_tools",
+    multiple=True,
+    default=["all"],
+    show_default=True,
+    help=(
+        "Which AI instruction files to generate. "
+        "Use multiple times for several tools. "
+        "Choices: all, claude, cursor, copilot, windsurf, openai, gemini, none. "
+        "Example: --ai claude --ai cursor"
+    ),
+)
 @click.pass_context
 @pass_config
-def init(config, ctx, path, odoosh, version):
+def init(config, ctx, path, odoosh, version, ai_tools):
     from .module_tools import make_customs
 
     path = Path(path)
@@ -111,7 +124,7 @@ def init(config, ctx, path, odoosh, version):
     if not path.exists():
         path.mkdir(parents=True)
     os.chdir(path)
-    make_customs(config, ctx, path, version, odoosh)
+    make_customs(config, ctx, path, version, odoosh, ai_tools=ai_tools)
 
 
 @src.command()
