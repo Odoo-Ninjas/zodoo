@@ -250,7 +250,13 @@ def rebuild(ctx, config, machines=[]):
 
 
 def restart(
-    ctx, config, machines=[], profile="auto", brutal=True, force_recreate=False
+    ctx,
+    config,
+    machines=[],
+    profile="auto",
+    brutal=True,
+    force_recreate=False,
+    no_recreate=None,
 ):
     machines = list(machines)
 
@@ -263,6 +269,7 @@ def restart(
         daemon=True,
         profile=profile,
         force_recreate=force_recreate,
+        no_recreate=no_recreate,
     )
 
 

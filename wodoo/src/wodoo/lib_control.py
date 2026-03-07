@@ -274,9 +274,12 @@ def rebuild(ctx, config, machines):
 @click.option(
     "-C", "--force-recreate", is_flag=True, help="Recreate containers"
 )
+@click.option(
+    "-R", "--no-recreate", is_flag=True, help="Dont recreate containers"
+)
 @pass_config
 @click.pass_context
-def restart(ctx, config, machines, profile, force_recreate):
+def restart(ctx, config, machines, profile, force_recreate, no_recreate):
     ensure_project_name(config)
     from .lib_control_with_docker import restart as lib_restart
 
@@ -288,6 +291,7 @@ def restart(ctx, config, machines, profile, force_recreate):
         profile=profile,
         brutal=brutal,
         force_recreate=force_recreate,
+        no_recreate=no_recreate,
     )
 
 
