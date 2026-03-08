@@ -582,6 +582,20 @@ def _prepare_fresh_robotest(ctx):
     default=3,
     help="If test fails - retry.",
 )
+@click.option(
+    "--filter",
+    "filter_str",
+    required=False,
+    default=None,
+    help="Filter test files by name containing this string.",
+)
+@click.option(
+    "--list",
+    "list_only",
+    is_flag=True,
+    default=False,
+    help="List matching files without executing them.",
+)
 @pass_config
 @click.pass_context
 def run_all(
@@ -589,6 +603,8 @@ def run_all(
     config,
     timeout,
     retry,
+    filter_str,
+    list_only,
 ):
     from .odoo_config import customs_dir
     from .robo_helpers import _get_all_robottest_files
@@ -606,9 +622,15 @@ def run_all(
     files = _get_all_robottest_files()
     files = [customsdir / file for file in files]
 
+    if filter_str:
+        files = [f for f in files if filter_str in f.name]
+
     click.secho("Testing following files:")
     for file in files:
         click.secho(f"  {file}", fg="green")
+
+    if list_only:
+        return
 
     for file in files:
         click.secho(f"Running robotest {file}")
