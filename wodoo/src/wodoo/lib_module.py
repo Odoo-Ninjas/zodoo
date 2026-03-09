@@ -810,15 +810,27 @@ def update(
                     )
                     if config.RUN_PROXY:
                         Commands.invoke(
-                            ctx, "up", machines=["proxy"], daemon=True
+                            ctx,
+                            "up",
+                            machines=["proxy"],
+                            daemon=True,
+                            no_recreate=True,
                         )
                     if config.run_redis:
                         Commands.invoke(
-                            ctx, "up", machines=["redis"], daemon=True
+                            ctx,
+                            "up",
+                            machines=["redis"],
+                            daemon=True,
+                            no_recreate=True,
                         )
                     if config.run_postgres:
                         Commands.invoke(
-                            ctx, "up", machines=["postgres"], daemon=True
+                            ctx,
+                            "up",
+                            machines=["postgres"],
+                            daemon=True,
+                            no_recreate=True,
                         )
                     Commands.invoke(ctx, "wait_for_container_postgres")
 
@@ -1021,7 +1033,7 @@ def update(
                     Commands.invoke(
                         ctx, "restart", machines=["odoo_queuejobs"]
                     )
-                Commands.invoke(ctx, "up", daemon=True)
+                Commands.invoke(ctx, "up", daemon=True, no_recreate=True)
 
             Commands.invoke(ctx, "status")
             if config.odoo_update_start_notification_touch_file_in_container:
@@ -1399,7 +1411,9 @@ def update_i18n(ctx, config, module, no_restart):
 
     manifest = MANIFEST()
     if config.run_postgres:
-        Commands.invoke(ctx, "up", machines=["postgres"], daemon=True)
+        Commands.invoke(
+            ctx, "up", machines=["postgres"], daemon=True, no_recreate=True
+        )
     Commands.invoke(ctx, "wait_for_container_postgres")
     module = list(
         filter(lambda x: x, sum(map(lambda x: x.split(","), module), []))
