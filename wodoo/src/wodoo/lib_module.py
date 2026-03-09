@@ -1026,12 +1026,12 @@ def update(
                 and config.use_docker
                 and os.getenv("DOCKER_MACHINE") != "1"
             ):
-                Commands.invoke(ctx, "restart", machines=["odoo"])
+                Commands.invoke(ctx, "restart", machines=["odoo"], no_recreate=True)
                 if config.run_odoocronjobs:
-                    Commands.invoke(ctx, "restart", machines=["odoo_cronjobs"])
+                    Commands.invoke(ctx, "restart", machines=["odoo_cronjobs"], no_recreate=True)
                 if config.run_queuejobs:
                     Commands.invoke(
-                        ctx, "restart", machines=["odoo_queuejobs"]
+                        ctx, "restart", machines=["odoo_queuejobs"], no_recreate=True
                     )
                 Commands.invoke(ctx, "up", daemon=True, no_recreate=True)
 
