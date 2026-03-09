@@ -1783,7 +1783,11 @@ def setup_launch_json(config):
     content = load_json(content)
     content_task = load_json(content_task)
     template = current_dir / "config" / "launch_template.json"
-    template = json.loads(template.read_text())
+    template = template.read_text()
+    template = template.replace(
+        "{ODOO_PYTHON_DEBUG_PORT}", (config.ODOO_PYTHON_DEBUG_PORT or "0")
+    )
+    template = json.loads(template)
 
     if config.run_postgres:
         db_host = "127.0.0.1"
@@ -1817,18 +1821,19 @@ def setup_launch_json(config):
             "--data-dir": f"{HOME}/.odoo/files",
             "--load": server_wide_modules,
         }
-        lines = debugconfig["args"]
-        debugconfig["args"] = []
-        for line in lines:
-            for k in myconfig.keys():
-                line = line.replace(f"{{{k}}}", myconfig.get(k))
-            debugconfig["args"].append(line)
-        for k, v in args.items():
-            lines = [
-                x for x in debugconfig["args"] if not x.startswith(k + "=")
-            ]
-            lines.append(f"{k}={v}")
-            debugconfig["args"] = lines
+        lines = debugconfig.get("args", [])
+        if lines:
+            debugconfig["args"] = []
+            for line in lines:
+                for k in myconfig.keys():
+                    line = line.replace(f"{{{k}}}", myconfig.get(k))
+                debugconfig["args"].append(line)
+            for k, v in args.items():
+                lines = [
+                    x for x in debugconfig["args"] if not x.startswith(k + "=")
+                ]
+                lines.append(f"{k}={v}")
+                debugconfig["args"] = lines
         debugconfig["python"] = str(config.dirs["pyenv"] / "bin/python3")
         serverReadyAction = debugconfig.get("serverReadyAction")
         if serverReadyAction:

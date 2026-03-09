@@ -30,7 +30,7 @@ def setup(config):
 @pass_config
 @click.pass_context
 def next_port(ctx, config):
-    ports = ["PROXY_PORT", "DEBUG_PORT"]
+    ports = ["PROXY_PORT", "DEBUG_PORT", "ODOO_PYTHON_DEBUG_PORT"]
     if on_osx() or on_windows_wsl():
         ports += ["HOST_DB_PORT"]
     _setup_port(ctx, config, ports)

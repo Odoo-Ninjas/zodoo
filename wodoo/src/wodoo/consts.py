@@ -69,6 +69,7 @@ default_files = {
     "docker_compose_bin": None,
     "debugging_template_withports": "config/template_withports.yml",
     "debugging_template_onlyloop": "config/template_onlyloop.yml",
+    "debugging_template_remote_debugging": "config/template_remote_debugging.yml",
     "debugging_composer": "${run}/debugging.yml",
     "settings": "${run}/settings",
     "odoo_instances": "${run}/odoo_instances",

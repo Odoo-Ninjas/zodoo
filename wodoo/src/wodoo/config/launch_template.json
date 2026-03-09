@@ -29,7 +29,7 @@
   ],
   "configurations": [
     {
-      "name": "browser",
+      "name": "browser with localpyenv",
       "type": "python",
       "request": "launch",
 
@@ -50,6 +50,22 @@
         "GEVENT_SUPPORT": "true"
       },
       "console": "integratedTerminal",
+      "justMyCode": false
+    },
+    {
+      "name": "browser with docker",
+      "type": "python",
+      "request": "attach",
+      "connect": {
+        "host": "127.0.0.1",
+        "port": {ODOO_PYTHON_DEBUG_PORT}
+      },
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}",
+          "remoteRoot": "/opt/src"
+        }
+      ],
       "justMyCode": false
     },
     {
