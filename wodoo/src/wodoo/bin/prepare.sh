@@ -2,7 +2,7 @@
 set -x
 
 if [[ "$RUN_POSTGRES" == "1" ]]; then
-	odoo up -d postgres
+	odoo up -d postgres --no-recreate
 fi
 
 if ! pyenv versions --bare | grep -qx "$PROJECTNAME"; then
