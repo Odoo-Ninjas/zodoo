@@ -405,6 +405,9 @@ def debug(ctx, config, machine, ports, command, port):
     ensure_project_name(config)
     from .lib_control_with_docker import debug as lib_debug
 
+    if command.startswith("["):
+        command = eval(command)
+
     if port:
         ports = int(port)
 

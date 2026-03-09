@@ -382,10 +382,12 @@ def debug(ctx, config, machine, ports, cmd=None):
         cmd_prefix += ["-f", dest]
 
     __dc(config, cmd_prefix + ["up", "-d", machine])
+    if not isinstance(cmd, (tuple, list)):
+        cmd = [cmd]
     if not cmd:
         attach(ctx, config, machine=machine)
     else:
-        __dcexec(config, [machine, cmd], interactive=True)
+        __dcexec(config, [machine] + cmd, interactive=True)
 
 
 def run(ctx, config, machine, args, **kwparams):
