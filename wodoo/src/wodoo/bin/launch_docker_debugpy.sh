@@ -7,7 +7,7 @@ SETUP_PYENV=1 /bin/bash ${current_dir}/prepare.sh || exit -1
 CURRENT_FILE="${CURRENT_FILE#$(pwd)/}"
 echo "unit_test:$CURRENT_FILE" > debug
 echo Starting docker container for unitteset and waiting for remote debug on localhost:${ODOO_PYTHON_DEBUG_PORT}
-rm .unittest.log || true
+[[ -e .unittest.log ]] && rm .unittest.log
 
 if [[ "$CURRENT_FILE" == */tests/* ]]; then
     echo "Identified unittest so running unittest: ${CURRENT_FILE}"
@@ -49,4 +49,3 @@ if [[ "$MODE" == "unittest" ]]; then
 else
     echo Web container started
 fi
-exit 0

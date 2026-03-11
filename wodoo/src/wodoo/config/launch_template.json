@@ -31,7 +31,7 @@
         {
             "label": "show:docker:result:logs",
             "type": "shell",
-            "command": "CURRENT_FILE=${file} /bin/bash ~/.odoo/images/wodoo/src/wodoo/bin/launch_docker_debugpy_finish.sh",
+            "command": "CURRENT_FILE=${file} VSCODE_IPC_HOOK_CLI=${env:VSCODE_IPC_HOOK_CLI} /bin/bash ~/.odoo/images/wodoo/src/wodoo/bin/launch_docker_debugpy_finish.sh",
             "options": {
                 "cwd": "${workspaceFolder}"
             },
