@@ -1780,7 +1780,10 @@ def setup_launch_json(config):
         content_task = task_json.read_text()
     else:
         content_task = '{"version": "0.2.0", "configurations": []}'
-    content = load_json(content)
+    try:
+        content = load_json(content)
+    except:
+        abort(f"File {launch_json} is corrupt.")
     content_task = load_json(content_task)
     template = current_dir / "config" / "launch_template.json"
     template = template.read_text()
@@ -1848,12 +1851,15 @@ def setup_launch_json(config):
             return "1" if var else "0"
 
         cmd = f"RUN_POSTGRES={b(config.run_postgres)} {cmd}"
+        cmd = f"RUN_PROXY_PUBLISHED={b(config.run_proxy_published)} {cmd}"
         cmd = f"ON_OSX={b(on_osx())} {cmd}"
         cmd = f"ON_WINDOWS_WSL={b(on_windows_wsl())} {cmd}"
         cmd = f"PROJECTNAME={config.project_name} {cmd}"
         cmd = f"PORT={config.DEBUG_PORT} {cmd}"
+        cmd = f"PROXY_PORT={config.DEBUG_PORT} {cmd}"
         cmd = f"DEVMODE={b(config.DEVMODE)} {cmd}"
         cmd = f"DEBUG_BROWSER={config.DEBUG_BROWSER} {cmd}"
+        cmd = f"ODOO_PYTHON_DEBUG_PORT={config.ODOO_PYTHON_DEBUG_PORT} {cmd}"
         taskconfig["command"] = cmd
 
     template_config_names = [x["name"] for x in template["configurations"]]
