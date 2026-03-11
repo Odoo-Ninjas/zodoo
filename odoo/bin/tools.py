@@ -641,7 +641,7 @@ def exec_odoo(
             stdin=subprocess.PIPE,
             **params_capture,
         )
-        proc.stdin.write(stdin.decode("utf-8"))
+        proc.stdin.write(stdin)
         proc.stdin.close()
         if capture_output:
             output = _tee(proc)
