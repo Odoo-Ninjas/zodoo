@@ -1,9 +1,9 @@
 {
   "tasks": [
     {
-      "label": "launch:browser:debug",
+      "label": "launch:docker:odoo:debugpy",
       "type": "shell",
-      "command": "/bin/bash ~/.odoo/images/wodoo/src/wodoo/bin/launch_browser_debug.sh",
+      "command": "CURRENT_FILE=${file} ODOO_PYTHON_DEBUG_PORT={ODOO_PYTHON_DEBUG_PORT} /bin/bash ~/.odoo/images/wodoo/src/wodoo/bin/launch_docker_debugpy.sh",
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -14,9 +14,9 @@
       "problemMatcher": []
     },
     {
-      "label": "launch:unittest:debug",
+      "label": "launch:pyenv",
       "type": "shell",
-      "command": "/bin/bash ~/.odoo/images/wodoo/src/wodoo/bin/launch_unittest_debug.sh",
+      "command": "/bin/bash ~/.odoo/images/wodoo/src/wodoo/bin/launch_pyenv.sh",
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -25,55 +25,40 @@
         "panel": "shared"
       },
       "problemMatcher": []
-    }
+    },
+        {
+            "label": "show:docker:result:logs",
+            "type": "shell",
+            "command": "CURRENT_FILE=${file} /bin/bash ~/.odoo/images/wodoo/src/wodoo/bin/launch_docker_debugpy_finish.sh",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            },
+            "problemMatcher": []
+        }
   ],
   "configurations": [
-    {
-      "name": "browser",
-      "type": "python",
-      "request": "launch",
 
-      "python": "~/.odoo/run/__PROJECT_NAME__/.venv/bin/python3",
-      "program": "${workspaceFolder}/odoo/odoo-bin",
-      "preLaunchTask": "launch:browser:debug",
-      "args": [
-        "--log-level=debug",
-        "--dev=all",
-        "--http-interface=0.0.0.0",
-        "--http-port={DEBUG_PORT}",
-        "--workers=0",
-        "--max-cron-threads=0"
-      ],
-      "cwd": "${workspaceFolder}",
-      "env": {
-        "PYTHONUNBUFFERED": "1",
-        "GEVENT_SUPPORT": "true"
-      },
-      "console": "integratedTerminal",
-      "justMyCode": false
-    },
     {
-      "name": "unittest",
+      "name": "docker",
       "type": "python",
-      "request": "launch",
-
-      "python": "~/.odoo/run/__PROJECT_NAME__/.venv/bin/python3",
-      "program": "${workspaceFolder}/odoo/odoo-bin",
-      "preLaunchTask": "launch:unittest:debug",
-      "args": [
-        "--log-level=debug",
-        "--no-http",
-        "--workers=0",
-        "--max-cron-threads=0",
-        "--test-file=${file}",
-        "--stop-after-init"
-      ],
-      "cwd": "${workspaceFolder}",
-      "env": {
-        "PYTHONUNBUFFERED": "1",
-        "GEVENT_SUPPORT": "true"
+      "request": "attach",
+      "connect": {
+        "host": "127.0.0.1",
+        "port": {ODOO_PYTHON_DEBUG_PORT}
       },
-      "console": "integratedTerminal",
+      "preLaunchTask": "launch:docker:odoo:debugpy",
+      "postDebugTask": "show:docker:result:logs",
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}",
+          "remoteRoot": "/opt/src"
+        }
+      ],
       "justMyCode": false
     }
   ]

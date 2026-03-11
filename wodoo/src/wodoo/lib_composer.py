@@ -1780,10 +1780,17 @@ def setup_launch_json(config):
         content_task = task_json.read_text()
     else:
         content_task = '{"version": "0.2.0", "configurations": []}'
-    content = load_json(content)
+    try:
+        content = load_json(content)
+    except:
+        abort(f"File {launch_json} is corrupt.")
     content_task = load_json(content_task)
     template = current_dir / "config" / "launch_template.json"
-    template = json.loads(template.read_text())
+    template = template.read_text()
+    template = template.replace(
+        "{ODOO_PYTHON_DEBUG_PORT}", (config.ODOO_PYTHON_DEBUG_PORT or "0")
+    )
+    template = json.loads(template)
 
     if config.run_postgres:
         db_host = "127.0.0.1"
@@ -1817,18 +1824,19 @@ def setup_launch_json(config):
             "--data-dir": f"{HOME}/.odoo/files",
             "--load": server_wide_modules,
         }
-        lines = debugconfig["args"]
-        debugconfig["args"] = []
-        for line in lines:
-            for k in myconfig.keys():
-                line = line.replace(f"{{{k}}}", myconfig.get(k))
-            debugconfig["args"].append(line)
-        for k, v in args.items():
-            lines = [
-                x for x in debugconfig["args"] if not x.startswith(k + "=")
-            ]
-            lines.append(f"{k}={v}")
-            debugconfig["args"] = lines
+        lines = debugconfig.get("args", [])
+        if lines:
+            debugconfig["args"] = []
+            for line in lines:
+                for k in myconfig.keys():
+                    line = line.replace(f"{{{k}}}", myconfig.get(k))
+                debugconfig["args"].append(line)
+            for k, v in args.items():
+                lines = [
+                    x for x in debugconfig["args"] if not x.startswith(k + "=")
+                ]
+                lines.append(f"{k}={v}")
+                debugconfig["args"] = lines
         debugconfig["python"] = str(config.dirs["pyenv"] / "bin/python3")
         serverReadyAction = debugconfig.get("serverReadyAction")
         if serverReadyAction:
@@ -1843,12 +1851,15 @@ def setup_launch_json(config):
             return "1" if var else "0"
 
         cmd = f"RUN_POSTGRES={b(config.run_postgres)} {cmd}"
+        cmd = f"RUN_PROXY_PUBLISHED={b(config.run_proxy_published)} {cmd}"
         cmd = f"ON_OSX={b(on_osx())} {cmd}"
         cmd = f"ON_WINDOWS_WSL={b(on_windows_wsl())} {cmd}"
         cmd = f"PROJECTNAME={config.project_name} {cmd}"
         cmd = f"PORT={config.DEBUG_PORT} {cmd}"
+        cmd = f"PROXY_PORT={config.DEBUG_PORT} {cmd}"
         cmd = f"DEVMODE={b(config.DEVMODE)} {cmd}"
         cmd = f"DEBUG_BROWSER={config.DEBUG_BROWSER} {cmd}"
+        cmd = f"ODOO_PYTHON_DEBUG_PORT={config.ODOO_PYTHON_DEBUG_PORT} {cmd}"
         taskconfig["command"] = cmd
 
     template_config_names = [x["name"] for x in template["configurations"]]

@@ -496,7 +496,7 @@ def __python_exe(remote_debug=False, wait_for_remote=False):
         cmd = ["/usr/bin/python"]
     else:
         # return "/usr/bin/python3"
-        cmd = ["/opt/venv/bin/python3"]
+        cmd = ["/opt/venv/bin/python3", "-Xfrozen_modules=off"]
 
     if remote_debug or wait_for_remote:
         cmd += [

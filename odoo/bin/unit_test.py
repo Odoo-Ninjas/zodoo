@@ -20,6 +20,7 @@ parser.add_argument("--resultsfile")
 parser.add_argument("test_file")
 parser.set_defaults(log_level="error")
 args = parser.parse_args()
+logfile = Path("/opt/src/.unittest.log")
 
 os.environ["TEST_QUEUE_JOB_NO_DELAY"] = "1"
 
@@ -32,6 +33,7 @@ prepare_run()
 
 runs = []
 
+ran_files = []
 for filepath in args.test_file.split(","):
     started = datetime.now()
     cmd = [
@@ -44,6 +46,7 @@ for filepath in args.test_file.split(","):
     if not filepath.exists():
         click.secho(f"File not found: {filepath}", fg="red")
         sys.exit(-1)
+    ran_files.append(filepath)
     os.chdir("/opt/src")
     module = Module(filepath)
     cmd += [
@@ -74,8 +77,8 @@ if args.resultsfile:
 if any(x["rc"] for x in runs):
     rc = -1
 
-if not rc:
-    text = """
+ran_files = "\n".join(map(str, ran_files))
+good = """
      _    _ _   _            _                                      _
     / \  | | | | |_ ___  ___| |_ ___   _ __   __ _ ___ ___  ___  __| |
    / _ \ | | | | __/ _ \/ __| __/ __| | '_ \ / _` / __/ __|/ _ \/ _` |
@@ -83,6 +86,13 @@ if not rc:
  /_/   \_\_|_|  \__\___||___/\__|___/ | .__/ \__,_|___/___/\___|\__,_|
                                       |_|
 """
+if not rc:
+    text = good
 
     click.secho(text, fg="green", bold=True)
+    logfile.write_text(f"{good}\n{ran_files}")
+else:
+    logfile.write_text(
+        f"Failed: \n{ran_files}\n\n" + json.dumps(runs, indent=4)
+    )
 sys.exit(rc)

@@ -19,6 +19,8 @@ from .tools import __needs_docker
 from .tools import get_docker_version
 import subprocess
 from .cli import Commands
+import tempfile
+from pathlib import Path
 
 
 def _get_volume_hostpath(volume):
@@ -344,7 +346,7 @@ def build(
     )
 
 
-def debug(ctx, config, machine, ports, cmd=None):
+def debug(ctx, config, machine, ports, cmd=None, set_docker_command=False):
     """
     starts /bin/bash for just that machine and connects to it; if machine is down, it is powered up; if it is up, it is restarted; as command an endless bash loop is set"
     """
@@ -359,8 +361,19 @@ def debug(ctx, config, machine, ports, cmd=None):
         )
     # shutdown current machine and start via run and port-mappings the replacement machine
     do_kill(ctx, config, machines=[machine])
-    rm(ctx, config, machines=[machine])
     src_files = [config.files["debugging_template_onlyloop"]]
+    if cmd and set_docker_command:
+        file = tempfile.mktemp(suffix=".")
+        filepath = Path(tempfile._get_default_tempdir()) / next(
+            tempfile._get_candidate_names()
+        )
+        filepath.write_text("""
+services:
+  ${NAME}:
+    command: ["/bin/bash", "-c", "___COMMAND___"]
+        """.replace("___COMMAND___", " ".join(cmd)))
+        src_files = [filepath]
+
     if ports:
         src_files += [config.files["debugging_template_withports"]]
 
@@ -382,12 +395,18 @@ def debug(ctx, config, machine, ports, cmd=None):
         cmd_prefix += ["-f", dest]
 
     __dc(config, cmd_prefix + ["up", "-d", machine])
-    if not isinstance(cmd, (tuple, list)):
-        cmd = [cmd]
-    if not cmd:
-        attach(ctx, config, machine=machine)
+    if not set_docker_command:
+        if not isinstance(cmd, (tuple, list)):
+            cmd = [cmd]
+        if not cmd:
+            attach(ctx, config, machine=machine)
+        else:
+            __dcexec(config, [machine] + cmd, interactive=True)
     else:
-        __dcexec(config, [machine] + cmd, interactive=True)
+        click.secho(
+            f"INFO: docker compose exec not executed as container's command was set. Starting container with up -d",
+            fg="yellow",
+        )
 
 
 def run(ctx, config, machine, args, **kwparams):

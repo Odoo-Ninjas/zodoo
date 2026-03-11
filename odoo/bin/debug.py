@@ -50,6 +50,7 @@ class Debugger(object):
         remote_debugging,
         loglevel,
         enable_queuejobs,
+        one_action,
     ):
         self.odoolib_path = Path(os.environ["ODOOLIB"])
         self.sync_common_modules = sync_common_modules
@@ -61,6 +62,7 @@ class Debugger(object):
             remote_debugging = True
         self.remote_debugging = remote_debugging
         self.loglevel = loglevel
+        self.one_action = one_action
 
     def execpy(self, cmd):
         os.chdir(self.odoolib_path)
@@ -68,6 +70,8 @@ class Debugger(object):
             cmd = ["python3"] + cmd
         env2 = os.environ.copy()
         env2["ODOO_DEBUGGING"] = "1"
+        # odoo 16 was debuggable only if this was not set
+        # env2["GEVENT_SUPPORT"] = "True"
         proc = subprocess.run(cmd, cwd=self.odoolib_path, env=env2)  # exitcode
         res = proc.returncode == 0
         sane_tty()
@@ -141,7 +145,7 @@ class Debugger(object):
             print(
                 f"Please connect your external debugger to: {os.environ['ODOO_PYTHON_DEBUG_PORT']}"
             )
-        self.execpy(
+        res = self.execpy(
             [
                 os.environ["WODOO_PYTHON"],
                 "unit_test.py",
@@ -149,6 +153,14 @@ class Debugger(object):
             ]
             + args
         )
+        if res:
+            click.secho(
+                "UNITTEST: PASSED (exit code 0)", fg="green", bold=True
+            )
+        else:
+            click.secho(
+                "UNITTEST: FAILED (exit code != 0)", fg="red", bold=True
+            )
 
     def action_export_lang(self, lang, module):
         kill_odoo()
@@ -175,20 +187,34 @@ class Debugger(object):
         t.start()
 
         action = None
+        if self.one_action:
+            self.first_run = False
+            action = self.one_action.split(":")
+            print(f"One time action is: {action}")
 
         while True:
             try:
-                if not self.first_run and not DEBUGGER_WATCH.exists():
+                if (
+                    not self.first_run
+                    and not DEBUGGER_WATCH.exists()
+                    and action is None
+                ):
                     time.sleep(0.2)
                     continue
                 os.chdir("/opt/src")
 
-                if not self.first_run:
+                if (
+                    not self.first_run
+                    and DEBUGGER_WATCH.exists()
+                    and not self.one_action
+                ):
                     content = DEBUGGER_WATCH.read_text()
                     DEBUGGER_WATCH.unlink()
                     action = content.split(":")
 
-                if self.first_run or action[0] in ["debug", "quick_restart"]:
+                if self.first_run or (
+                    action and action[0] in ["debug", "quick_restart"]
+                ):
                     kill_odoo()
                     thread1 = threading.Thread(target=self.action_debug)
                     thread1.daemon = True
@@ -255,12 +281,16 @@ class Debugger(object):
                     thread1.daemon = True
                     thread1.start()
 
+                action = None
                 self.first_run = False
 
             except Exception:
+                if self.one_action:
+                    raise
                 msg = traceback.format_exc()
                 print(msg)
                 time.sleep(1)
+        print("exited debugging endless loop")
 
 
 @click.command(name="debug")
@@ -277,6 +307,7 @@ class Debugger(object):
 @click.option("-W", "--web-workers", default=2)
 @click.option("-p", "--profile", is_flag=True)
 @click.option("-l", "--loglevel", default="info")
+@click.option("--one-action")
 def command_debug(
     sync_common_modules,
     debug_queuejobs,
@@ -286,6 +317,7 @@ def command_debug(
     profile,
     loglevel,
     enable_queuejobs,
+    one_action,
 ):
     global profiling
     if debug_queuejobs:
@@ -314,6 +346,7 @@ def command_debug(
         remote_debugging=remote_debugging,
         loglevel=loglevel,
         enable_queuejobs=enable_queuejobs,
+        one_action=one_action,
     ).endless_loop()
 
 

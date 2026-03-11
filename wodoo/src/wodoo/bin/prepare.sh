@@ -5,7 +5,11 @@ if [[ "$RUN_POSTGRES" == "1" ]]; then
 	odoo up -d postgres --no-recreate
 fi
 
-if ! pyenv versions --bare | grep -qx "$PROJECTNAME"; then
+if [[ "$RUN_PROXY_PUBLISHED" == "1" ]]; then
+	odoo up -d proxy --no-recreate
+fi
+
+if [[ "$SETUP_PYENV" == "1" ]] && ! pyenv versions --bare | grep -qx "$PROJECTNAME"; then
 	echo "Pyenv not yet initialized. Installing by odoo setup-pyenv"
 	odoo setup-pyenv
 fi

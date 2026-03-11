@@ -399,9 +399,12 @@ def load_compose(config):
 @click.option("-c", "--command", required=False, help="Like /odoolib/debug.py")
 @click.option("-p", "--ports", is_flag=True, help="With Port 33284")
 @click.option("--port", help="Define the debug port")
+@click.option(
+    "--set-docker-command", is_flag=True, help="Replaces docker command"
+)
 @pass_config
 @click.pass_context
-def debug(ctx, config, machine, ports, command, port):
+def debug(ctx, config, machine, ports, command, port, set_docker_command):
     ensure_project_name(config)
     from .lib_control_with_docker import debug as lib_debug
 
@@ -411,7 +414,14 @@ def debug(ctx, config, machine, ports, command, port):
     if port:
         ports = int(port)
 
-    lib_debug(ctx, config, machine, ports=port, cmd=command)
+    lib_debug(
+        ctx,
+        config,
+        machine,
+        ports=port,
+        cmd=command,
+        set_docker_command=set_docker_command,
+    )
 
 
 @cli.command()
