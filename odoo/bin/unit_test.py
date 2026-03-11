@@ -32,6 +32,7 @@ else:
 prepare_run()
 
 runs = []
+capture_output = os.getenv("CAPTURE_UNITTEST_OUTPUT") == "1"
 
 ran_files = []
 for filepath in args.test_file.split(","):
@@ -60,6 +61,7 @@ for filepath in args.test_file.split(","):
         "config_unittest",
         remote_debug="--remote-debug" in sys.argv,
         wait_for_remote="--wait-for-remote" in sys.argv,
+        capture_output=capture_output,
         *cmd,
     )
     runs.append(

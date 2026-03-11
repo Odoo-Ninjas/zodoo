@@ -12,7 +12,7 @@ echo Starting docker container for unitteset and waiting for remote debug on loc
 if [[ "$CURRENT_FILE" == */tests/* ]]; then
     echo "Identified unittest so running unittest: ${CURRENT_FILE}"
     MODE=unittest
-    odoo debug --command '["/odoolib/debug","--wait-for-remote", "--one-action", "unit_test:${CURRENT_FILE}"]' odoo --set-docker-command
+    odoo debug --command '["CAPTURE_UNITTEST_OUTPUT=1", "/odoolib/debug","--wait-for-remote", "--one-action", "unit_test:${CURRENT_FILE}"]' odoo --set-docker-command
 else
     echo "Starting web server in debug mode"
     MODE=web

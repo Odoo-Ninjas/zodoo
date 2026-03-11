@@ -552,6 +552,7 @@ def exec_odoo(
     remote_debug=False,
     wait_for_remote=False,
     enable_queuejobs=False,
+    capture_output=None,
     **kwargs,
 ):  # NOQA
     assert not [
@@ -622,6 +623,15 @@ def exec_odoo(
         proc.wait()
         return "".join(lines)
 
+    params_capture = {
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.STDOUT,
+        "text": True,
+    }
+    if not capture_output:
+        params_capture = {}
+        output = ""
+
     if stdin:
         if isinstance(stdin, str):
             stdin = stdin.encode("utf-8")
@@ -629,22 +639,22 @@ def exec_odoo(
             cmd,
             shell=True,
             stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
+            **params_capture,
         )
         proc.stdin.write(stdin.decode("utf-8"))
         proc.stdin.close()
-        output = _tee(proc)
+        if capture_output:
+            output = _tee(proc)
     else:
         proc = subprocess.Popen(
             cmd,
             shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
+            **params_capture,
         )
-        output = _tee(proc)
+        if capture_output:
+            output = _tee(proc)
+    if not capture_output:
+        proc.wait()
     if pidfile.exists():
         pidfile.unlink()
     if on_done:
