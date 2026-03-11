@@ -96,7 +96,7 @@ def update(config, mode, modules):
             params += [f"--log-level={config.log}"]
             params += [f"--log-handler=:{config.log.upper()}"]
 
-        rc = exec_odoo(config.config_file, *params)
+        rc, output = exec_odoo(config.config_file, *params)
         if rc:
             click.secho(
                 (f"Error at {mode_text[mode]} of: " f"{','.join(modules)}"),

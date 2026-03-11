@@ -56,7 +56,7 @@ for filepath in args.test_file.split(","):
         cmd += [
             "--test-report-directory=/tmp",
         ]
-    rc = exec_odoo(
+    rc, output = exec_odoo(
         "config_unittest",
         remote_debug="--remote-debug" in sys.argv,
         wait_for_remote="--wait-for-remote" in sys.argv,
@@ -66,6 +66,7 @@ for filepath in args.test_file.split(","):
         {
             "path": str(filepath.relative_to("/opt/src")),
             "duration": (datetime.now() - started).total_seconds(),
+            "output": output,
             "rc": rc,
         }
     )
@@ -92,7 +93,19 @@ if not rc:
     click.secho(text, fg="green", bold=True)
     logfile.write_text(f"{good}\n{ran_files}")
 else:
-    logfile.write_text(
-        f"Failed: \n{ran_files}\n\n" + json.dumps(runs, indent=4)
-    )
+    text = []
+    for entry in runs:
+        text.append(
+            "------------------------------------------------------------------"
+        )
+        text.append(
+            f"File: {entry['path']} failed in {entry['duration']} seconds"
+        )
+        text.append(
+            "------------------------------------------------------------------"
+        )
+        text.append(f"{entry['output']}")
+        text.append("\n\n")
+
+    logfile.write_text("\n".join(text))
 sys.exit(rc)

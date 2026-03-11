@@ -9,7 +9,8 @@
       },
       "presentation": {
         "reveal": "never",
-        "panel": "shared"
+        "panel": "shared",
+        "close": true
       },
       "problemMatcher": []
     },
@@ -22,7 +23,8 @@
       },
       "presentation": {
         "reveal": "never",
-        "panel": "shared"
+        "panel": "shared",
+        "close": true
       },
       "problemMatcher": []
     },
@@ -34,9 +36,10 @@
                 "cwd": "${workspaceFolder}"
             },
             "presentation": {
-                "reveal": "always",
-                "panel": "dedicated",
-                "clear": true
+                "reveal": "never",
+                "panel": "shared",
+                "clear": true,
+                "close": true
             },
             "problemMatcher": []
         }

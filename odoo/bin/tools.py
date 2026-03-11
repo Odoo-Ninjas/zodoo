@@ -613,12 +613,38 @@ def exec_odoo(
     filename = Path(tempfile.mktemp(suffix=".exitcode"))
     cmd += f" || echo $? > {filename}"
 
+    def _tee(proc):
+        lines = []
+        for line in proc.stdout:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            lines.append(line)
+        proc.wait()
+        return "".join(lines)
+
     if stdin:
         if isinstance(stdin, str):
             stdin = stdin.encode("utf-8")
-        subprocess.run(cmd, input=stdin, shell=True)
+        proc = subprocess.Popen(
+            cmd,
+            shell=True,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        proc.stdin.write(stdin.decode("utf-8"))
+        proc.stdin.close()
+        output = _tee(proc)
     else:
-        subprocess.run(cmd, shell=True)
+        proc = subprocess.Popen(
+            cmd,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        output = _tee(proc)
     if pidfile.exists():
         pidfile.unlink()
     if on_done:
@@ -632,7 +658,7 @@ def exec_odoo(
             rc = -1  # undefined return code
         finally:
             filename.unlink()
-    return rc
+    return rc, output
 
 
 def _run_shell_cmd(code, do_raise=False):
@@ -642,7 +668,7 @@ def _run_shell_cmd(code, do_raise=False):
     if current_version() >= 11.0:
         cmd += ["--shell-interface=ipython"]
 
-    rc = exec_odoo(
+    rc, output = exec_odoo(
         "config_shell",
         *cmd,
         odoo_shell=True,
