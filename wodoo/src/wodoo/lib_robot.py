@@ -235,6 +235,14 @@ def run(
 
     manifest = MANIFEST()
 
+    # it is advised to turn on odoo cronjobs: if on restarting
+    # the postgres container is shortly gone, cronjobs may fail
+    # and get unhealthy and require a restart
+    if not config.run_cronjobs:
+        Commands.invoke(
+            ctx, "setting", no_reload=False, settings=["RUN_CRONJOBS=1"]
+        )
+
     if not config.devmode and not config.force:
         click.secho(
             (
