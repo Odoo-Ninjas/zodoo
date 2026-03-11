@@ -1,4 +1,5 @@
 import os
+import threading
 from tools import prepare_run
 from tools import exec_odoo
 from tools import set_proxy_update_modules
@@ -8,6 +9,28 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 import subprocess
 import sys
+
+if is_odoo_cronjob:
+    _CRASH_PATTERN = b"Exception in thread odoo.service.cron.cron"
+    _CRASH_SENTINEL = "/dev/shm/cron_crashed"
+
+    _r_fd, _w_fd = os.pipe()
+    _orig_stdout_fd = os.dup(1)
+    os.dup2(_w_fd, 1)
+    os.dup2(_w_fd, 2)
+    os.close(_w_fd)
+
+    def _monitor_output():
+        r = os.fdopen(_r_fd, "rb")
+        while True:
+            line = r.readline()
+            if not line:
+                break
+            os.write(_orig_stdout_fd, line)
+            if _CRASH_PATTERN in line:
+                open(_CRASH_SENTINEL, "w").close()
+
+    threading.Thread(target=_monitor_output, daemon=True).start()
 
 print("Starting up odoo")
 prepare_run()

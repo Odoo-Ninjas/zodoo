@@ -1,22 +1,21 @@
 # manage-order 1001
-version: '3'
+version: "3"
 services:
   odoo:
     labels:
-      odoo.web_container: '1'
-      compose.merge: 'odoo_base'
+      odoo.web_container: "1"
+      compose.merge: "odoo_base"
       proxy_config: ${ODOO_IMAGES}/odoo/proxy/odoo.conf
       proxy_config_chat: ${ODOO_IMAGES}/odoo/proxy/odoo_chat.conf
     environment:
       IS_ODOO_WEBSERVER: 1
-    environment:
       DEBUGGER_WATCH: /opt/src/.debug
       DEBUGGER_ODOO_PID: /tmp/odoo.debug.pid
 
   odoo_debug:
-    restart: 'no'
+    restart: "no"
     labels:
-      compose.merge: 'odoo_base'
+      compose.merge: "odoo_base"
     environment:
       ENDLESS_LOOP: 1
       DEBUGGER_WATCH: /opt/src/.debug
@@ -25,18 +24,27 @@ services:
 
   odoo_cronjobs:
     labels:
-      compose.merge: 'odoo_base'
-      odoo.queuejob_container: '1'
+      compose.merge: "odoo_base"
+      odoo.queuejob_container: "1"
     environment:
       IS_ODOO_CRONJOB: 1
+    restart: "on-failure"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - /opt/venv/bin/python /odoolib/healthcheck_cronjobs.py
+      interval: 30s
+      timeout: 10s
+      retries: 1
+      start_period: 60s
 
   odoo_queuejobs:
     labels:
-      compose.merge: 'odoo_base'
-      odoo.queuejob_container: '1'
+      compose.merge: "odoo_base"
+      odoo.queuejob_container: "1"
     environment:
       IS_ODOO_QUEUEJOB: 1
-    restart: 'on-failure'
+    restart: "on-failure"
     healthcheck:
       test:
         - CMD-SHELL
@@ -54,6 +62,6 @@ services:
 
   odoo_update:
     labels:
-      compose.merge: 'odoo_base'
-    restart: 'no'
+      compose.merge: "odoo_base"
+    restart: "no"
     command: echo 'good bye - it is ok!'
