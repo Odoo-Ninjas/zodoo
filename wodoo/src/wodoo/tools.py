@@ -674,10 +674,33 @@ def __rmtree(config, path):
         ):
             if any(x in path for x in ["/tmp", ".pyenv"]):
                 pass
+            elif str(path) in map(str, config.dirs.values()):
+                pass
             else:
                 raise Exception("not allowed")
     if Path(path).exists():
-        shutil.rmtree(path)
+        try:
+            shutil.rmtree(path)
+        except Exception as ex:
+            # could be rights problems:
+            UID = os.getuid()
+            __try_to_set_owner(UID, path, abort_if_failed=False)
+            try:
+                shutil.rmtree(path)
+            except:
+                for file in path.rglob("*"):
+                    if not file.is_dir():
+                        try:
+                            file.unlink()
+                        except:
+                            click.secho(f"Failed to remove: {file}", fg="red")
+                    else:
+                        try:
+                            shutil.rmtree(file)
+                        except:
+                            click.secho(f"Failed to remove: {file}", fg="red")
+
+                    
 
 
 def __safeget(array, index, exception_on_missing, file_options=None):

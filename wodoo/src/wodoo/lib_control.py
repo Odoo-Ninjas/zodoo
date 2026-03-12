@@ -13,6 +13,7 @@ from .tools import ensure_project_name
 from .tools import print_prod_env
 from .tools import _shell_complete_machines
 from .tools import _shell_complete_services
+from .tools import __rmtree
 
 
 @cli.group(cls=AliasedGroup)
@@ -244,6 +245,9 @@ def down(ctx, config, machines, volumes, remove_orphans, postgres_volume):
             pass
 
     lib_down(ctx, config, machines, volumes, remove_orphans)
+    if volumes:
+        # try also to delete the run dir and filestore
+        _cleanup_local_files(ctx, config)
 
 
 @docker.command()
@@ -728,6 +732,36 @@ def docker_sizes(context, config, name):
         recs.append((name, _get_size(name)))
 
     click.echo(tabulate(recs, ["Image Name", "Size"]))
+
+def _cleanup_local_files(ctx, config):
+    from pathlib import Path
+    import shutil
+    paths = []
+    paths.append(Path(os.environ['HOST_RUN_DIR']))
+    paths.append(config.dirs["odoo_data_dir"] / "filestore" / config.dbname)
+    paths.append(config.files['project_settings'])
+    import pudb;pudb.set_trace()
+    for path in paths:
+        if path.is_dir():
+            try:
+                if path.exists():
+                    __rmtree(config, path)
+            except Exception as ex:
+                click.secho(f"Failed to remove path {path}: {ex}", fg="red")
+            else:
+                click.secho(f"Removed directory: {path}", fg='yellow')
+        else:
+            content = ""
+            try:
+                if path.exists():
+                    content = path.read_text()
+                    path.unlink()
+            except Exception as ex:
+                click.secho(f"Failed to remove path {path}: {ex}", fg="red")
+            else:
+                click.secho(f"Removed file: {path}", fg='yellow')
+                if content:
+                    click.secho(f"Content was:\n{content}")
 
 
 Commands.register(run)
