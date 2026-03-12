@@ -246,9 +246,11 @@ def down(ctx, config, machines, volumes, remove_orphans, postgres_volume, cleanu
             pass
 
     lib_down(ctx, config, machines, volumes, remove_orphans)
-    if cleanup_config:
+    if volumes:
         # try also to delete the run dir and filestore
         _cleanup_local_files(ctx, config)
+    if cleanup_config:
+        _cleanup_config_files(ctx, config)
 
 
 @docker.command()
@@ -735,8 +737,18 @@ def docker_sizes(context, config, name):
     click.echo(tabulate(recs, ["Image Name", "Size"]))
 
 def _cleanup_local_files(ctx, config):
+    paths = []
+    paths.append(Path(os.environ['HOST_RUN_DIR']))
+    paths.append(config.dirs["odoo_data_dir"] / "filestore" / config.dbname)
+    _cleanup_paths(ctx, config, paths)
+
+def _cleanup_config_files(ctx, config):
+    paths = []
+    paths.append(config.files['project_settings'])
+    _cleanup_paths(ctx, config, paths)
+
+def _cleanup_paths(ctx, config, paths):
     from pathlib import Path
-    import shutil
     paths = []
     paths.append(Path(os.environ['HOST_RUN_DIR']))
     paths.append(config.dirs["odoo_data_dir"] / "filestore" / config.dbname)
