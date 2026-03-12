@@ -740,7 +740,6 @@ def _cleanup_local_files(ctx, config):
     paths.append(Path(os.environ['HOST_RUN_DIR']))
     paths.append(config.dirs["odoo_data_dir"] / "filestore" / config.dbname)
     paths.append(config.files['project_settings'])
-    import pudb;pudb.set_trace()
     for path in paths:
         if path.is_dir():
             try:
