@@ -702,15 +702,11 @@ def update(
             f"modules: {module}\n"
         )
         click.secho(
-            """
-            _                               _       _
-            | |                             | |     | |
-    ___   __| | ___   ___    _   _ _ __   __| | __ _| |_ ___
-    / _ \\ / _` |/ _ \\ / _ \\  | | | | '_ \\ / _` |/ _` | __/ _ \\
-    | (_) | (_| | (_) | (_) | | |_| | |_) | (_| | (_| | ||  __/
-    \\___/ \\__,_|\\___/ \\___/   \\__,_| .__/ \\__,_|\\__,_|\\__\\___|
-                                    | |
-                                    |_|
+            r"""
+  __  ____   __    __     _  _  ____  ____   __  ____  ____
+ /  \(    \ /  \  /  \   / )( \(  _ \(    \ / _\(_  _)(  __)
+(  O )) D ((  O )(  O )  ) \/ ( ) __/ ) D (/    \ )(   ) _)
+ \__/(____/ \__/  \__/   \____/(__)  (____/\_/\_/(__) (____)
         """,
             fg="green",
         )
@@ -1026,12 +1022,22 @@ def update(
                 and config.use_docker
                 and os.getenv("DOCKER_MACHINE") != "1"
             ):
-                Commands.invoke(ctx, "restart", machines=["odoo"], no_recreate=True)
+                Commands.invoke(
+                    ctx, "restart", machines=["odoo"], no_recreate=True
+                )
                 if config.run_odoocronjobs:
-                    Commands.invoke(ctx, "restart", machines=["odoo_cronjobs"], no_recreate=True)
+                    Commands.invoke(
+                        ctx,
+                        "restart",
+                        machines=["odoo_cronjobs"],
+                        no_recreate=True,
+                    )
                 if config.run_queuejobs:
                     Commands.invoke(
-                        ctx, "restart", machines=["odoo_queuejobs"], no_recreate=True
+                        ctx,
+                        "restart",
+                        machines=["odoo_queuejobs"],
+                        no_recreate=True,
                     )
                 Commands.invoke(ctx, "up", daemon=True, no_recreate=True)
 
