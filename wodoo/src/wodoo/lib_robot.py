@@ -238,9 +238,9 @@ def run(
     # it is advised to turn on odoo cronjobs: if on restarting
     # the postgres container is shortly gone, cronjobs may fail
     # and get unhealthy and require a restart
-    if not config.run_cronjobs:
+    if not config.run_cronjobs or not config.force_restart_unhealthy_containers:
         Commands.invoke(
-            ctx, "setting", no_reload=False, settings=["RUN_CRONJOBS=1"]
+            ctx, "setting", no_reload=False, settings=["RUN_CRONJOBS=1", "FORCE_RESTART_UNHEALTHY_CONTAINERS=1"]
         )
 
     if not config.devmode and not config.force:

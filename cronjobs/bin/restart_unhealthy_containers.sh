@@ -1,8 +1,9 @@
 #!/bin/bash
 
-# Exit immediately if DEVMODE is set to 1
-if [ "$DEVMODE" = "1" ]; then
-  echo "⚙️  DEVMODE=1 → Skipping healthcheck and restart logic."
+# In DEVMODE, skip restart logic unless explicitly forced via FORCE_RESTART_UNHEALTHY_CONTAINERS=1
+# (robot tests set FORCE_RESTART_UNHEALTHY_CONTAINERS=1 to ensure restarts work even in dev)
+if [ "$DEVMODE" = "1" ] && [ "$FORCE_RESTART_UNHEALTHY_CONTAINERS" != "1" ]; then
+  echo "⚙️  DEVMODE=1 and FORCE_RESTART_UNHEALTHY_CONTAINERS!=1 → Skipping healthcheck and restart logic."
   exit 0
 fi
 
@@ -13,7 +14,7 @@ unhealthy_containers=$(docker ps \
   --format "{{.Names}}" )
 
 if [ -z "$unhealthy_containers" ]; then
-  echo "✅ All containers starting with '${PROJECT_NAME}-' are healthy."
+  echo "✅ All containers starting with '${PROJECT_NAME}_' are healthy."
   exit 0
 fi
 
