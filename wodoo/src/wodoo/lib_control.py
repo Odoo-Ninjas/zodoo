@@ -219,9 +219,10 @@ def up(ctx, config, machines, daemon, force_recreate, no_recreate):
 @click.option("--remove-orphans", is_flag=True)
 @click.option("--postgres-volume", is_flag=True)
 @click.option("--cleanup-config", is_flag=True)
+@click.option("--cleanup-files", is_flag=True)
 @pass_config
 @click.pass_context
-def down(ctx, config, machines, volumes, remove_orphans, postgres_volume, cleanup_config):
+def down(ctx, config, machines, volumes, remove_orphans, postgres_volume, cleanup_config, cleanup_files):
     ensure_project_name(config)
     from .lib_control_with_docker import down as lib_down
     from .lib_db_snapshots_docker_zfs import NotZFS
@@ -246,9 +247,12 @@ def down(ctx, config, machines, volumes, remove_orphans, postgres_volume, cleanu
             pass
 
     lib_down(ctx, config, machines, volumes, remove_orphans)
-    if volumes:
+    if cleanup_files:
         # try also to delete the run dir and filestore
-        _cleanup_local_files(ctx, config)
+        try:
+            _cleanup_local_files(ctx, config)
+        except Exception as ex:
+            click.secho(f"Errors happened at cleaning local files. Ignoring. {ex}", fg='red')
     if cleanup_config:
         _cleanup_config_files(ctx, config)
 
