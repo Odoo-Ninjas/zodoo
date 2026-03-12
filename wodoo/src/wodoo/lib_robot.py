@@ -242,6 +242,9 @@ def run(
         Commands.invoke(
             ctx, "setting", no_reload=False, settings=["RUN_CRONJOBS=1", "FORCE_RESTART_UNHEALTHY_CONTAINERS=1"]
         )
+        Commands.invoke(
+            ctx, "build", machines=['cronjobs']
+        )
 
     if not config.devmode and not config.force:
         click.secho(
