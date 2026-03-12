@@ -36,6 +36,7 @@ from .tools import abort
 from .tools import __read_file
 from .tools import get_docker_version
 from .tools import _parse_yaml
+from .tools import get_hash
 from .cli import cli, pass_config, Commands
 from .lib_clickhelpers import AliasedGroup
 from .odoo_config import MANIFEST
@@ -531,6 +532,9 @@ def _copy_all_dockerfiles_to_run_dir_and_set_dockerfile_in_dockercompose(
 
     images_dir = config.dirs["images"]
     to_del = set()
+
+    dockerfiles_set = {}
+
     for service_name in yamlcompose["services"]:
         service = yamlcompose["services"][service_name]
         if service.get("image"):
@@ -555,6 +559,16 @@ def _copy_all_dockerfiles_to_run_dir_and_set_dockerfile_in_dockercompose(
         trgt_dockerfile = config.dirs["run"] / "Dockerfiles" / service_name
         trgt_dockerfile.parent.mkdir(parents=True, exist_ok=True)
         src = src_dockerfile.read_text()
+        hash_value = get_hash(src)
+        if hash_value in dockerfiles_set:
+            trgt_dockerfile = dockerfiles_set[hash_value]
+            if config.verbose:
+                click.secho(
+                    f"Reusing dockerfile for service {service_name}",
+                    fg="yellow",
+                )
+        else:
+            dockerfiles_set[hash_value] = trgt_dockerfile
         src = _replace_docker_snippets(config, src)
         src = _remove_if_lines(config, src)
         trgt_dockerfile.write_text(src)

@@ -15,7 +15,6 @@ from contextlib import contextmanager
 import re
 import inquirer
 
-import hashlib
 from pathlib import Path
 from typing import Union
 
@@ -699,8 +698,6 @@ def __rmtree(config, path):
                             shutil.rmtree(file)
                         except:
                             click.secho(f"Failed to remove: {file}", fg="red")
-
-                    
 
 
 def __safeget(array, index, exception_on_missing, file_options=None):
