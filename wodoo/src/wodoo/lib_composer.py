@@ -1207,6 +1207,8 @@ def create_directories(config, content):
                 if volume.get("type") != "bind":
                     continue
                 host_path = volume.get("source")
+                if not host_path:
+                    continue
             else:
                 continue
             if host_path.startswith("/"):
@@ -1455,29 +1457,6 @@ def _use_file(config, path):
     return res
 
 
-def get_docker_host_ip():
-    try:
-        result = subprocess.run(
-            [
-                "docker",
-                "network",
-                "inspect",
-                "bridge",
-                "--format",
-                "{{(index .IPAM.Config 0).Gateway}}",
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        gateway_ip = result.stdout.strip()
-        click.secho(f"Docker host IP (bridge gateway): {gateway_ip}")
-        return gateway_ip
-    except subprocess.CalledProcessError as e:
-        click.secho("Failed to inspect Docker network:")
-        abort(str(e))
-
-
 def _merge_odoo_dockerfile(config, yamlcompose):
     """
     If customs contains dockerfile, then append their execution
@@ -1649,7 +1628,11 @@ def setting(ctx, config, settings, no_reload, user_wide, system_wide):
 
     def _tune_settings():
         for key, value in settings_dict.items():
-            if key == "ODOO_PYTHON_VERSION" and len(value.split(".")) == 2:
+            if (
+                key == "ODOO_PYTHON_VERSION"
+                and value
+                and len(value.split(".")) == 2
+            ):
                 value = get_latest_python_patch_version(value)
                 click.secho(f"Version {value} will be used.", fg="yellow")
                 settings_dict[key] = value
@@ -1725,8 +1708,8 @@ def queuejob_channels(ctx, config, name, amount):
 
     file = config.files["queuejob_channels_file"]
     if not file.exists():
-        config = MyConfigParser(config.files["settings"])
-        content = config.get("ODOO_QUEUEJOBS_CHANNELS", "root:1")
+        myconfig = MyConfigParser(config.files["settings"])
+        content = myconfig.get("ODOO_QUEUEJOBS_CHANNELS", "root:1")
         file.write_text(content)
     content = file.read_text()
 
@@ -1810,7 +1793,7 @@ def setup_launch_json(config):
         content_task = '{"version": "0.2.0", "configurations": []}'
     try:
         content = load_json(content)
-    except:
+    except Exception:
         abort(f"File {launch_json} is corrupt.")
     content_task = load_json(content_task)
     template = current_dir / "config" / "launch_template.json"
