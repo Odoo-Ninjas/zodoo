@@ -241,12 +241,14 @@ def run(
     if (
         not config.run_cronjobs
         or not config.force_restart_unhealthy_containers
+        or not config.run_robot
     ):
         Commands.invoke(
             ctx,
             "setting",
             no_reload=False,
             settings=[
+                "RUN_ROBOT=1",
                 "RUN_CRONJOBS=1",
                 "FORCE_RESTART_UNHEALTHY_CONTAINERS=1",
             ],

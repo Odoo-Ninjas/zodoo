@@ -221,6 +221,15 @@ def setup_pyenv(ctx, config, old):
     _setup_odoo_pyenv(ctx, config, old)
 
 
+def is_robot_env_installed(config):
+    return _is_pyenv_installed("zodoo-robot")
+
+
+def _is_pyenv_installed(name):
+    path = os.path.expanduser(f"~/.pyenv/versions/{name}")
+    return os.path.isdir(path)
+
+
 def _setup_odoo_pyenv(ctx, config, old):
     from .odoo_config import MANIFEST
 
