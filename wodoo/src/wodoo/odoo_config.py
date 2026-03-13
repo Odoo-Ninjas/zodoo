@@ -83,7 +83,7 @@ def plaintextfile():
 
 def _read_file(path, default=None):
     try:
-        with open(path, "r") as f:
+        with open(path) as f:
             return (f.read() or "").strip()
     except Exception:
         return default
@@ -96,7 +96,7 @@ def MANIFEST_FILE():
     return _customs_dir.resolve().absolute() / "MANIFEST"
 
 
-class MANIFEST_CLASS(object):
+class MANIFEST_CLASS:
     def __init__(self):
         self.path = MANIFEST_FILE()
 
@@ -115,8 +115,8 @@ class MANIFEST_CLASS(object):
     def _get_data(self):
         content = self.path.read_text() or "{}"
         try:
-            res = OrderedDict(eval(content))
-        except:
+            res = OrderedDict(json.loads(content))
+        except Exception:
             abort(f"Could not parse {content}")
 
         system_addons_paths = res.get("addons_paths_system", [])
@@ -141,9 +141,14 @@ class MANIFEST_CLASS(object):
     def _update(self, d):
         d["install"] = list(sorted(set(d["install"])))
         s = json.dumps(d, indent=4)
-        tfile = Path(tempfile.mktemp(suffix=".MANIFEST"))
-        tfile.write_text(s)
-        shutil.move(tfile, MANIFEST_FILE())
+        fd, tmp = tempfile.mkstemp(suffix=".MANIFEST")
+        try:
+            with os.fdopen(fd, "w") as fh:
+                fh.write(s)
+            shutil.move(tmp, MANIFEST_FILE())
+        except Exception:
+            Path(tmp).unlink(missing_ok=True)
+            raise
 
         if len(set(d["addons_paths"])) != len(d["addons_paths"]):
             duplicates = [
@@ -231,7 +236,7 @@ def get_conn(db=None, host=None):
 
     host, port, user, password = get_postgres_connection_params()
     db = db or config["DBNAME"]
-    connstring = "dbname={}".format(db)
+    connstring = f"dbname={db}"
 
     for combi in [
         ("password", password),
@@ -240,7 +245,7 @@ def get_conn(db=None, host=None):
         ("user", user),
     ]:
         if combi[1]:
-            connstring += " {}='{}'".format(combi[0], combi[1])
+            connstring += f" {combi[0]}='{combi[1]}'"
 
     conn = psycopg2.connect(connstring)
     cr = conn.cursor()
