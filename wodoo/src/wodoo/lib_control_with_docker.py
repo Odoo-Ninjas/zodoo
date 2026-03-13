@@ -361,17 +361,21 @@ def debug(ctx, config, machine, ports, cmd=None, set_docker_command=False):
     # shutdown current machine and start via run and port-mappings the replacement machine
     do_kill(ctx, config, machines=[machine])
     src_files = [config.files["debugging_template_onlyloop"]]
+    tmp_cmd_file = None
     if cmd and set_docker_command:
-        file = tempfile.mktemp(suffix=".")
-        filepath = Path(tempfile._get_default_tempdir()) / next(
-            tempfile._get_candidate_names()
-        )
-        filepath.write_text("""
+        fd, tmp = tempfile.mkstemp(suffix=".")
+        tmp_cmd_file = Path(tmp)
+        try:
+            with os.fdopen(fd, "w") as fh:
+                fh.write("""
 services:
   ${NAME}:
     command: ["/bin/bash", "-c", "___COMMAND___"]
         """.replace("___COMMAND___", " ".join(cmd)))
-        src_files = [filepath]
+        except Exception:
+            tmp_cmd_file.unlink(missing_ok=True)
+            raise
+        src_files = [tmp_cmd_file]
 
     if ports:
         src_files += [config.files["debugging_template_withports"]]
@@ -392,6 +396,9 @@ services:
         __replace_in_file(dest, "{machine_main_port}", PORT)
 
         cmd_prefix += ["-f", dest]
+
+    if tmp_cmd_file is not None:
+        tmp_cmd_file.unlink(missing_ok=True)
 
     __dc(config, cmd_prefix + ["up", "-d", machine])
     if not set_docker_command:
