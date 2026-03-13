@@ -139,7 +139,7 @@ def make_snapshot(ctx, config, name):
         + [
             "snapshot",
             "-r",  # readonly
-            _get_path,
+            str(_get_path(config)),
             str(dest_path),
         ]
     ).decode("utf-8").strip()
