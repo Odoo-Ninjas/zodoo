@@ -1,5 +1,6 @@
 from packaging import markers
 
+import ast
 import threading
 import json
 import click
@@ -66,6 +67,7 @@ from .tools import exe
 
 def delete_qweb(config, modules):
     from psycopg2 import IntegrityError
+
     with get_conn_autoclose(config) as cr:
         if modules != "all":
             cr.execute(
@@ -150,7 +152,7 @@ def get_modules_from_install_file(include_uninstall=False):
     return res
 
 
-class DBModules(object):
+class DBModules:
     def __init__(self):
         pass
 
@@ -182,7 +184,7 @@ class DBModules(object):
         if dangling:
             print("Displaying dangling modules:")
         for row in dangling:
-            print("{}: {}".format(row[0], row[1]))
+            print(f"{row[0]}: {row[1]}")
 
         if dangling and raise_error:
             raise Exception(
@@ -250,12 +252,10 @@ class DBModules(object):
                 mprior.name not in (%s)
             ;
         """ % (
-            (
-                ",".join(
-                    map(
-                        lambda x: f"'{module_name(x)}'",
-                        (going_to_uninstall_modules or ["_______"]),
-                    )
+            ",".join(
+                map(
+                    lambda x: f"'{module_name(x)}'",
+                    (going_to_uninstall_modules or ["_______"]),
                 )
             )
         )
@@ -357,12 +357,12 @@ def make_customs(config, ctx, path, version, odoosh):
     import click
 
     if not path.exists():
-        abort("Path does not exist: {}".format(path))
+        abort(f"Path does not exist: {path}")
     elif list(path.glob("*")):
         files = [x for x in path.glob("*") if x.name != ".git"]
         if files:
             if not config.force:
-                abort("Path is not empty: {}".format(path))
+                abort(f"Path is not empty: {path}")
 
     import inquirer
     from .tools import copy_dir_contents
@@ -390,7 +390,7 @@ def make_customs(config, ctx, path, version, odoosh):
     copy_dir_contents(src_dir / version, path)
 
     manifest_file = path / "MANIFEST"
-    manifest = eval(manifest_file.read_text())
+    manifest = ast.literal_eval(manifest_file.read_text())
 
     if not (path / ".git").exists():
         subprocess.call(["git", "init"], cwd=path)
@@ -422,7 +422,7 @@ def make_module(config, parent_path, module_name):
     complete_path = Path(parent_path) / Path(module_name)
     del parent_path
     if complete_path.exists():
-        raise Exception("Path already exists: {}".format(complete_path))
+        raise Exception(f"Path already exists: {complete_path}")
     odoo_root = os.environ["ODOO_HOME"]
 
     source = get_template_dir(config)
@@ -435,7 +435,7 @@ def make_module(config, parent_path, module_name):
             dirs.remove(".git")
         for filepath in _files:
             filepath = os.path.join(root, filepath)
-            with open(filepath, "r") as f:
+            with open(filepath) as f:
                 content = f.read()
             content = content.replace("___module_name___", module_name)
             with open(filepath, "w") as f:
@@ -462,7 +462,7 @@ def run_test_file(path):
     if not path:
         instruction = "last_unit_test"
     else:
-        instruction = "unit_test:{}".format(path)
+        instruction = f"unit_test:{path}"
     write_debug_instruction(instruction)
 
 
@@ -496,7 +496,7 @@ def update_module(filepath, full=False):
 
 
 def update_view_in_db_in_debug_file(filepath, lineno):
-    write_debug_instruction("update_view_in_db:{}:{}".format(filepath, lineno))
+    write_debug_instruction(f"update_view_in_db:{filepath}:{lineno}")
 
 
 def update_view_in_db(filepath, lineno):
@@ -602,10 +602,12 @@ def update_view_in_db(filepath, lineno):
                 )
                 res = cr.fetchone()
                 if not res:
-                    print("No view found for {}.{}".format(module.name, xmlid))
+                    print(f"No view found for {module.name}.{xmlid}")
                 else:
                     print(
-                        "updating view of xmlid: %s.%s" % (module.name, xmlid)
+                        "updating view of xmlid: {}.{}".format(
+                            module.name, xmlid
+                        )
                     )
                     view_ids = [res[0]]
                     cr.execute(
@@ -646,7 +648,10 @@ def update_view_in_db(filepath, lineno):
                                 )
                                 cr.connection.commit()
                             except Exception as e:
-                                click.secho(f"Warning: could not update arch_fs: {e}", fg="yellow")
+                                click.secho(
+                                    f"Warning: could not update arch_fs: {e}",
+                                    fg="yellow",
+                                )
                                 cr.connection.rollback()
 
                     exe("ir.ui.view", "write", view_ids, {"arch_db": arch})
@@ -664,7 +669,7 @@ def _get_addons_paths():
     return get_odoo_addons_paths(additional_addons_paths=paths)
 
 
-class Modules(object):
+class Modules:
     def __init__(self):
         pass
 
@@ -878,15 +883,13 @@ class Modules(object):
                         )
                     )
                 )
-                installed_dependencies = set(
-                    [
-                        x
-                        for x in sorted(dependencies)
-                        if x.exists
-                        if x.manifest_dict.get("auto_install")
-                        or x in complete_modules
-                    ]
-                )
+                installed_dependencies = {
+                    x
+                    for x in sorted(dependencies)
+                    if x.exists
+                    if x.manifest_dict.get("auto_install")
+                    or x in complete_modules
+                }
                 if dependencies == installed_dependencies:
                     yield auto_install_module
 
@@ -1099,7 +1102,7 @@ class Modules(object):
         return list(result)
 
 
-class Module(object):
+class Module:
     assets_template = """
     <odoo><data>
     <template id="{id}" inherit_id="{inherit_id}">
@@ -1214,7 +1217,7 @@ class Module(object):
                     self._manifest_path = p / manifest_filename
                     break
             if not getattr(self, "_manifest_path", ""):
-                raise Module.IsNot((f"no module found for {path}"))
+                raise Module.IsNot(f"no module found for {path}")
         finally:
             os.chdir(remember_cwd)
 
@@ -1241,7 +1244,7 @@ class Module(object):
                         content.splitlines(),
                     )
                 )
-                self._manifest_dict = eval(content)  # TODO safe
+                self._manifest_dict = ast.literal_eval(content)
 
             except (SyntaxError, Exception) as e:
                 abort(f"error at file: {self.manifest_path}:\n{str(e)}")
@@ -1260,10 +1263,10 @@ class Module(object):
         """
         pofile_path = self.__make_path_relative(pofile_path)
         lang = pofile_path.name.split(".po")[0]
-        write_debug_instruction("import_i18n:{}:{}".format(lang, pofile_path))
+        write_debug_instruction(f"import_i18n:{lang}:{pofile_path}")
 
     def export_lang(self, current_file, lang):
-        write_debug_instruction("export_i18n:{}:{}".format(lang, self.name))
+        write_debug_instruction(f"export_i18n:{lang}:{self.name}")
 
     @property
     def hash(self):
@@ -1375,7 +1378,7 @@ class Module(object):
                     min_ver = info.get("minimum_version", 1.0)
                     max_ver = info.get("maximum_version", 1000.0)
                 if min_ver > max_ver:
-                    raise Exception("Invalid version: {}".format(self.path))
+                    raise Exception(f"Invalid version: {self.path}")
                 if self.version >= float(min_ver) and self.version <= float(
                     max_ver
                 ):
@@ -1413,9 +1416,9 @@ class Module(object):
         all_files = self.get_all_files_of_module()
         if current_version() < 11.0:
             module_path = Path(
-                str(self.path).replace("/{}/".format(current_version()), "")
+                str(self.path).replace(f"/{current_version()}/", "")
             )
-            if str(module_path).endswith("/{}".format(current_version())):
+            if str(module_path).endswith(f"/{current_version()}"):
                 module_path = "/".join(str(module_path).split("/")[:-1])
 
         prefix_static = f"/{self.name}/"
