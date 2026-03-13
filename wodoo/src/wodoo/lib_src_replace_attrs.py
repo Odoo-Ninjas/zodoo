@@ -1,3 +1,4 @@
+import ast
 import re
 import click
 from bs4 import formatter, BeautifulSoup as bs
@@ -113,7 +114,7 @@ def odoo17attrs(root_dir):
 
     def get_new_attrs(attrs):
         new_attrs = {}
-        attrs_dict = eval(attrs.strip())
+        attrs_dict = ast.literal_eval(attrs.strip())
         for attr in NEW_ATTRS:
             if attr in attrs_dict.keys():
                 new_attrs[attr] = stringify_attr(attrs_dict[attr])

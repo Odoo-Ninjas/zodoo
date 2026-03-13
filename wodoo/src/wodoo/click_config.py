@@ -1,3 +1,4 @@
+import ast
 import os
 from collections import ChainMap
 import sys
@@ -5,7 +6,7 @@ from pathlib import Path
 import importlib
 
 
-class Config(object):
+class Config:
     class Forced:
         def __init__(self, config):
             self.config = config
@@ -126,7 +127,7 @@ class Config(object):
     @property
     def manifest(self):
         m = self.WORKING_DIR / "MANIFEST"
-        return eval(m.read_text())
+        return ast.literal_eval(m.read_text())
 
     @property
     def odoo_version(self):
@@ -134,7 +135,7 @@ class Config(object):
 
     def __getattribute__(self, name):
         try:
-            value = super(Config, self).__getattribute__(name)
+            value = super().__getattribute__(name)
             return value
         except AttributeError:
             from .myconfigparser import MyConfigParser  # NOQA
