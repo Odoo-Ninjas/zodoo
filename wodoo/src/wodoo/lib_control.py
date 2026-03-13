@@ -31,6 +31,7 @@ def pull(ctx, config):
     ensure_project_name(config)
     if config.use_docker:
         from .lib_control_with_docker import pull as lib_pull
+
         return lib_pull(ctx, config)
 
 
@@ -43,6 +44,7 @@ def dev(ctx, config, build, kill):
     ensure_project_name(config)
     if config.use_docker:
         from .lib_control_with_docker import dev as lib_dev
+
         return lib_dev(ctx, config, build, kill=kill)
 
 
@@ -52,6 +54,7 @@ def ps(config):
     ensure_project_name(config)
     if config.use_docker:
         from .lib_control_with_docker import ps as lib_ps
+
         return lib_ps(config)
 
 
@@ -69,6 +72,7 @@ def execute(config, machine, user, non_interactive, args):
     ensure_project_name(config)
     if config.use_docker:
         from .lib_control_with_docker import execute as lib_execute
+
         lib_execute(
             config, machine, args, user=user, interactive=not non_interactive
         )
@@ -151,6 +155,7 @@ def remove_volumes(ctx, config, dry_run):
 def force_kill(ctx, config, machine):
     if config.use_docker:
         from .lib_control_with_docker import force_kill as lib_force_kill
+
         lib_force_kill(ctx, config, machine)
 
 
@@ -173,6 +178,7 @@ def wait_for_port(config, host, port):
     ensure_project_name(config)
     if config.use_docker:
         from .lib_control_with_docker import wait_for_port as lib_wait_for_port
+
         lib_wait_for_port(host, port)
 
 
@@ -184,6 +190,7 @@ def recreate(ctx, config, machines):
     ensure_project_name(config)
     if config.use_docker:
         from .lib_control_with_docker import recreate as lib_recreate
+
         lib_recreate(ctx, config, machines)
 
 
@@ -226,7 +233,16 @@ def up(ctx, config, machines, daemon, force_recreate, no_recreate):
 @click.option("--cleanup-files", is_flag=True)
 @pass_config
 @click.pass_context
-def down(ctx, config, machines, volumes, remove_orphans, postgres_volume, cleanup_config, cleanup_files):
+def down(
+    ctx,
+    config,
+    machines,
+    volumes,
+    remove_orphans,
+    postgres_volume,
+    cleanup_config,
+    cleanup_files,
+):
     ensure_project_name(config)
     from .lib_control_with_docker import down as lib_down
     from .lib_db_snapshots_docker_zfs import NotZFS
@@ -256,7 +272,10 @@ def down(ctx, config, machines, volumes, remove_orphans, postgres_volume, cleanu
         try:
             _cleanup_local_files(ctx, config)
         except Exception as ex:
-            click.secho(f"Errors happened at cleaning local files. Ignoring. {ex}", fg='red')
+            click.secho(
+                f"Errors happened at cleaning local files. Ignoring. {ex}",
+                fg="red",
+            )
     if cleanup_config:
         _cleanup_config_files(ctx, config)
 
@@ -417,13 +436,13 @@ def debug(ctx, config, machine, ports, command, port, set_docker_command):
     ensure_project_name(config)
     from .lib_control_with_docker import debug as lib_debug
 
-    if (command or '').startswith("["):
+    if (command or "").startswith("["):
         command = ast.literal_eval(command)
 
     if port:
         try:
             port = int(port)
-        except:
+        except Exception:
             abort(f"Cannot convert port {port} to int.")
 
     lib_debug(
@@ -626,16 +645,19 @@ def docker_sizes(context, config, name):
 
     click.echo(tabulate(recs, ["Image Name", "Size"]))
 
+
 def _cleanup_local_files(ctx, config):
     paths = []
-    paths.append(Path(os.environ['HOST_RUN_DIR']))
+    paths.append(Path(os.environ["HOST_RUN_DIR"]))
     paths.append(config.dirs["odoo_data_dir"] / "filestore" / config.dbname)
     _cleanup_paths(ctx, config, paths)
 
+
 def _cleanup_config_files(ctx, config):
     paths = []
-    paths.append(config.files['project_settings'])
+    paths.append(config.files["project_settings"])
     _cleanup_paths(ctx, config, paths)
+
 
 def _cleanup_paths(ctx, config, paths):
     for path in paths:
@@ -646,7 +668,7 @@ def _cleanup_paths(ctx, config, paths):
             except Exception as ex:
                 click.secho(f"Failed to remove path {path}: {ex}", fg="red")
             else:
-                click.secho(f"Removed directory: {path}", fg='yellow')
+                click.secho(f"Removed directory: {path}", fg="yellow")
         else:
             content = ""
             try:
@@ -656,7 +678,7 @@ def _cleanup_paths(ctx, config, paths):
             except Exception as ex:
                 click.secho(f"Failed to remove path {path}: {ex}", fg="red")
             else:
-                click.secho(f"Removed file: {path}", fg='yellow')
+                click.secho(f"Removed file: {path}", fg="yellow")
                 if content:
                     click.secho(f"Content was:\n{content}")
 

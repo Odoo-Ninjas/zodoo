@@ -33,7 +33,7 @@ class Config:
 
         try:
             self._WORKING_DIR = _get_customs_root(Path(os.getcwd()))
-        except:
+        except Exception:
             # Case example odoo -p ...  called somewhere
             self._WORKING_DIR = None
         self._host_run_dir = None

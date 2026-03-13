@@ -250,7 +250,7 @@ def run(config, ctx, one):
             result = _commando(
                 "robot", "run", robotest_file, "--no-install-further-modules"
             )
-        except:
+        except Exception:
             result = False
         return result
 
@@ -301,7 +301,7 @@ def run(config, ctx, one):
                 if robotest_file:
                     try:
                         result = run_robot()
-                    except:
+                    except Exception:
                         result = False
                 else:
                     click.secho(

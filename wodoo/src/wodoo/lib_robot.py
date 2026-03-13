@@ -40,7 +40,7 @@ def setup(ctx, config):
     from .odoo_config import MANIFEST, customs_dir
     import yaml
 
-    content = yaml.safe_load(open(customs_dir() / "gimera.yml"))
+    content = yaml.safe_load((customs_dir() / "gimera.yml").read_text())
     for branch in content["repos"]:
         if ROBOT_UTILS_GIT in branch["url"]:
             break
@@ -53,7 +53,7 @@ def setup(ctx, config):
                 "url": f"git@github.com:{ROBOT_UTILS_GIT}",
             }
         )
-        yaml.dump(content, open(customs_dir() / "gimera.yml", "w"))
+        (customs_dir() / "gimera.yml").write_text(yaml.dump(content))
 
     manifest = MANIFEST()
     if "robot_utils" not in manifest["install"]:
@@ -238,13 +238,20 @@ def run(
     # it is advised to turn on odoo cronjobs: if on restarting
     # the postgres container is shortly gone, cronjobs may fail
     # and get unhealthy and require a restart
-    if not config.run_cronjobs or not config.force_restart_unhealthy_containers:
+    if (
+        not config.run_cronjobs
+        or not config.force_restart_unhealthy_containers
+    ):
         Commands.invoke(
-            ctx, "setting", no_reload=False, settings=["RUN_CRONJOBS=1", "FORCE_RESTART_UNHEALTHY_CONTAINERS=1"]
+            ctx,
+            "setting",
+            no_reload=False,
+            settings=[
+                "RUN_CRONJOBS=1",
+                "FORCE_RESTART_UNHEALTHY_CONTAINERS=1",
+            ],
         )
-        Commands.invoke(
-            ctx, "build", machines=['cronjobs']
-        )
+        Commands.invoke(ctx, "build", machines=["cronjobs"])
 
     if not config.devmode and not config.force:
         click.secho(
@@ -533,7 +540,7 @@ def _remove_service(
 ):
     import yaml
 
-    yml = yaml.safe_load(open(config.files["docker_compose"]))
+    yml = yaml.safe_load(config.files["docker_compose"].read_text())
     popped = []
 
     if service_name:
@@ -558,7 +565,7 @@ def _remove_service(
 def _clone_seleniumdriver_template(ctx, config, appendix):
     import yaml
 
-    yml = yaml.safe_load(open(config.files["docker_compose"]))
+    yml = yaml.safe_load(config.files["docker_compose"].read_text())
     service_name = f"{SELDRIVER_PREFIX}{appendix}"
     yml["services"][service_name] = deepcopy(
         yml["services"]["seleniumdriver_template"]

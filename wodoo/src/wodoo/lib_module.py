@@ -328,7 +328,7 @@ def run_tests(ctx, config, module, filter, no_db_reset, regex, exclude_filter):
         for _ in range(3):
             try:
                 Commands.invoke(ctx, "down", volumes=True)
-            except:
+            except Exception:
                 time.sleep(3)
 
     # Summary
@@ -1128,7 +1128,7 @@ def _set_sha(config):
     conn = config.get_odoo_conn()
     try:
         sha = get_git_hash()
-    except:
+    except Exception:
         pass
     else:
         _update_setting(conn, KEY_SHA_REVISION, sha)
@@ -2145,7 +2145,7 @@ def zip(config, ctx, module):
     try:
         mod = Module.get_by_name(module)
         module_path = Path(os.getcwd()) / mod.path
-    except:
+    except Exception:
         module_path = Path(os.getcwd()) / module
 
     if not module_path.exists():

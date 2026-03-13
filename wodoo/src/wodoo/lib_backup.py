@@ -668,7 +668,7 @@ def _restore_dump(
                 pass
             try:
                 subprocess.check_output(["docker", "rm", "-f", postgres_name])
-            except:
+            except Exception:
                 pass
 
 

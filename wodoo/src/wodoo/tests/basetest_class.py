@@ -86,7 +86,7 @@ class BaseTestClass:
         for i in range(MAX):
             try:
                 self.run(build, catch_exceptions=False)
-            except:
+            except Exception:
                 if i == MAX - 1:
                     raise
             else:

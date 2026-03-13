@@ -76,7 +76,7 @@ def start_container(
 
         if result.stdout.strip():
             stdout = result.stdout
-            if not stdout: 
+            if not stdout:
                 return None
             return stdout.splitlines()[0].split(" ")[0]
         return None
@@ -87,7 +87,7 @@ def start_container(
     if build_path:
         try:
             image_timestamp = _image_timestamp_stamp(image_name)
-        except:
+        except Exception:
             image_timestamp = arrow.get("1980-04-04")
         cmd = ["docker", "build", "--load", "-t", image_name, "."]
         try:
