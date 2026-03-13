@@ -16,4 +16,4 @@ def after_compose(config, settings, yml, globals):
     )
     src = current_dir.parent / "wodoo" / "src"
     dest = current_dir.parent / "cronjobs" / "wodoo_src"
-    globals["tools"].sync_folder(src, dest, excludes=[".git"])
+    globals["tools"].sync_folder(src, dest, excludes=[".git", ".pyc", "__pycache__"])
