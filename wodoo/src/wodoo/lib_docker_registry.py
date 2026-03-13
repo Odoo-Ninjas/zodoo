@@ -209,16 +209,14 @@ def _get_service_tagname(config, service_name):
         else:
             if not config.DOCKER_IMAGE_TAG:
                 abort(
-                    (
-                        "If you dont have a local git repository, then "
-                        "please configure DOCKER_IMAGE_TAG=sha"
-                    )
+                    "If you dont have a local git repository, then "
+                    "please configure DOCKER_IMAGE_TAG=sha"
                 )
             current_sha = config.DOCKER_IMAGE_TAG
 
     hub = split_hub_url(config)
     if not hub:
-        abort(("No HUB_URL configured."))
+        abort("No HUB_URL configured.")
     hub = "/".join(
         [
             hub["url"],
@@ -255,7 +253,7 @@ def _apply_tags(config):
             )
         try:
             subprocess.check_call(["docker", "tag", expected_image_name, tag])
-        except:
+        except subprocess.CalledProcessError:
             click.secho(
                 f"Could not tag: {expected_image_name}. Perhaps not a prob for external images.",
                 fg="yellow",
