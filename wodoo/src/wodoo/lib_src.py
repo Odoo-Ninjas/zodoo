@@ -3,7 +3,6 @@ import json
 from pathlib import Path
 from queue import Queue
 import threading
-import json
 import yaml
 import shutil
 import subprocess
@@ -48,6 +47,7 @@ def _apply_gimera_if_required(
     from gimera.gimera import apply as gimera
 
     with cwd(path):
+        changed = False
         for repo in content["repos"]:
             repo_path = path / repo["path"]
             if (
@@ -64,8 +64,6 @@ def _apply_gimera_if_required(
                     no_auto_commit=True,
                 )
                 changed = True
-        else:
-            changed = False
 
         if changed:
             click.secho(
@@ -269,14 +267,10 @@ class OdooShRepo:
                 yield paths
 
     def find_module(self, modulename, ttype="OCA", exact_match=True):
-        pass
-
         if not exact_match:
             modulename = f"*{modulename}*"
 
         results = []
-        if not exact_match:
-            modulename = f"*{modulename}*"
 
         for match in bashfind(path=self.root, type="d", name=modulename):
             if not (match / "__manifest__.py").exists():
@@ -420,6 +414,7 @@ def pretty_print_manifest():
 @src.command()
 @pass_config
 @click.argument("module", shell_complete=_get_available_modules)
+@click.option("-m", "--model", required=False)
 def security(config, module, model):
     from .module_tools import Modules
 
@@ -430,7 +425,7 @@ def security(config, module, model):
         header = "model_id:id,group_id:id,id,name,perm_read,perm_write,perm_create,perm_unlink"
         filepath = module.path / "security" / "ir.model.access.csv"
         filepath.parent.mkdir(exist_ok=True)
-        if not filepath.read_text():
+        if not filepath.exists() or not filepath.read_text():
             filepath.write_text(header + "\n")
 
     # give rights to choose
@@ -561,12 +556,10 @@ def grab_views(config, ctx):
                         )
                     filepath.parent.mkdir(exist_ok=True, parents=True)
 
-                    path = filepath.parent / (filepath.stem + ".xml")
-
                     xml = xml.encode("utf8")
-                    path.write_bytes(pretty_xml(xml))
-                    if path in all_files:
-                        all_files.remove(path)
+                    filepath.write_bytes(pretty_xml(xml))
+                    if filepath in all_files:
+                        all_files.remove(filepath)
                 stats["views"] += 1
                 if not stats["views"] % 800:
                     prog(stats["views"])
@@ -632,7 +625,7 @@ def compare_views(config, ctx, threads, match):
                             xml = "\n".join(xml[1:])
                         else:
                             xml = "\n".join(xml)
-                        for c in [" \t\n"]:
+                        for c in [" ", "\t", "\n"]:
                             xml = xml.replace(c, "")
                         return xml
 
@@ -652,8 +645,6 @@ def compare_views(config, ctx, threads, match):
                             ["/bin/diff", "--color", "-w", "/tmp/1", "/tmp/2"]
                         )
 
-    conn = config.get_odoo_conn()
-
     athreads = []
 
     def check_file():
@@ -665,10 +656,12 @@ def compare_views(config, ctx, threads, match):
                 content = file.read_text()
                 if ".xmlid." in file.stem:
                     try:
-                        module, name, lang = file.stem.split(".xmlid.")[
-                            1
-                        ].split(".", 4)
+                        after_xmlid = file.stem.split(".xmlid.")[1]
                         model = file.stem.split(".xmlid.")[0]
+                        xmlid_part, lang_rest = after_xmlid.split(".lang.", 1)
+                        module = xmlid_part.split(".")[0]
+                        name = ".".join(xmlid_part.split(".")[1:])
+                        lang = lang_rest.split(".")[0]
                     except:
                         click.secho(
                             f"Invalid File Format: {file.relative_to(root)}",
@@ -759,7 +752,7 @@ def grab_models(config, ctx):
                 path.write_text(json.dumps(data, indent=4))
 
             except Exception as ex:
-                click.secho("{e}", fg="red")
+                click.secho(f"{ex}", fg="red")
 
     threads = []
     for _ in range(10):

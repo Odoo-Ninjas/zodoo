@@ -18,16 +18,11 @@ from .tools import pretty_xml
 from .tools import bashfind
 from .tools import __assure_gitignore
 
-try:
-    from psycopg2 import IntegrityError
-except Exception:
-    pass
 from .tools import _extract_python_libname
 from .tools import _exists_table
 from .tools import _execute_sql
 from .tools import table_exists
-from .tools import measure_time
-from .odoo_config import get_conn_autoclose, manifest_file_names
+from .odoo_config import get_conn_autoclose
 from .odoo_config import current_version
 from .odoo_config import customs_dir
 from .odoo_config import translate_path_into_machine_path
@@ -70,6 +65,7 @@ from .tools import exe
 
 
 def delete_qweb(config, modules):
+    from psycopg2 import IntegrityError
     with get_conn_autoclose(config) as cr:
         if modules != "all":
             cr.execute(
@@ -477,7 +473,7 @@ def search_qweb(template_name, root_path=None):
         str(root_path.resolve().absolute()), followlinks=True
     ):
         for filename in fnmatch.filter(_files, pattern):
-            if filename.name.startswith("."):
+            if filename.startswith("."):
                 continue
             filename = Path(path) / Path(filename)
             if "static" not in filename.parts:
@@ -513,9 +509,9 @@ def update_view_in_db(filepath, lineno):
     while line >= 0 and not xmlid:
         if "<record " in xml[line] or "<template " in xml[line]:
             line2 = line
-            while line2 < lineno:
+            while line2 <= lineno:
                 # with search:
-                match = re.findall(r"\ id=[\"\']([^\"^\']*)[\"\']", xml[line2])
+                match = re.findall(r"\ id=[\"\']([^\"\']*)[\"\']", xml[line2])
                 if match:
                     xmlid = match[0]
                     break
@@ -735,6 +731,7 @@ class Modules(object):
                 pass
             else:
                 modules.append(module.name)
+        return modules
 
     # @profile
     def get_customs_modules(self, mode=None, include_uninstall=False):
@@ -950,7 +947,7 @@ class Modules(object):
                     content = json.loads(file.read_text())
                 except Exception as e:
                     click.secho(
-                        "Error parsing json in\n{file}:\n{e}", fg="red"
+                        f"Error parsing json in\n{file}:\n{e}", fg="red"
                     )
                     click.secho(file.read_text(), fg="red")
                     sys.exit(1)
@@ -1152,6 +1149,8 @@ class Module(object):
         self._dep_tree = None
         if path:
             self.__init_path(path, manifest_file_names())
+            if not self._manifest_path:
+                raise Exception("code logic error here.")
             self.path = self._manifest_path.parent
         else:
             self.path = None
@@ -1159,6 +1158,8 @@ class Module(object):
         if force_name:
             self.name = force_name
         else:
+            if not self._manifest_path:
+                raise Exception("code logic error here.")
             self.name = self._manifest_path.parent.name
 
     @property
@@ -1330,7 +1331,7 @@ class Module(object):
         """
         per modulename all dependencies - no hierarchy
         """
-        result = {}
+        result = set()
         for dep in self.manifest_dict.get("depends", []):
             result.add(Module.get_by_name(dep))
 
@@ -1482,16 +1483,15 @@ class Module(object):
             for asset_file in jsoncontent.get("assets", []):
                 for file in jsoncontent["assets"][asset_file]:
                     existing_files.append(file)
-            for asset_name, files in files_per_assets.items():
+            for asset_name, asset_files in files_per_assets.items():
                 jsoncontent["assets"].setdefault(asset_name, [])
-                for files in files.values():
-                    for file in files:
+                for file_list in asset_files.values():
+                    for file in file_list:
                         file = file.lstrip("/")
                         if file in existing_files:
                             continue
                         if file not in jsoncontent["assets"][asset_name]:
                             jsoncontent["assets"][asset_name].append(file)
-                        del file
             self.write_manifest(jsoncontent)
         else:
             if not doc.xpath("//link| //script"):

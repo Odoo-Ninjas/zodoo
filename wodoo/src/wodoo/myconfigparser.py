@@ -103,7 +103,7 @@ class MyConfigParser:
                     newVal = self.configOptions[key]
 
                     # Only update if the variable value has changed
-                line = format_line(key, newVal)
+                    line = format_line(key, newVal)
                 yield line
                 handled_keys.add(key)
 
@@ -119,15 +119,13 @@ class MyConfigParser:
             if key in self.remove_keys and data == self.configOptions:
                 continue
             try:
-                return _get_ignore_case_item(data, key)
-            except KeyError:
                 if isinstance(key, int):
-                    keys = data.keys()
-                    return _get_ignore_case_item(data[keys[key]])
-                else:
-                    raise KeyError(
-                        f"Key {key} doesn't exist in {self.fileName}"
-                    )
+                    actual_key = list(data.keys())[key]
+                    return _get_ignore_case_item(data, actual_key)
+                return _get_ignore_case_item(data, key)
+            except (KeyError, IndexError):
+                continue
+        raise KeyError(f"Key {key} doesn't exist in {self.fileName}")
 
     def __setitem__(self, key, value):
         if key in self.remove_keys:

@@ -50,7 +50,7 @@ def db_health_check(config):
             conn, "select * from pg_catalog.pg_tables;", fetchall=True
         )
     except Exception:  # pylint: disable=broad-except
-        abort("Listing tables failed for connection to {conn.host}")
+        abort(f"Listing tables failed for connection to {conn.host}")
     else:
         click.secho(("Success"), fg="green")
 
@@ -164,7 +164,7 @@ def _psql(
 
     conn = config.get_odoo_conn(
         force_inside_container=use_docker_container
-    ).clone(dbname=dbname)
+    )
     if dbname:
         conn = conn.clone(dbname)
 
@@ -183,34 +183,33 @@ def _psql(
         psql_args += ["-c", sql]
     if not interactive:
         psql_args += ["-q"]
-    try:
-        cmd = psql_args
-        cmd += [
-            dbname,
-        ]
-        click.secho(
-            f"Connecting to {conn.host}:{conn.port}/{dbname}", fg="green"
-        )
+    cmd = psql_args
+    cmd += [
+        dbname,
+    ]
+    click.secho(
+        f"Connecting to {conn.host}:{conn.port}/{dbname}", fg="green"
+    )
 
-        if use_docker_container:
-            __dcrun(
-                config,
-                ["pgtools", bin] + cmd,
-                interactive=interactive,
-                env={
-                    "PGPASSWORD": conn.pwd,
-                },
-            )
-        else:
-            subprocess.call(
-                [
-                    exec_file_in_path(bin),
-                ]
-                + cmd,
-                env={"PGPASSWORD": conn.pwd},
-            )
-    finally:
-        os.environ["PGPASSWORD"] = ""
+    if use_docker_container:
+        __dcrun(
+            config,
+            ["pgtools", bin] + cmd,
+            interactive=interactive,
+            env={
+                "PGPASSWORD": conn.pwd,
+            },
+        )
+    else:
+        env2 = env.copy()
+        env2["PGPASSWORD"] = conn.pwd
+        subprocess.call(
+            [
+                exec_file_in_path(bin),
+            ]
+            + cmd,
+            env=env2,
+        )
 
 
 def _pgcli(config, params, use_docker_container=None, dbname=None):
@@ -335,7 +334,7 @@ def reset_db(
             Commands.invoke(
                 ctx,
                 "update",
-                module=",".join(modules),
+                module=modules,
                 since_git_sha=False,
                 no_restart=True,
                 no_dangling_check=True,
@@ -408,7 +407,7 @@ def set_db_name(ctx, DBNAME):
 @pass_config
 @click.pass_context
 def db_size(ctx, config):
-    sql = f"select pg_database_size('{config.DBNAME}')"
+    sql = f"select pg_database_size('{config.dbname}')"
     conn = config.get_odoo_conn()
     rows = _execute_sql(conn, sql, fetchall=True)
     if not rows:
@@ -420,9 +419,10 @@ def db_size(ctx, config):
 
 
 @db.command(name="show-table-sizes")
+@click.option("-t", "--top", default=20, type=int, help="Show top N tables")
 @pass_config
 @click.pass_context
-def show_table_sizes(ctx, config, top=20):
+def show_table_sizes(ctx, config, top):
     sql = """
 WITH RECURSIVE pg_inherit(inhrelid, inhparent) AS
     (select inhrelid, inhparent
@@ -476,7 +476,7 @@ ORDER BY total_bytes DESC;
     click.echo(
         tabulate(
             rows,
-            ["TABLE_NAME", "row_estimate", "total", "INDEX", "toast", "TABLE"],
+            ["table_schema", "TABLE_NAME", "row_estimate", "total", "INDEX", "toast", "TABLE"],
         )
     )
 
@@ -507,7 +507,8 @@ def excel(config, sql, file, base64):
     import base64 as Base64
 
     if base64:
-        sql = Base64.b64decode(sql)
+        if isinstance(sql, bytes):
+            sql = Base64.b64decode(sql)
     import xlsxwriter
 
     conn = config.get_odoo_conn()
@@ -719,7 +720,7 @@ def compare(file1, file2, ignore_magic, skip_no_id_tables):
                     )
         if inc_count:
             result["count"] += 1
-    for id, r2 in data1.items():
+    for id, r2 in data2.items():
         r1 = data1.get(id)
         if r1 is None:
             result["missing_left"].append(r2)
