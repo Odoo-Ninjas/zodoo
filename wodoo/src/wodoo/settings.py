@@ -29,7 +29,8 @@ def _get_settings(config, customs, quiet=False):
     from .myconfigparser import MyConfigParser  # NOQA
 
     files = _collect_settings_files(config, customs=None, quiet=quiet)
-    filename = tempfile.mktemp(suffix=".")
+    fd, filename = tempfile.mkstemp(suffix=".")
+    os.close(fd)
     _make_settings_file(filename, files)
     c = MyConfigParser(filename)
     try:
@@ -93,9 +94,7 @@ def _collect_settings_files(config, quiet=False):
     else:
         for dir in filter(lambda x: x.exists(), _get_settings_files(config)):
             if not quiet:
-                click.secho(
-                    "Searching for settings in: {}".format(dir), fg="cyan"
-                )
+                click.secho(f"Searching for settings in: {dir}", fg="cyan")
             if dir.is_file():
                 _files.append(dir)
             elif dir.is_dir():
