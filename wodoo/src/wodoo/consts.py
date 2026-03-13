@@ -104,7 +104,7 @@ except (subprocess.CalledProcessError, FileNotFoundError):
         default_files["docker_compose_bin"] = None
 
 default_commands = {
-    "dc": default_files["docker_compose_bin"]
+    "dc": (default_files["docker_compose_bin"] or [])
     + [
         "-p",
         "${project_name}",
