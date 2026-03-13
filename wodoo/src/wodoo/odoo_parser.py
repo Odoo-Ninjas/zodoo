@@ -24,7 +24,7 @@ def try_to_get_filepath(filepath):
         if str(filepath)[0] != "/":
             filepath = customs_dir() / filepath
         root = customs_dir()
-        candidates.append((root / filepath))
+        candidates.append(root / filepath)
         for candidate in candidates:
             if candidate.is_file():
                 filepath = candidate
@@ -235,7 +235,7 @@ def _get_qweb_templates():
                 extends = r.get("t-extend", "")
 
                 if "." not in id:
-                    id = "%s.%s" % (module.name, id)
+                    id = f"{module.name}.{id}"
 
                 r = {
                     "type": "qweb",
@@ -277,7 +277,7 @@ def _get_xml_ids():
             model, xmlid, line, res_model, name="", ttype="", inherit_id=""
         ):
             if "." not in xmlid:
-                xmlid = "%s.%s" % (module.name, xmlid)
+                xmlid = f"{module.name}.{xmlid}"
 
             # find res_models of view:
             if model and xmlid and "." in xmlid:
@@ -414,7 +414,7 @@ def _get_models():
     result = []
 
     def on_match(filename, module, lines):
-        with open(filename, "r") as f:
+        with open(filename) as f:
             lines = f.readlines()
 
             def append_model(name, name_linenum, inherit, inherit_linenum):
@@ -512,19 +512,17 @@ def _remove_entries(plain_text_file, rel_path):
     Removes entries pointing to the relative path
     """
     match = f"{SEP_FILE}{rel_path}{SEP_LINENO}"
+    plain_text_file = Path(plain_text_file)
+    lines = plain_text_file.read_text().splitlines(keepends=True)
+    filtered = [l for l in lines if match not in l]
+    fd, tmp = tempfile.mkstemp(suffix=".tmp", dir=plain_text_file.parent)
     try:
-        temp = Path(tempfile.mktemp(suffix=".tmp"))
-
-        os.system(
-            (
-                f"cat '{plain_text_file}' | "
-                f"grep -v '{match}' > '{temp}'; "
-                f"cp '{temp}' '{plain_text_file}'"
-            )
-        )
-    finally:
-        if temp.exists():
-            temp.unlink()
+        with os.fdopen(fd, "w") as f:
+            f.writelines(filtered)
+        os.replace(tmp, plain_text_file)
+    except Exception:
+        os.unlink(tmp)
+        raise
 
 
 def update_cache(arg_modified_filename=None):
@@ -574,11 +572,10 @@ def update_cache(arg_modified_filename=None):
 
     if os.path.isfile(plainfile) and arg_modified_filename:
         f = open(plainfile, "a")
+    elif os.path.isdir(os.path.dirname(plainfile)):
+        f = open(plainfile, "w")
     else:
-        if os.path.isdir(os.path.dirname(plainfile)):
-            f = open(plainfile, "w")
-        else:
-            return
+        return
 
     def write_to_ast(content, ttype, get_name):
         TEMPLATE = (
@@ -636,8 +633,12 @@ def update_cache(arg_modified_filename=None):
     finally:
         f.close()
 
-    subprocess.run(f"sort -o '{plainfile}' -u '{plainfile}'", shell=True)
-    subprocess.run(f"awk -i inplace '!seen[$0]++' '{plainfile}'", shell=True)
+    subprocess.run(
+        ["sort", "-o", str(plainfile), "-u", str(plainfile)], check=False
+    )
+    subprocess.run(
+        ["awk", "-i", "inplace", "!seen[$0]++", str(plainfile)], check=False
+    )
 
     return plainfile
 
