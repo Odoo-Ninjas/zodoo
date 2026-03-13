@@ -81,6 +81,7 @@ def _get_projectname():
 )
 @click.option("--retries", default=3, help="Max retries if robotest fails")
 @click.option("--use-snap", help="Choose a snap name which is restored")
+@click.option("--shell_command", help="")
 @click.pass_context
 @pass_config
 def start(

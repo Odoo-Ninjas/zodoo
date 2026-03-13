@@ -109,7 +109,7 @@ class MANIFEST_CLASS(object):
 
         self.patch_dir = customs_dir() / "patches"
 
-        if "version" not in d:
+        if "version" in d:
             self["version"] = float(d["version"])
 
     def _get_data(self):

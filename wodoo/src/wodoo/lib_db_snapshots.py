@@ -89,7 +89,7 @@ def snapshot_make(ctx, config, name):
 def snapshot_restore(ctx, config, name):
     config.snapshot_manager.assert_environment(config)
     if not name:
-        name = __choose_snapshot(config, take=name)
+        name = __choose_snapshot(config, take=None)
     if not name:
         return
     config.snapshot_manager.restore(ctx, config, name)

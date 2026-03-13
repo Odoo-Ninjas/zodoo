@@ -1,3 +1,4 @@
+import ast
 import time
 import click
 from pathlib import Path
@@ -417,7 +418,7 @@ def debug(ctx, config, machine, ports, command, port, set_docker_command):
     from .lib_control_with_docker import debug as lib_debug
 
     if (command or '').startswith("["):
-        command = eval(command)
+        command = ast.literal_eval(command)
 
     if port:
         try:

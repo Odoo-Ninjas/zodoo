@@ -401,7 +401,7 @@ def make_customs(config, ctx, path, version, odoosh):
     os.environ["GIMERA_NO_PRECOMMIT"] = "1"
     ctx.invoke(gimera, recursive=True, update=True)
     try_to_set_owner(whoami(), path)
-    subprocess.call(["odoo reload"], shell=True, cwd=path)
+    subprocess.call("odoo reload", shell=True, cwd=path)
 
     click.secho("Initialized - please call following now.", fg="green")
     click.secho("odoo next   (to get a free next port)", fg="green")
@@ -570,7 +570,7 @@ def update_view_in_db(filepath, lineno):
                 if not doc.xpath("/data/*[@position] | /*[@position]"):
                     if doc.xpath("/data"):
                         html = etree.tounicode(
-                            doc.xpath("/data/*", pretty_print=True)[0]
+                            doc.xpath("/data/*")[0], pretty_print=True
                         )
 
                 print(html)
@@ -645,11 +645,11 @@ def update_view_in_db(filepath, lineno):
                                     ],
                                 )
                                 cr.connection.commit()
-                            except Exception:
+                            except Exception as e:
+                                click.secho(f"Warning: could not update arch_fs: {e}", fg="yellow")
                                 cr.connection.rollback()
 
-                    if res:
-                        exe("ir.ui.view", "write", view_ids, {"arch_db": arch})
+                    exe("ir.ui.view", "write", view_ids, {"arch_db": arch})
 
 
 def _get_addons_paths():
@@ -1009,7 +1009,10 @@ class Modules(object):
         reqs = {}
         for dep in list(filter(_filter, pydeps)):
             dep = STRIP(dep)
-            libname, version = _make_tuples(dep)
+            result = _make_tuples(dep)
+            if not result:
+                continue
+            libname, version = result
             reqs.setdefault(libname, []).append(version)
         """
         parsed_requirements ilike
@@ -1049,7 +1052,7 @@ class Modules(object):
             eq = [x for x in reqs if x[0] == "=="]
             no = [x for x in reqs if not x]
 
-            if ge or eq and no:
+            if (ge or eq) and no:
                 no = []
 
             if eq and len(eq) > 1 and not all(x[1] == eq[0][1] for x in eq):

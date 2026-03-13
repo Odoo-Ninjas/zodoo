@@ -265,7 +265,7 @@ def _restore_wodoo_bin(ctx, config, filepath, verify):
         cutoff = 0
         for i in range(len(content)):
             cutoff += 1
-            if content[i] == ord(b"\n"):
+            if content[i] == 10:  # ord(b"\n"):
                 count_lineendings += 1
             if count_lineendings == 2:
                 break

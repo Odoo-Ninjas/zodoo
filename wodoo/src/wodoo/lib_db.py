@@ -170,7 +170,7 @@ def _psql(
 
     dbname = conn.dbname
     if not dbname and len(params) == 1:
-        if params[0] in ["postgres", dbname]:
+        if params[0] in ["postgres"]:
             dbname = params[0]
             params = []
     params = " ".join(params)
@@ -201,7 +201,7 @@ def _psql(
             },
         )
     else:
-        env2 = env.copy()
+        env2 = os.environ.copy()
         env2["PGPASSWORD"] = conn.pwd
         subprocess.call(
             [
