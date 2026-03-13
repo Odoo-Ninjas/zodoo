@@ -1,9 +1,9 @@
 from operator import itemgetter
 import subprocess
+import uuid
 import arrow
 import sys
 import shutil
-import tempfile
 import click
 from .tools import __dc
 from .tools import search_env_path, __get_postgres_volume_name
@@ -91,7 +91,7 @@ def _turn_into_subvolume(path):
             for x in ["Not a Btrfs subvolume", "not a subvolume"]
         ):
             click.secho(f"Turning {path} into a subvolume.")
-            filename = path.parent / Path(tempfile.mktemp()).name
+            filename = path.parent / f".tmp_{uuid.uuid4().hex}"
             if filename.exists():
                 raise Exception(f"Path {filename} should not exist.")
             shutil.move(path, filename)
