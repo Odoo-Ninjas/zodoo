@@ -354,31 +354,31 @@ def run_tests(ctx, config, module, filter, no_db_reset, regex, exclude_filter):
 def download_openupgrade(ctx, config, version):
     from .odoo_config import customs_dir
 
-    dir_openupgrade = Path(tempfile.mktemp())
-    subprocess.check_call(
-        [
-            "git",
-            "clone",
-            "--depth",
-            "1",
-            "--branch",
-            version,
-            "https://github.com/OCA/OpenUpgrade",
+    with tempfile.TemporaryDirectory() as tmpdir:
+        dir_openupgrade = Path(tmpdir)
+        subprocess.check_call(
+            [
+                "git",
+                "clone",
+                "--depth",
+                "1",
+                "--branch",
+                version,
+                "https://github.com/OCA/OpenUpgrade",
+                dir_openupgrade / "openupgrade",
+            ]
+        )
+
+        if float(version) < 14.0:
+            destination_path = "odoo"
+        else:
+            destination_path = "openupgrade"
+
+        sync_folder(
             dir_openupgrade / "openupgrade",
-        ]
-    )
-
-    if float(version) < 14.0:
-        destination_path = "odoo"
-    else:
-        destination_path = "openupgrade"
-
-    sync_folder(
-        dir_openupgrade / "openupgrade",
-        customs_dir() / destination_path,
-        excludes=[".git"],
-    )
-    shutil.rmtree(dir_openupgrade)
+            customs_dir() / destination_path,
+            excludes=[".git"],
+        )
 
 
 def _get_outdated_versioned_modules_of_deptree(modules):
