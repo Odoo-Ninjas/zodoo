@@ -1,3 +1,4 @@
+import ast
 import time
 import json
 from pathlib import Path
@@ -210,7 +211,7 @@ class OdooShRepo:
 
         @property
         def manifest_dict(self):
-            content = eval(self.manifest.read_text())
+            content = ast.literal_eval(self.manifest.read_text())
             return content
 
     def __init__(self, version):

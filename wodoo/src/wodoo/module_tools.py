@@ -1366,7 +1366,7 @@ class Module:
         else:
             info_file = self.path / ".ln"
             if info_file.exists():
-                info = eval(info_file.read_text())
+                info = ast.literal_eval(info_file.read_text())
                 if isinstance(info, (float, int)):
                     min_ver = info
                     max_ver = info
@@ -1483,7 +1483,7 @@ class Module:
             if filepath.exists():
                 filepath.unlink()
             manifest = self.path / "__manifest__.py"
-            jsoncontent = eval(manifest.read_text())
+            jsoncontent = ast.literal_eval(manifest.read_text())
             jsoncontent.setdefault("assets", {})
             existing_files = []
             for asset_file in jsoncontent.get("assets", []):

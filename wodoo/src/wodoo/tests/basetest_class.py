@@ -1,3 +1,4 @@
+import ast
 import os
 import traceback
 import pytest
@@ -99,7 +100,9 @@ class BaseTestClass:
     def _adapt_requirement_for_m1(self):
         file = self.path / "odoo" / "requirements.txt"
         reqs = file.read_text().splitlines()
-        version = float(eval((self.path / "MANIFEST").read_text())["version"])
+        version = float(
+            ast.literal_eval((self.path / "MANIFEST").read_text())["version"]
+        )
         if version <= 15:
             reqs = [x for x in reqs if "greenlet" not in x]
             reqs = [x for x in reqs if "gevent" not in x]
