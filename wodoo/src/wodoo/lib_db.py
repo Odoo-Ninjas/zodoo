@@ -33,10 +33,8 @@ def db(config):
     Database related actions.
     """
     click.echo(
-        (
-            f"database-name: {config.dbname}, "
-            f"in ram: {config.run_postgres_in_ram}"
-        )
+        f"database-name: {config.dbname}, "
+        f"in ram: {config.run_postgres_in_ram}"
     )
 
 
@@ -44,7 +42,7 @@ def db(config):
 @pass_config
 def db_health_check(config):
     conn = config.get_odoo_conn()
-    click.secho((f"Connecting to {conn.host}:{conn.port}/{config.dbname}"))
+    click.secho(f"Connecting to {conn.host}:{conn.port}/{config.dbname}")
     try:
         _execute_sql(
             conn, "select * from pg_catalog.pg_tables;", fetchall=True
@@ -62,9 +60,15 @@ def drop_db(config, dbname):
     if not (config.devmode or config.force):
         click.secho("Either DEVMODE or force required", fg="red")
         sys.exit(-1)
+    from psycopg2 import sql
+
     conn = config.get_odoo_conn().clone(dbname="postgres")
     _remove_postgres_connections(
-        conn, sql_afterwards=f"drop database {dbname};"
+        conn,
+        dbname,
+        sql_afterwards=sql.SQL("drop database {}").format(
+            sql.Identifier(dbname)
+        ),
     )
     click.echo(f"Database {dbname} dropped.")
 
@@ -162,9 +166,7 @@ def _psql(
     elif not bin_on_host:
         use_docker_container = True
 
-    conn = config.get_odoo_conn(
-        force_inside_container=use_docker_container
-    )
+    conn = config.get_odoo_conn(force_inside_container=use_docker_container)
     if dbname:
         conn = conn.clone(dbname)
 
@@ -187,9 +189,7 @@ def _psql(
     cmd += [
         dbname,
     ]
-    click.secho(
-        f"Connecting to {conn.host}:{conn.port}/{dbname}", fg="green"
-    )
+    click.secho(f"Connecting to {conn.host}:{conn.port}/{dbname}", fg="green")
 
     if use_docker_container:
         __dcrun(
@@ -303,7 +303,9 @@ def reset_db(
     cmd2 = ""
     if collatec:
         cmd2 = "LC_CTYPE 'C' LC_COLLATE 'C' ENCODING 'utf8' TEMPLATE template0"
-    cmd = f"create database {dbname} {cmd2} "
+    from psycopg2 import sql
+
+    cmd = sql.SQL("create database {} " + cmd2).format(sql.Identifier(dbname))
     while True:
         try:
             _execute_sql(conn, cmd, notransaction=True)
@@ -407,9 +409,13 @@ def set_db_name(ctx, DBNAME):
 @pass_config
 @click.pass_context
 def db_size(ctx, config):
-    sql = f"select pg_database_size('{config.dbname}')"
     conn = config.get_odoo_conn()
-    rows = _execute_sql(conn, sql, fetchall=True)
+    rows = _execute_sql(
+        conn,
+        "select pg_database_size(%s)",
+        params=(config.dbname,),
+        fetchall=True,
+    )
     if not rows:
         size = 0
     else:
@@ -476,7 +482,15 @@ ORDER BY total_bytes DESC;
     click.echo(
         tabulate(
             rows,
-            ["table_schema", "TABLE_NAME", "row_estimate", "total", "INDEX", "toast", "TABLE"],
+            [
+                "table_schema",
+                "TABLE_NAME",
+                "row_estimate",
+                "total",
+                "INDEX",
+                "toast",
+                "TABLE",
+            ],
         )
     )
 
@@ -543,8 +557,10 @@ def excel(config, sql, file, base64):
 
     click.secho(f"File created: {filepath}")
     if config.owner_uid:
-        cmd = f'chown {config.owner_uid}:{config.owner_uid} "{filepath}"'
-        os.system(cmd)
+        subprocess.run(
+            ["chown", f"{config.owner_uid}:{config.owner_uid}", str(filepath)],
+            check=False,
+        )
 
 
 @db.command()
@@ -709,14 +725,12 @@ def compare(file1, file2, ignore_magic, skip_no_id_tables):
                 if "<memory at" not in value:
                     inc_count = True
                     result["diffs"].append(
-                        (
-                            {
-                                "id": id,
-                                "field": key,
-                                "value1": value,
-                                "value2": value2,
-                            }
-                        )
+                        {
+                            "id": id,
+                            "field": key,
+                            "value1": value,
+                            "value2": value2,
+                        }
                     )
         if inc_count:
             result["count"] += 1
@@ -901,20 +915,22 @@ def filesnapshot(config, table_filter, output, limit, skip, include):
             continue
         if include and item not in include:
             continue
+        from psycopg2 import sql as psql
+
         columns, rows = _execute_sql(
             conn,
-            f"select * from {item} limit 0",
+            psql.SQL("select * from {} limit 0").format(psql.Identifier(item)),
             fetchall=True,
             return_columns=True,
         )
 
-        sql = f"select * from {item}"
+        query = psql.SQL("select * from {}").format(psql.Identifier(item))
         if "id" in columns:
-            sql = sql + " order by id desc"
+            query = query + psql.SQL(" order by id desc")
         if limit:
-            sql = sql + f" limit {limit}"
+            query = query + psql.SQL(" limit {}").format(psql.Literal(limit))
         columns, rows = _execute_sql(
-            conn, sql, fetchall=True, return_columns=True
+            conn, query, fetchall=True, return_columns=True
         )
         columns_sorted = list(sorted(columns))
         output_file = root_path / f"{item}.dat"
