@@ -1117,7 +1117,7 @@ def _uninstall_devmode_modules(ctx, config, manifest, dry_run):
     if config.devmode and manifest.get("devmode_uninstall", []):
         for mod in manifest["devmode_uninstall"]:
             if dry_run:
-                click.secho(f"Would uninstall: {mode}")
+                click.secho(f"Would uninstall: {mod}")
                 continue
             _uninstall_marked_modules(
                 ctx, config, manifest["devmode_uninstall"], False
