@@ -1617,24 +1617,17 @@ def whoami(id=False):
 @contextmanager
 def download_file(url):
     local_filename = url.split("/")[-1]
-    file = Path(tempfile.mktemp(suffix=".download"))
-    file.mkdir(parents=True)
-    file = file / local_filename
-    del local_filename
-
-    with requests.get(url, stream=True) as r:
-        r.raise_for_status()
-        with open(file, "wb") as f:
-            for chunk in r.iter_content(chunk_size=8192):
-                # If you have chunk encoded response uncomment if
-                # and set chunk_size parameter to None.
-                # if chunk:
-                f.write(chunk)
-    try:
+    with tempfile.TemporaryDirectory(suffix=".download") as tmpdir:
+        file = Path(tmpdir) / local_filename
+        with requests.get(url, stream=True) as r:
+            r.raise_for_status()
+            with open(file, "wb") as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    # If you have chunk encoded response uncomment if
+                    # and set chunk_size parameter to None.
+                    # if chunk:
+                    f.write(chunk)
         yield file
-    finally:
-        if file.exists():
-            file.unlink()
 
 
 def _get_default_project_name(restrict):
