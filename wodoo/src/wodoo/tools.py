@@ -1200,6 +1200,8 @@ def rsync_progress_param():
     version = test.splitlines()[0]
     match = re.search(r"\brsync\s+version\s+(\d+)\.(\d+)\.(\d+)\b", version)
     version = tuple(map(int, match.groups()))
+    if (os.getenv("CI") or "").lower() in ["true", "1"]:
+        return None
     if version >= (3, 2, 0):
         return "--info=progress2"
     else:
@@ -1217,15 +1219,20 @@ def sync_folder(dir, dest_dir, excludes=None):
         raise Exception(f"invalid dirs: {dir} {dest_dir}")
 
     if platform.system() in ["Linux", "Darwin"]:
-        cmd = [
-            "rsync",
-            str(dir) + "/",
-            str(dest_dir) + "/",
-            rsync_progress_param(),
-            "-r",
-            "-l",
-            "--delete-after",
-        ]
+        cmd = list(
+            filter(
+                bool,
+                [
+                    "rsync",
+                    str(dir) + "/",
+                    str(dest_dir) + "/",
+                    rsync_progress_param(),
+                    "-r",
+                    "-l",
+                    "--delete-after",
+                ],
+            )
+        )
         for exclude in excludes or []:
             cmd += [f"--exclude={exclude}"]
         subprocess.check_call(cmd)
