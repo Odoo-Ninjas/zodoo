@@ -207,7 +207,9 @@ def _get_views():
                 parent = e
                 BARRIER = 0
                 while parent and parent["inherit_id"] and BARRIER < 10:
-                    parent = cache_xml_ids["ids"].get(e["inherit_id"], None)
+                    parent = cache_xml_ids["ids"].get(
+                        parent["inherit_id"], None
+                    )
                     BARRIER += 1
                 if parent:
                     e["type"] = parent["type"]
