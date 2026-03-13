@@ -39,8 +39,8 @@ def set_password_all_users(config, ctx, password, default):
     for i, user in enumerate(users, 1):
         click.secho(f"{i}/{l} Setting password for user {user[0]}", fg="green")
         # if not __verify_password(password, user[1]):  # WHY USED?
-        sql = f"update res_users set password='{pwd}' where login='{user[0]}'"
-        _execute_sql(conn, sql)
+        sql = "update res_users set password=%s where login=%s"
+        _execute_sql(conn, sql, params=(pwd, user[0]))
     if current_version() in [11.0]:
         sql = f"update res_users set password_crypt=password"
         _execute_sql(conn, sql)
@@ -59,7 +59,8 @@ def user_password(config, ctx, username, password):
     conn = config.get_odoo_conn().clone()
     _execute_sql(
         conn,
-        (f"update res_users set password='{pwd}' where login='{username}'"),
+        "update res_users set password=%s where login=%s",
+        params=(pwd, username),
     )
     click.secho(f"Password set to {pwd} for user {username}", fg="green")
 
@@ -184,7 +185,9 @@ def __execute_linebyline_sql(conn, sql, env):
                     )
                     return not res[0]
                 if "if-column-exists" in comment:
-                    parts = comment.split("if-column-exists")[1].strip().split(".")
+                    parts = (
+                        comment.split("if-column-exists")[1].strip().split(".")
+                    )
                     if len(parts) != 2:
                         abort(f"Malformed sql: {comment}")
                     table, column = parts
@@ -241,11 +244,8 @@ def remove_settings(config, settings):
     for setting in settings.split(","):
         _execute_sql(
             conn,
-            """
-            DELETE FROM
-                ir_config_parameter
-            WHERE key='{}'
-        """.format(setting),
+            "DELETE FROM ir_config_parameter WHERE key=%s",
+            params=(setting,),
         )
 
 
