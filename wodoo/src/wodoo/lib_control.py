@@ -1,5 +1,6 @@
 import time
 import click
+from pathlib import Path
 
 import re
 import os
@@ -29,7 +30,7 @@ def pull(ctx, config):
     ensure_project_name(config)
     if config.use_docker:
         from .lib_control_with_docker import pull as lib_pull
-    return lib_pull(ctx, config)
+        return lib_pull(ctx, config)
 
 
 @docker.command()
@@ -41,7 +42,7 @@ def dev(ctx, config, build, kill):
     ensure_project_name(config)
     if config.use_docker:
         from .lib_control_with_docker import dev as lib_dev
-    return lib_dev(ctx, config, build, kill=kill)
+        return lib_dev(ctx, config, build, kill=kill)
 
 
 @docker.command(name="ps")
@@ -50,7 +51,7 @@ def ps(config):
     ensure_project_name(config)
     if config.use_docker:
         from .lib_control_with_docker import ps as lib_ps
-    return lib_ps(config)
+        return lib_ps(config)
 
 
 @docker.command(name="exec")
@@ -67,9 +68,9 @@ def execute(config, machine, user, non_interactive, args):
     ensure_project_name(config)
     if config.use_docker:
         from .lib_control_with_docker import execute as lib_execute
-    lib_execute(
-        config, machine, args, user=user, interactive=not non_interactive
-    )
+        lib_execute(
+            config, machine, args, user=user, interactive=not non_interactive
+        )
 
 
 @docker.command(name="kill")
@@ -149,7 +150,7 @@ def remove_volumes(ctx, config, dry_run):
 def force_kill(ctx, config, machine):
     if config.use_docker:
         from .lib_control_with_docker import force_kill as lib_force_kill
-    lib_force_kill(ctx, config, machine)
+        lib_force_kill(ctx, config, machine)
 
 
 @docker.command()
@@ -164,23 +165,25 @@ def wait_for_container_postgres(config):
 
 
 @docker.command()
+@click.argument("host", required=True)
+@click.argument("port", required=True)
 @pass_config
 def wait_for_port(config, host, port):
     ensure_project_name(config)
     if config.use_docker:
         from .lib_control_with_docker import wait_for_port as lib_wait_for_port
-    lib_wait_for_port(host, port)
+        lib_wait_for_port(host, port)
 
 
 @docker.command()
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_services)
 @pass_config
 @click.pass_context
-def recreate(ctx, config, machines, shell_complete=_shell_complete_services):
+def recreate(ctx, config, machines):
     ensure_project_name(config)
     if config.use_docker:
         from .lib_control_with_docker import recreate as lib_recreate
-    lib_recreate(ctx, config, machines)
+        lib_recreate(ctx, config, machines)
 
 
 @docker.command()
@@ -361,12 +364,6 @@ def build(
 
     from .myconfigparser import MyConfigParser
 
-    def dump_settings(settings):
-        a = []
-        for key in sorted(settings.keys()):
-            a.append((key, settings[key]))
-        return a
-
     settings = MyConfigParser(config.files["settings"])
 
     if settings.get("RUN_APT_CACHER") in ["1", ""]:
@@ -382,7 +379,7 @@ def build(
         compose = load_compose(config)
         machines = []
         for service in compose["services"]:
-            if not compose["services"][service].get("build", {}).get("imgage"):
+            if compose["services"][service].get("build"):
                 machines.append(service)
 
     lib_build(
@@ -419,11 +416,14 @@ def debug(ctx, config, machine, ports, command, port, set_docker_command):
     ensure_project_name(config)
     from .lib_control_with_docker import debug as lib_debug
 
-    if command.startswith("["):
+    if (command or '').startswith("["):
         command = eval(command)
 
     if port:
-        ports = int(port)
+        try:
+            port = int(port)
+        except:
+            abort(f"Cannot convert port {port} to int.")
 
     lib_debug(
         ctx,
@@ -554,121 +554,6 @@ def show_volumes(config, filter):
 
 
 @docker.command()
-@click.option("-a", "--show-all", is_flag=True)
-@click.option("-f", "--filter")
-@click.option("-B", "--no-backup", is_flag=True)
-@pass_config
-@click.pass_context
-def transfer_volume_content(context, config, show_all, filter, no_backup):
-    import inquirer
-    from pathlib import Path
-    from .lib_control_with_docker import _get_volume_size
-    from .lib_control_with_docker import _get_volume_hostpath
-
-    volumes = (
-        subprocess.check_output(["docker", "volume", "ls"])
-        .decode("utf-8")
-        .split("\n")[1:]
-    )
-    volumes = [x.split(" ")[-1] for x in volumes]
-    volumes = [x for x in volumes if "_" in x]  # named volumes
-
-    if filter:
-        volumes = [x for x in volumes if filter in x]
-
-    def add_size(volume):
-        size = _get_volume_size(volume)
-        return f"{volume} [{size}]"
-
-    if show_all:
-        volumes = list(map(add_size, volumes))
-        volumes_filtered_to_project = [
-            x for x in volumes if config.project_name in x
-        ]
-
-        volumes1 = volumes
-        volumes2 = volumes_filtered_to_project
-
-    else:
-        volumes_filtered_to_project = [
-            x for x in volumes if config.project_name in x
-        ]
-        volumes_filtered_to_project = list(
-            map(add_size, volumes_filtered_to_project)
-        )
-
-        volumes1 = volumes_filtered_to_project
-        volumes2 = volumes_filtered_to_project
-
-    questions = [
-        inquirer.List(
-            "volume",
-            message=f"Select source {config.customs} {config.dbname}:",
-            choices=volumes1,
-        ),
-    ]
-    answers = inquirer.prompt(questions)
-    if not answers or not answers["volume"]:
-        return
-
-    source = answers["volume"]
-    volumes2.pop(volumes2.index(source))
-    questions = [
-        inquirer.List(
-            "volume",
-            message=f"Select Destination {config.customs} {config.dbname}:",
-            choices=volumes2,
-        ),
-    ]
-    answers = inquirer.prompt(questions)
-    if not answers or not answers["volume"]:
-        return
-    source = _get_volume_hostpath(source.split(" [")[0])
-    dest = _get_volume_hostpath(answers["volume"].split(" [")[0])
-
-    tasks = []
-    tasks.append(f"rsync -ar --delete-after {source.name} to {dest.name}")
-    for i, task in enumerate(tasks):
-        click.secho(f"{i}. {task}")
-    answer = inquirer.prompt(
-        [inquirer.Confirm("continue", message=("Continue?"))]
-    )
-    if not answer["continue"]:
-        return
-    Commands.invoke(context, "down")
-
-    if not no_backup:
-        click.secho("Rsyncing files to /tmp as backup...")
-        backup_name = str(Path("/tmp/") / dest.name) + ".bak"
-        subprocess.check_call(
-            [
-                "/usr/bin/sudo",
-                "rsync",
-                "-ar",
-                str(dest / "_data") + "/",
-                backup_name + "/",
-            ]
-        )
-        click.secho(f"Made backup in {backup_name}")
-
-    click.secho(f"Rsyncing files from old source to {dest}")
-
-    command = [
-        "rsync",
-        "-arP",
-        "--delete-after",
-        str(source / "_data") + "/",
-        str(dest / "_data") + "/",
-    ]
-    subprocess.check_call(
-        [
-            "/usr/bin/sudo",
-        ]
-        + command
-    )
-
-
-@docker.command()
 @click.argument("name", required=False)
 @pass_config
 @click.pass_context
@@ -733,7 +618,7 @@ def docker_sizes(context, config, name):
             r = sizes.get(imagename.replace("-", "_"), None)
         return r
 
-    for name in sorted(image_names, key=lambda x: x[0]):
+    for name in sorted(image_names, key=lambda x: x):
         if not name:
             continue
         recs.append((name, _get_size(name)))
@@ -752,11 +637,6 @@ def _cleanup_config_files(ctx, config):
     _cleanup_paths(ctx, config, paths)
 
 def _cleanup_paths(ctx, config, paths):
-    from pathlib import Path
-    paths = []
-    paths.append(Path(os.environ['HOST_RUN_DIR']))
-    paths.append(config.dirs["odoo_data_dir"] / "filestore" / config.dbname)
-    paths.append(config.files['project_settings'])
     for path in paths:
         if path.is_dir():
             try:
