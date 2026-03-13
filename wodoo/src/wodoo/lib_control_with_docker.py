@@ -108,7 +108,7 @@ def dev(ctx, config, build, kill):
             fg="yellow",
         )
     else:
-        subprocess.Popen([ScriptFile], shell=True, stdout=subprocess.DEVNULL)
+        subprocess.Popen([str(ScriptFile)], stdout=subprocess.DEVNULL)
 
     Commands.invoke(ctx, "debug", machine="odoo")
 
