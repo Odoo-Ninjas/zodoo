@@ -46,21 +46,22 @@ def xmlids(config, name, module, model, resid, delete):
 def _xmlids(config, name, module, model, resid, delete):
     conn = config.get_odoo_conn()
     where = " where 1 = 1"
+    params = []
     if model:
-        where += f" AND model = '{model}'"
+        where += " AND model = %s"
+        params.append(model)
     if module:
-        where += f" AND module = '{module}'"
+        where += " AND module = %s"
+        params.append(module)
     if resid:
-        resid = ",".join(
-            map(str, map(lambda x: int(x.strip()), resid.split(",")))
-        )
-        where += f" AND res_id in ({resid})"
-    for name in name or []:
-        where += (
-            f" and ( (model ilike '%{name}%' or "
-            f"name ilike '%{name}%' or "
-            f"module ilike '%{name}%'))"
-        )
+        resid_ints = list(map(lambda x: int(x.strip()), resid.split(",")))
+        placeholders = ",".join(["%s"] * len(resid_ints))
+        where += f" AND res_id in ({placeholders})"
+        params.extend(resid_ints)
+    for n in name or []:
+        where += " and ( (model ilike %s or name ilike %s or module ilike %s))"
+        pattern = f"%{n}%"
+        params.extend([pattern, pattern, pattern])
     rows = _execute_sql(
         conn,
         sql=(
@@ -68,6 +69,7 @@ def _xmlids(config, name, module, model, resid, delete):
             f"{where} "
             "order by module, name, model "
         ),
+        params=tuple(params),
         fetchall=True,
         return_columns=True,
     )
@@ -77,7 +79,8 @@ def _xmlids(config, name, module, model, resid, delete):
             click.secho(f"Deleting {row[0]}...", fg="red")
             _execute_sql(
                 conn,
-                sql=("DELETE FROM ir_model_data " f"WHERE id = {row[4]} "),
+                sql="DELETE FROM ir_model_data WHERE id = %s",
+                params=(row[4],),
                 fetchall=False,
                 return_columns=False,
             )
@@ -235,15 +238,17 @@ def _get_xml_id(conn, model, res_id):
 @pass_config
 def menus(config, name):
     conn = config.get_odoo_conn()
+    pattern = f"%{name}%"
     ids = map(
         lambda x: x[0],
         _execute_sql(
             conn,
             sql=(
-                f"SELECT id FROM ir_ui_menu WHERE name::text ILIKE '%{name}%' "
-                f" UNION "
-                f"SELECT res_id FROM ir_model_data WHERE model = 'ir.ui.menu' AND (name::text ILIKE '%{name}%' OR module ILIKE '%{name}%' )"
+                "SELECT id FROM ir_ui_menu WHERE name::text ILIKE %s "
+                " UNION "
+                "SELECT res_id FROM ir_model_data WHERE model = 'ir.ui.menu' AND (name::text ILIKE %s OR module ILIKE %s )"
             ),
+            params=(pattern, pattern, pattern),
             fetchall=True,
             return_columns=False,
         ),
@@ -299,15 +304,17 @@ def menus(config, name):
 @pass_config
 def groups(config, name):
     conn = config.get_odoo_conn()
+    pattern = f"%{name}%"
     ids = map(
         lambda x: x[0],
         _execute_sql(
             conn,
             sql=(
-                f"SELECT id FROM res_groups WHERE name::text ILIKE '%{name}%' "
-                f" UNION "
-                f"SELECT res_id FROM ir_model_data WHERE model = 'res.groups' AND name::text ILIKE '%{name}%'"
+                "SELECT id FROM res_groups WHERE name::text ILIKE %s "
+                " UNION "
+                "SELECT res_id FROM ir_model_data WHERE model = 'res.groups' AND name::text ILIKE %s"
             ),
+            params=(pattern, pattern),
             fetchall=True,
             return_columns=False,
         ),
@@ -343,13 +350,15 @@ def groups(config, name):
 @pass_config
 def users(config, login):
     conn = config.get_odoo_conn()
+    pattern = f"%{login}%"
     rows = _execute_sql(
         conn,
         sql=(
-            f"SELECT res_users.id as user_id, login, name FROM res_users INNER JOIN "
-            f"res_partner p on p.id = res_users.partner_id "
-            f"WHERE p.name ILIKE '%{login}%' or login ILIKE '%{login}%'"
+            "SELECT res_users.id as user_id, login, name FROM res_users INNER JOIN "
+            "res_partner p on p.id = res_users.partner_id "
+            "WHERE p.name ILIKE %s or login ILIKE %s"
         ),
+        params=(pattern, pattern),
         fetchall=True,
         return_columns=False,
     )
@@ -375,18 +384,23 @@ def fields(config, model, field, relation):
         "f.model_id = m.id "
         "WHERE 1=1 "
     )
+    params = []
     if model:
-        sql += f" AND m.model ilike '%{model}%' "
+        sql += " AND m.model ilike %s "
+        params.append(f"%{model}%")
     if field:
-        sql += f" AND f.name ilike '%{field}%' "
+        sql += " AND f.name ilike %s "
+        params.append(f"%{field}%")
     if relation:
-        sql += f" AND f.relation = '{relation}' "
+        sql += " AND f.relation = %s "
+        params.append(relation)
 
     sql += "ORDER BY 2, 1 "
 
     rows = _execute_sql(
         conn,
         sql=sql,
+        params=tuple(params),
         fetchall=True,
         return_columns=False,
     )
