@@ -242,7 +242,8 @@ def __get_odoo_commit():
 def table_exists(conn, table):
     exist = _execute_sql(
         conn,
-        f"select count(*) from information_schema.tables where table_schema='public' and table_name='{table}'",
+        "select count(*) from information_schema.tables where table_schema='public' and table_name=%s",
+        params=(table,),
         fetchone=True,
     )
     if not exist or not exist[0]:
@@ -303,10 +304,10 @@ def _execute_sql(
 
 
 def _exists_db(conn, dbname):
-    sql = f"select count(*) from pg_database where datname='{dbname}'"
+    sql = "select count(*) from pg_database where datname=%s"
     conn = conn.clone()
     conn.dbname = "postgres"
-    record = _execute_sql(conn, sql, fetchone=True)
+    record = _execute_sql(conn, sql, params=(dbname,), fetchone=True)
     if not record or not record[0]:
         return False
     return True
@@ -319,9 +320,10 @@ def _exists_table(conn, table_name):
             "select exists( "
             "   select 1 "
             "   from information_schema.tables "
-            f"   where table_name = '{table_name}' "
+            "   where table_name = %s "
             ")"
         ),
+        params=(table_name,),
         fetchone=True,
     )
     return record[0]
@@ -476,14 +478,17 @@ def _remove_postgres_connections(connection, dbname, sql_afterwards=""):
             "It was asked to remove database sessions but POSTGRES_DONT_DROP_ACTIVITIES is set to 1 - so i wont do it"
         )
     if _exists_db(connection, dbname):
-        SQL = f"""
+        SQL = """
             SELECT pg_terminate_backend(pg_stat_activity.pid)
             FROM pg_stat_activity
-            WHERE pg_stat_activity.datname = '{dbname}'
+            WHERE pg_stat_activity.datname = %s
             AND pid <> pg_backend_pid();
             """
         _execute_sql(
-            connection.clone(dbname="postgres"), SQL, notransaction=True
+            connection.clone(dbname="postgres"),
+            SQL,
+            params=(dbname,),
+            notransaction=True,
         )
         if sql_afterwards:
             _execute_sql(
@@ -494,18 +499,22 @@ def _remove_postgres_connections(connection, dbname, sql_afterwards=""):
 
 
 def __rename_db_drop_target(conn, from_db, to_db):
+    from psycopg2 import sql
+
     if to_db in ("postgres", "template1"):
         raise Exception(f"Invalid: {to_db}")
     _remove_postgres_connections(conn, from_db)
     _remove_postgres_connections(conn, to_db)
     _execute_sql(
         conn.clone(dbname="postgres"),
-        (f"drop database if exists {to_db}"),
+        sql.SQL("drop database if exists {}").format(sql.Identifier(to_db)),
         notransaction=True,
     )
     _execute_sql(
         conn.clone(dbname="postgres"),
-        (f"alter database {from_db} rename to {to_db};"),
+        sql.SQL("alter database {} rename to {}").format(
+            sql.Identifier(from_db), sql.Identifier(to_db)
+        ),
         notransaction=True,
     )
     _remove_postgres_connections(conn, to_db)
@@ -686,17 +695,17 @@ def __rmtree(config, path):
             __try_to_set_owner(UID, path, abort_if_failed=False)
             try:
                 shutil.rmtree(path)
-            except:
+            except Exception:
                 for file in path.rglob("*"):
                     if not file.is_dir():
                         try:
                             file.unlink()
-                        except:
+                        except Exception:
                             click.secho(f"Failed to remove: {file}", fg="red")
                     else:
                         try:
                             shutil.rmtree(file)
-                        except:
+                        except Exception:
                             click.secho(f"Failed to remove: {file}", fg="red")
 
 
@@ -773,7 +782,7 @@ def __empty_dir(dir, user_out=False):
                 if user_out:
                     click.secho(f"Removing {x.absolute()}")
                 x.unlink()
-    except:
+    except Exception:
         click.secho(f"Could not delete: {dir}", fg="red")
         raise
 
@@ -865,7 +874,7 @@ def __make_file_executable(filepath):
 def is_docker_available():
     try:
         search_env_path("docker")
-    except:
+    except Exception:
         return False
     else:
         return True
@@ -1357,7 +1366,7 @@ def split_hub_url(config):
 def execute_script(config, script, message):
     if script.exists():
         click.secho(f"Executing reload script: {script}", fg="green")
-        os.system(script)
+        subprocess.run([str(script)], check=False)
     else:
         if config.verbose:
             click.secho(f"{message}\n{script}", fg="yellow")
@@ -1467,7 +1476,17 @@ def _binary_zip(folder, destpath):
     assert not destpath.exists()
     if not Path(folder).exists():
         raise Exception(f"Could not zip folder: {folder}")
-    os.system(f"cd '{folder}' && tar c . | pv | pigz > '{destpath}'")
+    subprocess.run(
+        [
+            "sh",
+            "-c",
+            'cd "$1" && tar c . | pv | pigz > "$2"',
+            "--",
+            str(folder),
+            str(destpath),
+        ],
+        check=True,
+    )
     if not destpath.exists():
         raise Exception(f"file {destpath} not generated")
 
@@ -1508,9 +1527,9 @@ def autocleanpaper(filepath=None, strict=False):
 
 
 def put_appendix_into_file(appendix, input_filepath, output_filepath):
-    with autocleanpaper() as tempfile:
-        tempfile.write_text(f"{appendix}")
-        os.system(f"cat {tempfile} {input_filepath} > {output_filepath}")
+    output_filepath = Path(output_filepath)
+    content = f"{appendix}" + Path(input_filepath).read_text()
+    output_filepath.write_text(content)
 
 
 def _get_version():
@@ -1872,25 +1891,29 @@ def _update_setting(conn, key, value):
     value = str(value)
     row = _execute_sql(
         conn,
-        f"SELECT value FROM ir_config_parameter WHERE key = '{key}'",
+        "SELECT value FROM ir_config_parameter WHERE key = %s",
+        params=(key,),
         fetchone=True,
     )
     if not row:
         _execute_sql(
             conn,
-            f"INSERT INTO ir_config_parameter(key, value, create_date, write_date) values('{key}', '{value}', now(), now());",
+            "INSERT INTO ir_config_parameter(key, value, create_date, write_date) values(%s, %s, now(), now());",
+            params=(key, value),
         )
     else:
         _execute_sql(
             conn,
-            f"UPDATE ir_config_parameter SET value = '{value}' where key = '{key}'",
+            "UPDATE ir_config_parameter SET value = %s where key = %s",
+            params=(value, key),
         )
 
 
 def _get_setting(conn, key):
     rec = _execute_sql(
         conn,
-        f"SELECT value FROM ir_config_parameter WHERE key = '{key}'",
+        "SELECT value FROM ir_config_parameter WHERE key = %s",
+        params=(key,),
         fetchone=True,
     )
     if rec:
@@ -1961,7 +1984,8 @@ def _get_xml_id(config, model, id):
     conn = config.get_odoo_conn()
     rows = _execute_sql(
         conn,
-        f"select module, name from ir_model_data where res_id={id} and model='{model}'",
+        "select module, name from ir_model_data where res_id=%s and model=%s",
+        params=(id, model),
         fetchall=True,
     )
     if rows:
@@ -2060,7 +2084,7 @@ def _get_available_modules(ctx, param, incomplete):
         manifest = MANIFEST()
         if not manifest:
             raise Exception("no manifest")
-    except:
+    except Exception:
         return []
     modules = manifest["install"]
     if incomplete:
@@ -2375,7 +2399,7 @@ def vscode_setting(key, value):
 def load_json(content):
     try:
         return json.loads(content)
-    except:
+    except Exception:
         click.secho(content, fg="red")
         raise
 
