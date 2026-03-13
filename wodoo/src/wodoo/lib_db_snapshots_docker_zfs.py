@@ -16,13 +16,13 @@ better: zfs get -H -o value usedbychildren docker/volumes  mit -1 oder nicht
 
 import inquirer
 import time
+import uuid
 from .tools import abort
 from operator import itemgetter
 import subprocess
 import arrow
 import sys
 import shutil
-import tempfile
 import click
 from .tools import __dc
 from .tools import search_env_path, __get_postgres_volume_name
@@ -267,7 +267,7 @@ def _turn_into_subvolume(config):
         # is zfs - do nothing
         return
 
-    filename = fullpath.parent / Path(tempfile.mktemp()).name
+    filename = fullpath.parent / f".tmp_{uuid.uuid4().hex}"
     if filename.exists():
         raise Exception(f"Path {filename} should not exist.")
     if not fullpath.exists():
@@ -425,14 +425,14 @@ def remove_volume(config):
             subprocess.check_call(
                 ["sudo", zfs, "set", "canmount=noauto", path]
             )
-        except:
+        except subprocess.CalledProcessError:
             click.secho(
                 "Failed to execute canmount=noauto, but perhaps not a problem. Trying to continue.",
                 fg="yellow",
             )
         try:
             subprocess.check_call(["sudo", umount, path])
-        except:
+        except subprocess.CalledProcessError:
             pass
 
         fullpath = (
@@ -446,7 +446,7 @@ def remove_volume(config):
                     stderr=subprocess.PIPE,
                     stdout=subprocess.PIPE,
                 )
-            except:
+            except subprocess.CalledProcessError:
                 click.secho(
                     f"Failed to destroy zfs dataset at {path}.", fg="red"
                 )
@@ -476,7 +476,7 @@ def translate_poolPath_to_fullPath(zfs_path):
                 ],
                 encoding="utf8",
             ).strip()
-        except:
+        except subprocess.CalledProcessError:
             mountpoint = None
         if mountpoint != "-":
             break
