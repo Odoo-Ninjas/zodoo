@@ -1715,8 +1715,10 @@ def _resolve_path_mapping(conn, path, model):
     splitted = path.split(".")
     for i in range(len(splitted) - 1):
         part = splitted[i]
-        sql = f"select id, model, related, relation from ir_model_fields where name = '{part}' and model='{model}'"
-        fieldrecord = _execute_sql(conn, sql, fetchone=True)
+        sql = "select id, model, related, relation from ir_model_fields where name = %s and model=%s"
+        fieldrecord = _execute_sql(
+            conn, sql, params=(part, model), fetchone=True
+        )
         if not fieldrecord:
             raise Exception(f"Could not resolve: {path} on {model}")
         id, model, related, relation = fieldrecord
@@ -1744,13 +1746,17 @@ def _determine_affected_modules_for_ir_field_and_related(
 
     def _get_model_for_field(model, fieldname):
         name = f"field_{model.replace('.', '_')}__{fieldname}"
-        sql = f"select module from ir_model_data where model='ir.model.fields' and name='{name}'"
-        ir_model_data = _execute_sql(conn, sql, fetchone=True)
+        sql = "select module from ir_model_data where model='ir.model.fields' and name=%s"
+        ir_model_data = _execute_sql(conn, sql, params=(name,), fetchone=True)
         if ir_model_data:
             return ir_model_data[0]
 
-    sql = f"select id, model, related from ir_model_fields where related like '%.{fieldname}'"
-    related_fields = _execute_sql(conn, sql, fetchall=True)
+    sql = (
+        "select id, model, related from ir_model_fields where related like %s"
+    )
+    related_fields = _execute_sql(
+        conn, sql, params=(f"%.{fieldname}",), fetchall=True
+    )
 
     for related_field in related_fields:
         id, model, path = related_field
