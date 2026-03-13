@@ -49,7 +49,7 @@ def _xmlids(config, name, module, model, resid, delete):
     if model:
         where += f" AND model = '{model}'"
     if module:
-        where += f" AND module = '{model}'"
+        where += f" AND module = '{module}'"
     if resid:
         resid = ",".join(
             map(str, map(lambda x: int(x.strip()), resid.split(",")))
@@ -466,6 +466,7 @@ def queuejobs(config, interval):
                 avg_diff_per_second = round(
                     sum(averages[state]) / len(averages[state]), 1
                 )
+                avg_rows.append([state, diff, avg_diff_per_second])
             click.secho(
                 tabulate(
                     avg_rows,
