@@ -85,6 +85,7 @@ def _get_base_tag(config):
             "Please run wodoo requirements.odoo first to create the requirements.odoo.hash file."
         )
     base_tag = request_file.read_text().strip()
+    return base_tag
 
 
 @docker_registry.command()
