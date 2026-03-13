@@ -137,10 +137,12 @@ def get_to_delete_files(path_list, days_notouch):
             keep_safe.add(path)
             continue
 
+        matched = False
         for key in bins:
             if mt >= key[0] and mt <= key[1]:
                 bins[key].append(path)
-        else:
+                matched = True
+        if not matched:
             to_delete.append(path)
 
     # sort arrays by date reverse; at position[0] is the file
