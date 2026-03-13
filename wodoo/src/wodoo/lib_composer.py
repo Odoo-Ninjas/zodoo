@@ -184,9 +184,10 @@ def do_reload(
     additional_config_file = None
     try:
         if additional_config:
-            additional_config_file = Path(tempfile.mktemp(suffix="."))
             additional_config_text = base64.b64decode(additional_config)
-            additional_config_file.write_bytes(additional_config_text)
+            with tempfile.NamedTemporaryFile(suffix=".", delete=False) as _f:
+                additional_config_file = Path(_f.name)
+                _f.write(additional_config_text)
             additional_config = MyConfigParser(additional_config_file)
             click.secho(
                 f"Additional config provided in {additional_config_file}:"
@@ -978,10 +979,11 @@ def post_process_complete_yaml_config(config, yml):
     _set_yaml_version(yml, config)
 
     # set variable project name:
-    for service in yml['services']:
-        yml['services'][service].setdefault('environment', {})
-        yml['services'][service]['environment']['project_name'] = config.project_name
-
+    for service in yml["services"]:
+        yml["services"][service].setdefault("environment", {})
+        yml["services"][service]["environment"][
+            "project_name"
+        ] = config.project_name
 
     # remove restart policies, if not restart allowed:
     if not config.restart_containers:
@@ -1083,7 +1085,7 @@ def __run_docker_compose_config(config, contents, env):
                 text=True,
             )
             conf = proc.stdout
-        except:
+        except subprocess.CalledProcessError:
             # find culprit
             for i in range(len(files)):
                 file = files[i]
@@ -1093,7 +1095,7 @@ def __run_docker_compose_config(config, contents, env):
                     conf = subprocess.check_output(
                         cmdline2, cwd=temp_path, env=d
                     )
-                except:
+                except subprocess.CalledProcessError:
                     click.secho(f"{file}:\n", fg="yellow")
                     click.secho(file.read_text())
                     break
@@ -1103,8 +1105,11 @@ def __run_docker_compose_config(config, contents, env):
         return conf
 
     finally:
-        if temp_path.exists():
-            __rmtree(config, temp_path)
+        try:
+            if temp_path.exists():
+                __rmtree(config, temp_path)
+        except Exception:
+            pass
 
 
 def dict_merge(dct, merge_dct):
@@ -1207,7 +1212,7 @@ def create_directories(config, content):
             if host_path.startswith("/"):
                 host_path = Path(host_path)
             else:
-                raise NotImplementedError(hostpath)
+                raise NotImplementedError(host_path)
             if not host_path.exists():
                 try:
                     host_path.mkdir(parents=True, exist_ok=True)
