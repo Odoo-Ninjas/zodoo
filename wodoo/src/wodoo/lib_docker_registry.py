@@ -3,6 +3,7 @@ configure:
 HUB_URL=registry.name:port/user/project:version
 """
 
+import re
 import yaml
 from pathlib import Path
 import subprocess
@@ -15,6 +16,7 @@ from .cli import cli, pass_config
 from .lib_clickhelpers import AliasedGroup
 from .tools import split_hub_url, abort
 from .tools import update_setting
+from .tools import abort
 
 
 @cli.group(cls=AliasedGroup)
@@ -163,16 +165,14 @@ def self_sign_hub_certificate(config):
         proc.communicate()
     print(cert_filename)
     content = cert_filename.read_text()
-    BEGIN_CERT = "-----BEGIN CERTIFICATE-----"
-    END_CERT = "-----END CERTIFICATE-----"
-    content = (
-        BEGIN_CERT
-        + "\n"
-        + content.split(BEGIN_CERT)[1].split(END_CERT)[0]
-        + "\n"
-        + END_CERT
-        + "\n"
+    match = re.search(
+        r"(-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----)",
+        content,
+        re.DOTALL,
     )
+    if not match:
+        abort(f"No valid certificate found in {cert_filename}")
+    content = match.group(1) + "\n"
     cert_filename.write_text(content)
     click.secho("Restarting docker service...", fg="green")
     subprocess.check_call(["service", "docker", "restart"])

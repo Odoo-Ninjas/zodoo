@@ -50,6 +50,7 @@ from .tools import _shell_complete_services
 from .tools import on_osx, on_windows_wsl
 from .tools import load_json
 from .tools import remove_comments_not_snippets
+from .tools import __rmtree
 
 import inspect
 import os
@@ -976,6 +977,12 @@ def post_process_complete_yaml_config(config, yml):
 
     _set_yaml_version(yml, config)
 
+    # set variable project name:
+    for service in yml['services']:
+        yml['services'][service].setdefault('environment', {})
+        yml['services'][service]['environment']['project_name'] = config.project_name
+
+
     # remove restart policies, if not restart allowed:
     if not config.restart_containers:
         for service in yml["services"]:
@@ -1065,6 +1072,7 @@ def __run_docker_compose_config(config, contents, env):
             content.append(f"export {k}={v}")
         content.append(" ".join(map(str, cmdline)))
         (temp_path / "cmd").write_text("\n".join(content))
+        proc = None
         try:
             proc = subprocess.run(
                 cmdline,
@@ -1074,6 +1082,7 @@ def __run_docker_compose_config(config, contents, env):
                 check=True,
                 text=True,
             )
+            conf = proc.stdout
         except:
             # find culprit
             for i in range(len(files)):
@@ -1090,12 +1099,12 @@ def __run_docker_compose_config(config, contents, env):
                     break
 
             conf = subprocess.check_output(cmdline, cwd=temp_path, env=d)
-        conf = yaml.safe_load(proc.stdout)
+        conf = yaml.safe_load(conf)
         return conf
 
     finally:
         if temp_path.exists():
-            shutil.rmtree(temp_path)
+            __rmtree(config, temp_path)
 
 
 def dict_merge(dct, merge_dct):

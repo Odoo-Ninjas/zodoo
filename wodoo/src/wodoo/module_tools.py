@@ -691,7 +691,7 @@ class Modules(object):
                     modname = file.parent.name
                     if modname in modnames:
                         continue
-                    modnames.add(file.absolute())
+                    modnames.add(modname)
                     yield file.absolute()
 
         modules = {}

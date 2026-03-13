@@ -75,7 +75,10 @@ def start_container(
         )
 
         if result.stdout.strip():
-            return result.stdout.splitlines()[0].split(" ")[0]
+            stdout = result.stdout
+            if not stdout: 
+                return None
+            return stdout.splitlines()[0].split(" ")[0]
         return None
 
     create_network(network)

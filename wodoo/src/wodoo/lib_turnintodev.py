@@ -184,9 +184,10 @@ def __execute_linebyline_sql(conn, sql, env):
                     )
                     return not res[0]
                 if "if-column-exists" in comment:
-                    table, column = (
-                        comment.split("if-column-exists")[1].strip().split(".")
-                    )
+                    parts = comment.split("if-column-exists")[1].strip().split(".")
+                    if len(parts) != 2:
+                        abort(f"Malformed sql: {comment}")
+                    table, column = parts
                     res = _execute_sql(
                         conn,
                         (

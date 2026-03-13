@@ -667,7 +667,7 @@ def compare_views(config, ctx, threads, match):
                             f"Invalid File Format: {file.relative_to(root)}",
                             fg="red",
                         )
-                        return
+                        continue
                     xmlid = ".".join([module, name])
 
                     sql = (
