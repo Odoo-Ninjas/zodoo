@@ -608,7 +608,8 @@ def compare_views(config, ctx, threads, match):
     def compare_view(file_content, res_id, lang, info, the_model):
         view = _execute_sql(
             conn,
-            f"select arch_db from ir_ui_view where id={res_id}",
+            "select arch_db from ir_ui_view where id=%s",
+            params=(res_id,),
             fetchone=True,
         )
         if not view:
@@ -672,13 +673,15 @@ def compare_views(config, ctx, threads, match):
                     xmlid = ".".join([module, name])
 
                     sql = (
-                        f"select res_id "
-                        f"from ir_model_data "
-                        f"where model = 'ir.ui.view' "
-                        f"and module='{module}' "
-                        f"and name = '{name}'"
+                        "select res_id "
+                        "from ir_model_data "
+                        "where model = 'ir.ui.view' "
+                        "and module=%s "
+                        "and name = %s"
                     )
-                    row = _execute_sql(conn, sql, fetchone=True)
+                    row = _execute_sql(
+                        conn, sql, params=(module, name), fetchone=True
+                    )
                     if not row:
                         click.secho(f"XMLID vanished: {xmlid}", fg="red")
                     else:
@@ -734,7 +737,8 @@ def grab_models(config, ctx):
                 }
                 fields = _execute_sql(
                     conn,
-                    f"select name, ttype, compute, relation, translate, readonly from ir_model_fields where model = '{model}' order by model",
+                    "select name, ttype, compute, relation, translate, readonly from ir_model_fields where model = %s order by model",
+                    params=(model,),
                     fetchall=True,
                 )
                 for field in sorted(fields, key=lambda x: x[0]):
