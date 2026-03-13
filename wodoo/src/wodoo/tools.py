@@ -1913,9 +1913,7 @@ def atomic_write(file):
     try:
         yield tempfile
 
-        if file.exists():
-            file.unlink()
-        tempfile.rename(file)
+        os.replace(tempfile, file)
 
     except Exception:
         if tempfile.exists():
@@ -1923,6 +1921,7 @@ def atomic_write(file):
                 tempfile.unlink()
             except Exception:
                 pass
+        raise
 
 
 def pretty_xml(xmlstring):
