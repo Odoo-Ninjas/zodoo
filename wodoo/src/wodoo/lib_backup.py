@@ -236,7 +236,7 @@ def get_dump_type(config, filename):
 @restore.command(name="list")
 @pass_config
 def list_dumps(config):
-    rows = _get_dump_files()
+    rows = _get_dump_files(Path(config.dumps_path))
     click.echo(tabulate(rows, ["Nr", "Filename", "Age", "Size"]))
 
 
