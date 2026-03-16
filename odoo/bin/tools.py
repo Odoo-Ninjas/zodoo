@@ -422,15 +422,18 @@ def get_odoo_bin(for_shell=False):
     return EXEC, CONFIG
 
 
+def is_in_container():
+    from wodoo.tools import _is_in_container
+
+    return _is_in_container()
+
+
 def kill_odoo():
     if pidfile.exists():
         click.secho("Killing Odoo")
         pid = pidfile.read_text()
         cmd = ["/bin/kill", "-9", pid]
-        if (
-            os.getenv("USE_DOCKER", "") == "1"
-            and os.getenv("DOCKER_MACHINE", "") == "1"
-        ):
+        if os.getenv("USE_DOCKER", "") == "1" and is_in_container():
             cmd = [
                 "/usr/bin/sudo",
             ] + cmd

@@ -47,7 +47,6 @@ DB_PWD=odoo
 DB_USER=odoo
 DEVMODE=1
 DOCKER_LABEL_ODOOCOMPOSE=1
-DOCKER_MACHINE=1
 DUMPS_PATH=/home/parallels/dumps
 HOST_RUN_DIR=/home/parallels/.odoo/run/zebroo-sync
 IMAGES_BRANCH=master

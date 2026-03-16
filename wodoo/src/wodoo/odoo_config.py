@@ -9,6 +9,7 @@ except Exception:
     arrow = None
 from collections import OrderedDict
 from . import click
+import ast
 import json
 from pathlib import Path
 import os
@@ -115,7 +116,7 @@ class MANIFEST_CLASS:
     def _get_data(self):
         content = self.path.read_text() or "{}"
         try:
-            res = OrderedDict(json.loads(content))
+            res = OrderedDict(ast.literal_eval(content))
         except Exception:
             abort(f"Could not parse {content}")
 
@@ -182,6 +183,8 @@ def current_version():
 
 
 def get_postgres_connection_params(force_inside_container=None):
+    from .tools import _is_in_container
+
     config = get_settings()
     inside_container = (
         am_i_inside_docker_container()
@@ -190,7 +193,7 @@ def get_postgres_connection_params(force_inside_container=None):
     )
     if (
         not inside_container
-        and os.getenv("DOCKER_MACHINE") != "1"
+        and not _is_in_container()
         and config.get("RUN_POSTGRES") == "1"
     ):
         host = Path(os.environ["HOST_RUN_DIR"]) / "postgres.socket"
@@ -214,8 +217,9 @@ def get_settings():
     composed settings file.
     """
     from .myconfigparser import MyConfigParser  # NOQA
+    from .tools import _is_in_container
 
-    if os.getenv("DOCKER_MACHINE") == "1":
+    if _is_in_container():
         settings_path = Path("/tmp/settings")
         content = ""
         for k, v in os.environ.items():

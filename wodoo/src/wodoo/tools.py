@@ -1659,10 +1659,7 @@ def download_file(url):
 def _get_default_project_name(restrict):
     from .exceptions import NoProjectNameException
 
-    if (
-        os.environ.get("project_name")
-        and os.environ.get("DOCKER_MACHINE") == "1"
-    ):
+    if os.environ.get("project_name") and _is_in_container():
         return os.environ.get("project_name", None)
 
     def _get_project_name_from_file(path):
@@ -2436,3 +2433,17 @@ def fast_file_hash(
             h.update(chunk)
 
     return h.hexdigest()
+
+
+def _is_in_container():
+    if Path("/.dockerenv").exists():
+        return True
+    try:
+        cgroup = Path("/proc/1/cgroup").read_text()
+        return (
+            "docker" in cgroup
+            or "containerd" in cgroup
+            or "kubepods" in cgroup
+        )
+    except Exception:
+        return False

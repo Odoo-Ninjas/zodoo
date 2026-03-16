@@ -755,6 +755,7 @@ def make_variable_file(ctx, config, userpassword=None):
     if userpassword:
         data["ROBO_ODOO_PASSWORD"] = userpassword
     data.setdefault("ROBO_ODOO_PASSWORD", "admin")
+    data["project_name"] = config.project_name
     data["ROBO_ODOO_USER"] = "admin"
     data["ROBO_ODOO_VERSION"] = current_version()
     data["ROBO_ODOO_PORT"] = config.PROXY_PORT

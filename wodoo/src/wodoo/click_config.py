@@ -90,10 +90,7 @@ class Config:
     @project_name.setter
     def project_name(self, value):
         self._project_name = value
-        if (
-            os.getenv("DOCKER_HOST_RUN_DIR")
-            and os.getenv("DOCKER_MACHINE") == "1"
-        ):
+        if os.getenv("DOCKER_HOST_RUN_DIR") and _is_in_container():
             self.HOST_RUN_DIR = Path(os.environ["DOCKER_HOST_RUN_DIR"])
         elif self._project_name:
             self.HOST_RUN_DIR = (
@@ -139,6 +136,7 @@ class Config:
             return value
         except AttributeError:
             from .myconfigparser import MyConfigParser  # NOQA
+            from .tools import _is_in_container
 
             if "settings" not in self.files:
                 return None
@@ -161,7 +159,7 @@ class Config:
                 value = myconfig.get(tries, "")
                 break
             else:
-                if os.getenv("DOCKER_MACHINE") == "1":
+                if _is_in_container():
                     for tries in candidates:
                         if tries in os.environ:
                             value = os.environ[tries]

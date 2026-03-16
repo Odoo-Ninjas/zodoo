@@ -39,6 +39,7 @@ from .tools import _get_setting
 from .tools import get_git_hash
 from .tools import start_postgres_if_local
 from .tools import _get_available_modules
+from .tools import _is_in_container
 from .module_tools import _determine_affected_modules_for_ir_field_and_related
 from pathlib import Path
 from functools import partial
@@ -1017,11 +1018,7 @@ def update(
                 else:
                     break
 
-            if (
-                not no_restart
-                and config.use_docker
-                and os.getenv("DOCKER_MACHINE") != "1"
-            ):
+            if not no_restart and config.use_docker and not _is_in_container():
                 Commands.invoke(
                     ctx, "restart", machines=["odoo"], no_recreate=True
                 )
@@ -1277,6 +1274,7 @@ def _uninstall_marked_modules(ctx, config, modules, no_restart=False):
     from .module_tools import NotInAddonsPath
     from .odoo_config import customs_dir
     from .lib_talk import _xmlids
+    from .tools import _is_in_container
 
     assert not isinstance(modules, str)
 
@@ -1388,7 +1386,7 @@ for module in modules:
         uninstalled = True
 
     if uninstalled and not no_restart:
-        if os.getenv("DOCKER_MACHINE") != "1":
+        if not _is_in_container():
             Commands.invoke(ctx, "restart", machines=["odoo"])
 
     modules = [x for x in modules if DBModules.is_module_installed(x)]

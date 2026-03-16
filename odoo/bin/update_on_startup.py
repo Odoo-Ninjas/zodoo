@@ -8,7 +8,6 @@ WODOO_PYTHON = os.getenv("WODOO_PYTHON")
 
 print("Updating modules")
 prepare_run()
-os.environ["DOCKER_MACHINE"] = "1"
 
 from pathlib import Path
 

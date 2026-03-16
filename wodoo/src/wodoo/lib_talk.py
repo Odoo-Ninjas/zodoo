@@ -11,6 +11,7 @@ from .lib_clickhelpers import AliasedGroup
 from .tools import _execute_sql
 from .tools import _get_setting
 from .tools import odoorpc
+from .tools import _is_in_container
 
 
 def _stringify_translated_dict(v):
@@ -699,6 +700,11 @@ def rpc(config):
 
     # After exit, print a friendly message
     print("Bye! 👋")
+
+
+@talk.command()
+def is_in_container():
+    print("docker container" if _is_in_container() else "no container")
 
 
 Commands.register(progress)

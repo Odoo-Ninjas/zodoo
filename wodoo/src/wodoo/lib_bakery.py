@@ -48,7 +48,6 @@ def bake(ctx, config, params):
     metadata = _get_metadata(ctx, config)
     metadata["SHA_IN_DOCKER"] = "1"
     metadata["SRC_EXTRA"] = "0"
-    metadata["DOCKER_MACHINE"] = "1"
 
     for param in params:
         if "=" not in param:

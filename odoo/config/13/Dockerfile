@@ -294,7 +294,6 @@ ENV PYTHONBREAKPOINT=0
 ENV ODOO_SERVER_TOOLS_MODULES=/opt/odoo_server_tools
 ENV ODOO_FRAMEWORK_KEEP_SQL_CONNECTION=1
 ENV PATH=/odoolib:/opt/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-ENV DOCKER_MACHINE=1
 ENV PIPX_HOME=/opt/wodoo_pipx
 ENV ENV_DIR=/opt/wodoo_pipx/venvs/wodoo
 

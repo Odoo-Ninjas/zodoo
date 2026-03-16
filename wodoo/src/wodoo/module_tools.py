@@ -2,7 +2,6 @@ from packaging import markers
 
 import ast
 import threading
-import json
 import click
 from .tools import _is_db_initialized
 from . import iscompatible
@@ -947,7 +946,7 @@ class Modules:
 
             if file.exists():
                 try:
-                    content = json.loads(file.read_text())
+                    content = ast.literal_eval(file.read_text())
                 except Exception as e:
                     click.secho(
                         f"Error parsing json in\n{file}:\n{e}", fg="red"
