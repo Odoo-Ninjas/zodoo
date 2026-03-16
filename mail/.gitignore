@@ -2,3 +2,5 @@
 postfix/ssl/*
 letsencrypt/
 .idea
+
+buildsettings.env

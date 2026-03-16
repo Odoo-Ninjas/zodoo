@@ -71,6 +71,8 @@ def after_compose(config, settings, yml, globals):
     if config.RUN_PROXY:
         setup_external_odoo_eg_kubernetes(config, yml, globals)
 
+    _eval_setting_common_filestore(config, settings, globals)
+
 
 def store_sha_of_external_deps(deps, PYTHON_VERSION, file):
     v = ""
@@ -528,3 +530,37 @@ def _setup_remote_debugging(config, yml):
         yml["services"][key]["ports"].append(
             f"0.0.0.0:{config.ODOO_PYTHON_DEBUG_PORT}:5678"
         )
+
+def _eval_setting_common_filestore(config, settings, globals):
+    """
+    Wenn ODOO_FILES_COMMON=1 gesetzt ist, wird ein gemeinsamer Filestore angelegt.
+
+    Ablauf:
+    - In ODOO_FILES wird ein Unterordner '_common' erstellt.
+    - Alle anderen Unterverzeichnisse in ODOO_FILES werden per rsync nach '_common' kopiert.
+    - Danach wird das jeweilige Verzeichnis gelöscht und durch einen Symlink auf '_common' ersetzt.
+
+    Damit teilen sich alle Instanzen/Branches einen gemeinsamen Filestore, was Speicherplatz spart.
+    Bereits vorhandene Symlinks werden übersprungen.
+    """
+    if settings.get("ODOO_FILES_COMMON") != "1":
+        return
+
+    from wodoo.tools import __rmtree
+
+    rsync = globals["tools"].rsync
+    files_dir = Path(settings["ODOO_FILES"]) / 'filestore'
+    common_dir = files_dir / "_common"
+    common_dir.mkdir(exist_ok=True, parents=True)
+
+    for entry in sorted(files_dir.iterdir()):
+        if entry.name == "_common":
+            continue
+        if not entry.is_dir() or entry.is_symlink():
+            continue
+
+        rsync(entry, common_dir)
+
+        # Verzeichnis entfernen und durch Symlink auf _common ersetzen
+        shutil.rmtree(entry)
+        entry.symlink_to("_common")
