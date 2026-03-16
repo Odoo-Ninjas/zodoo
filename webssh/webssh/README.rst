@@ -41,7 +41,7 @@ How it works
 Requirements
 ~~~~~~~~~~~~
 
--  Python 3.8+
+-  Python 3.10+
 
 Quickstart
 ~~~~~~~~~~
@@ -243,3 +243,4 @@ Tips
 .. |PyPI| image:: https://img.shields.io/pypi/v/webssh.svg
 .. |Login| image:: https://github.com/huashengdun/webssh/raw/master/preview/login.png
 .. |Terminal| image:: https://github.com/huashengdun/webssh/raw/master/preview/terminal.png
+

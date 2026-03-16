@@ -1,8 +1,9 @@
 FROM python:3-alpine
 
+LABEL maintainer='<author>'
 LABEL version='0.0.0-dev.0-build.0'
 
-COPY . /code
+ADD . /code
 WORKDIR /code
 RUN \
   apk add --no-cache libc-dev libffi-dev gcc && \
