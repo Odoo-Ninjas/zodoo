@@ -6,9 +6,6 @@ import tempfile
 import arrow
 import shutil
 import requests
-import time
-import threading
-import sys
 import click
 from consts import ODOO_USER
 import subprocess
@@ -19,9 +16,6 @@ from wodoo.odoo_config import customs_dir
 from wodoo.odoo_config import get_conn_autoclose
 from wodoo.odoo_config import current_version
 from pathlib import Path
-import sys
-import time
-import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 pidfile = Path("/tmp/odoo.pid")
@@ -44,6 +38,10 @@ def _get_queuejob_channels():
     else:
         channels = os.getenv("ODOO_QUEUEJOBS_CHANNELS")
 
+    if not channels:
+        raise Exception(
+            "Please define ODOO_QUEUEJOBS_CHANNELS or QUEUEJOB_CHANNELS_FILE."
+        )
         # replace any env variable
     channels = [
         (x, int(y))
@@ -80,8 +78,9 @@ def _get_queuejob_channels():
 def _replace_params_in_config(
     ADDONS_PATHS, content, server_wide_modules=None, upgrade_path=None
 ):
-    if not config.get("DB_HOST", "") or not config.get("DB_USER", ""):
-        raise Exception("Please define all DB Env Variables!")
+    for key in ["DB_HOST", "DB_USER"]:
+        if not config.get(key, ""):
+            raise Exception(f"Please define {key} Env Variables!")
     content = content.replace("__ADDONS_PATH__", ADDONS_PATHS)
     content = content.replace(
         "__ENABLE_DB_MANAGER__",
@@ -636,15 +635,21 @@ def exec_odoo(
         output = ""
 
     if stdin:
-        if isinstance(stdin, str):
-            stdin = stdin.encode("utf-8")
+        if not isinstance(stdin, str):
+            stdin = (
+                stdin.decode("utf-8")
+                if isinstance(stdin, bytes)
+                else str(stdin)
+            )
         proc = subprocess.Popen(
             cmd,
             shell=True,
             stdin=subprocess.PIPE,
             **params_capture,
         )
-        proc.stdin.write(stdin)
+        proc.stdin.write(
+            stdin if params_capture.get("text") else stdin.encode("utf-8")
+        )
         proc.stdin.close()
         if capture_output:
             output = _tee(proc)
