@@ -17,22 +17,32 @@ from .tools import update_setting
 from .tools import vscode_setting
 from .tools import __assure_gitignore
 
-ALL_PORTS = ["PROXY_PORT", "DEBUG_PORT", "HOST_DB_PORT"]
+ALL_PORTS = [
+    "PROXY_PORT",
+    "DEBUG_PORT",
+    "HOST_DB_PORT",
+    "ODOO_PYTHON_DEBUG_PORT",
+]
 
 
-@cli.group(cls=AliasedGroup, help="Setup and maintenance commands (ports, web assets, upgrade, status).")
+@cli.group(
+    cls=AliasedGroup,
+    help="Setup and maintenance commands (ports, web assets, upgrade, status).",
+)
 @pass_config
 def setup(config):
     pass
 
 
-@setup.command(help="Find and assign the next free port for PROXY_PORT, DEBUG_PORT (and HOST_DB_PORT on macOS/WSL).")
+@setup.command(
+    help="Find and assign the next free port for PROXY_PORT, DEBUG_PORT (and HOST_DB_PORT on macOS/WSL)."
+)
 @pass_config
 @click.pass_context
 def next_port(ctx, config):
-    ports = ["PROXY_PORT", "DEBUG_PORT", "ODOO_PYTHON_DEBUG_PORT"]
-    if on_osx() or on_windows_wsl():
-        ports += ["HOST_DB_PORT"]
+    ports = list(x for x in ALL_PORTS)
+    if not (on_osx() or on_windows_wsl()):
+        ports.remove("HOST_DB_PORT")
     _setup_port(ctx, config, ports)
 
 
@@ -43,7 +53,7 @@ def _setup_port(ctx, config, required_ports):
             and str(getattr(config, required_port)) != "80"
         ):
             click.secho(
-                f"Port is already configured: {getattr(config, required_port)}"
+                f"Port {required_port} is already configured: {getattr(config, required_port)}"
             )
             continue
         # perhaps not reloaded:
@@ -218,7 +228,7 @@ def produce_test_lines(lines):
 @click.pass_context
 def setup_pyenv(ctx, config, old):
     _setup_robo_pyenv(ctx, config)
-    _setup_odoo_pyenv(ctx, config, old)
+    # _setup_odoo_pyenv(ctx, config, old)
 
 
 def is_robot_env_installed(config):
@@ -231,6 +241,7 @@ def _is_pyenv_installed(name):
 
 
 def _setup_odoo_pyenv(ctx, config, old):
+    raise Exception("outdated")
     from .odoo_config import MANIFEST
 
     name = config.project_name

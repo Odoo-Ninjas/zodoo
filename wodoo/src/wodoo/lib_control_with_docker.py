@@ -385,7 +385,7 @@ services:
         dest = config.files["debugging_composer"]
         dest = dest.parent / dest.name.replace(".yml", f".{i}.yml")
         shutil.copy(filepath, dest)
-        __replace_in_file(dest, "__PORT__", ports or "33284")
+        __replace_in_file(dest, "__PORT__", str(ports or "33284"))
         __replace_in_file(dest, "${NAME}", machine)
         __replace_in_file(
             dest, "${DOCKER_COMPOSE_VERSION}", config.YAML_VERSION
@@ -403,7 +403,7 @@ services:
     __dc(config, cmd_prefix + ["up", "-d", machine])
     if not set_docker_command:
         if not isinstance(cmd, (tuple, list)):
-            cmd = [cmd]
+            cmd = [cmd] if cmd else []
         if not cmd:
             attach(ctx, config, machine=machine)
         else:
