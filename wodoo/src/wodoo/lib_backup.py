@@ -48,13 +48,13 @@ except ImportError:
     click.echo("Failed to import python package: tabulate")
 
 
-@cli.group(cls=AliasedGroup)
+@cli.group(cls=AliasedGroup, help="Create backups of the database and filestore.")
 @pass_config
 def backup(config):
     pass
 
 
-@cli.group(cls=AliasedGroup)
+@cli.group(cls=AliasedGroup, help="Restore database and filestore from backup files.")
 @pass_config
 def restore(config):
     pass
@@ -63,7 +63,7 @@ def restore(config):
 from .tools import get_directory_size
 
 
-@backup.command()
+@backup.command(help="Show disk space used by the Odoo filestore.")
 @pass_config
 @click.pass_context
 def used_space_files(ctx, config):
@@ -131,7 +131,7 @@ def backup_all(ctx, config, filename):
     click.secho(f"Created dump-file {filename}", fg="green")
 
 
-@backup.command(name="odoo-db")
+@backup.command(name="odoo-db", help="Backup the Odoo database. Uses a default filename if no path is given.")
 @pass_config
 @click.pass_context
 @click.argument("filename", required=False, default="")
@@ -196,7 +196,7 @@ def backup_db(
     return filename
 
 
-@backup.command(name="files")
+@backup.command(name="files", help="Backup the Odoo filestore (attachments, images, etc.).")
 @click.argument("filename", required=False, default="")
 @pass_config
 def backup_files(config, filename):
@@ -223,7 +223,7 @@ def __get_default_backup_filename(config):
     )
 
 
-@restore.command("show-dump-type")
+@restore.command("show-dump-type", help="Detect the dump type of a backup file (custom, plain, wodoobin, etc.).")
 @click.argument("filename")
 @pass_config
 def get_dump_type(config, filename):
@@ -233,14 +233,14 @@ def get_dump_type(config, filename):
     click.echo(dump_type)
 
 
-@restore.command(name="list")
+@restore.command(name="list", help="List available backup files with age and size.")
 @pass_config
 def list_dumps(config):
     rows = _get_dump_files(Path(config.dumps_path))
     click.echo(tabulate(rows, ["Nr", "Filename", "Age", "Size"]))
 
 
-@restore.command(name="files")
+@restore.command(name="files", help="Restore the Odoo filestore from a backup archive.")
 @click.argument("filename", required=True)
 @pass_config
 def restore_files(config, filename):
@@ -369,7 +369,7 @@ def _after_restore(ctx, conn, config, no_dev_scripts, no_remove_webassets):
             remove_webassets(conn)
 
 
-@restore.command(name="odoo-db")
+@restore.command(name="odoo-db", help="Restore the Odoo database. Shows interactive file picker if no filename given. In DEVMODE resets passwords and disables mail/cronjobs.")
 @click.argument(
     "filename", required=False, default="", shell_complete=_shell_complete_file
 )

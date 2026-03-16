@@ -350,7 +350,43 @@ class DBModules:
             return state[1] in ["installed", "to upgrade"]
 
 
-def make_customs(config, ctx, path, version, odoosh):
+_AI_OUTPUT_FILES = {
+    "claude":   ["CLAUDE.md"],
+    "openai":   ["AGENTS.md"],
+    "gemini":   ["GEMINI.md"],
+    "cursor":   [".cursorrules"],
+    "windsurf": [".windsurfrules"],
+    "copilot":  [".github/copilot-instructions.md"],
+}
+
+
+def _write_ai_files(path, ai_tools, source_file):
+    """Write AI instruction files to *path* based on the *ai_tools* selection."""
+    if not source_file.exists():
+        return
+    content = source_file.read_text()
+    source_file.unlink()
+
+    if "none" in ai_tools:
+        return
+
+    if "all" in ai_tools:
+        targets = list(_AI_OUTPUT_FILES.values())
+    else:
+        targets = [
+            _AI_OUTPUT_FILES[t]
+            for t in ai_tools
+            if t in _AI_OUTPUT_FILES
+        ]
+
+    for filenames in targets:
+        for filename in filenames:
+            dest = path / filename
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(content)
+
+
+def make_customs(config, ctx, path, version, odoosh, ai_tools=("all",)):
     from gimera.gimera import apply as gimera
     from .tools import abort, whoami
     import click
@@ -387,6 +423,7 @@ def make_customs(config, ctx, path, version, odoosh):
         del versions
 
     copy_dir_contents(src_dir / version, path)
+    _write_ai_files(path, ai_tools, path / "AI_INSTRUCTIONS.md")
 
     manifest_file = path / "MANIFEST"
     manifest = ast.literal_eval(manifest_file.read_text())

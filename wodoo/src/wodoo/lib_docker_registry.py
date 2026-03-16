@@ -19,13 +19,13 @@ from .tools import update_setting
 from .tools import abort
 
 
-@cli.group(cls=AliasedGroup)
+@cli.group(cls=AliasedGroup, help="Docker registry operations: login, push, pull images.")
 @pass_config
 def docker_registry(config):
     pass
 
 
-@docker_registry.command()
+@docker_registry.command(help="Show or set the DOCKER_IMAGE_TAG for registry images.")
 @click.argument("name", required=False)
 @pass_config
 def tag(config, name):
@@ -39,7 +39,7 @@ def tag(config, name):
     click.secho(f"Hub URL: {config.HUB_URL}\n" f"tag: {name}", fg="green")
 
 
-@docker_registry.command()
+@docker_registry.command(help="Login to the Docker registry configured in HUB_URL.")
 @pass_config
 def login(config):
     hub = split_hub_url(config)
@@ -88,7 +88,7 @@ def _get_base_tag(config):
     return base_tag
 
 
-@docker_registry.command()
+@docker_registry.command(help="Push all images (incl. base images) to the configured registry.")
 @pass_config
 @click.option(
     "-b",
@@ -108,7 +108,7 @@ def regpush(ctx, config, baseimage, machines):
         subprocess.check_call(["docker", "push", tag])
 
 
-@docker_registry.command()
+@docker_registry.command(help="Pull all images from the registry. Requires REGISTRY=1 and HUB_URL to be set.")
 @click.option(
     "-b",
     "--baseimage",
@@ -138,7 +138,7 @@ def regpull(ctx, config, baseimage, machines):
     __dc(config, ["pull"] + list(machines))
 
 
-@docker_registry.command()
+@docker_registry.command(help="Trust a self-signed TLS certificate of the configured registry (requires root).")
 @pass_config
 def self_sign_hub_certificate(config):
     if os.getuid() != 0:

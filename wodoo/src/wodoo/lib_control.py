@@ -18,13 +18,13 @@ from .tools import _shell_complete_services
 from .tools import __rmtree
 
 
-@cli.group(cls=AliasedGroup)
+@cli.group(cls=AliasedGroup, help="Docker container management (up, down, build, exec, logs, ...).")
 @pass_config
 def docker(config):
     pass
 
 
-@docker.command()
+@docker.command(help="Pull all Docker images from the registry or Docker Hub.")
 @pass_config
 @click.pass_context
 def pull(ctx, config):
@@ -35,7 +35,7 @@ def pull(ctx, config):
         return lib_pull(ctx, config)
 
 
-@docker.command()
+@docker.command(help="Start containers in dev mode (combines build + up + watch).")
 @click.option("-b", "--build", is_flag=True)
 @click.option("-k", "--kill", is_flag=True)
 @pass_config
@@ -48,7 +48,7 @@ def dev(ctx, config, build, kill):
         return lib_dev(ctx, config, build, kill=kill)
 
 
-@docker.command(name="ps")
+@docker.command(name="ps", help="List running containers for this project.")
 @pass_config
 def ps(config):
     ensure_project_name(config)
@@ -58,7 +58,7 @@ def ps(config):
         return lib_ps(config)
 
 
-@docker.command(name="exec")
+@docker.command(name="exec", help="Execute a command inside a running container.")
 @click.argument(
     "machine", required=True, shell_complete=_shell_complete_machines
 )
@@ -78,7 +78,7 @@ def execute(config, machine, user, non_interactive, args):
         )
 
 
-@docker.command(name="kill")
+@docker.command(name="kill", help="Send SIGKILL to containers. Use -b/--brutal to skip graceful shutdown.")
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_machines)
 @click.option("-b", "--brutal", is_flag=True, help="dont wait")
 @click.option("-p", "--profile")
@@ -148,7 +148,7 @@ def remove_volumes(ctx, config, dry_run):
             click.secho("Dry Run - didnt do it.")
 
 
-@docker.command()
+@docker.command(help="Force-kill containers immediately (no graceful shutdown).")
 @pass_config
 @click.argument("machine", nargs=-1, shell_complete=_shell_complete_machines)
 @click.pass_context
@@ -159,7 +159,7 @@ def force_kill(ctx, config, machine):
         lib_force_kill(ctx, config, machine)
 
 
-@docker.command()
+@docker.command(help="Wait until the postgres container is ready to accept connections.")
 @pass_config
 def wait_for_container_postgres(config):
     if config.use_docker:
@@ -182,7 +182,7 @@ def wait_for_port(config, host, port):
         lib_wait_for_port(host, port)
 
 
-@docker.command()
+@docker.command(help="Recreate containers without rebuilding images.")
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_services)
 @pass_config
 @click.pass_context
@@ -194,7 +194,7 @@ def recreate(ctx, config, machines):
         lib_recreate(ctx, config, machines)
 
 
-@docker.command()
+@docker.command(help="Start containers. Use -d to run in background (daemon mode).")
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_services)
 @click.option("-d", "--daemon", is_flag=True)
 @click.option("--force-recreate", is_flag=True)
@@ -224,7 +224,7 @@ def up(ctx, config, machines, daemon, force_recreate, no_recreate):
         _status(config)
 
 
-@docker.command()
+@docker.command(help="Stop and remove containers. Use -v to also remove volumes (destroys data!). Requires -f on production.")
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_services)
 @click.option("-v", "--volumes", is_flag=True)
 @click.option("--remove-orphans", is_flag=True)
@@ -280,7 +280,7 @@ def down(
         _cleanup_config_files(ctx, config)
 
 
-@docker.command()
+@docker.command(help="Stop containers without removing them (state is preserved).")
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_machines)
 @pass_config
 @click.pass_context
@@ -291,7 +291,7 @@ def stop(ctx, config, machines):
     lib_stop(ctx, config, machines)
 
 
-@docker.command()
+@docker.command(help="Rebuild images and recreate containers.")
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_machines)
 @pass_config
 @click.pass_context
@@ -302,7 +302,7 @@ def rebuild(ctx, config, machines):
     lib_rebuild(ctx, config, machines)
 
 
-@docker.command()
+@docker.command(help="Restart containers. In devmode uses brutal (SIGKILL) restart.")
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_machines)
 @click.option("-p", "--profile", default="auto")
 @click.option(
@@ -329,7 +329,7 @@ def restart(ctx, config, machines, profile, force_recreate, no_recreate):
     )
 
 
-@docker.command()
+@docker.command(help="Remove stopped containers.")
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_machines)
 @click.option("-p", "--profile", default="auto")
 @pass_config
@@ -341,7 +341,7 @@ def rm(ctx, config, machines, profile):
     lib_rm(ctx, config, machines, profile=profile)
 
 
-@docker.command()
+@docker.command(help="Attach to a running container's stdin/stdout.")
 @click.argument(
     "machine", required=True, shell_complete=_shell_complete_machines
 )
@@ -420,7 +420,13 @@ def load_compose(config):
     return yaml.safe_load(config.files["docker_compose"].read_text())
 
 
-@docker.command()
+@docker.command(
+    help=(
+        "Start a container in debug mode. Inside the prompt type 'debug' + ENTER. "
+        "Then open https://<host>/debugpython in your browser to route your session "
+        "to the debug container. Reset with https://<host>/debugpython_off."
+    )
+)
 @click.argument(
     "machine", required=True, shell_complete=_shell_complete_services
 )
@@ -455,7 +461,7 @@ def debug(ctx, config, machine, ports, command, port, set_docker_command):
     )
 
 
-@cli.command()
+@cli.command(help="Run a one-off command in a new container instance.")
 @click.argument(
     "machine", required=True, shell_complete=_shell_complete_services
 )
@@ -473,7 +479,7 @@ def run(ctx, config, machine, detached, name, args, **kwparams):
     )
 
 
-@cli.command()
+@cli.command(help="Run a bash shell in a new container instance.")
 @click.argument(
     "machine", required=True, shell_complete=_shell_complete_services
 )
@@ -487,7 +493,7 @@ def runbash(ctx, config, machine, args, **kwparams):
     lib_runbash(ctx, config, machine, args, **kwparams)
 
 
-@cli.command(name="logs")
+@cli.command(name="logs", help="Show container logs. Use -f to follow, -n for line count.")
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_machines)
 @click.option("-n", "--lines", required=False, type=int, default=200)
 @click.option("-f", "--follow", is_flag=True)
@@ -499,7 +505,7 @@ def logall(config, machines, follow, lines):
     lib_logall(config, machines, follow, lines)
 
 
-@docker.command()
+@docker.command(help="Open an interactive Odoo Python shell inside the running container.")
 @click.argument("command", nargs=-1)
 @click.option(
     "-q",
