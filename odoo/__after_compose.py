@@ -563,4 +563,4 @@ def _eval_setting_common_filestore(config, settings, globals):
 
         # Verzeichnis entfernen und durch Symlink auf _common ersetzen
         shutil.rmtree(entry)
-        entry.symlink_to(common_dir)
+        entry.symlink_to("_common")
