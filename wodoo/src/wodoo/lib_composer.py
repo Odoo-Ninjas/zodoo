@@ -1930,12 +1930,17 @@ def setup_vscode_settings(config):
     for path in manifest["addons_paths"]:
         content["python.analysis.extraPaths"].append(f"{root}/{path}")
 
-    content["robotcode.robot.python"] = str(
-        Path(os.environ["HOME"]) / ".pyenv/versions/zodoo-robot"
-    )
     from .lib_setup import is_robot_env_installed
 
-    if not is_robot_env_installed(config):
+    robo_installed = is_robot_env_installed(config)
+    show_robo_warn = False
+    if "robotcode.python" not in content:
+        show_robo_warn = True
+
+    if not robo_installed:
+        show_robo_warn = True
+
+    if show_robo_warn:
         click.secho(
             "Warning: please setup robot pyenv so that tests appear in your vscode: odoo setup-pyenv",
             fg="yellow",

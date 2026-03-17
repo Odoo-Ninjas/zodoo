@@ -290,7 +290,7 @@ def _setup_robo_pyenv(ctx, config):
         config.dirs["images"] / "robot" / "requirements.txt",
         python_version,
     )
-    vscode_setting("robotcode.pythonPath", str(pyexec))
+    vscode_setting("robotcode.python", str(pyexec))
 
 
 def _setup_pyenv(ctx, config, name, old, reqfile, python_version):
