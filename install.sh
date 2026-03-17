@@ -49,7 +49,8 @@ echo "📦 Installing $SRC_DIR via pipx..."
 # ubuntu 20.04 has no -f flag
 PYTHONARG=()
 if [[ "$OS" == "Darwin" ]]; then
-    PYTHONARG=(--python python3.12)
+    DARWIN_PYTHON=$(cat "$TARGET_DIR/darwin_python_version")
+    PYTHONARG=(--python "python${DARWIN_PYTHON}")
 fi
 pipx install -e "$SRC_DIR" -f ${PYTHONARG[@]} || \
 pipx install -e "$SRC_DIR" ${PYTHONARG[@]}

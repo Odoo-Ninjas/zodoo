@@ -195,14 +195,19 @@ def upgrade(ctx, config, no_install):
 
 
 def _reinstall():
-    path = os.path.expanduser("~/.odoo/images/wodoo/src")
+    images_dir = Path(os.path.expanduser("~/.odoo/images"))
+    path = str(images_dir / "wodoo" / "src")
     try:
         subprocess.check_call(["pipx", "uninstall", "wodoo"], shell=False)
     except subprocess.CalledProcessError:
         pass
-    subprocess.check_call(
-        ["pipx", "install", "--force", "-e", path], shell=False
-    )
+    cmd = ["pipx", "install", "--force", "-e", path]
+    if on_osx():
+        python_version = (
+            (images_dir / "darwin_python_version").read_text().strip()
+        )
+        cmd.extend(["--python", f"python{python_version}"])
+    subprocess.check_call(cmd, shell=False)
 
 
 @setup.command(help="Reinstall wodoo python")
