@@ -241,8 +241,9 @@ def is_robot_env_installed(config):
 
 
 def _is_pyenv_installed(name):
-    path = os.path.expanduser(f"~/.pyenv/versions/{name}")
-    return os.path.isdir(path)
+    path = Path(os.path.expanduser(f"~/.pyenv/versions/{name}"))
+    if path.exists():
+        return str(path / "bin" / "python")
 
 
 def _setup_odoo_pyenv(ctx, config, old):

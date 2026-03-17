@@ -1932,15 +1932,12 @@ def setup_vscode_settings(config):
 
     from .lib_setup import is_robot_env_installed
 
-    robo_installed = is_robot_env_installed(config)
-    show_robo_warn = False
+    robo_path = is_robot_env_installed(config)
     if "robotcode.python" not in content:
-        show_robo_warn = True
+        if robo_path:
+            content["robotcode.python"] = robo_path
 
-    if not robo_installed:
-        show_robo_warn = True
-
-    if show_robo_warn:
+    if not robo_path:
         click.secho(
             "Warning: please setup robot pyenv so that tests appear in your vscode: odoo setup-pyenv",
             fg="yellow",
