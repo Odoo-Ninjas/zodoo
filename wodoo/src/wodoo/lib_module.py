@@ -1604,6 +1604,9 @@ def list_robot_test_files(config):
 @click.option("-t", "--tags", is_flag=True)
 @click.option("--output-json", is_flag=True)
 @click.option("--log", is_flag=True)
+@click.option(
+    "--no-debug", is_flag=True, help="Disable interactive debugging (pudb)"
+)
 @pass_config
 def unittest(
     config,
@@ -1614,6 +1617,7 @@ def unittest(
     output_json,
     tags,
     log,
+    no_debug,
 ):
     """
     Collects unittest files and offers to run
@@ -1664,6 +1668,9 @@ def unittest(
     if non_interactive:
         interactive = False
     del non_interactive
+
+    if no_debug:
+        interactive = False
 
     if remote_debug:
         params += ["--remote-debug"]

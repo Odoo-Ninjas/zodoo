@@ -67,7 +67,9 @@ def composer(config):
     pass
 
 
-@composer.command(help="Show the effective docker-compose config (merged from all sources).")
+@composer.command(
+    help="Show the effective docker-compose config (merged from all sources)."
+)
 @click.option(
     "-f", "--full", is_flag=True, help="Otherwise environment is shortened."
 )
@@ -1672,7 +1674,9 @@ def setting(ctx, config, settings, no_reload, user_wide, system_wide):
         raise NotImplementedError(mode)
 
 
-@composer.command(help="Read or patch a service definition in docker-compose.yml.")
+@composer.command(
+    help="Read or patch a service definition in docker-compose.yml."
+)
 @pass_config
 @click.pass_context
 @click.argument("name", required=True, shell_complete=_shell_complete_services)
@@ -1695,7 +1699,9 @@ def docker_service(ctx, config, name, value, no_reload, file):
         ctx.invoke(do_reload)
 
 
-@composer.command(help="Show all effective settings (merged from all settings files).")
+@composer.command(
+    help="Show all effective settings (merged from all settings files)."
+)
 @pass_config
 @click.pass_context
 def show_effective_settings(ctx, config):
@@ -1706,7 +1712,9 @@ def show_effective_settings(ctx, config):
         click.echo(f"{k}={config[k]}")
 
 
-@composer.command(help="Configure queuejob channel worker counts. Without args shows current config.")
+@composer.command(
+    help="Configure queuejob channel worker counts. Without args shows current config."
+)
 @click.argument("name", required=False)
 @click.argument("amount", required=False, type=int)
 @pass_config
@@ -1780,13 +1788,14 @@ def get_host_info():
 
 
 def final_notes(config):
-    if on_osx() or on_windows_wsl():
-        if not config.dirs["pyenv"].exists():
-            click.secho(
-                "\nPlease setup your local python environment with pyenv to debug locally.\n",
-                fg="yellow",
-            )
-            click.secho("odoo setup-pyenv", fg="green", bold=True)
+    # if on_osx() or on_windows_wsl():
+    #     if not config.dirs["pyenv"].exists():
+    #         click.secho(
+    #             "\nPlease setup your local python environment with pyenv to debug locally.\n",
+    #             fg="yellow",
+    #         )
+    #         click.secho("odoo setup-pyenv", fg="green", bold=True)
+    pass
 
 
 def setup_launch_json(config):
