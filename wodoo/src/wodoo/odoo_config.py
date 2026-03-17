@@ -141,6 +141,15 @@ class MANIFEST_CLASS:
 
     def _update(self, d):
         d["install"] = list(sorted(set(d["install"])))
+        # remove the system addons path again
+        system_addons_paths = d.get("addons_paths_system", [])
+        if system_addons_paths:
+            d["addons_paths"] = [
+                p
+                for p in d.get("addons_paths", [])
+                if p not in system_addons_paths
+            ]
+
         s = json.dumps(d, indent=4)
         fd, tmp = tempfile.mkstemp(suffix=".MANIFEST")
         try:
