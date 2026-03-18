@@ -6,7 +6,7 @@ from .tools import __dc
 
 
 def _rsync_image_name(config):
-    return f"{config.PROJECT_NAME}-rsync:latest"
+    return f"{config.project_name}-rsync:latest"
 
 
 def __get_snapshots(config):

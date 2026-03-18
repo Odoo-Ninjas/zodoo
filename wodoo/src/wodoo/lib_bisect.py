@@ -259,10 +259,9 @@ def run(config, ctx, one):
         _save(data)
 
     def _set_projectname():
-        current_projectname = config.PROJECT_NAME
+        current_projectname = config.project_name
         name = _get_projectname()
         config.project_name = name
-        config.PROJECT_NAME = name
         os.environ["project_name"] = name
         os.environ["PROJECT_NAME"] = name
 

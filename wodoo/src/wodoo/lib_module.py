@@ -1102,7 +1102,7 @@ def _exec_commands(ctx, config, commands):
     for command in commands:
         cmd = (
             [sys.executable, sys.argv[0]]
-            + ["-p", config.PROJECT_NAME]
+            + ["-p", config.project_name]
             + command
         )
         env = deepcopy(os.environ)

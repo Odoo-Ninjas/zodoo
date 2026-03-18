@@ -360,7 +360,7 @@ def _wait_postgres(config, timeout=600):
                     "-q",
                     "--no-trunc",
                     "--filter",
-                    f"name=^/{config.PROJECT_NAME}_postgres$",
+                    f"name=^/{config.project_name}_postgres$",
                 ],
                 encoding="utf8",
             )
