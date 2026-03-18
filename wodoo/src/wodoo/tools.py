@@ -2082,7 +2082,7 @@ def _get_available_robottests(ctx, param, incomplete):
 
 
 def _get_available_modules(ctx, param, incomplete):
-    from .odoo_config import MANIFEST
+    from .odoo_config import MANIFEST, customs_dir
 
     try:
         manifest = MANIFEST()
@@ -2090,7 +2090,18 @@ def _get_available_modules(ctx, param, incomplete):
             raise Exception("no manifest")
     except Exception:
         return []
-    modules = manifest["install"]
+    modules = set()
+    root = customs_dir()
+    if root:
+        for addons_path in manifest.get("addons_paths", []):
+            p = root / addons_path
+            if not p.is_dir():
+                continue
+            for child in p.iterdir():
+                if child.is_dir() and (child / "__manifest__.py").exists():
+                    modules.add(child.name)
+    if not modules:
+        modules = set(manifest.get("install", []))
     if incomplete:
         modules = [x for x in modules if incomplete in x]
     return sorted(modules)

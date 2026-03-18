@@ -37,7 +37,7 @@ def restore(ctx, config, snap):
     __dc(config, ["stop", "-t", "1"] + ["postgres"])
     volumes = list(
         filter(
-            lambda f: f.startswith(config.project_name),
+            lambda f: f.startswith(config.dbname + "___"),
             map(
                 lambda x: x.strip(),
                 subprocess.run(
