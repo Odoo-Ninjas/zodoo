@@ -1233,7 +1233,7 @@ def sync_folder(dir, dest_dir, excludes=None):
                 ],
             )
         )
-        for exclude in excludes or []:
+        for exclude in list(excludes or []) + ["__pycache__", "*.pyc"]:
             cmd += [f"--exclude={exclude}"]
         subprocess.check_call(cmd)
     else:
