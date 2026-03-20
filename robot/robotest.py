@@ -373,6 +373,7 @@ if __name__ == "__main__":
     os.environ["ROBOT_REMOTE_DEBUGGING"] = "1" if params.get("debug") else "0"
     if params["params"].get("headless"):
         os.environ["MOZ_HEADLESS"] = "1"
+        os.environ["BROWSER_HEADLESS"] = "1"
         restart_selenium_driver()
 
     if not smoketestselenium():
