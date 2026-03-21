@@ -1208,6 +1208,7 @@ def rsync_progress_param():
         return "--progress"
 
 
+@retry(wait_random_min=1000, wait_random_max=5000, stop_max_attempt_number=5)
 def sync_folder(dir, dest_dir, excludes=None):
     import platform
 
@@ -1240,6 +1241,7 @@ def sync_folder(dir, dest_dir, excludes=None):
         raise NotImplementedError()
 
 
+@retry(wait_random_min=1000, wait_random_max=5000, stop_max_attempt_number=5)
 def rsync(src, dest, options="-ar", exclude=None):
     exclude = exclude or ""
     exclude_option = []
@@ -1256,16 +1258,7 @@ def copy_dir_contents(dir, dest_dir, exclude=None):
     assert dir.is_dir()
     assert dest_dir.is_dir()
     exclude = exclude or []
-    files = list(dir.glob("*"))
-    for x in files:
-        if exclude:
-            if x.name in exclude:
-                continue
-        dest_path = (dest_dir / x.name).absolute()
-        if not x.is_dir():
-            shutil.copy(str(x.absolute()), str(dest_path))
-        else:
-            shutil.copytree(str(x.absolute()), str(dest_path))
+    rsync(dir, dest_dir, options=["-ar"], exclude=exclude)
     __try_to_set_owner(whoami(), dest_dir, abort_if_failed=False)
 
 
