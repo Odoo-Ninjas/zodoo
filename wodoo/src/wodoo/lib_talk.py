@@ -714,7 +714,7 @@ def fix_permissions(config, paths):
     import os
     import subprocess
 
-    uid = config.owner_uid
+    uid = config.owner_uid or os.getuid()
 
     if paths:
         dirs_to_fix = [os.path.abspath(os.path.expanduser(p)) for p in paths]
