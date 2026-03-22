@@ -8,8 +8,6 @@ from .tools import _askcontinue
 from .tools import remove_webassets
 from .cli import cli, pass_config, Commands
 from .lib_clickhelpers import AliasedGroup
-from .tools import __try_to_set_owner
-from .tools import whoami
 from .tools import abort
 from .tools import is_git_clean
 from .tools import on_osx, on_windows_wsl
@@ -191,7 +189,7 @@ def upgrade(ctx, config, no_install):
     else:
         if not no_install:
             _reinstall()
-    __try_to_set_owner(whoami(), config.dirs["images"], abort_if_failed=False)
+    _fix_permissions(config, [str(config.dirs["images"])])
 
 
 def _reinstall():
@@ -434,4 +432,50 @@ def _get_package_version(python, name):
         raise FileNotFoundError(f"Package {name} not found.")
 
 
+def _fix_permissions(config, dirs_to_fix):
+    uid = config.owner_uid or os.getuid()
+
+    for path in dirs_to_fix:
+        if not os.path.exists(path):
+            click.secho(f"Skipping (does not exist): {path}", fg="red")
+            continue
+
+        click.secho(f"Fixing {path} to {uid} ...", fg="yellow")
+        cmd = [
+            "docker", "run", "--rm",
+            "-v", f"{path}:{path}",
+            "ubuntu:22.04",
+            "find", path, "-not", "-type", "l",
+            "-not", "-user", str(uid),
+            "-exec", "chown", str(uid), "{}", "+",
+        ]
+        try:
+            subprocess.check_call(cmd)
+            click.secho(f"  OK: {path}", fg="green")
+        except subprocess.CalledProcessError as ex:
+            click.secho(f"  FAILED: {path}: {ex}", fg="red")
+
+
+@setup.command(help="Fix directory permissions via a Docker container (no sudo needed).")
+@click.argument("paths", required=False, nargs=-1)
+@pass_config
+def fix_permissions(config, paths):
+    if paths:
+        dirs_to_fix = [os.path.abspath(os.path.expanduser(p)) for p in paths]
+    else:
+        dirs_to_fix = []
+        for key in ["images", "run", "odoo_data_dir", "user_conf_dir"]:
+            p = config.dirs.get(key)
+            if p:
+                p = str(p)
+                if os.path.exists(p):
+                    dirs_to_fix.append(p)
+
+    if not dirs_to_fix:
+        raise click.ClickException("No directories found to fix.")
+
+    _fix_permissions(config, dirs_to_fix)
+
+
 Commands.register(status)
+Commands.register(fix_permissions)

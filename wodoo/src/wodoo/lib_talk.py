@@ -707,49 +707,4 @@ def is_in_container():
     print("docker container" if _is_in_container() else "no container")
 
 
-@talk.command(help="Fix directory permissions via a Docker container (no sudo needed).")
-@click.argument("paths", required=False, nargs=-1)
-@pass_config
-def fix_permissions(config, paths):
-    import os
-    import subprocess
-
-    uid = config.owner_uid or os.getuid()
-
-    if paths:
-        dirs_to_fix = [os.path.abspath(os.path.expanduser(p)) for p in paths]
-    else:
-        dirs_to_fix = []
-        for key in ["run", "odoo_data_dir", "user_conf_dir"]:
-            p = config.dirs.get(key)
-            if p:
-                p = str(p)
-                if os.path.exists(p):
-                    dirs_to_fix.append(p)
-
-    if not dirs_to_fix:
-        raise click.ClickException("No directories found to fix.")
-
-    for path in dirs_to_fix:
-        if not os.path.exists(path):
-            click.secho(f"Skipping (does not exist): {path}", fg="red")
-            continue
-
-        click.secho(f"Fixing {path} to {uid} ...", fg="yellow")
-        cmd = [
-            "docker", "run", "--rm",
-            "-v", f"{path}:{path}",
-            "ubuntu:22.04",
-            "find", path, "-not", "-type", "l",
-            "-not", "-user", str(uid),
-            "-exec", "chown", str(uid), "{}", "+",
-        ]
-        try:
-            subprocess.check_call(cmd)
-            click.secho(f"  OK: {path}", fg="green")
-        except subprocess.CalledProcessError as ex:
-            click.secho(f"  FAILED: {path}: {ex}", fg="red")
-
-
 Commands.register(progress)
-Commands.register(fix_permissions)
