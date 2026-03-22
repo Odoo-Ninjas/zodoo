@@ -119,6 +119,51 @@ def _get_arch():
         return arch
 
 
+_RELOAD_LOCK_TIMEOUT = 300  # 5 minutes
+
+
+def _acquire_reload_lock(lock_file):
+    """Acquire a file-based lock. Stale locks older than 5 minutes are removed."""
+    lock_file = Path(lock_file)
+    while True:
+        if lock_file.exists():
+            try:
+                age = time.time() - lock_file.stat().st_mtime
+            except FileNotFoundError:
+                continue
+            if age > _RELOAD_LOCK_TIMEOUT:
+                click.secho(
+                    f"Removing stale reload lock (age: {int(age)}s)",
+                    fg="yellow",
+                )
+                try:
+                    lock_file.unlink()
+                except FileNotFoundError:
+                    pass
+            else:
+                click.secho(
+                    f"Waiting for reload lock (age: {int(age)}s) ...",
+                    fg="yellow",
+                )
+                time.sleep(3)
+                continue
+        try:
+            fd = os.open(str(lock_file), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.write(fd, str(os.getpid()).encode())
+            os.close(fd)
+            return
+        except FileExistsError:
+            continue
+
+
+def _release_reload_lock(lock_file):
+    """Release the reload lock."""
+    try:
+        Path(lock_file).unlink()
+    except FileNotFoundError:
+        pass
+
+
 @composer.command(
     name="reload", help="Switches to project in current working directory."
 )
@@ -179,6 +224,11 @@ def do_reload(
     click.secho(
         f"Current Project Name: {config.project_name}", bold=True, fg="green"
     )
+
+    # Global lock to prevent concurrent reloads on the same machine
+    lock_file = Path(os.environ["HOME"]) / ".odoo" / ".reload.lock"
+    _acquire_reload_lock(lock_file)
+
     SETTINGS_FILE = config.files.get("settings")
     if SETTINGS_FILE and SETTINGS_FILE.exists():
         SETTINGS_FILE.unlink()
@@ -244,6 +294,7 @@ def do_reload(
     finally:
         if additional_config_file and additional_config_file.exists():
             additional_config_file.unlink()
+        _release_reload_lock(lock_file)
 
     setup_launch_json(config)
     final_notes(config)
