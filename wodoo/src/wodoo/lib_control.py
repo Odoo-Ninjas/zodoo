@@ -143,6 +143,32 @@ def remove_volumes(ctx, config, dry_run):
                             )
                             time.sleep(2)
                             counter += 1
+                    else:
+                        click.secho(
+                            f"Volume {vol} could not be removed after retries. "
+                            "Trying fix_permissions...",
+                            fg="yellow",
+                        )
+                        from .lib_setup import _fix_permissions
+                        vol_path = subprocess.run(
+                            ["docker", "volume", "inspect", "--format",
+                             "{{ .Mountpoint }}", vol],
+                            encoding="utf8",
+                            capture_output=True,
+                        )
+                        if vol_path.returncode == 0 and vol_path.stdout.strip():
+                            _fix_permissions(config, [vol_path.stdout.strip()])
+                        try:
+                            subprocess.check_output(
+                                ["docker", "volume", "rm", "-f", vol],
+                                encoding="utf8",
+                            )
+                            click.secho(f"  Removed {vol} after fix_permissions.", fg="green")
+                        except Exception:
+                            click.secho(
+                                f"  Volume {vol} still could not be removed.",
+                                fg="red",
+                            )
 
         if dry_run:
             click.secho("Dry Run - didnt do it.")
