@@ -144,10 +144,20 @@ def start_container(
             image_name,
         ]
         click.secho(f"Starting container '{container_name}'...", fg="blue")
-        try:
-            subprocess.run(cmd, check=True)
-        except subprocess.CalledProcessError as e:
-            abort(str(e))
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            # Race condition: another process created the container between
+            # our check and docker run. Try starting the existing one.
+            if "is already in use" in (result.stderr or ""):
+                click.secho(
+                    f"Container '{container_name}' already exists, starting it...",
+                    fg="yellow",
+                )
+                subprocess.run(
+                    ["docker", "start", container_name], check=False
+                )
+            else:
+                abort(result.stderr or str(result.returncode))
         click.secho(
             f"Container '{container_name}' started on port {port_mapping}.",
             fg="green",
