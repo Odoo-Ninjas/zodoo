@@ -63,7 +63,7 @@ def do_list(config):
     snapshots = list(config.snapshot_manager.__get_snapshots(config))
     from tabulate import tabulate
 
-    rows = [(x["name"], x["date"], x["path"]) for x in snapshots]
+    rows = [(x["name"], x["date"], x.get("path", "")) for x in snapshots]
     click.echo(tabulate(rows, ["Name", "Date", "Path"]))
 
 
@@ -79,7 +79,7 @@ def snapshot_make(ctx, config, name):
 
     # remove existing snaps
     snapshot = config.snapshot_manager.make_snapshot(ctx, config, name)
-    click.secho("Made snapshot: {}".format(snapshot), fg="green")
+    click.secho(f"Made snapshot: {snapshot}", fg="green")
 
 
 @snapshot.command(name="restore")

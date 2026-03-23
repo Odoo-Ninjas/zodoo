@@ -150,6 +150,26 @@ def _status(config):
         click.secho(f"{key}:", nl=False, fg=color)
         click.secho(getattr(config, key))
 
+    msg_file = config.files["project_msg"]
+    if msg_file.exists():
+        msg = msg_file.read_text().strip()
+        if msg:
+            click.secho("")
+            click.secho(msg, fg="cyan")
+
+
+@setup.command(
+    name="edit-msg", help="Edit the project message shown in status."
+)
+@pass_config
+def edit_msg(config):
+    msg_file = config.files["project_msg"]
+    if not msg_file.exists():
+        msg_file.parent.mkdir(parents=True, exist_ok=True)
+        msg_file.write_text("")
+    editor = os.environ.get("EDITOR", "vi")
+    subprocess.call([editor, str(msg_file)])
+
 
 @click.option("-I", "--no-install", is_flag=True)
 @setup.command(help="Upgrade wodoo")
@@ -479,3 +499,4 @@ def fix_permissions(config, paths):
 
 Commands.register(status)
 Commands.register(fix_permissions)
+Commands.register(edit_msg)

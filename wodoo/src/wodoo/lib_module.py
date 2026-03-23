@@ -1183,6 +1183,12 @@ def show_dangling():
     return bool(dangling)
 
 
+@cli.command(name="dangling-modules", help="Show dangling modules.")
+@pass_config
+def dangling_modules(config):
+    show_dangling()
+
+
 def _do_check_install_state(
     ctx, config, module, all_modules, no_dangling_check
 ):
@@ -2241,3 +2247,4 @@ class ProgressBarDaemon(threading.Thread):
 Commands.register(update)
 Commands.register(show_install_state)
 Commands.register(uninstall)
+Commands.register(dangling_modules)
