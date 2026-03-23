@@ -42,7 +42,7 @@ def watch_file_and_kill():
                 os.system(f"watch -n0.1 pkill -3 -f python3")
 
 
-class Debugger(object):
+class Debugger:
     def __init__(
         self,
         sync_common_modules,
@@ -70,8 +70,9 @@ class Debugger(object):
             cmd = ["python3"] + cmd
         env2 = os.environ.copy()
         env2["ODOO_DEBUGGING"] = "1"
-        # odoo 16 was debuggable only if this was not set
-        # env2["GEVENT_SUPPORT"] = "True"
+        # Don't set GEVENT_SUPPORT=True - it breaks breakpoints.
+        # Instead suppress the pydevd warning message that spams the log.
+        env2["GEVENT_SUPPORT_NOT_SET_MSG"] = ""
         proc = subprocess.run(cmd, cwd=self.odoolib_path, env=env2)  # exitcode
         res = proc.returncode == 0
         sane_tty()
@@ -304,7 +305,7 @@ class Debugger(object):
 @click.option("-qe", "--enable-queuejobs", is_flag=True)
 @click.option("-w", "--wait-for-remote", is_flag=True)
 @click.option("-r", "--remote-debugging", is_flag=True)
-@click.option("-W", "--web-workers", default=2)
+@click.option("-W", "--web-workers", default=0)
 @click.option("-p", "--profile", is_flag=True)
 @click.option("-l", "--loglevel", default="info")
 @click.option("--one-action")

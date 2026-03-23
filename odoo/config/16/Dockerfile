@@ -100,7 +100,7 @@ RUN pip3 install $(cat /etc/pip_options) -r /root/pip_requirements.txt --force -
 RUN echo "$ODOO_FRAMEWORK_REQUIREMENTS"  | base64 --decode > /root/framework_requirements.txt
 RUN pip3 install $(cat /etc/pip_options) -r /root/framework_requirements.txt
 
-RUN pip3 install $(cat /etc/pip_options) pudb ipython debugpy
+RUN pip3 install $(cat /etc/pip_options) pudb ipython "debugpy>=1.8.12"
 
 #___SNIPPET_OPENUPGRADELIB___
 
