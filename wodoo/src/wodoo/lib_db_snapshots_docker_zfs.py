@@ -1,17 +1,14 @@
 """
-To be able to do snapshots: the volumes folder must be a child of a zfs filesystem:
-zfs create zfs_pool1/docker
-zfs create zfs_pool1/docker/volumes
+ZFS snapshots for Docker postgres volumes.
 
+Supports two setups:
+  A) /var/lib/docker/volumes is its own ZFS dataset (e.g. pool/docker/volumes)
+  B) /var/lib/docker is a ZFS dataset (e.g. tank1/docker) and volumes/ is
+     just a subdirectory — individual volumes are promoted to child datasets
+     with explicit mountpoints.
 
-zfs list -o name,usedbychildren     #
-docker/vlsa039t563j1yi1k4hum45or                                                0B
-docker/volumes                                                                100K
-docker/volumes/t1                                                               0B
-docker/w0lqy0goq0ylqmt0pipsrjoxt                                                0B
-docker/w0v9nokwbqazajfri0u3k5cor                                                0B
-better: zfs get -H -o value usedbychildren docker/volumes  mit -1 oder nicht
-
+In case B the ZFS dataset name becomes <pool>/<postgresname> and the
+mountpoint is set explicitly to /var/lib/docker/volumes/<postgresname>.
 """
 
 import inquirer
@@ -33,15 +30,11 @@ from .tools import rsync_progress_param
 
 HOWTO_PREPARE = """
 
-Preperation docker - be careful - make backups
+Works if /var/lib/docker itself sits on a ZFS dataset.
+Individual postgres volumes are promoted to child ZFS datasets
+automatically on first snapshot (odoo snapshot save).
 
-systemctl stop docker
-mv /var/lib/docker /var/lib/docker.old
-mkdir -p /var/lib/docker/volumes
-zfs create -p rpool/.../var/lib/docker/volumes
-rsync /var/lib/docker.old/ /var/lib/docker/ -arP
-rm -Rf /var/lib/docker.old
-systemctl start docker
+No extra preparation needed beyond having /var/lib/docker on ZFS.
 
 """
 
@@ -92,43 +85,15 @@ def _get_path(config):
 CACHE_ZFS_PATH = None
 
 
-def check_correct_zfs_setup(config):
-    # get mountpoint of zfs pool or zfs
-    PATH = docker_volume_path()
-    if not __is_zfs_fs(PATH):
-        return
-    zfspool_or_zfsvolume = _get_zfs_pool_or_zfs_parent(PATH)
-    zfspool_mountpath = (
+def _get_zfs_mountpoint(zfs_dataset):
+    """Return the mountpoint of a ZFS dataset."""
+    return (
         subprocess.check_output(
-            [
-                "zfs",
-                "get",
-                "-H",
-                "-o",
-                "value",
-                "mountpoint",
-                zfspool_or_zfsvolume,
-            ],
+            ["sudo", zfs, "get", "-H", "-o", "value", "mountpoint", zfs_dataset],
             encoding="utf8",
         )
-        .splitlines()[-1]
         .strip()
     )
-    relative_path_to_mountpath = Path(PATH).relative_to(zfspool_mountpath)
-
-    if relative_path_to_mountpath.parts:
-        abort(
-            "\nZFS Misconfiguration detected\n------------------------------------\n"
-            "There mustn't be any relative path "
-            f'between the zfs pool or parent zfs "{zfspool_or_zfsvolume}" \nand the mountpoint '
-            f"{PATH}/somevolume. \n"
-            f"To solve this, create a zfs mounted at {PATH} e.g. with \n"
-            "zfs create pool1/docker_volumes \n"
-            "zfs set compression=on pool1/docker_volumes \n"
-            f"zfs set mountpoint={PATH} pool1/docker_volumes \n"
-            "\n\n"
-            "And restart docker."
-        )
 
 
 def _get_zfs_pool_or_zfs_parent(path):
@@ -147,11 +112,13 @@ def _get_zfs_pool_or_zfs_parent(path):
 
 def _get_zfs_path(config):
     """
-    takes the postgresname and translates:
-    pg1 --> /var/lib/docker/volumes/pg1 --> /dockervolumes/pg1
+    Takes the postgresname and translates to the ZFS dataset name.
 
-    Doesnt matter if pg1 is already a snapshot or not
-
+    Handles both setups:
+      - /var/lib/docker/volumes is its own ZFS dataset
+        → pool/volumes/<postgresname>
+      - /var/lib/docker is the ZFS dataset (volumes/ is a plain dir)
+        → pool/docker/<postgresname>  (with explicit mountpoint)
     """
     global CACHE_ZFS_PATH
     if CACHE_ZFS_PATH is None:
@@ -166,10 +133,6 @@ def _get_zfs_path(config):
         if fstype[1].strip() != "zfs":
             abort(f"No zfs pool found for {PATH}")
 
-        check_correct_zfs_setup(config)
-
-        # TARGET                  SOURCE        FSTYPE OPTIONS
-        # /var/lib/docker/volumes dockervolumes zfs    rw,relatime,xattr,noacl,casesensitive
         CACHE_ZFS_PATH = str(Path(zfspool) / postgresname)
     return CACHE_ZFS_PATH
 
@@ -257,6 +220,8 @@ def assert_environment(config):
 def _turn_into_subvolume(config):
     """
     Makes a zfs volume out of a path.
+    Sets an explicit mountpoint so it works even when /var/lib/docker/volumes
+    is not its own ZFS dataset.
     """
     if config.NAMED_ODOO_POSTGRES_VOLUME:
         abort("Not compatible with NAMED_ODOO_POSTGRES_VOLUME by now.")
@@ -277,7 +242,19 @@ def _turn_into_subvolume(config):
 
     shutil.move(fullpath, filename)
     try:
-        subprocess.check_output(["sudo", zfs, "create", fullpath_zfs])
+        subprocess.check_output([
+            "sudo", zfs, "create",
+            "-o", f"mountpoint={fullpath}",
+            fullpath_zfs,
+        ])
+        click.secho(
+            "\n"
+            "!!! WARNING - DO NOT INTERRUPT !!!\n"
+            "!!! Files are being copied back - aborting will cause DATA LOSS !!!\n"
+            "\n",
+            fg="red",
+            bold=True,
+        )
         click.secho(
             f"Writing back the files to original position: from {filename}/ to {fullpath}/"
         )
@@ -372,10 +349,15 @@ def restore(ctx, config, name):
 
     __dc(config, ["stop", "-t", "1"] + ["postgres"])
     full_next_path = _get_next_snapshotpath(config)
+    disk_path = _get_path(config)
     _try_umount(config)
     if _is_zfs_path(zfs_full_path):
         subprocess.check_call(
             ["sudo", zfs, "rename", zfs_full_path, full_next_path]
+        )
+        # prevent renamed dataset from claiming the same mountpoint
+        subprocess.check_call(
+            ["sudo", zfs, "set", "canmount=noauto", full_next_path]
         )
     snap_name = snapshot["fullpath"].split("@")[-1]
     snapshot_path = _get_zfs_path_for_snap_name(config, snap_name)
@@ -384,6 +366,7 @@ def restore(ctx, config, name):
         "sudo",
         zfs,
         "clone",
+        "-o", f"mountpoint={disk_path}",
         snapshot_path,
         zfs_full_path,
     ]
