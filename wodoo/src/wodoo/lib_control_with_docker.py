@@ -198,6 +198,7 @@ def up(
     profile="all",
     force_recreate=False,
     no_recreate=None,
+    allow_build=False,
 ):
     machines = list(machines)
     from .consts import resolve_profiles
@@ -205,8 +206,9 @@ def up(
     options = [
         # '--remove-orphans', # lost data with that; postgres volume suddenly new after rm?
         #'--compatibility' # to support reousrce limit swarm mode
-        "--no-build",
     ]
+    if not allow_build:
+        options += ["--no-build"]
     if force_recreate:
         options += ["--force-recreate"]
     if no_recreate:

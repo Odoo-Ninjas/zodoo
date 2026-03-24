@@ -227,7 +227,7 @@ def recreate(ctx, config, machines):
 @click.option("--no-recreate", is_flag=True)
 @pass_config
 @click.pass_context
-def up(ctx, config, machines, daemon, force_recreate, no_recreate):
+def up(ctx, config, machines, daemon, force_recreate, no_recreate, allow_build=False):
     ensure_project_name(config)
     from .lib_setup import _status
     from .lib_control_with_docker import up as lib_up
@@ -240,6 +240,7 @@ def up(ctx, config, machines, daemon, force_recreate, no_recreate):
         remove_orphans=True,
         force_recreate=force_recreate,
         no_recreate=no_recreate,
+        allow_build=allow_build,
     )
     execute_script(
         config,

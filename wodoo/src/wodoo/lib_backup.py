@@ -271,7 +271,7 @@ def _restore_wodoo_bin(ctx, config, filepath, verify):
                 break
     if verify:
         click.secho(f"Verifying version postgres", fg="yellow")
-        Commands.invoke(ctx, "up", daemon=True, machines=["postgres"])
+        Commands.invoke(ctx, "up", daemon=True, machines=["postgres"], allow_build=True)
         postgres_version = (
             content.decode("utf-8", errors="ignore").split("\n")[1].strip()
         )
@@ -320,7 +320,7 @@ def _restore_wodoo_bin(ctx, config, filepath, verify):
                 )
             else:
                 break
-    Commands.invoke(ctx, "up", machines=["postgres"], daemon=True)
+    Commands.invoke(ctx, "up", machines=["postgres"], daemon=True, allow_build=True)
 
 
 def _odoo_sh(ctx, config, filename, params):
@@ -526,7 +526,7 @@ def _restore_dump(
             del container_id
 
         Commands.invoke(ctx, "remove-volumes")
-        Commands.invoke(ctx, "up", machines=["postgres"], daemon=True)
+        Commands.invoke(ctx, "up", machines=["postgres"], daemon=True, allow_build=True)
     Commands.invoke(ctx, "wait_for_container_postgres", missing_ok=True)
     conn = config.get_odoo_conn()
     dest_db = conn.dbname
@@ -767,7 +767,7 @@ def _backup_wodoobin(ctx, config, filename):
             f"WODOO_BIN\n{version}\n", tempfile_zip, filename
         )
 
-    Commands.invoke(ctx, "up", daemon=True, machines=["postgres"])
+    Commands.invoke(ctx, "up", daemon=True, machines=["postgres"], allow_build=True)
 
 
 def _backup_pgdump(
