@@ -40,6 +40,7 @@ from . import lib_bakery  # NOQA
 from . import lib_docker_registry  # NOQA
 from . import lib_turnintodev  # NOQA
 from . import lib_talk  # NOQA
+from . import lib_benchmark  # NOQA
 from . import lib_linting  # NOQA
 from . import lib_robot  # NOQA
 from . import daddy_cleanup  # NOQA
