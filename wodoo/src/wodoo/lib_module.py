@@ -2110,7 +2110,7 @@ def list_installed_modules(config, fix_not_in_manifest, only_customs):
     for module in sorted(DBModules.get_all_installed_modules()):
         try:
             mod = Module.get_by_name(module)
-        except (Module.IsNot, NotInAddonsPath):
+        except (Module.IsNot, NotInAddonsPath, KeyError):
             click.secho(
                 f"Ignoring {module} - not found in source", fg="yellow"
             )
