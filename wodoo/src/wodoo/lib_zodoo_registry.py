@@ -85,10 +85,6 @@ def _get_registry_config(config):
             "\n"
             "The zodoo registry caches built Docker images centrally so\n"
             "that team members don't have to rebuild locally.\n"
-            "\n"
-            "IMPORTANT: When you enable the registry, you MUST also\n"
-            "update the CI/CD pipeline configuration to push images\n"
-            "to the registry after successful builds.\n"
             "========================================",
             fg="yellow",
         )
@@ -106,9 +102,7 @@ def _get_registry_config(config):
             click.secho("Registry disabled. Will not ask again.", fg="yellow")
             return None
 
-        url = click.prompt(
-            "ZODOO_REGISTRY_URL", default="registry.zebroo.de"
-        )
+        url = click.prompt("ZODOO_REGISTRY_URL", default="registry.zebroo.de")
 
         try:
             request_account = click.confirm(
@@ -122,7 +116,9 @@ def _get_registry_config(config):
         if request_account:
             default_user = getpass.getuser()
             try:
-                username = click.prompt("Choose a username", default=default_user)
+                username = click.prompt(
+                    "Choose a username", default=default_user
+                )
                 password = _generate_password()
             except (click.Abort, KeyboardInterrupt):
                 click.secho("\nAborted.", fg="red")
@@ -148,8 +144,12 @@ def _get_registry_config(config):
                     fg="yellow",
                 )
                 try:
-                    username = click.prompt("ZODOO_REGISTRY_USERNAME", default=username)
-                    password = click.prompt("ZODOO_REGISTRY_PASSWORD", hide_input=True)
+                    username = click.prompt(
+                        "ZODOO_REGISTRY_USERNAME", default=username
+                    )
+                    password = click.prompt(
+                        "ZODOO_REGISTRY_PASSWORD", hide_input=True
+                    )
                 except (click.Abort, KeyboardInterrupt):
                     click.secho("\nAborted.", fg="red")
                     sys.exit(1)
@@ -160,15 +160,23 @@ def _get_registry_config(config):
                     fg="red",
                 )
                 try:
-                    username = click.prompt("ZODOO_REGISTRY_USERNAME", default="")
-                    password = click.prompt("ZODOO_REGISTRY_PASSWORD", hide_input=True)
+                    username = click.prompt(
+                        "ZODOO_REGISTRY_USERNAME", default=""
+                    )
+                    password = click.prompt(
+                        "ZODOO_REGISTRY_PASSWORD", hide_input=True
+                    )
                 except (click.Abort, KeyboardInterrupt):
                     click.secho("\nAborted.", fg="red")
                     sys.exit(1)
         else:
             try:
-                username = click.prompt("ZODOO_REGISTRY_USERNAME", default="admin")
-                password = click.prompt("ZODOO_REGISTRY_PASSWORD", hide_input=True)
+                username = click.prompt(
+                    "ZODOO_REGISTRY_USERNAME", default="admin"
+                )
+                password = click.prompt(
+                    "ZODOO_REGISTRY_PASSWORD", hide_input=True
+                )
             except (click.Abort, KeyboardInterrupt):
                 click.secho("\nAborted. Registry setup incomplete.", fg="red")
                 sys.exit(1)
