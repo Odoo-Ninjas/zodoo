@@ -47,19 +47,28 @@ def _generate_password(length=20):
 
 def _request_registry_user(registry_url, username, password):
     """Request a new user account via the registry admin API."""
-    url = f"http://{registry_url}/admin/api/request-user"
     data = json.dumps({"username": username, "password": password}).encode()
-    req = urllib.request.Request(
-        url, data=data, headers={"Content-Type": "application/json"}
-    )
-    try:
-        resp = urllib.request.urlopen(req, timeout=10)
-        return json.loads(resp.read()), resp.status
-    except urllib.error.HTTPError as e:
-        body = json.loads(e.read()) if e.fp else {}
-        return body, e.code
-    except Exception as e:
-        return {"error": str(e)}, 0
+    for scheme in ("https", "http"):
+        url = f"{scheme}://{registry_url}/admin/api/request-user"
+        req = urllib.request.Request(
+            url, data=data, headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            resp = urllib.request.urlopen(req, timeout=10)
+            return json.loads(resp.read()), resp.status
+        except urllib.error.HTTPError as e:
+            raw = e.read() if e.fp else b""
+            try:
+                body = json.loads(raw)
+            except (json.JSONDecodeError, ValueError):
+                body = {"error": raw.decode(errors="replace")}
+            return body, e.code
+        except urllib.error.URLError:
+            continue
+        except Exception as e:
+            return {"error": str(e)}, 0
+    return {"error": f"could not connect to {registry_url}"}, 0
 
 
 def _get_registry_config(config):
