@@ -7,10 +7,16 @@ Settings:
     ZODOO_REGISTRY_PASSWORD=zebroo
 """
 
+import getpass
+import json
 import platform
+import secrets
+import string
 import subprocess
 import sys
 import threading
+import urllib.request
+import urllib.error
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import click
@@ -32,6 +38,28 @@ def _write_user_setting(config, key, value):
     user_settings = MyConfigParser(config.files["user_settings"])
     user_settings[key] = value
     user_settings.write()
+
+
+def _generate_password(length=20):
+    alphabet = string.ascii_letters + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+def _request_registry_user(registry_url, username, password):
+    """Request a new user account via the registry admin API."""
+    url = f"http://{registry_url}/admin/api/request-user"
+    data = json.dumps({"username": username, "password": password}).encode()
+    req = urllib.request.Request(
+        url, data=data, headers={"Content-Type": "application/json"}
+    )
+    try:
+        resp = urllib.request.urlopen(req, timeout=10)
+        return json.loads(resp.read()), resp.status
+    except urllib.error.HTTPError as e:
+        body = json.loads(e.read()) if e.fp else {}
+        return body, e.code
+    except Exception as e:
+        return {"error": str(e)}, 0
 
 
 def _get_registry_config(config):
@@ -69,15 +97,72 @@ def _get_registry_config(config):
             click.secho("Registry disabled. Will not ask again.", fg="yellow")
             return None
 
+        url = click.prompt(
+            "ZODOO_REGISTRY_URL", default="registry.zebroo.de"
+        )
+
         try:
-            url = click.prompt(
-                "ZODOO_REGISTRY_URL", default="registry.zebroo.de"
+            request_account = click.confirm(
+                "No credentials yet. Request a new account automatically?",
+                default=True,
             )
-            username = click.prompt("ZODOO_REGISTRY_USERNAME", default="admin")
-            password = click.prompt("ZODOO_REGISTRY_PASSWORD", hide_input=True)
         except (click.Abort, KeyboardInterrupt):
-            click.secho("\nAborted. Registry setup incomplete.", fg="red")
+            click.secho("\nAborted.", fg="red")
             sys.exit(1)
+
+        if request_account:
+            default_user = getpass.getuser()
+            try:
+                username = click.prompt("Choose a username", default=default_user)
+                password = _generate_password()
+            except (click.Abort, KeyboardInterrupt):
+                click.secho("\nAborted.", fg="red")
+                sys.exit(1)
+
+            body, status = _request_registry_user(url, username, password)
+
+            if status == 201:
+                click.secho(
+                    f"\nAccount '{username}' created (read-only).",
+                    fg="green",
+                )
+                click.secho(
+                    f"\n  Ask an admin to grant push rights at:"
+                    f"\n  https://{url}/admin\n",
+                    fg="yellow",
+                    bold=True,
+                )
+            elif status == 409:
+                click.secho(
+                    f"User '{username}' already exists. "
+                    "Please enter your existing credentials.",
+                    fg="yellow",
+                )
+                try:
+                    username = click.prompt("ZODOO_REGISTRY_USERNAME", default=username)
+                    password = click.prompt("ZODOO_REGISTRY_PASSWORD", hide_input=True)
+                except (click.Abort, KeyboardInterrupt):
+                    click.secho("\nAborted.", fg="red")
+                    sys.exit(1)
+            else:
+                click.secho(
+                    f"Could not request account: {body.get('error', 'unknown error')}\n"
+                    "Falling back to manual credentials.",
+                    fg="red",
+                )
+                try:
+                    username = click.prompt("ZODOO_REGISTRY_USERNAME", default="")
+                    password = click.prompt("ZODOO_REGISTRY_PASSWORD", hide_input=True)
+                except (click.Abort, KeyboardInterrupt):
+                    click.secho("\nAborted.", fg="red")
+                    sys.exit(1)
+        else:
+            try:
+                username = click.prompt("ZODOO_REGISTRY_USERNAME", default="admin")
+                password = click.prompt("ZODOO_REGISTRY_PASSWORD", hide_input=True)
+            except (click.Abort, KeyboardInterrupt):
+                click.secho("\nAborted. Registry setup incomplete.", fg="red")
+                sys.exit(1)
 
         _write_user_setting(config, "ZODOO_REGISTRY_URL", url)
         _write_user_setting(config, "ZODOO_REGISTRY_USERNAME", username)
