@@ -18,7 +18,10 @@ from .tools import _shell_complete_services
 from .tools import __rmtree
 
 
-@cli.group(cls=AliasedGroup, help="Docker container management (up, down, build, exec, logs, ...).")
+@cli.group(
+    cls=AliasedGroup,
+    help="Docker container management (up, down, build, exec, logs, ...).",
+)
 @pass_config
 def docker(config):
     pass
@@ -35,7 +38,9 @@ def pull(ctx, config):
         return lib_pull(ctx, config)
 
 
-@docker.command(help="Start containers in dev mode (combines build + up + watch).")
+@docker.command(
+    help="Start containers in dev mode (combines build + up + watch)."
+)
 @click.option("-b", "--build", is_flag=True)
 @click.option("-k", "--kill", is_flag=True)
 @pass_config
@@ -58,7 +63,9 @@ def ps(config):
         return lib_ps(config)
 
 
-@docker.command(name="exec", help="Execute a command inside a running container.")
+@docker.command(
+    name="exec", help="Execute a command inside a running container."
+)
 @click.argument(
     "machine", required=True, shell_complete=_shell_complete_machines
 )
@@ -78,7 +85,10 @@ def execute(config, machine, user, non_interactive, args):
         )
 
 
-@docker.command(name="kill", help="Send SIGKILL to containers. Use -b/--brutal to skip graceful shutdown.")
+@docker.command(
+    name="kill",
+    help="Send SIGKILL to containers. Use -b/--brutal to skip graceful shutdown.",
+)
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_machines)
 @click.option("-b", "--brutal", is_flag=True, help="dont wait")
 @click.option("-p", "--profile")
@@ -150,20 +160,33 @@ def remove_volumes(ctx, config, dry_run):
                             fg="yellow",
                         )
                         from .lib_setup import _fix_permissions
+
                         vol_path = subprocess.run(
-                            ["docker", "volume", "inspect", "--format",
-                             "{{ .Mountpoint }}", vol],
+                            [
+                                "docker",
+                                "volume",
+                                "inspect",
+                                "--format",
+                                "{{ .Mountpoint }}",
+                                vol,
+                            ],
                             encoding="utf8",
                             capture_output=True,
                         )
-                        if vol_path.returncode == 0 and vol_path.stdout.strip():
+                        if (
+                            vol_path.returncode == 0
+                            and vol_path.stdout.strip()
+                        ):
                             _fix_permissions(config, [vol_path.stdout.strip()])
                         try:
                             subprocess.check_output(
                                 ["docker", "volume", "rm", "-f", vol],
                                 encoding="utf8",
                             )
-                            click.secho(f"  Removed {vol} after fix_permissions.", fg="green")
+                            click.secho(
+                                f"  Removed {vol} after fix_permissions.",
+                                fg="green",
+                            )
                         except Exception:
                             click.secho(
                                 f"  Volume {vol} still could not be removed.",
@@ -174,7 +197,9 @@ def remove_volumes(ctx, config, dry_run):
             click.secho("Dry Run - didnt do it.")
 
 
-@docker.command(help="Force-kill containers immediately (no graceful shutdown).")
+@docker.command(
+    help="Force-kill containers immediately (no graceful shutdown)."
+)
 @pass_config
 @click.argument("machine", nargs=-1, shell_complete=_shell_complete_machines)
 @click.pass_context
@@ -185,7 +210,9 @@ def force_kill(ctx, config, machine):
         lib_force_kill(ctx, config, machine)
 
 
-@docker.command(help="Wait until the postgres container is ready to accept connections.")
+@docker.command(
+    help="Wait until the postgres container is ready to accept connections."
+)
 @pass_config
 def wait_for_container_postgres(config):
     if config.use_docker:
@@ -220,14 +247,24 @@ def recreate(ctx, config, machines):
         lib_recreate(ctx, config, machines)
 
 
-@docker.command(help="Start containers. Use -d to run in background (daemon mode).")
+@docker.command(
+    help="Start containers. Use -d to run in background (daemon mode)."
+)
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_services)
 @click.option("-d", "--daemon", is_flag=True)
 @click.option("--force-recreate", is_flag=True)
 @click.option("--no-recreate", is_flag=True)
 @pass_config
 @click.pass_context
-def up(ctx, config, machines, daemon, force_recreate, no_recreate, allow_build=False):
+def up(
+    ctx,
+    config,
+    machines,
+    daemon,
+    force_recreate,
+    no_recreate,
+    allow_build=False,
+):
     ensure_project_name(config)
     from .lib_setup import _status
     from .lib_control_with_docker import up as lib_up
@@ -251,7 +288,9 @@ def up(ctx, config, machines, daemon, force_recreate, no_recreate, allow_build=F
         _status(config)
 
 
-@docker.command(help="Stop and remove containers. Use -v to also remove volumes (destroys data!). Requires -f on production.")
+@docker.command(
+    help="Stop and remove containers. Use -v to also remove volumes (destroys data!). Requires -f on production."
+)
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_services)
 @click.option("-v", "--volumes", is_flag=True)
 @click.option("--remove-orphans", is_flag=True)
@@ -307,7 +346,9 @@ def down(
         _cleanup_config_files(ctx, config)
 
 
-@docker.command(help="Stop containers without removing them (state is preserved).")
+@docker.command(
+    help="Stop containers without removing them (state is preserved)."
+)
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_machines)
 @pass_config
 @click.pass_context
@@ -329,7 +370,9 @@ def rebuild(ctx, config, machines):
     lib_rebuild(ctx, config, machines)
 
 
-@docker.command(help="Restart containers. In devmode uses brutal (SIGKILL) restart.")
+@docker.command(
+    help="Restart containers. In devmode uses brutal (SIGKILL) restart."
+)
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_machines)
 @click.option("-p", "--profile", default="auto")
 @click.option(
@@ -394,6 +437,16 @@ def attach(ctx, config, machine):
     default=None,
     help="Build for a specific platform",
 )
+@click.option(
+    "--no-zodoo-pull",
+    is_flag=True,
+    help="Skip pulling from zodoo registry (force local build)",
+)
+@click.option(
+    "--registry-only",
+    is_flag=True,
+    help="Only pull from zodoo registry, never build locally. Fails if image not found.",
+)
 @pass_config
 @click.pass_context
 def build(
@@ -406,16 +459,16 @@ def build(
     plain,
     include_source,
     platform,
+    no_zodoo_pull,
+    registry_only,
 ):
     from .lib_cached_build import start_squid_proxy, start_proxpi
+    from .lib_zodoo_registry import try_pull_from_zodoo_registry
+    from .lib_zodoo_registry import push_to_zodoo_registry
 
     from .myconfigparser import MyConfigParser
 
     settings = MyConfigParser(config.files["settings"])
-
-    if settings.get("RUN_APT_CACHER") in ["1", ""]:
-        start_squid_proxy(config)
-        start_proxpi(config)
 
     ensure_project_name(config)
     if plain:
@@ -429,16 +482,70 @@ def build(
             if compose["services"][service].get("build"):
                 machines.append(service)
 
-    lib_build(
-        ctx,
-        config,
-        machines,
-        pull,
-        no_cache,
-        push,
-        include_source,
-        platform=platform,
+    # Try pulling from zodoo registry before building
+    already_pulled = []
+    if not no_zodoo_pull:
+        already_pulled = try_pull_from_zodoo_registry(config, machines)
+
+    machines_to_build = [m for m in machines if m not in already_pulled]
+
+    if machines_to_build:
+        if settings.get("RUN_APT_CACHER") in ["1", ""]:
+            start_squid_proxy(config)
+            start_proxpi(config)
+
+        lib_build(
+            ctx,
+            config,
+            machines_to_build,
+            pull,
+            no_cache,
+            push,
+            include_source,
+            platform=platform,
+        )
+
+        # Push built images to zodoo registry
+        push_to_zodoo_registry(config, machines_to_build)
+    elif already_pulled:
+        click.secho(
+            "All images pulled from zodoo registry, no build needed.",
+            fg="green",
+        )
+
+
+@docker.command(
+    name="zodoo-push", help="Push locally built images to the zodoo registry."
+)
+@click.argument("machines", nargs=-1, shell_complete=_shell_complete_services)
+@pass_config
+def zodoo_push(config, machines):
+    import pudb
+
+    pudb.set_trace()
+    from .lib_zodoo_registry import push_to_zodoo_registry, get_build_services
+
+    ensure_project_name(config)
+    if not machines:
+        machines = get_build_services(config)
+    push_to_zodoo_registry(config, machines)
+
+
+@docker.command(name="zodoo-pull", help="Pull images from the zodoo registry.")
+@click.argument("machines", nargs=-1, shell_complete=_shell_complete_services)
+@pass_config
+def zodoo_pull(config, machines):
+    from .lib_zodoo_registry import (
+        try_pull_from_zodoo_registry,
+        get_build_services,
     )
+
+    ensure_project_name(config)
+    if not machines:
+        machines = get_build_services(config)
+    pulled = try_pull_from_zodoo_registry(config, machines)
+    if not pulled:
+        click.secho("No images pulled from zodoo registry.", fg="yellow")
 
 
 def load_compose(config):
@@ -520,7 +627,10 @@ def runbash(ctx, config, machine, args, **kwparams):
     lib_runbash(ctx, config, machine, args, **kwparams)
 
 
-@cli.command(name="logs", help="Show container logs. Use -f to follow, -n for line count.")
+@cli.command(
+    name="logs",
+    help="Show container logs. Use -f to follow, -n for line count.",
+)
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_machines)
 @click.option("-n", "--lines", required=False, type=int, default=200)
 @click.option("-f", "--follow", is_flag=True)
@@ -532,7 +642,9 @@ def logall(config, machines, follow, lines):
     lib_logall(config, machines, follow, lines)
 
 
-@docker.command(help="Open an interactive Odoo Python shell inside the running container.")
+@docker.command(
+    help="Open an interactive Odoo Python shell inside the running container."
+)
 @click.argument("command", nargs=-1)
 @click.option(
     "-q",
