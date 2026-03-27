@@ -11,19 +11,124 @@ import platform
 import subprocess
 import sys
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import click
 import yaml
 
 
+def _read_user_setting(config, key):
+    """Read a setting directly from ~/.odoo/settings without requiring reload."""
+    from .myconfigparser import MyConfigParser
+
+    user_settings = MyConfigParser(config.files["user_settings"])
+    return user_settings.get(key, "")
+
+
+def _write_user_setting(config, key, value):
+    """Write a setting directly to ~/.odoo/settings without requiring reload."""
+    from .myconfigparser import MyConfigParser
+
+    user_settings = MyConfigParser(config.files["user_settings"])
+    user_settings[key] = value
+    user_settings.write()
+
+
 def _get_registry_config(config):
-    url = getattr(config, "ZODOO_REGISTRY_URL", None) or ""
+    suggested = _read_user_setting(config, "ZODOO_REGISTRY_SUGGESTED")
+
+    if suggested == "0":
+        return None
+
+    if not suggested:
+        click.secho(
+            "\n========================================\n"
+            "Zodoo Registry Setup\n"
+            "========================================\n"
+            "\n"
+            "The zodoo registry caches built Docker images centrally so\n"
+            "that team members don't have to rebuild locally.\n"
+            "\n"
+            "IMPORTANT: When you enable the registry, you MUST also\n"
+            "update the CI/CD pipeline configuration to push images\n"
+            "to the registry after successful builds.\n"
+            "========================================",
+            fg="yellow",
+        )
+        try:
+            use_registry = click.confirm(
+                "Do you want to use the zodoo registry?", default=True
+            )
+        except (click.Abort, KeyboardInterrupt):
+            click.secho(
+                "\nAborted. Cannot continue without a decision.", fg="red"
+            )
+            sys.exit(1)
+        if not use_registry:
+            _write_user_setting(config, "ZODOO_REGISTRY_SUGGESTED", "0")
+            click.secho("Registry disabled. Will not ask again.", fg="yellow")
+            return None
+
+        try:
+            url = click.prompt(
+                "ZODOO_REGISTRY_URL", default="registry.zebroo.de"
+            )
+            username = click.prompt("ZODOO_REGISTRY_USERNAME", default="admin")
+            password = click.prompt("ZODOO_REGISTRY_PASSWORD", hide_input=True)
+        except (click.Abort, KeyboardInterrupt):
+            click.secho("\nAborted. Registry setup incomplete.", fg="red")
+            sys.exit(1)
+
+        _write_user_setting(config, "ZODOO_REGISTRY_URL", url)
+        _write_user_setting(config, "ZODOO_REGISTRY_USERNAME", username)
+        _write_user_setting(config, "ZODOO_REGISTRY_PASSWORD", password)
+        _write_user_setting(config, "ZODOO_REGISTRY_SUGGESTED", "1")
+
+        return {
+            "url": url.rstrip("/"),
+            "username": username,
+            "password": password,
+        }
+
+    url = (
+        _read_user_setting(config, "ZODOO_REGISTRY_URL")
+        or getattr(config, "ZODOO_REGISTRY_URL", None)
+        or ""
+    )
     if not url:
         return None
+    username = (
+        _read_user_setting(config, "ZODOO_REGISTRY_USERNAME")
+        or getattr(config, "ZODOO_REGISTRY_USERNAME", None)
+        or ""
+    )
+    password = (
+        _read_user_setting(config, "ZODOO_REGISTRY_PASSWORD")
+        or getattr(config, "ZODOO_REGISTRY_PASSWORD", None)
+        or ""
+    )
+
+    if not username or not password:
+        click.secho(
+            "Registry credentials incomplete. Please re-enter:", fg="yellow"
+        )
+        try:
+            url = click.prompt("ZODOO_REGISTRY_URL", default=url)
+            username = click.prompt(
+                "ZODOO_REGISTRY_USERNAME", default=username
+            )
+            password = click.prompt("ZODOO_REGISTRY_PASSWORD", hide_input=True)
+        except (click.Abort, KeyboardInterrupt):
+            click.secho("\nAborted. Registry setup incomplete.", fg="red")
+            sys.exit(1)
+        _write_user_setting(config, "ZODOO_REGISTRY_URL", url)
+        _write_user_setting(config, "ZODOO_REGISTRY_USERNAME", username)
+        _write_user_setting(config, "ZODOO_REGISTRY_PASSWORD", password)
+
     return {
         "url": url.rstrip("/"),
-        "username": getattr(config, "ZODOO_REGISTRY_USERNAME", None) or "",
-        "password": getattr(config, "ZODOO_REGISTRY_PASSWORD", None) or "",
+        "username": username,
+        "password": password,
     }
 
 
@@ -237,20 +342,28 @@ def try_pull_from_zodoo_registry(config, machines):
 
     zodoo_registry_login(config)
 
-    pulled = []
-    for service_name in machines:
+    def _check_and_pull(service_name):
         if zodoo_image_exists(config, service_name, tag):
             click.secho(
                 f"Image for {service_name} found in zodoo registry ({tag})",
                 fg="green",
             )
             if zodoo_pull_and_tag(config, service_name, tag):
-                pulled.append(service_name)
+                return service_name
         else:
             click.secho(
                 f"Image for {service_name} not in zodoo registry ({tag})",
                 fg="yellow",
             )
+        return None
+
+    pulled = []
+    with ThreadPoolExecutor(max_workers=len(machines) or 1) as pool:
+        futures = {pool.submit(_check_and_pull, svc): svc for svc in machines}
+        for future in as_completed(futures):
+            result = future.result()
+            if result:
+                pulled.append(result)
     return pulled
 
 
