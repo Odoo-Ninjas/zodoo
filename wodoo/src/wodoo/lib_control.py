@@ -491,8 +491,12 @@ def build(
 
     if machines_to_build:
         if settings.get("RUN_APT_CACHER") in ["1", ""]:
-            start_squid_proxy(config)
-            start_proxpi(config)
+            from concurrent.futures import ThreadPoolExecutor
+
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                pool.submit(start_squid_proxy, config)
+                pool.submit(start_proxpi, config)
+                pool.shutdown(wait=True)
 
         lib_build(
             ctx,

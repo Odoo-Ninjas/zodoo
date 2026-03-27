@@ -297,6 +297,7 @@ def do_reload(
         _release_reload_lock(lock_file)
 
     setup_launch_json(config)
+    _install_zebroo_extension()
     final_notes(config)
 
 
@@ -456,6 +457,9 @@ def _set_defaults(config, defaults):
     defaults["project_name"] = config.project_name
     m = MANIFEST()
     defaults["ODOO_VERSION_INT"] = int(float(m["version"]))
+    defaults.setdefault("ZODOO_REGISTRY_URL", "registry.zebroo.de")
+    defaults.setdefault("ZODOO_REGISTRY_USERNAME", "admin")
+    defaults.setdefault("ZODOO_REGISTRY_PASSWORD", "zebroo")
 
 
 def _do_compose(
@@ -1836,6 +1840,38 @@ def get_host_info():
         local_ip = "Unknown"
 
     return hostname, fqdn, local_ip
+
+
+def _install_zebroo_extension():
+    """Install the Zebroo VSCode extension if 'code' CLI is available."""
+    code_bin = shutil.which("code") or shutil.which("code-insiders")
+    if not code_bin:
+        return
+    vsix_url = "https://github.com/marcwimmer/vscodeextension_browserodoo/releases/latest/download/zebroo.vsix"
+    vsix_path = Path(os.environ.get("HOME", "~")) / ".odoo" / "zebroo.vsix"
+    try:
+        subprocess.run(
+            ["curl", "-fsSL", "-o", str(vsix_path), vsix_url],
+            check=True,
+            timeout=30,
+        )
+        subprocess.run(
+            [
+                code_bin,
+                "--uninstall-extension",
+                "MarcWimmerITE.odoobrowserITE",
+            ],
+            timeout=30,
+            capture_output=True,
+        )
+        subprocess.run(
+            [code_bin, "--install-extension", str(vsix_path), "--force"],
+            check=True,
+            timeout=30,
+        )
+        click.secho("Zebroo VSCode extension installed.", fg="green")
+    except Exception as ex:
+        click.secho(f"Could not install Zebroo extension: {ex}", fg="yellow")
 
 
 def final_notes(config):
