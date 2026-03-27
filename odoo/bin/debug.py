@@ -223,6 +223,8 @@ class Debugger:
 
                 if not action:
                     pass
+                elif action[0] in ["debug_active?"]:
+                    pass  # just consumed and .debug file deleted - signals "alive"
                 elif action[0] in ["restart"]:
                     kill_odoo()
                     self.execpy(["/usr/bin/reset"])
