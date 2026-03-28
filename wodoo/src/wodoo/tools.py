@@ -2074,6 +2074,40 @@ def _get_available_robottests(ctx, param, incomplete):
     return sorted(testfiles)
 
 
+def _get_available_unittests(ctx, param, incomplete):
+    from .odoo_config import MANIFEST, customs_dir
+    from .module_tools import Module
+
+    try:
+        root = customs_dir()
+        if not root:
+            return []
+        manifest = MANIFEST()
+        if not manifest:
+            return []
+        modules = manifest.get("install", [])
+        results = []
+        for module_name in modules:
+            try:
+                module = Module.get_by_name(module_name)
+            except Exception:
+                continue
+            for f in module.path.glob("tests/test*.py"):
+                try:
+                    results.append(str(f.relative_to(root)))
+                except ValueError:
+                    results.append(str(f))
+            results.append(module_name)
+        if incomplete:
+            if "/" in incomplete:
+                results = [x for x in results if x.startswith(incomplete)]
+            else:
+                results = [x for x in results if incomplete in x]
+        return sorted(results)
+    except Exception:
+        return []
+
+
 def _get_available_modules(ctx, param, incomplete):
     from .odoo_config import MANIFEST, customs_dir
 

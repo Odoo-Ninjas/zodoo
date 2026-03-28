@@ -39,6 +39,7 @@ from .tools import _get_setting
 from .tools import get_git_hash
 from .tools import start_postgres_if_local
 from .tools import _get_available_modules
+from .tools import _get_available_unittests
 from .tools import _is_in_container
 from .module_tools import _determine_affected_modules_for_ir_field_and_related
 from pathlib import Path
@@ -1603,7 +1604,9 @@ def list_robot_test_files(config):
 
 
 @odoo_module.command()
-@click.argument("file", required=False)
+@click.argument(
+    "file", required=False, shell_complete=_get_available_unittests
+)
 @click.option("-w", "--wait-for-remote", is_flag=True)
 @click.option("-r", "--remote-debug", is_flag=True)
 @click.option("-n", "--non-interactive", is_flag=True)
@@ -1640,7 +1643,7 @@ def unittest(
         except Exception:
             pass
         else:
-            tests = module.path.glob("tests/test*")
+            tests = module.path.glob("tests/test*.py")
             file = ",".join(map(lambda x: str(x), tests))
 
     todo = []
