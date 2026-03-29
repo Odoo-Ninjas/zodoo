@@ -7,8 +7,6 @@ services:
       - ${ODOO_IMAGES}/odoo/bin/reuid.py:/odoolib/reuid.py
       - ${ODOO_IMAGES}/odoo/bin/entrypoint.py:/odoolib/entrypoint.py
       - ~/.config/pudb:/home/odoo/.config/pudb
-      # copied by entrypoint to destination and correct UID/GID
-      - ${HOST_RUN_DIR}/odoo-shell-ipython:/home/odoo/.ipython
       - ${ODOO_IMAGES}/odoo/bin:/odoolib:ro
       - ${ODOO_IMAGES}/odoo/config/${ODOO_VERSION_INT}/config:/etc/odoo/config.template:ro
       - ${ODOO_IMAGES}/wodoo/src:/opt/wodoo:rw
