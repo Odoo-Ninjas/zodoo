@@ -1048,12 +1048,13 @@ def post_process_complete_yaml_config(config, yml):
             if "restart" in yml["services"][service]:
                 yml["services"][service].pop("restart")
 
-    # apply build architecture
+    # Ensure build args dict exists for all services with a build section.
+    # Note: TARGETARCH is automatically provided by Docker BuildKit based on
+    # the target platform - do not set it explicitly as a build arg.
     for service_name, service in yml["services"].items():
         if not service.get("build", False):
             continue
         service["build"].setdefault("args", {})
-        service["build"]["args"]["TARGETARCH"] = config.TARGETARCH
 
     # set container name to service name (to avoid dns names with _1)
     for service in yml["services"]:

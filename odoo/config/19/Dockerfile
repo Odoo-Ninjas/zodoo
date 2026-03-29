@@ -136,14 +136,9 @@ RUN #___SNIPPET_APT_INSTALL___ \
             node-less \
             node-clean-css \
             tmux \
-            libfreetype6-dev \
-            libpng-dev \
-            libjpeg-dev \
-            automake \
-            pkg-config \
-            libpcre3-dev \
-            liblzma-dev \
-            make \
+            libfreetype6 \
+            libpng16-16 \
+            libjpeg-turbo8 \
             ssh \
             mc \
             libfontconfig \
@@ -153,14 +148,13 @@ RUN #___SNIPPET_APT_INSTALL___ \
             git \
             sudo \
             less \
-            freetds-dev \
+            libct4 \
+            make \
             wget \
             cifs-utils \
             imagemagick \
             cups \
             locales \
-            libmagickwand-dev \
-            ffmpeg \
             zip \
             gpg-agent \
             pdftk \
@@ -169,20 +163,17 @@ RUN #___SNIPPET_APT_INSTALL___ \
             python3-gi-cairo \
             python3-cairo \
             gir1.2-gtk-3.0 \
-            libmagickwand-dev \
-            libmagic-dev \
-            libcups2-dev \
-            locales-all \
-            libpoppler-cpp-dev \
+            libmagic1 \
+            libcups2 \
+            libpoppler-cpp0v5 \
             postgresql-client \
             sassc \
             time \
             xfonts-75dpi \
             xfonts-base \
-            libgeos-dev\
+            libgeos-c1v5 \
             vim \
-            fontconfig \
-            gcc
+            fontconfig
 
 COPY liberation-sans /usr/share/fonts/
 # rebuild font cache
