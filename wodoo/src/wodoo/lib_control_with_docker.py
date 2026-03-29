@@ -454,8 +454,8 @@ def shell(config, command="", queuejobs=False):
         cmdline = ["/odoolib/entrypoint.sh", "/odoolib/shell.py"]
         if command:
             cmdline += [command]
-        subprocess.run(cmdline)
-        return
+        res = subprocess.run(cmdline)
+        return res.returncode
     cmd = [
         "run",
         "--rm",
@@ -473,4 +473,4 @@ def shell(config, command="", queuejobs=False):
     ]
     if queuejobs:
         cmd += ["--queuejobs"]
-    __cmd_interactive(config, *(cmd + [command]))
+    return __cmd_interactive(config, *(cmd + [command]))

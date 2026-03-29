@@ -1,4 +1,5 @@
 import ast
+import sys
 import time
 import click
 from pathlib import Path
@@ -664,7 +665,9 @@ def shell(config, command, queuejobs):
     command = "\n".join(command)
     from .lib_control_with_docker import shell as lib_shell
 
-    lib_shell(config, command, queuejobs)
+    rc = lib_shell(config, command, queuejobs)
+    if rc:
+        sys.exit(rc)
 
 
 # problem with stdin: debug then display missing
