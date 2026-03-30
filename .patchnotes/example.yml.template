@@ -1,0 +1,7 @@
+## Patchnote template — copy this file and rename to <branch-name>.yml
+## type: feature | fix | breaking | docs | internal
+#
+# type: feature
+# description: "Short description of the change"
+# breaking: false
+# breaking_description: "Only needed if breaking: true"
