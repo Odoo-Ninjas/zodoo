@@ -94,3 +94,11 @@ repos:
     hooks:
       - id: forbid-crlf
       - id: remove-crlf
+  - repo: local
+    hooks:
+      - id: check-patchnotes
+        name: Check patchnotes exist
+        entry: scripts/check-patchnotes.sh
+        language: script
+        always_run: true
+        pass_filenames: false

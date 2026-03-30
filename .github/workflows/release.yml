@@ -1,0 +1,122 @@
+name: Release on merge
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for patchnotes
+        id: check
+        run: |
+          NOTES=$(find .patchnotes -name '*.yml' -not -name '*.template' 2>/dev/null | head -1)
+          if [ -z "$NOTES" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "No patchnotes found, skipping release."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Collect patchnotes and bump version
+        if: steps.check.outputs.skip == 'false'
+        id: bump
+        run: |
+          set -euo pipefail
+
+          CURRENT_VERSION=$(cat VERSION)
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+
+          HAS_BREAKING=false
+          HAS_FEATURE=false
+          CHANGELOG_ENTRIES=""
+
+          for f in .patchnotes/*.yml; do
+            [ -f "$f" ] || continue
+            [[ "$f" == *.template ]] && continue
+
+            TYPE=$(grep '^type:' "$f" | head -1 | sed 's/type: *//;s/"//g;s/ *$//')
+            DESC=$(grep '^description:' "$f" | head -1 | sed 's/description: *//;s/"//g;s/ *$//')
+            BREAKING=$(grep '^breaking:' "$f" | head -1 | sed 's/breaking: *//;s/"//g;s/ *$//')
+            BREAKING_DESC=$(grep '^breaking_description:' "$f" | head -1 | sed 's/breaking_description: *//;s/"//g;s/ *$//' || true)
+
+            if [ "$BREAKING" = "true" ]; then
+              HAS_BREAKING=true
+              CHANGELOG_ENTRIES="${CHANGELOG_ENTRIES}\n- **BREAKING**: ${DESC}"
+              if [ -n "$BREAKING_DESC" ]; then
+                CHANGELOG_ENTRIES="${CHANGELOG_ENTRIES} — ${BREAKING_DESC}"
+              fi
+            else
+              case "$TYPE" in
+                feature) HAS_FEATURE=true; CHANGELOG_ENTRIES="${CHANGELOG_ENTRIES}\n- **Feature**: ${DESC}" ;;
+                fix)     CHANGELOG_ENTRIES="${CHANGELOG_ENTRIES}\n- **Fix**: ${DESC}" ;;
+                docs)    CHANGELOG_ENTRIES="${CHANGELOG_ENTRIES}\n- **Docs**: ${DESC}" ;;
+                internal) CHANGELOG_ENTRIES="${CHANGELOG_ENTRIES}\n- **Internal**: ${DESC}" ;;
+                breaking) HAS_BREAKING=true; CHANGELOG_ENTRIES="${CHANGELOG_ENTRIES}\n- **BREAKING**: ${DESC}" ;;
+                *)       CHANGELOG_ENTRIES="${CHANGELOG_ENTRIES}\n- ${DESC}" ;;
+              esac
+            fi
+          done
+
+          if [ "$HAS_BREAKING" = "true" ]; then
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+          elif [ "$HAS_FEATURE" = "true" ]; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          else
+            PATCH=$((PATCH + 1))
+          fi
+
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          echo "$NEW_VERSION" > VERSION
+
+          # Prepend new section to CHANGELOG.md
+          TMPFILE=$(mktemp)
+          {
+            echo "# Changelog"
+            echo ""
+            echo "## ${NEW_VERSION}"
+            echo ""
+            echo -e "$CHANGELOG_ENTRIES"
+            echo ""
+            # Append old changelog without the first line (# Changelog)
+            tail -n +2 CHANGELOG.md
+          } > "$TMPFILE"
+          mv "$TMPFILE" CHANGELOG.md
+
+          # Remove processed patchnotes
+          find .patchnotes -name '*.yml' -not -name '*.template' -delete
+
+          echo "version=${NEW_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "entries<<EOF" >> "$GITHUB_OUTPUT"
+          echo -e "$CHANGELOG_ENTRIES" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and tag
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add VERSION CHANGELOG.md .patchnotes/
+          git commit -m "release v${{ steps.bump.outputs.version }}"
+          git tag "v${{ steps.bump.outputs.version }}"
+          git push origin main --tags
+
+      - name: Create GitHub Release
+        if: steps.check.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "v${{ steps.bump.outputs.version }}" \
+            --title "v${{ steps.bump.outputs.version }}" \
+            --notes "${{ steps.bump.outputs.entries }}"
