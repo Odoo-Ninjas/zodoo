@@ -219,10 +219,12 @@ def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
 
     # put the collected requirements into project root
     req_file_all = config.WORKING_DIR / "requirements.txt.all"
-    req_file_all.write_text("\n".join(external_dependencies["pip"]))
+    req_file_all.write_text("\n".join(external_dependencies["pip"]) + "\n")
 
     req_file = config.WORKING_DIR / "requirements.txt"
-    req_file.write_text("\n".join(external_dependencies_justaddons["pip"]))
+    req_file.write_text(
+        "\n".join(external_dependencies_justaddons["pip"]) + "\n"
+    )
 
     # put hash of requirements in root
 
@@ -531,6 +533,7 @@ def _setup_remote_debugging(config, yml):
             f"0.0.0.0:{config.ODOO_PYTHON_DEBUG_PORT}:5678"
         )
 
+
 def _eval_setting_common_filestore(config, settings, globals):
     """
     Wenn ODOO_FILES_COMMON=1 gesetzt ist, wird ein gemeinsamer Filestore angelegt.
@@ -546,10 +549,8 @@ def _eval_setting_common_filestore(config, settings, globals):
     if settings.get("ODOO_FILES_COMMON") != "1":
         return
 
-    from wodoo.tools import __rmtree
-
     rsync = globals["tools"].rsync
-    files_dir = Path(settings["ODOO_FILES"]) / 'filestore'
+    files_dir = Path(settings["ODOO_FILES"]) / "filestore"
     common_dir = files_dir / "_common"
     common_dir.mkdir(exist_ok=True, parents=True)
 
