@@ -48,13 +48,17 @@ except ImportError:
     click.echo("Failed to import python package: tabulate")
 
 
-@cli.group(cls=AliasedGroup, help="Create backups of the database and filestore.")
+@cli.group(
+    cls=AliasedGroup, help="Create backups of the database and filestore."
+)
 @pass_config
 def backup(config):
     pass
 
 
-@cli.group(cls=AliasedGroup, help="Restore database and filestore from backup files.")
+@cli.group(
+    cls=AliasedGroup, help="Restore database and filestore from backup files."
+)
 @pass_config
 def restore(config):
     pass
@@ -72,6 +76,27 @@ def used_space_files(ctx, config):
     size = int(get_directory_size(filestore_folder))
     print("----")
     print(size)
+
+
+@backup.command(
+    name="show-dumps", help="List dump files in DUMPS_PATH with size and age."
+)
+@click.option(
+    "-n",
+    "--limit",
+    default=5,
+    show_default=True,
+    help="Number of dumps to show (0 for all).",
+)
+@pass_config
+def show_dumps(config, limit):
+    rows = _get_dump_files(Path(config.dumps_path))
+    if limit > 0:
+        rows = rows[:limit]
+    if not rows:
+        click.secho("No dump files found.", fg="yellow")
+        return
+    click.echo(tabulate.tabulate(rows, ["Nr", "Filename", "Age", "Size"]))
 
 
 @backup.command(name="all")
@@ -131,7 +156,10 @@ def backup_all(ctx, config, filename):
     click.secho(f"Created dump-file {filename}", fg="green")
 
 
-@backup.command(name="odoo-db", help="Backup the Odoo database. Uses a default filename if no path is given.")
+@backup.command(
+    name="odoo-db",
+    help="Backup the Odoo database. Uses a default filename if no path is given.",
+)
 @pass_config
 @click.pass_context
 @click.argument("filename", required=False, default="")
@@ -196,7 +224,9 @@ def backup_db(
     return filename
 
 
-@backup.command(name="files", help="Backup the Odoo filestore (attachments, images, etc.).")
+@backup.command(
+    name="files", help="Backup the Odoo filestore (attachments, images, etc.)."
+)
 @click.argument("filename", required=False, default="")
 @pass_config
 def backup_files(config, filename):
@@ -223,7 +253,10 @@ def __get_default_backup_filename(config):
     )
 
 
-@restore.command("show-dump-type", help="Detect the dump type of a backup file (custom, plain, wodoobin, etc.).")
+@restore.command(
+    "show-dump-type",
+    help="Detect the dump type of a backup file (custom, plain, wodoobin, etc.).",
+)
 @click.argument("filename")
 @pass_config
 def get_dump_type(config, filename):
@@ -233,14 +266,18 @@ def get_dump_type(config, filename):
     click.echo(dump_type)
 
 
-@restore.command(name="list", help="List available backup files with age and size.")
+@restore.command(
+    name="list", help="List available backup files with age and size."
+)
 @pass_config
 def list_dumps(config):
     rows = _get_dump_files(Path(config.dumps_path))
     click.echo(tabulate(rows, ["Nr", "Filename", "Age", "Size"]))
 
 
-@restore.command(name="files", help="Restore the Odoo filestore from a backup archive.")
+@restore.command(
+    name="files", help="Restore the Odoo filestore from a backup archive."
+)
 @click.argument("filename", required=True)
 @pass_config
 def restore_files(config, filename):
@@ -271,7 +308,9 @@ def _restore_wodoo_bin(ctx, config, filepath, verify):
                 break
     if verify:
         click.secho(f"Verifying version postgres", fg="yellow")
-        Commands.invoke(ctx, "up", daemon=True, machines=["postgres"], allow_build=True)
+        Commands.invoke(
+            ctx, "up", daemon=True, machines=["postgres"], allow_build=True
+        )
         postgres_version = (
             content.decode("utf-8", errors="ignore").split("\n")[1].strip()
         )
@@ -320,7 +359,9 @@ def _restore_wodoo_bin(ctx, config, filepath, verify):
                 )
             else:
                 break
-    Commands.invoke(ctx, "up", machines=["postgres"], daemon=True, allow_build=True)
+    Commands.invoke(
+        ctx, "up", machines=["postgres"], daemon=True, allow_build=True
+    )
 
 
 def _odoo_sh(ctx, config, filename, params):
@@ -369,7 +410,10 @@ def _after_restore(ctx, conn, config, no_dev_scripts, no_remove_webassets):
             remove_webassets(conn)
 
 
-@restore.command(name="odoo-db", help="Restore the Odoo database. Shows interactive file picker if no filename given. In DEVMODE resets passwords and disables mail/cronjobs.")
+@restore.command(
+    name="odoo-db",
+    help="Restore the Odoo database. Shows interactive file picker if no filename given. In DEVMODE resets passwords and disables mail/cronjobs.",
+)
 @click.argument(
     "filename", required=False, default="", shell_complete=_shell_complete_file
 )
@@ -526,7 +570,9 @@ def _restore_dump(
             del container_id
 
         Commands.invoke(ctx, "remove-volumes")
-        Commands.invoke(ctx, "up", machines=["postgres"], daemon=True, allow_build=True)
+        Commands.invoke(
+            ctx, "up", machines=["postgres"], daemon=True, allow_build=True
+        )
     Commands.invoke(ctx, "wait_for_container_postgres", missing_ok=True)
     conn = config.get_odoo_conn()
     dest_db = conn.dbname
@@ -767,7 +813,9 @@ def _backup_wodoobin(ctx, config, filename):
             f"WODOO_BIN\n{version}\n", tempfile_zip, filename
         )
 
-    Commands.invoke(ctx, "up", daemon=True, machines=["postgres"], allow_build=True)
+    Commands.invoke(
+        ctx, "up", daemon=True, machines=["postgres"], allow_build=True
+    )
 
 
 def _backup_pgdump(
