@@ -14,6 +14,7 @@ python3 /usr/local/bin/static_webserver.py $CONSTRUCTION_SITE_PORT /opt/construc
 # fix rights;-
 chmod a+r -R "$CONF_DIR" "$LUA_DIR"
 chown nobody:nobody -R "$CONF_DIR" "$LUA_DIR"
+chmod 777 "$PROXY_EXCHANGE" 2>/dev/null || true
 # static is mounted read-only from the host; do not chown/chmod it
 # to avoid changing ownership of host files
 
