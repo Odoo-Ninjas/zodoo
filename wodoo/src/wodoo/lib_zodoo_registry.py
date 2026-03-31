@@ -303,8 +303,7 @@ def _manifest_exists(image):
 def _resolve_registry_image(registry_url, service_name, tag):
     """Find the best matching registry image for the current architecture.
 
-    On amd64: tries '{tag}-amd64' first (cross-built by Mac), then '{tag}'.
-    On arm64: uses '{tag}' directly (native ARM push).
+    Tries '{tag}-{arch}' first, then falls back to '{tag}'.
     Returns the full image reference or None.
     """
     arch_specific = _arch_tag(tag)
@@ -365,8 +364,17 @@ def zodoo_tag_and_push(config, service_name, tag):
     click.secho(f"Pushed {registry_image}", fg="green")
 
 
+def _other_arch():
+    """Return the cross-build target architecture."""
+    if _is_arm():
+        return "amd64", "linux/amd64"
+    return "arm64", "linux/arm64"
+
+
 def _build_and_push_other_arch(config, service_name, tag):
-    """Build for amd64 via buildx and push (runs in background on Mac)."""
+    """Build for the other architecture via buildx and push (runs in background)."""
+    arch_name, platform_str = _other_arch()
+
     reg = _get_registry_config(config)
     if not reg:
         return
@@ -391,10 +399,10 @@ def _build_and_push_other_arch(config, service_name, tag):
             "buildx",
             "build",
             "--platform",
-            "linux/amd64",
+            platform_str,
             "--push",
             "-t",
-            f"{registry_image}-amd64",
+            f"{registry_image}-{arch_name}",
             "-f",
             dockerfile,
         ]
@@ -403,16 +411,16 @@ def _build_and_push_other_arch(config, service_name, tag):
     )
 
     click.secho(
-        f"Background: building {service_name} for linux/amd64...", fg="yellow"
+        f"Background: building {service_name} for {platform_str}...", fg="yellow"
     )
     try:
         subprocess.check_call(cmd, stdout=sys.stderr, stderr=sys.stderr)
         click.secho(
-            f"Background: pushed {service_name} for linux/amd64", fg="green"
+            f"Background: pushed {service_name} for {platform_str}", fg="green"
         )
     except subprocess.CalledProcessError:
         click.secho(
-            f"Background: failed to build {service_name} for linux/amd64",
+            f"Background: failed to build {service_name} for {platform_str}",
             fg="red",
         )
 
@@ -427,15 +435,23 @@ def _get_arch():
     return mapping.get(platform.machine(), "amd64")
 
 
-def _arch_tag(tag):
-    """Return architecture-specific tag, e.g. '18-3.12-abc-amd64'.
+def _can_cross_build():
+    """Check if buildx can build for the other architecture."""
+    _, target_platform = _other_arch()
+    try:
+        out = subprocess.check_output(
+            ["docker", "buildx", "inspect", "--bootstrap"],
+            stderr=subprocess.STDOUT,
+            encoding="utf-8",
+        )
+        return target_platform.split("/")[1] in out
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
 
-    On ARM the base tag is the native image (pushed without suffix),
-    on amd64 the Mac cross-build is stored with '-amd64' suffix.
-    """
+
+def _arch_tag(tag):
+    """Return architecture-specific tag, e.g. '18-3.12-abc-amd64'."""
     arch = _get_arch()
-    if arch == "arm64":
-        return None  # ARM uses the base tag directly
     return f"{tag}-{arch}"
 
 
@@ -455,7 +471,8 @@ def zodoo_push_with_background_arch(config, service_name, tag):
             subprocess.check_call(["docker", "push", arch_image])
             click.secho(f"Pushed {arch_image}", fg="green")
 
-    if _is_arm():
+    if _can_cross_build():
+        arch_name, platform_str = _other_arch()
         thread = threading.Thread(
             target=_build_and_push_other_arch,
             args=(config, service_name, tag),
@@ -463,10 +480,31 @@ def zodoo_push_with_background_arch(config, service_name, tag):
         )
         thread.start()
         click.secho(
-            f"Background build for amd64 started for {service_name}",
+            f"Background build for {platform_str} started for {service_name}",
             fg="yellow",
         )
         return thread
+
+    _, platform_str = _other_arch()
+    qemu_cmd = "docker run --rm --privileged multiarch/qemu-user-static --reset -p yes"
+    if sys.stdin.isatty():
+        click.secho(
+            f"Cross-build for {platform_str} not possible: QEMU not available.",
+            fg="yellow",
+        )
+        if click.confirm(f"Install QEMU now? ({qemu_cmd})"):
+            try:
+                subprocess.check_call(qemu_cmd.split())
+                click.secho("QEMU installed. Starting cross-build...", fg="green")
+                return _build_and_push_other_arch(config, service_name, tag)
+            except subprocess.CalledProcessError:
+                click.secho("Failed to install QEMU.", fg="red")
+    else:
+        click.secho(
+            f"Skipping cross-build for {platform_str}: QEMU not available.\n"
+            f"To enable, run:  {qemu_cmd}",
+            fg="yellow",
+        )
     return None
 
 

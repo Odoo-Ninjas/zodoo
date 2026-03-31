@@ -1,4 +1,5 @@
 import os
+import sys
 import tempfile
 import click
 import subprocess
@@ -209,7 +210,49 @@ def upgrade(ctx, config, no_install):
     else:
         if not no_install:
             _reinstall()
+
+    _update_gimera_src(config)
     _fix_permissions(config, [str(config.dirs["images"])])
+
+
+def _update_gimera_src(config):
+    """Update the integrated gimera source unless it is in submodule mode."""
+    import yaml
+
+    wodoo_src = config.dirs["images"] / "wodoo" / "src"
+    gimera_yml = wodoo_src / "gimera.yml"
+    if not gimera_yml.exists():
+        return
+    data = yaml.safe_load(gimera_yml.read_text())
+    for repo in data.get("repos", []):
+        if repo.get("path") == "gimera_src":
+            if repo.get("type") == "submodule":
+                click.secho(
+                    "gimera_src is in submodule mode - skipping update.",
+                    fg="cyan",
+                )
+                return
+            break
+    else:
+        return
+
+    click.secho("Updating gimera source...", fg="yellow")
+    env = {**os.environ, "PYTHONPATH": str(wodoo_src / "gimera_src")}
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "gimera.gimera",
+            "apply",
+            "gimera_src",
+            "--update",
+            "-I",
+            "-C",
+        ],
+        cwd=wodoo_src,
+        env=env,
+        check=False,
+    )
 
 
 def _reinstall():

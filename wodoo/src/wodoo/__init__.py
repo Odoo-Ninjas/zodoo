@@ -5,6 +5,11 @@ from pathlib import Path
 import inspect
 import os
 
+# gimera is included as integrated source in gimera_src/ (managed by gimera.yml)
+_gimera_src = Path(os.path.dirname(os.path.abspath(__file__))).parent / "gimera_src"
+if _gimera_src.exists() and str(_gimera_src) not in sys.path:
+    sys.path.insert(0, str(_gimera_src))
+
 # from .myconfigparser import MyConfigParser  # NOQA load this module here, otherwise following lines and sublines get error
 try:
     import click
