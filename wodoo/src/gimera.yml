@@ -1,7 +1,7 @@
 repos:
 - branch: main
   path: gimera_src
-  sha: 52519d4c56e0ff522486971ba61ac9d04b1ae972
+  sha: a2875ba9b1a01f8750520d88bccd3d9f5b13061b
   type: integrated
   url: git@github.com:marcwimmer/gimera
 - branch: master
