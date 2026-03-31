@@ -51,7 +51,9 @@ def _request_registry_user(registry_url, username, password):
     for scheme in ("https", "http"):
         url = f"{scheme}://{registry_url}/admin/api/request-user"
         req = urllib.request.Request(
-            url, data=data, headers={"Content-Type": "application/json"},
+            url,
+            data=data,
+            headers={"Content-Type": "application/json"},
             method="POST",
         )
         try:
@@ -267,6 +269,48 @@ def zodoo_registry_login(config):
     reg = _get_registry_config(config)
     if not reg or not reg["username"]:
         return
+
+    if platform.system() == "Darwin":
+        _docker_login_write_auth(reg)
+    else:
+        _docker_login_subprocess(reg)
+
+
+def _docker_login_write_auth(reg):
+    """Write auth directly into ~/.docker/config.json.
+
+    On macOS the osxkeychain credential helper fails with
+    "User interaction is not allowed" when running via SSH.
+    Bypasses credential helpers entirely.
+    """
+    import os
+    import base64
+
+    docker_dir = os.path.expanduser("~/.docker")
+    os.makedirs(docker_dir, exist_ok=True)
+    docker_cfg_path = os.path.join(docker_dir, "config.json")
+    try:
+        with open(docker_cfg_path) as f:
+            docker_cfg = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        docker_cfg = {}
+
+    if "auths" not in docker_cfg:
+        docker_cfg["auths"] = {}
+
+    token = base64.b64encode(
+        f"{reg['username']}:{reg['password']}".encode()
+    ).decode()
+    docker_cfg["auths"][reg["url"]] = {"auth": token}
+
+    with open(docker_cfg_path, "w") as f:
+        json.dump(docker_cfg, f, indent=2)
+
+    click.secho(f"Logged in to {reg['url']}", fg="green")
+
+
+def _docker_login_subprocess(reg):
+    """Login via docker login command (works on Linux)."""
     try:
         subprocess.check_output(
             [
@@ -275,9 +319,9 @@ def zodoo_registry_login(config):
                 reg["url"],
                 "-u",
                 reg["username"],
-                "-p",
-                reg["password"],
+                "--password-stdin",
             ],
+            input=reg["password"],
             encoding="utf-8",
             stderr=subprocess.STDOUT,
         )
@@ -411,7 +455,8 @@ def _build_and_push_other_arch(config, service_name, tag):
     )
 
     click.secho(
-        f"Background: building {service_name} for {platform_str}...", fg="yellow"
+        f"Background: building {service_name} for {platform_str}...",
+        fg="yellow",
     )
     try:
         subprocess.check_call(cmd, stdout=sys.stderr, stderr=sys.stderr)
@@ -466,7 +511,9 @@ def zodoo_push_with_background_arch(config, service_name, tag):
         reg = _get_registry_config(config)
         if reg:
             local_image = _local_image_name(config, service_name)
-            arch_image = _registry_image_name(reg["url"], service_name, arch_specific)
+            arch_image = _registry_image_name(
+                reg["url"], service_name, arch_specific
+            )
             subprocess.check_call(["docker", "tag", local_image, arch_image])
             subprocess.check_call(["docker", "push", arch_image])
             click.secho(f"Pushed {arch_image}", fg="green")
@@ -495,7 +542,9 @@ def zodoo_push_with_background_arch(config, service_name, tag):
         if click.confirm(f"Install QEMU now? ({qemu_cmd})"):
             try:
                 subprocess.check_call(qemu_cmd.split())
-                click.secho("QEMU installed. Starting cross-build...", fg="green")
+                click.secho(
+                    "QEMU installed. Starting cross-build...", fg="green"
+                )
                 return _build_and_push_other_arch(config, service_name, tag)
             except subprocess.CalledProcessError:
                 click.secho("Failed to install QEMU.", fg="red")
@@ -547,7 +596,9 @@ def try_pull_from_zodoo_registry(config, machines):
             local_image = _local_image_name(config, service_name)
             try:
                 subprocess.check_call(["docker", "pull", registry_image])
-                subprocess.check_call(["docker", "tag", registry_image, local_image])
+                subprocess.check_call(
+                    ["docker", "tag", registry_image, local_image]
+                )
                 click.secho(f"Tagged {local_image} from registry", fg="green")
                 return service_name
             except subprocess.CalledProcessError:
