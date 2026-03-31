@@ -155,6 +155,7 @@ class MANIFEST_CLASS:
         try:
             with os.fdopen(fd, "w") as fh:
                 fh.write(s)
+                fh.write("\n")
             shutil.move(tmp, MANIFEST_FILE())
         except Exception:
             Path(tmp).unlink(missing_ok=True)
