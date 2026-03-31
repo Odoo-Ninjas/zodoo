@@ -287,12 +287,8 @@ def zodoo_registry_login(config):
         raise
 
 
-def zodoo_image_exists(config, service_name, tag):
-    """Check if image exists in registry via docker manifest inspect."""
-    reg = _get_registry_config(config)
-    if not reg:
-        return False
-    image = _registry_image_name(reg["url"], service_name, tag)
+def _manifest_exists(image):
+    """Check if a single image reference exists in the registry."""
     try:
         subprocess.check_output(
             ["docker", "manifest", "inspect", image],
@@ -304,12 +300,41 @@ def zodoo_image_exists(config, service_name, tag):
         return False
 
 
+def _resolve_registry_image(registry_url, service_name, tag):
+    """Find the best matching registry image for the current architecture.
+
+    On amd64: tries '{tag}-amd64' first (cross-built by Mac), then '{tag}'.
+    On arm64: uses '{tag}' directly (native ARM push).
+    Returns the full image reference or None.
+    """
+    arch_specific = _arch_tag(tag)
+    if arch_specific:
+        image = _registry_image_name(registry_url, service_name, arch_specific)
+        if _manifest_exists(image):
+            return image
+    # Fall back to base tag
+    image = _registry_image_name(registry_url, service_name, tag)
+    if _manifest_exists(image):
+        return image
+    return None
+
+
+def zodoo_image_exists(config, service_name, tag):
+    """Check if image exists in registry via docker manifest inspect."""
+    reg = _get_registry_config(config)
+    if not reg:
+        return False
+    return _resolve_registry_image(reg["url"], service_name, tag) is not None
+
+
 def zodoo_pull_and_tag(config, service_name, tag):
     """Pull image from registry and tag it as local compose image."""
     reg = _get_registry_config(config)
     if not reg:
         return False
-    registry_image = _registry_image_name(reg["url"], service_name, tag)
+    registry_image = _resolve_registry_image(reg["url"], service_name, tag)
+    if not registry_image:
+        return False
     local_image = _local_image_name(config, service_name)
 
     click.secho(f"Pulling {registry_image}...", fg="cyan")
@@ -396,9 +421,39 @@ def _is_arm():
     return platform.machine() in ("arm64", "aarch64")
 
 
+def _get_arch():
+    """Return normalized architecture: 'amd64' or 'arm64'."""
+    mapping = {"x86_64": "amd64", "aarch64": "arm64", "arm64": "arm64"}
+    return mapping.get(platform.machine(), "amd64")
+
+
+def _arch_tag(tag):
+    """Return architecture-specific tag, e.g. '18-3.12-abc-amd64'.
+
+    On ARM the base tag is the native image (pushed without suffix),
+    on amd64 the Mac cross-build is stored with '-amd64' suffix.
+    """
+    arch = _get_arch()
+    if arch == "arm64":
+        return None  # ARM uses the base tag directly
+    return f"{tag}-{arch}"
+
+
 def zodoo_push_with_background_arch(config, service_name, tag):
     """Push local image, and if on ARM, also build+push amd64 in background."""
     zodoo_tag_and_push(config, service_name, tag)
+
+    # Also push with architecture-specific tag so other machines
+    # with the same arch can pull the correct image.
+    arch_specific = _arch_tag(tag)
+    if arch_specific:
+        reg = _get_registry_config(config)
+        if reg:
+            local_image = _local_image_name(config, service_name)
+            arch_image = _registry_image_name(reg["url"], service_name, arch_specific)
+            subprocess.check_call(["docker", "tag", local_image, arch_image])
+            subprocess.check_call(["docker", "push", arch_image])
+            click.secho(f"Pushed {arch_image}", fg="green")
 
     if _is_arm():
         thread = threading.Thread(
@@ -445,13 +500,20 @@ def try_pull_from_zodoo_registry(config, machines):
     zodoo_registry_login(config)
 
     def _check_and_pull(service_name):
-        if zodoo_image_exists(config, service_name, tag):
+        registry_image = _resolve_registry_image(reg["url"], service_name, tag)
+        if registry_image:
             click.secho(
-                f"Image for {service_name} found in zodoo registry ({tag})",
+                f"Image for {service_name} found in zodoo registry ({registry_image})",
                 fg="green",
             )
-            if zodoo_pull_and_tag(config, service_name, tag):
+            local_image = _local_image_name(config, service_name)
+            try:
+                subprocess.check_call(["docker", "pull", registry_image])
+                subprocess.check_call(["docker", "tag", registry_image, local_image])
+                click.secho(f"Tagged {local_image} from registry", fg="green")
                 return service_name
+            except subprocess.CalledProcessError:
+                click.secho(f"Failed to pull {registry_image}", fg="red")
         else:
             click.secho(
                 f"Image for {service_name} not in zodoo registry ({tag})",
