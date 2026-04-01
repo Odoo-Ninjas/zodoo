@@ -18,7 +18,11 @@ import click
 from tqdm import tqdm
 from copy import deepcopy
 from .odoo_config import get_conn_autoclose
-from gimera.repo import Repo
+
+try:
+    from gimera.repo import Repo
+except ImportError:
+    Repo = None
 from .tools import __try_to_set_owner
 from .tools import _make_sure_module_is_installed
 from .tools import __assure_gitignore
