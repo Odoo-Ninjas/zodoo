@@ -894,6 +894,41 @@ def _execute_after_settings(config):
         settings.write()
 
 
+def _load_zodooignore(customs_dir):
+    """Load .zodooignore patterns from project root.
+
+    Returns a list of glob patterns. Files matching any pattern
+    (relative to customs_dir) will be excluded from compose file discovery.
+    """
+
+    ignorefile = customs_dir / ".zodooignore"
+    if not ignorefile.exists():
+        return []
+    patterns = []
+    for line in ignorefile.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        patterns.append(line)
+    return patterns
+
+
+def _is_zodooignored(filepath, customs_dir, patterns):
+    """Check if a file path matches any .zodooignore pattern."""
+    import fnmatch
+
+    if not patterns:
+        return False
+    try:
+        rel = str(filepath.resolve().relative_to(customs_dir.resolve()))
+    except ValueError:
+        return False
+    for pattern in patterns:
+        if fnmatch.fnmatch(rel, pattern):
+            return True
+    return False
+
+
 def _prepare_yml_files_from_template_files(
     config, additional_docker_configuration_files=None
 ):
@@ -910,6 +945,7 @@ def _prepare_yml_files_from_template_files(
 
     manifest = MANIFEST()
     customs_dir = odoo_config.customs_dir()
+    zodooignore_patterns = _load_zodooignore(customs_dir)
     for dir in [
         config.dirs["images"],
         customs_dir,
@@ -926,6 +962,11 @@ def _prepare_yml_files_from_template_files(
                     ignore = str(
                         file.relative_to(customs_dir)
                     ) in manifest.get("ignore_compose_files", [])
+
+                if not ignore and _is_zodooignored(
+                    file, customs_dir, zodooignore_patterns
+                ):
+                    ignore = True
 
                 if not ignore:
                     _files.append(file)
