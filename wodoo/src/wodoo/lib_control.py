@@ -448,6 +448,11 @@ def attach(ctx, config, machine):
     is_flag=True,
     help="Only pull from zodoo registry, never build locally. Fails if image not found.",
 )
+@click.option(
+    "--suppress-other-platform-build",
+    is_flag=True,
+    help="Skip cross-architecture (QEMU/buildx) build for the other platform.",
+)
 @pass_config
 @click.pass_context
 def build(
@@ -462,6 +467,7 @@ def build(
     platform,
     no_zodoo_pull,
     registry_only,
+    suppress_other_platform_build,
 ):
     from .lib_cached_build import start_squid_proxy, start_proxpi
     from .lib_zodoo_registry import try_pull_from_zodoo_registry
@@ -511,7 +517,11 @@ def build(
         )
 
         # Push built images to zodoo registry
-        push_to_zodoo_registry(config, machines_to_build)
+        push_to_zodoo_registry(
+            config,
+            machines_to_build,
+            suppress_other_platform=suppress_other_platform_build,
+        )
     elif already_pulled:
         click.secho(
             "All images pulled from zodoo registry, no build needed.",

@@ -500,7 +500,7 @@ def _arch_tag(tag):
     return f"{tag}-{arch}"
 
 
-def zodoo_push_with_background_arch(config, service_name, tag):
+def zodoo_push_with_background_arch(config, service_name, tag, suppress_other_platform=False):
     """Push local image, and if on ARM, also build+push amd64 in background."""
     zodoo_tag_and_push(config, service_name, tag)
 
@@ -517,6 +517,13 @@ def zodoo_push_with_background_arch(config, service_name, tag):
             subprocess.check_call(["docker", "tag", local_image, arch_image])
             subprocess.check_call(["docker", "push", arch_image])
             click.secho(f"Pushed {arch_image}", fg="green")
+
+    if suppress_other_platform:
+        click.secho(
+            f"Skipping cross-platform build for {service_name} (--suppress-other-platform-build).",
+            fg="yellow",
+        )
+        return None
 
     if _can_cross_build():
         arch_name, platform_str = _other_arch()
@@ -620,7 +627,7 @@ def try_pull_from_zodoo_registry(config, machines):
     return pulled
 
 
-def push_to_zodoo_registry(config, machines):
+def push_to_zodoo_registry(config, machines, suppress_other_platform=False):
     """Push all build-services to registry after build."""
     reg = _get_registry_config(config)
     if not reg:
@@ -634,7 +641,9 @@ def push_to_zodoo_registry(config, machines):
 
     background_threads = []
     for service_name in machines:
-        thread = zodoo_push_with_background_arch(config, service_name, tag)
+        thread = zodoo_push_with_background_arch(
+            config, service_name, tag, suppress_other_platform=suppress_other_platform
+        )
         if thread:
             background_threads.append((service_name, thread))
 
