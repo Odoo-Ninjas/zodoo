@@ -647,7 +647,7 @@ def runbash(ctx, config, machine, args, **kwparams):
     help="Show container logs. Use -f to follow, -n for line count.",
 )
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_machines)
-@click.option("-n", "--lines", required=False, type=int, default=200)
+@click.option("-n", "--lines", "--tail", required=False, type=int, default=200)
 @click.option("-f", "--follow", is_flag=True)
 @pass_config
 def logall(config, machines, follow, lines):
