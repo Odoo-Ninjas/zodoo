@@ -87,6 +87,8 @@ def _get_registry_config(config):
             "\n"
             "The zodoo registry caches built Docker images centrally so\n"
             "that team members don't have to rebuild locally.\n"
+            "\n"
+            "Docs: https://docs.zebroo.de/docs/reduce-build-time-and-resources-with-zodoo-registry\n"
             "========================================",
             fg="yellow",
         )
@@ -500,7 +502,9 @@ def _arch_tag(tag):
     return f"{tag}-{arch}"
 
 
-def zodoo_push_with_background_arch(config, service_name, tag, suppress_other_platform=False):
+def zodoo_push_with_background_arch(
+    config, service_name, tag, suppress_other_platform=False
+):
     """Push local image, and if on ARM, also build+push amd64 in background."""
     zodoo_tag_and_push(config, service_name, tag)
 
@@ -642,7 +646,10 @@ def push_to_zodoo_registry(config, machines, suppress_other_platform=False):
     background_threads = []
     for service_name in machines:
         thread = zodoo_push_with_background_arch(
-            config, service_name, tag, suppress_other_platform=suppress_other_platform
+            config,
+            service_name,
+            tag,
+            suppress_other_platform=suppress_other_platform,
         )
         if thread:
             background_threads.append((service_name, thread))
