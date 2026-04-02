@@ -1910,28 +1910,37 @@ def _setup_claude_settings(config):
     claude_dir = Path(config.customs_dir) / ".claude"
     claude_dir.mkdir(parents=True, exist_ok=True)
     settings_file = claude_dir / "settings.json"
-    if settings_file.exists():
-        return
     home = str(Path.home())
     odoo_dir = f"{home}/.odoo"
-    settings = {
-        "permissions": {
-            "allow": [
-                "Bash(odoo *)",
-                f"Edit({odoo_dir}/**)",
-                f"Read({odoo_dir}/**)",
-                "Bash(git log:*)",
-                "Bash(git *)",
-                "Bash(md5)",
-                "Read(/tmp/**)",
-                f"Bash(ls {odoo_dir}/settings*)",
-            ],
-            "additionalDirectories": [
-                "/tmp",
-                f"{home}/.odoo",
-            ],
-        },
-    }
+    default_allow = [
+        "Bash(odoo *)",
+        f"Edit({odoo_dir}/**)",
+        f"Read({odoo_dir}/**)",
+        "Bash(git log:*)",
+        "Bash(git *)",
+        "Bash(md5)",
+        "Read(/tmp/**)",
+        f"Bash(ls {odoo_dir}/settings*)",
+    ]
+    default_dirs = [
+        "/tmp",
+        f"{home}/.odoo",
+    ]
+    if settings_file.exists():
+        settings = json.loads(settings_file.read_text())
+    else:
+        settings = {}
+    permissions = settings.setdefault("permissions", {})
+    existing_allow = permissions.get("allow", [])
+    for entry in default_allow:
+        if entry not in existing_allow:
+            existing_allow.append(entry)
+    permissions["allow"] = existing_allow
+    existing_dirs = permissions.get("additionalDirectories", [])
+    for entry in default_dirs:
+        if entry not in existing_dirs:
+            existing_dirs.append(entry)
+    permissions["additionalDirectories"] = existing_dirs
     settings_file.write_text(json.dumps(settings, indent=2) + "\n")
     click.secho(f"Created {settings_file}", fg="green")
 
