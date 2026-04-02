@@ -432,9 +432,10 @@ def zodoo_tag_and_push(config, service_name, tag):
                 "========================================\n",
                 fg="red",
             )
-            return
+            return False
         raise
     click.secho(f"Pushed {registry_image}", fg="green")
+    return True
 
 
 def _other_arch():
@@ -544,7 +545,8 @@ def zodoo_push_with_background_arch(
     config, service_name, tag, suppress_other_platform=False
 ):
     """Push local image, and if on ARM, also build+push amd64 in background."""
-    zodoo_tag_and_push(config, service_name, tag)
+    if zodoo_tag_and_push(config, service_name, tag) is False:
+        return None
 
     # Also push with architecture-specific tag so other machines
     # with the same arch can pull the correct image.
@@ -557,7 +559,23 @@ def zodoo_push_with_background_arch(
                 reg["url"], service_name, arch_specific
             )
             subprocess.check_call(["docker", "tag", local_image, arch_image])
-            subprocess.check_call(["docker", "push", arch_image])
+            try:
+                subprocess.check_output(
+                    ["docker", "push", arch_image],
+                    stderr=subprocess.STDOUT,
+                    encoding="utf-8",
+                )
+            except subprocess.CalledProcessError as e:
+                if "unauthorized" in (e.output or "").lower():
+                    click.secho(
+                        f"Push of {arch_image} failed — unauthorized. "
+                        "Check your ZODOO_REGISTRY_* settings "
+                        "or contact your zodoo administrator.\n"
+                        "Docs: https://docs.zebroo.de/docs/reduce-build-time-and-resources-with-zodoo-registry",
+                        fg="red",
+                    )
+                    return None
+                raise
             click.secho(f"Pushed {arch_image}", fg="green")
 
     if suppress_other_platform:
