@@ -22,6 +22,37 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import click
 import yaml
 
+from pathlib import Path
+
+IMAGES_DIR = Path.home() / ".odoo" / "images"
+
+
+def _get_images_git_sha():
+    """Return the current git commit SHA of ~/.odoo/images."""
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=IMAGES_DIR,
+            stderr=subprocess.DEVNULL,
+            encoding="utf-8",
+        ).strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
+
+
+def _is_images_dirty():
+    """Check if ~/.odoo/images has uncommitted changes."""
+    try:
+        result = subprocess.check_output(
+            ["git", "status", "--porcelain"],
+            cwd=IMAGES_DIR,
+            stderr=subprocess.DEVNULL,
+            encoding="utf-8",
+        ).strip()
+        return bool(result)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return False
+
 
 def _read_user_setting(config, key):
     """Read a setting directly from ~/.odoo/settings without requiring reload."""
@@ -248,15 +279,22 @@ def _get_requirements_hash(config):
 def get_zodoo_image_tag(config):
     """Compute deterministic image tag from build inputs.
 
-    Format: {odoo_version}-{python_version}-{requirements_hash_short}
+    Format: {odoo_version}-{python_version}-{combined_hash_short}
     Example: 18-3.12.11-a4f8c2d1
+
+    The hash combines the requirements hash and the ~/.odoo/images git SHA
+    so that changes to the images repo also invalidate cached images.
     """
+    import hashlib
+
     odoo_version = config.odoo_version
     python_version = getattr(config, "ODOO_PYTHON_VERSION", None) or ""
     req_hash = _get_requirements_hash(config)
-    if not all([odoo_version, python_version, req_hash]):
+    images_sha = _get_images_git_sha()
+    if not all([odoo_version, python_version, req_hash, images_sha]):
         return None
-    return f"{odoo_version}-{python_version}-{req_hash[:8]}"
+    combined = hashlib.sha256(f"{req_hash}{images_sha}".encode()).hexdigest()
+    return f"{odoo_version}-{python_version}-{combined[:8]}"
 
 
 def _registry_image_name(registry_url, service_name, tag):
@@ -641,6 +679,13 @@ def try_pull_from_zodoo_registry(config, machines):
     Returns list of services that were successfully pulled
     (and thus don't need building).
     """
+    if _is_images_dirty():
+        click.secho(
+            "Skipping zodoo registry pull: ~/.odoo/images has uncommitted changes.",
+            fg="yellow",
+        )
+        return []
+
     reg = _get_registry_config(config)
     if not reg:
         return []
@@ -692,6 +737,13 @@ def try_pull_from_zodoo_registry(config, machines):
 
 def push_to_zodoo_registry(config, machines, suppress_other_platform=False):
     """Push all build-services to registry after build."""
+    if _is_images_dirty():
+        click.secho(
+            "Skipping zodoo registry push: ~/.odoo/images has uncommitted changes.",
+            fg="yellow",
+        )
+        return
+
     reg = _get_registry_config(config)
     if not reg:
         return
