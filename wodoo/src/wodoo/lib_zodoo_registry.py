@@ -406,7 +406,31 @@ def zodoo_tag_and_push(config, service_name, tag):
     subprocess.check_call(["docker", "tag", local_image, registry_image])
 
     click.secho(f"Pushing {registry_image}...", fg="cyan")
-    subprocess.check_call(["docker", "push", registry_image])
+    try:
+        subprocess.check_output(
+            ["docker", "push", registry_image],
+            stderr=subprocess.STDOUT,
+            encoding="utf-8",
+        )
+    except subprocess.CalledProcessError as e:
+        if "unauthorized" in (e.output or "").lower():
+            click.secho(
+                "\n========================================\n"
+                "Push to zodoo registry failed: unauthorized\n"
+                "========================================\n"
+                "\n"
+                "You are not logged in to the zodoo registry.\n"
+                "Please run:\n"
+                "\n"
+                "  odoo docker-registry login\n"
+                "\n"
+                "For setup instructions see:\n"
+                "https://docs.zebroo.de/docs/reduce-build-time-and-resources-with-zodoo-registry\n"
+                "========================================\n",
+                fg="red",
+            )
+            return
+        raise
     click.secho(f"Pushed {registry_image}", fg="green")
 
 
@@ -461,15 +485,25 @@ def _build_and_push_other_arch(config, service_name, tag):
         fg="yellow",
     )
     try:
-        subprocess.check_call(cmd, stdout=sys.stderr, stderr=sys.stderr)
+        subprocess.check_output(
+            cmd, stderr=subprocess.STDOUT, encoding="utf-8"
+        )
         click.secho(
             f"Background: pushed {service_name} for {platform_str}", fg="green"
         )
-    except subprocess.CalledProcessError:
-        click.secho(
-            f"Background: failed to build {service_name} for {platform_str}",
-            fg="red",
-        )
+    except subprocess.CalledProcessError as e:
+        if "unauthorized" in (e.output or "").lower():
+            click.secho(
+                f"Background: push for {service_name} ({platform_str}) "
+                "failed — unauthorized. Run 'odoo docker-registry login'.\n"
+                "Docs: https://docs.zebroo.de/docs/reduce-build-time-and-resources-with-zodoo-registry",
+                fg="red",
+            )
+        else:
+            click.secho(
+                f"Background: failed to build {service_name} for {platform_str}",
+                fg="red",
+            )
 
 
 def _is_arm():
