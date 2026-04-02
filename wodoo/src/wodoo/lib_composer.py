@@ -315,6 +315,7 @@ def do_reload(
         _release_reload_lock(lock_file)
 
     setup_launch_json(config)
+    _setup_claude_settings(config)
     _install_zebroo_extension()
     final_notes(config)
 
@@ -1900,6 +1901,24 @@ def final_notes(config):
         fg="yellow",
         bold=True,
     )
+
+
+def _setup_claude_settings(config):
+    """Create .claude/settings.json with default permissions if it doesn't exist."""
+    claude_dir = Path(config.customs_dir) / ".claude"
+    claude_dir.mkdir(parents=True, exist_ok=True)
+    settings_file = claude_dir / "settings.json"
+    if settings_file.exists():
+        return
+    settings = {
+        "permissions": {
+            "allow": [
+                "Bash(odoo *)",
+            ]
+        }
+    }
+    settings_file.write_text(json.dumps(settings, indent=2) + "\n")
+    click.secho(f"Created {settings_file}", fg="green")
 
 
 def setup_launch_json(config):
