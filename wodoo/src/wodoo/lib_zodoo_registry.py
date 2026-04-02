@@ -419,13 +419,16 @@ def zodoo_tag_and_push(config, service_name, tag):
                 "Push to zodoo registry failed: unauthorized\n"
                 "========================================\n"
                 "\n"
-                "You are not logged in to the zodoo registry.\n"
-                "Please run:\n"
+                "Your credentials for the zodoo registry are missing or invalid.\n"
                 "\n"
-                "  odoo docker-registry login\n"
+                "To fix this, ask your zodoo administrator for valid credentials\n"
+                "and set them in your project settings:\n"
                 "\n"
-                "For setup instructions see:\n"
-                "https://docs.zebroo.de/docs/reduce-build-time-and-resources-with-zodoo-registry\n"
+                "  ZODOO_REGISTRY_URL\n"
+                "  ZODOO_REGISTRY_USERNAME\n"
+                "  ZODOO_REGISTRY_PASSWORD\n"
+                "\n"
+                "Docs: https://docs.zebroo.de/docs/reduce-build-time-and-resources-with-zodoo-registry\n"
                 "========================================\n",
                 fg="red",
             )
@@ -495,7 +498,8 @@ def _build_and_push_other_arch(config, service_name, tag):
         if "unauthorized" in (e.output or "").lower():
             click.secho(
                 f"Background: push for {service_name} ({platform_str}) "
-                "failed — unauthorized. Run 'odoo docker-registry login'.\n"
+                "failed — unauthorized. Check your ZODOO_REGISTRY_* settings "
+                "or contact your zodoo administrator.\n"
                 "Docs: https://docs.zebroo.de/docs/reduce-build-time-and-resources-with-zodoo-registry",
                 fg="red",
             )
