@@ -221,7 +221,20 @@ def do_reload(
 
     config.TARGETARCH = _get_arch()
 
-    if config.DEVMODE:
+    # Check DEVMODE from project settings directly (the combined
+    # settings file may not exist yet or gets deleted during reload)
+    from .myconfigparser import MyConfigParser as _MCP
+
+    _devmode = False
+    for _sf in ["project_settings", "user_settings", "system_settings"]:
+        _path = config.files.get(_sf)
+        if _path and _path.exists():
+            _val = _MCP(_path).get("DEVMODE", "")
+            if _val == "1":
+                _devmode = True
+                break
+
+    if _devmode:
         from .lib_setup import next_port
 
         ctx.invoke(next_port)
