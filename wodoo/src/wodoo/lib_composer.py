@@ -1904,7 +1904,9 @@ def final_notes(config):
 
 
 def _setup_claude_settings(config):
-    """Create .claude/settings.json with default permissions if it doesn't exist."""
+    """Create .claude/settings.json with default permissions if DEVMODE is active."""
+    if not config.DEVMODE:
+        return
     claude_dir = Path(config.customs_dir) / ".claude"
     claude_dir.mkdir(parents=True, exist_ok=True)
     settings_file = claude_dir / "settings.json"
