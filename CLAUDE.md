@@ -6,30 +6,33 @@ This is the **zodoo repository** — the source for Docker images and project te
 
 ## What this repo contains
 
-| Directory | Contents |
-|-----------|----------|
-| `odoo/` | Odoo Docker image (Dockerfile, docker-compose templates, default settings) |
-| `postgres/`, `proxy/`, `mail/`, `redis/`, ... | Service Docker images |
-| `templates/customs_template/` | Project init templates (copied by `odoo init`) |
-| `templates/module_template/` | Module scaffold templates (used by `odoo src make-module`) |
-| `wodoo/` | Git submodule → Python CLI source (`wodoo` package) |
-| `docs/` | Full documentation |
-| `install.sh` | One-line installer script |
+| Directory                                     | Contents                                                                   |
+| --------------------------------------------- | -------------------------------------------------------------------------- |
+| `odoo/`                                       | Odoo Docker image (Dockerfile, docker-compose templates, default settings) |
+| `postgres/`, `proxy/`, `mail/`, `redis/`, ... | Service Docker images                                                      |
+| `templates/customs_template/`                 | Project init templates (copied by `odoo init`)                             |
+| `templates/module_template/`                  | Module scaffold templates (used by `odoo src make-module`)                 |
+| `wodoo/`                                      | Git submodule → Python CLI source (`wodoo` package)                        |
+| `docs/`                                       | Full documentation                                                         |
+| `install.sh`                                  | One-line installer script                                                  |
 
 ## Architecture
 
 Users install zodoo via:
+
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/Odoo-Ninjas/zodoo/refs/heads/main/install.sh)
 ```
 
 This:
+
 1. Clones this repo to `~/.odoo/images/`
 2. Installs the `wodoo` Python package (from `wodoo/src/`) via `pipx` → provides the `odoo` command
 
 ## Working on this repo
 
 ### Prerequisites
+
 - Docker
 - Python 3.10–3.12
 - pipx
@@ -57,6 +60,12 @@ git submodule update --init
 When adding files here (like `CLAUDE.md`), they appear in every new project created with `odoo init`.
 
 Versions: `9.0`, `11.0`, `12.0`, `13.0`, `14.0`, `15.0`, `16.0`, `17.0`, `18.0`, `19.0`
+
+### Building containers from scratch
+
+```bash
+odoo build <name> --no-zodoo-pull
+```
 
 ### Testing changes locally
 

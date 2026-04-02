@@ -12,6 +12,8 @@ services:
       - auto
     environment:
       - PROJECT_NAME=${PROJECT_NAME}
+      - DOCKER_GID=${DOCKER_GID}
+      - OWNER_UID=${OWNER_UID}
     volumes:
       - "$ODOO_IMAGES/cronjobs/bin/:/usr/local/bin/:ro"
       - "${HOST_RUN_DIR}/cronjobs:/opt/cronjobs"

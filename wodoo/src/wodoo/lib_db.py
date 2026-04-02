@@ -106,7 +106,9 @@ def pgactivity(config):
     )
 
 
-@db.command(help="Open an enhanced interactive PostgreSQL CLI (pgcli) with autocomplete.")
+@db.command(
+    help="Open an enhanced interactive PostgreSQL CLI (pgcli) with autocomplete."
+)
 @click.argument("dbname", required=False)
 @click.argument("params", nargs=-1)
 @click.option("-h", "--host", required=False)
@@ -126,7 +128,9 @@ def pgcli(config, dbname, params, host, port, user, password):
     )
 
 
-@db.command(help="Open a standard psql CLI. Use --sql to run a query non-interactively.")
+@db.command(
+    help="Open a standard psql CLI. Use --sql to run a query non-interactively."
+)
 @click.argument("dbname", required=False)
 @click.argument("params", nargs=-1)
 @click.option("--sql", required=False)
@@ -495,7 +499,7 @@ ORDER BY total_bytes DESC;
     )
 
 
-@db.command(help="Export as excel")
+@db.command(help="Execute SQL and output result as JSON.")
 @click.argument("sql", required=True)
 @pass_config
 def json(config, sql):
