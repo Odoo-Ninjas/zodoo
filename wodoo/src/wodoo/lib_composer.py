@@ -221,6 +221,11 @@ def do_reload(
 
     config.TARGETARCH = _get_arch()
 
+    if devmode:
+        from .lib_setup import next_port
+
+        ctx.invoke(next_port)
+
     click.secho(
         f"Current Project Name: {config.project_name}", bold=True, fg="green"
     )
