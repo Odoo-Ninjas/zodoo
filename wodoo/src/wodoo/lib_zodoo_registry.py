@@ -421,8 +421,11 @@ def zodoo_tag_and_push(config, service_name, tag):
                 "\n"
                 "Your credentials for the zodoo registry are missing or invalid.\n"
                 "\n"
-                "To fix this, ask your zodoo administrator for valid credentials\n"
-                "and set them in your project settings:\n"
+                "To fix this either:\n"
+                "  - Ask your zodoo administrator for valid credentials\n"
+                "  - Or use your own Docker registry by setting ZODOO_REGISTRY_URL\n"
+                "\n"
+                "Configure in your project settings:\n"
                 "\n"
                 "  ZODOO_REGISTRY_URL\n"
                 "  ZODOO_REGISTRY_USERNAME\n"
@@ -499,8 +502,8 @@ def _build_and_push_other_arch(config, service_name, tag):
         if "unauthorized" in (e.output or "").lower():
             click.secho(
                 f"Background: push for {service_name} ({platform_str}) "
-                "failed — unauthorized. Check your ZODOO_REGISTRY_* settings "
-                "or contact your zodoo administrator.\n"
+                "failed — unauthorized. Check your ZODOO_REGISTRY_* settings, "
+                "contact your zodoo administrator, or use your own registry.\n"
                 "Docs: https://docs.zebroo.de/docs/reduce-build-time-and-resources-with-zodoo-registry",
                 fg="red",
             )
@@ -569,8 +572,8 @@ def zodoo_push_with_background_arch(
                 if "unauthorized" in (e.output or "").lower():
                     click.secho(
                         f"Push of {arch_image} failed — unauthorized. "
-                        "Check your ZODOO_REGISTRY_* settings "
-                        "or contact your zodoo administrator.\n"
+                        "Check your ZODOO_REGISTRY_* settings, "
+                        "contact your zodoo administrator, or use your own registry.\n"
                         "Docs: https://docs.zebroo.de/docs/reduce-build-time-and-resources-with-zodoo-registry",
                         fg="red",
                     )
