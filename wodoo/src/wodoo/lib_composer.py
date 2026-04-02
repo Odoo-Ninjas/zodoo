@@ -1912,12 +1912,25 @@ def _setup_claude_settings(config):
     settings_file = claude_dir / "settings.json"
     if settings_file.exists():
         return
+    home = str(Path.home())
+    odoo_dir = f"{home}/.odoo"
     settings = {
         "permissions": {
             "allow": [
                 "Bash(odoo *)",
-            ]
-        }
+                f"Edit({odoo_dir}/**)",
+                f"Read({odoo_dir}/**)",
+                "Bash(git log:*)",
+                "Bash(git *)",
+                "Bash(md5)",
+                "Read(/tmp/**)",
+                f"Bash(ls {odoo_dir}/settings*)",
+            ],
+            "additionalDirectories": [
+                "/tmp",
+                f"{home}/.odoo",
+            ],
+        },
     }
     settings_file.write_text(json.dumps(settings, indent=2) + "\n")
     click.secho(f"Created {settings_file}", fg="green")
