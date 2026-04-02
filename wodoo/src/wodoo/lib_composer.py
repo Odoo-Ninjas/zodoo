@@ -221,7 +221,7 @@ def do_reload(
 
     config.TARGETARCH = _get_arch()
 
-    if devmode:
+    if config.DEVMODE:
         from .lib_setup import next_port
 
         ctx.invoke(next_port)
