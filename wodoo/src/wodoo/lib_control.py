@@ -449,6 +449,11 @@ def attach(ctx, config, machine):
     help="Only pull from zodoo registry, never build locally. Fails if image not found.",
 )
 @click.option(
+    "--no-zodoo-push",
+    is_flag=True,
+    help="Skip pushing built images to zodoo registry after build",
+)
+@click.option(
     "--suppress-other-platform-build",
     is_flag=True,
     help="Skip cross-architecture (QEMU/buildx) build for the other platform.",
@@ -466,18 +471,21 @@ def build(
     include_source,
     platform,
     no_zodoo_pull,
+    no_zodoo_push,
     registry_only,
     suppress_other_platform_build,
 ):
     from .lib_cached_build import start_squid_proxy, start_proxpi
     from .lib_zodoo_registry import try_pull_from_zodoo_registry
     from .lib_zodoo_registry import push_to_zodoo_registry
+    from .lib_docker_registry import disable_keychain_credential_store
 
     from .myconfigparser import MyConfigParser
 
     settings = MyConfigParser(config.files["settings"])
 
     ensure_project_name(config)
+    disable_keychain_credential_store()
     if plain:
         os.environ["BUILDKIT_PROGRESS"] = "plain"
     from .lib_control_with_docker import build as lib_build
@@ -517,11 +525,12 @@ def build(
         )
 
         # Push built images to zodoo registry
-        push_to_zodoo_registry(
-            config,
-            machines_to_build,
-            suppress_other_platform=suppress_other_platform_build,
-        )
+        if not no_zodoo_push:
+            push_to_zodoo_registry(
+                config,
+                machines_to_build,
+                suppress_other_platform=suppress_other_platform_build,
+            )
     elif already_pulled:
         click.secho(
             "All images pulled from zodoo registry, no build needed.",
@@ -535,9 +544,6 @@ def build(
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_services)
 @pass_config
 def zodoo_push(config, machines):
-    import pudb
-
-    pudb.set_trace()
     from .lib_zodoo_registry import push_to_zodoo_registry, get_build_services
 
     ensure_project_name(config)

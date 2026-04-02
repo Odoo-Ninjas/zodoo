@@ -5,6 +5,9 @@ HUB_URL=registry.name:port/user/project:version
 
 import re
 import yaml
+import json
+import base64
+import platform
 from pathlib import Path
 import subprocess
 import sys
@@ -19,13 +22,18 @@ from .tools import update_setting
 from .tools import abort
 
 
-@cli.group(cls=AliasedGroup, help="Docker registry operations: login, push, pull images.")
+@cli.group(
+    cls=AliasedGroup,
+    help="Docker registry operations: login, push, pull images.",
+)
 @pass_config
 def docker_registry(config):
     pass
 
 
-@docker_registry.command(help="Show or set the DOCKER_IMAGE_TAG for registry images.")
+@docker_registry.command(
+    help="Show or set the DOCKER_IMAGE_TAG for registry images."
+)
 @click.argument("name", required=False)
 @pass_config
 def tag(config, name):
@@ -39,43 +47,99 @@ def tag(config, name):
     click.secho(f"Hub URL: {config.HUB_URL}\n" f"tag: {name}", fg="green")
 
 
-@docker_registry.command(help="Login to the Docker registry configured in HUB_URL.")
+def _docker_login_write_auth(url, username, password):
+    """Write auth directly into ~/.docker/config.json.
+
+    On macOS the osxkeychain credential helper fails with
+    'User interaction is not allowed' when running via SSH
+    or non-interactive sessions. This bypasses credential
+    helpers entirely.
+    """
+    docker_cfg_path = Path.home() / ".docker" / "config.json"
+    docker_cfg_path.parent.mkdir(parents=True, exist_ok=True)
+    if docker_cfg_path.exists():
+        docker_cfg = json.loads(docker_cfg_path.read_text())
+    else:
+        docker_cfg = {}
+
+    auths = docker_cfg.setdefault("auths", {})
+    token = base64.b64encode(f"{username}:{password}".encode()).decode()
+    auths[url] = {"auth": token}
+
+    # Disable credential helper for this specific registry
+    helpers = docker_cfg.setdefault("credHelpers", {})
+    helpers[url] = ""
+
+    docker_cfg_path.write_text(json.dumps(docker_cfg, indent=2))
+    click.secho(f"Wrote auth for {url} to {docker_cfg_path}", fg="green")
+
+
+def disable_keychain_credential_store():
+    """Remove 'credsStore: osxkeychain' from Docker config on macOS.
+
+    The osxkeychain credential helper fails in non-interactive sessions
+    (SSH, cron, CI) because it requires GUI keychain access. This
+    affects ALL docker operations including pulling public images.
+    Removing credsStore forces Docker to use inline auth from config.json.
+    """
+    if platform.system() != "Darwin":
+        return False
+    docker_cfg_path = Path.home() / ".docker" / "config.json"
+    if not docker_cfg_path.exists():
+        return False
+    docker_cfg = json.loads(docker_cfg_path.read_text())
+    if docker_cfg.get("credsStore") != "osxkeychain":
+        return False
+
+    docker_cfg.pop("credsStore")
+    docker_cfg_path.write_text(json.dumps(docker_cfg, indent=2))
+    click.secho(
+        "Removed 'credsStore: osxkeychain' from Docker config "
+        "(causes failures in non-interactive sessions).",
+        fg="yellow",
+    )
+    return True
+
+
+@docker_registry.command(
+    help="Login to the Docker registry configured in HUB_URL."
+)
 @pass_config
 def login(config):
     hub = split_hub_url(config)
     if not hub:
         abort("No HUB Configured - cannt login.")
 
-    def _login():
-        if not hub["username"]:
-            username = getpass.getpass(
-                f"Enter your username for {hub['url']}: "
-            )
-        else:
-            username = hub["username"]
-        if not hub["password"]:
-            password = getpass.getpass("Enter your password: ")
-        else:
-            password = hub["password"]
-        click.secho(f"Using {hub['username']}", fg="yellow")
-        res = subprocess.check_output(
-            [
-                "docker",
-                "login",
-                f"{hub['url']}",
-                "-u",
-                username,
-                "-p",
-                password,
-            ],
-            encoding="utf-8",
-        )
-        if "Login succeeded" in res:
-            return True
-        return False
+    if not hub["username"]:
+        username = getpass.getpass(f"Enter your username for {hub['url']}: ")
+    else:
+        username = hub["username"]
+    if not hub["password"]:
+        password = getpass.getpass("Enter your password: ")
+    else:
+        password = hub["password"]
 
-    if _login():
+    click.secho(f"Using {username}", fg="yellow")
+
+    if platform.system() == "Darwin":
+        disable_keychain_credential_store()
+        _docker_login_write_auth(hub["url"], username, password)
         return
+
+    res = subprocess.check_output(
+        [
+            "docker",
+            "login",
+            f"{hub['url']}",
+            "-u",
+            username,
+            "-p",
+            password,
+        ],
+        encoding="utf-8",
+    )
+    if "Login succeeded" not in res:
+        abort(f"Docker login failed: {res}")
 
 
 def _get_base_tag(config):
@@ -88,7 +152,9 @@ def _get_base_tag(config):
     return base_tag
 
 
-@docker_registry.command(help="Push all images (incl. base images) to the configured registry.")
+@docker_registry.command(
+    help="Push all images (incl. base images) to the configured registry."
+)
 @pass_config
 @click.option(
     "-b",
@@ -108,7 +174,9 @@ def regpush(ctx, config, baseimage, machines):
         subprocess.check_call(["docker", "push", tag])
 
 
-@docker_registry.command(help="Pull all images from the registry. Requires REGISTRY=1 and HUB_URL to be set.")
+@docker_registry.command(
+    help="Pull all images from the registry. Requires REGISTRY=1 and HUB_URL to be set."
+)
 @click.option(
     "-b",
     "--baseimage",
@@ -138,7 +206,9 @@ def regpull(ctx, config, baseimage, machines):
     __dc(config, ["pull"] + list(machines))
 
 
-@docker_registry.command(help="Trust a self-signed TLS certificate of the configured registry (requires root).")
+@docker_registry.command(
+    help="Trust a self-signed TLS certificate of the configured registry (requires root)."
+)
 @pass_config
 def self_sign_hub_certificate(config):
     if os.getuid() != 0:

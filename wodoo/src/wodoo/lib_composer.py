@@ -1876,14 +1876,12 @@ def _install_zebroo_extension():
 
 
 def final_notes(config):
-    # if on_osx() or on_windows_wsl():
-    #     if not config.dirs["pyenv"].exists():
-    #         click.secho(
-    #             "\nPlease setup your local python environment with pyenv to debug locally.\n",
-    #             fg="yellow",
-    #         )
-    #         click.secho("odoo setup-pyenv", fg="green", bold=True)
-    pass
+    click.secho(
+        "\nTo apply the new settings to the containers run "
+        "'odoo up -d' at least once.\n",
+        fg="yellow",
+        bold=True,
+    )
 
 
 def setup_launch_json(config):
