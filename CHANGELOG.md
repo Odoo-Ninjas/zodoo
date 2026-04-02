@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## April 2026
+## 0.12.0 — April 2026
 
 ### Features
 
@@ -18,7 +18,7 @@ All notable changes to this project will be documented in this file.
 - Handle unauthorized errors on all push paths (main, arch-specific, background cross-platform)
 - Remove leftover `pudb` debugger in zodoo-push command
 
-## March 2026
+## 0.11.0 — March 2026
 
 ### Features
 
@@ -49,7 +49,7 @@ All notable changes to this project will be documented in this file.
 - Multiple bugfixes across `lib_src.py`, `module_tools.py`, `lib_control.py`
 - Exclude `.pyc` and `__pycache__` from wodoo_src sync in cronjobs
 
-## February 2026
+## 0.10.0 — February 2026
 
 ### Features
 
@@ -72,7 +72,7 @@ All notable changes to this project will be documented in this file.
 - Fix SSH cleanup
 - Fix purges
 
-## January 2026
+## 0.9.0 — January 2026
 
 ### Features
 
@@ -86,7 +86,7 @@ All notable changes to this project will be documented in this file.
 - Fix host directory creation
 - Fix postgres config evaluation
 
-## December 2025
+## 0.8.0 — December 2025
 
 ### Features
 
