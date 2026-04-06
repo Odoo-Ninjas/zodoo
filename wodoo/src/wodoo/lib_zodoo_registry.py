@@ -642,6 +642,15 @@ def zodoo_push_with_background_arch(
 
     _, platform_str = _other_arch()
     qemu_cmd = "docker run --rm --privileged multiarch/qemu-user-static --reset -p yes"
+
+    if _read_user_setting(config, "QEMU_INSTALL_SUGGESTED") == "0":
+        click.secho(
+            f"Skipping cross-build for {platform_str}: QEMU not available.\n"
+            f"To enable, run:  {qemu_cmd}",
+            fg="yellow",
+        )
+        return None
+
     if sys.stdin.isatty():
         click.secho(
             f"Cross-build for {platform_str} not possible: QEMU not available.",
@@ -656,6 +665,13 @@ def zodoo_push_with_background_arch(
                 return _build_and_push_other_arch(config, service_name, tag)
             except subprocess.CalledProcessError:
                 click.secho("Failed to install QEMU.", fg="red")
+        else:
+            _write_user_setting(config, "QEMU_INSTALL_SUGGESTED", "0")
+            click.secho(
+                "QEMU installation declined. Will not ask again.\n"
+                f"To enable later, set QEMU_INSTALL_SUGGESTED=1 in ~/.odoo/settings",
+                fg="yellow",
+            )
     else:
         click.secho(
             f"Skipping cross-build for {platform_str}: QEMU not available.\n"
