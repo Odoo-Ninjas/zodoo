@@ -266,6 +266,7 @@ def _perform_install(
     manifest,
     update_log_file,
     since_git_sha,
+    full,
     installed_modules,
     dangling_modules,
     no_outdated_modules,
@@ -274,10 +275,18 @@ def _perform_install(
 ):
     from .module_tools import DBModules
 
-    if since_git_sha and module:
+    # Default: incremental update via stored SHA in DB
+    # --full: skip incremental, update all modules
+    # --since-git-sha: deprecated, kept for backwards compat
+    effective_sha = since_git_sha
+    if not full and not module and not effective_sha:
+        conn = config.get_odoo_conn()
+        effective_sha = _get_setting(conn, KEY_SHA_REVISION)
+
+    if effective_sha and module:
         raise Exception("Conflict: since-git-sha and modules")
-    if since_git_sha:
-        module = _get_modules_since_git_sha(since_git_sha)
+    if effective_sha:
+        module = _get_modules_since_git_sha(effective_sha)
 
         if not module:
             click.secho("No module update required - exiting.")
@@ -285,7 +294,7 @@ def _perform_install(
     else:
         module = _parse_modules(module)
 
-    if not module and not since_git_sha:
+    if not module and not effective_sha:
         module = _get_default_modules_to_update(
             config, manifest.get("uninstall", [])
         )
@@ -858,13 +867,11 @@ def _get_outdated_versioned_modules_of_deptree(modules):
 def update2(
     ctx, config, no_dangling_check, non_interactive, recover_view_error, i18n
 ):
-    conn = config.get_odoo_conn()
-    revision = _get_setting(conn, KEY_SHA_REVISION)
+    # update2 is now equivalent to regular update (since-git-sha is default)
     Commands.invoke(
         ctx,
         "update",
         no_outdated_modules=True,
-        since_git_sha=revision,
         no_dangling_check=no_dangling_check,
         non_interactive=non_interactive,
         recover_view_error=recover_view_error,
@@ -986,7 +993,13 @@ def make_sure_module_is_installed(ctx, config, module):
     "-G",
     default=None,
     is_flag=False,
-    help="Extracts modules changed since this git sha and updates them",
+    help="(deprecated, now default behavior) Extracts modules changed since stored git sha",
+)
+@click.option(
+    "--full",
+    is_flag=True,
+    default=False,
+    help="Full update of all modules (skip incremental since-git-sha detection)",
 )
 @click.option(
     "--stdout",
@@ -1015,6 +1028,7 @@ def update(
     config,
     module,
     since_git_sha,
+    full,
     dangling_modules,
     installed_modules,
     non_interactive,
@@ -1169,6 +1183,7 @@ def update(
                 manifest,
                 update_log_file,
                 since_git_sha,
+                full,
                 installed_modules,
                 dangling_modules,
                 no_outdated_modules,
