@@ -490,26 +490,6 @@ def update_module_file(module):
         Module.get_by_name(module, nocache=True).update_module_file()
 
 
-@odoo_module.command(name="run-tests")
-@pass_config
-@click.pass_context
-@click.argument(
-    "module", nargs=-1, required=False, shell_complete=_get_available_modules
-)
-@click.option("-f", "--filter", help="Filter test names (simple wildcard)")
-@click.option(
-    "-F",
-    "--exclude-filter",
-    help="Filter test names (simple wildcard)",
-    multiple=True,
-)
-@click.option("--regex", is_flag=True, help="Filter is regex")
-@click.option(
-    "-R",
-    "--no-db-reset",
-    is_flag=True,
-    help="No database reset - uses current database",
-)
 def _filter_matches(the_filter, string, regex):
     if regex:
         return bool(re.search(the_filter, string))
@@ -613,6 +593,26 @@ def _execute_test_with_retry(
     return was_success, count_success_lines
 
 
+@odoo_module.command(name="run-tests")
+@pass_config
+@click.pass_context
+@click.argument(
+    "module", nargs=-1, required=False, shell_complete=_get_available_modules
+)
+@click.option("-f", "--filter", help="Filter test names (simple wildcard)")
+@click.option(
+    "-F",
+    "--exclude-filter",
+    help="Filter test names (simple wildcard)",
+    multiple=True,
+)
+@click.option("--regex", is_flag=True, help="Filter is regex")
+@click.option(
+    "-R",
+    "--no-db-reset",
+    is_flag=True,
+    help="No database reset - uses current database",
+)
 def run_tests(ctx, config, module, filter, no_db_reset, regex, exclude_filter):
     start_postgres_if_local(ctx, config)
     started = datetime.now()
