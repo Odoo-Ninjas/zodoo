@@ -384,10 +384,39 @@ def _manifest_exists(image):
         return False
 
 
+def _manifest_arch_matches(image):
+    """Check if the manifest architecture matches the current host."""
+    import json
+
+    current_arch = _get_arch()
+    try:
+        out = subprocess.check_output(
+            ["docker", "manifest", "inspect", "--verbose", image],
+            stderr=subprocess.STDOUT,
+            encoding="utf-8",
+        )
+        data = json.loads(out)
+        if isinstance(data, list):
+            # Multi-arch: at least one entry must match
+            return any(
+                d.get("Descriptor", {}).get("platform", {}).get("architecture")
+                == current_arch
+                for d in data
+            )
+        # Single-arch
+        img_arch = (
+            data.get("Descriptor", {}).get("platform", {}).get("architecture")
+        )
+        return img_arch == current_arch if img_arch else True
+    except (subprocess.CalledProcessError, json.JSONDecodeError, Exception):
+        return True  # can't determine, allow fallback
+
+
 def _resolve_registry_image(registry_url, service_name, tag):
     """Find the best matching registry image for the current architecture.
 
-    Tries '{tag}-{arch}' first, then falls back to '{tag}'.
+    Tries '{tag}-{arch}' first, then falls back to '{tag}' only if
+    that image actually matches the current architecture.
     Returns the full image reference or None.
     """
     arch_specific = _arch_tag(tag)
@@ -395,10 +424,15 @@ def _resolve_registry_image(registry_url, service_name, tag):
         image = _registry_image_name(registry_url, service_name, arch_specific)
         if _manifest_exists(image):
             return image
-    # Fall back to base tag
+    # Fall back to base tag only if its architecture matches
     image = _registry_image_name(registry_url, service_name, tag)
     if _manifest_exists(image):
-        return image
+        if _manifest_arch_matches(image):
+            return image
+        click.secho(
+            f"Skipping {image}: wrong architecture (need {_get_arch()})",
+            fg="yellow",
+        )
     return None
 
 
