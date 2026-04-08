@@ -288,6 +288,21 @@ def _perform_install(
     if effective_sha:
         module = _get_modules_since_git_sha(effective_sha)
 
+        # Even if no modules changed by SHA, check if all manifest modules
+        # are actually installed (e.g. after db reset only base is installed)
+        not_installed = (
+            DBModules.check_if_all_modules_from_install_are_installed(
+                check_func=None
+            )
+        )
+        if not_installed:
+            click.secho(
+                f"Following modules from MANIFEST are not yet installed: "
+                f"{' '.join(not_installed)}",
+                fg="yellow",
+            )
+            module = list(set(module + not_installed))
+
         if not module:
             click.secho("No module update required - exiting.")
             return
@@ -1913,12 +1928,33 @@ def generate_update_command(ctx, config):
     click.secho(f"-u {','.join(modules)}")
 
 
+def _get_dirty_files(cwd):
+    """Return files that are modified/added but not yet committed (dirty working tree)."""
+    output = subprocess.check_output(
+        ["git", "status", "--porcelain"],
+        encoding="utf8",
+        cwd=cwd,
+    )
+    files = []
+    for line in output.strip().splitlines():
+        if not line.strip():
+            continue
+        # porcelain format: XY filename (or XY old -> new for renames)
+        parts = line[3:].split(" -> ")
+        files.append(parts[-1])
+    return files
+
+
 def _get_changed_files(git_sha):
     from .tools import git_diff_files
 
     cwd = os.getcwd()
     filepaths = git_diff_files(cwd, git_sha, "HEAD")
     repo = Repo(cwd)
+
+    # also include dirty (uncommitted) files
+    dirty_files = _get_dirty_files(cwd)
+    filepaths = list(set(filepaths + dirty_files))
 
     # check if there are submodules:
     filepaths2 = []
@@ -1940,20 +1976,30 @@ def _get_changed_files(git_sha):
         if submodule:
             current_commit = str(repo.hex)
             relpath = filepath.relative_to(repo.path)
-            old_commit = subprocess.check_output(
-                [
-                    "git",
-                    "rev-parse",
-                    f"{git_sha}:./{relpath}",
-                ],
-                encoding="utf8",
-            ).strip()
+            try:
+                old_commit = subprocess.check_output(
+                    [
+                        "git",
+                        "rev-parse",
+                        f"{git_sha}:./{relpath}",
+                    ],
+                    encoding="utf8",
+                ).strip()
+            except subprocess.CalledProcessError:
+                # submodule may not exist at old SHA (new submodule)
+                filepaths2.append(str(relpath))
+                continue
             new_commit = subprocess.check_output(
                 ["git", "rev-parse", f"{current_commit}:./{relpath}"],
                 encoding="utf8",
             ).strip()
             # now diff the submodule
-            for filepath2 in git_diff_files(filepath, old_commit, new_commit):
+            sub_changed = list(
+                git_diff_files(filepath, old_commit, new_commit)
+            )
+            # also include dirty files from the submodule
+            sub_dirty = _get_dirty_files(str(filepath))
+            for filepath2 in set(sub_changed + sub_dirty):
                 filepaths2.append(str(relpath / filepath2))
         else:
             filepaths2.append(str(filepath.relative_to(repo.path)))
