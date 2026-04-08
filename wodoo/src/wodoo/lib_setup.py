@@ -172,6 +172,41 @@ def edit_msg(config):
     subprocess.call([editor, str(msg_file)])
 
 
+def _show_changelog_since(images_dir, old_version):
+    """Show changelog entries for versions newer than old_version using less."""
+    changelog = images_dir / "CHANGELOG.md"
+    if not changelog.exists() or not old_version:
+        return
+
+    lines = changelog.read_text().splitlines()
+    collected = []
+    for line in lines:
+        # Match version headers like "## 0.12.0 — April 2026" or "## 0.7.0"
+        m = re.match(r"^## (\S+)", line)
+        if m:
+            version = m.group(1)
+            if version == old_version:
+                break
+        collected.append(line)
+
+    # Strip leading blank lines and the "# Changelog" header
+    while collected and (
+        not collected[0].strip() or collected[0].startswith("# ")
+    ):
+        collected.pop(0)
+
+    if not collected:
+        return
+
+    text = "\n".join(collected) + "\n"
+    click.secho(f"\nChangelog since v{old_version}:\n", fg="green", bold=True)
+    try:
+        proc = subprocess.Popen(["less", "-R"], stdin=subprocess.PIPE)
+        proc.communicate(input=text.encode())
+    except (FileNotFoundError, BrokenPipeError):
+        click.echo(text)
+
+
 @click.option("-I", "--no-install", is_flag=True)
 @setup.command(help="Upgrade wodoo")
 @pass_config
@@ -182,6 +217,11 @@ def upgrade(ctx, config, no_install):
         abort(
             f"Directory {config.dirs['images']} is not clean, please commit or stash your changes before upgrading."
         )
+
+    version_file = config.dirs["images"] / "VERSION"
+    old_version = (
+        version_file.read_text().strip() if version_file.exists() else ""
+    )
 
     click.secho("Pulling wodoo from git repository...", fg="yellow")
     result = subprocess.run(
@@ -210,6 +250,7 @@ def upgrade(ctx, config, no_install):
     else:
         if not no_install:
             _reinstall()
+        _show_changelog_since(config.dirs["images"], old_version)
 
     _update_gimera_src(config)
     _fix_permissions(config, [str(config.dirs["images"])])
@@ -505,12 +546,25 @@ def _fix_permissions(config, dirs_to_fix):
 
         click.secho(f"Fixing {path} to {uid} ...", fg="yellow")
         cmd = [
-            "docker", "run", "--rm",
-            "-v", f"{path}:{path}",
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            f"{path}:{path}",
             "ubuntu:22.04",
-            "find", path, "-not", "-type", "l",
-            "-not", "-user", str(uid),
-            "-exec", "chown", str(uid), "{}", "+",
+            "find",
+            path,
+            "-not",
+            "-type",
+            "l",
+            "-not",
+            "-user",
+            str(uid),
+            "-exec",
+            "chown",
+            str(uid),
+            "{}",
+            "+",
         ]
         try:
             subprocess.check_call(cmd)
@@ -519,7 +573,9 @@ def _fix_permissions(config, dirs_to_fix):
             click.secho(f"  FAILED: {path}: {ex}", fg="red")
 
 
-@setup.command(help="Fix directory permissions via a Docker container (no sudo needed).")
+@setup.command(
+    help="Fix directory permissions via a Docker container (no sudo needed)."
+)
 @click.argument("paths", required=False, nargs=-1)
 @pass_config
 def fix_permissions(config, paths):
