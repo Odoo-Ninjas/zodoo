@@ -25,6 +25,7 @@ try:
 except ImportError:
     Repo = None
 from .tools import __try_to_set_owner
+from .tools import atomic_write_text
 from .tools import _make_sure_module_is_installed
 from .tools import __assure_gitignore
 from .tools import get_hash
@@ -343,9 +344,10 @@ def _perform_install(
         config.odoo_update_start_notification_touch_file_in_container
         and not opts.dry_run
     ):
-        Path(
-            config.odoo_update_start_notification_touch_file_in_container
-        ).write_text(datetime.now().strftime(DTF))
+        atomic_write_text(
+            config.odoo_update_start_notification_touch_file_in_container,
+            datetime.now().strftime(DTF),
+        )
 
     if update_strategy == "odoo.sh":
         click.secho(
@@ -419,9 +421,10 @@ def _perform_install(
 
     Commands.invoke(ctx, "status")
     if config.odoo_update_start_notification_touch_file_in_container:
-        Path(
-            config.odoo_update_start_notification_touch_file_in_container
-        ).write_text("0")
+        atomic_write_text(
+            config.odoo_update_start_notification_touch_file_in_container,
+            "0",
+        )
 
 
 class UpdateException(Exception):
@@ -1062,7 +1065,7 @@ def update(
     updateinprogress = config.dirs["run"] / "proxy_exchange" / "odoo_update"
     updateinprogress.parent.mkdir(parents=True, exist_ok=True)
     if not config.DEVMODE and updateinprogress:
-        updateinprogress.write_text("1")
+        atomic_write_text(updateinprogress, "1")
     try:
 
         started = arrow.get()
@@ -1213,7 +1216,7 @@ def update(
                 update_log_file.relative_to(customs_dir()),
             )
     finally:
-        updateinprogress.write_text("0")
+        atomic_write_text(updateinprogress, "0")
 
 
 def _execute_after_update_scripts(config):

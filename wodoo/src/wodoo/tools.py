@@ -893,6 +893,29 @@ def verbose(txt):
         click.secho(txt, fg="gray")
 
 
+def atomic_write_text(path, content):
+    """Write text content to path atomically via temp file + rename.
+
+    Avoids permission errors when the file was previously created by
+    another user (e.g. root inside a Docker container).  The old file
+    is replaced in a single rename() call so readers never see a
+    partial state.
+    """
+    from pathlib import Path
+
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
+    try:
+        os.write(fd, content.encode())
+    except BaseException:
+        os.close(fd)
+        os.unlink(tmp)
+        raise
+    os.close(fd)
+    os.replace(tmp, path)
+
+
 def __try_to_set_owner(UID, path, abort_if_failed=True, verbose=False):
     primary_group = _get_user_primary_group(UID)
     fnd = shutil.which("find")
