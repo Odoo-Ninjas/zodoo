@@ -46,18 +46,16 @@ def _container_name(service):
     return f"{PROJECT_NAME}_{service}"
 
 
-def _wait_for_debugpy(host, port=5678, timeout=60):
-    """Wait until debugpy DAP is ready (responds with Content-Length header)."""
+def _wait_for_port(host, port=5678, timeout=60):
+    """Wait until a TCP port is accepting connections (without consuming the debugpy slot)."""
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
             s = socket.socket()
             s.settimeout(2)
             s.connect((host, port))
-            data = s.recv(256)
             s.close()
-            if b"Content-Length" in data:
-                return True
+            return True
         except Exception:
             pass
         time.sleep(0.5)
@@ -119,7 +117,10 @@ def _debug():
     finally:
         os.unlink(override.name)
 
-    # Wait for debugpy
+    # Wait for debugpy to start listening.
+    # IMPORTANT: Do NOT connect to port 5678 to check — debugpy with
+    # --wait-for-client treats any TCP connection as THE client, consuming the
+    # slot. Instead, wait for the adapter process to appear.
     odoo_ip = _get_container_ip(name)
     if not odoo_ip:
         return {
@@ -128,8 +129,22 @@ def _debug():
             "stderr": "Could not determine odoo container IP",
         }
 
-    if _wait_for_debugpy(odoo_ip):
-        return {"returncode": 0, "stdout": "debugpy ready", "stderr": ""}
+    deadline = time.time() + 60
+    while time.time() < deadline:
+        check = _run(
+            "docker",
+            "exec",
+            name,
+            "bash",
+            "-c",
+            "pgrep -f 'debugpy/adapter' > /dev/null 2>&1",
+        )
+        if check["returncode"] == 0:
+            # Give the adapter a moment to bind the port
+            time.sleep(1)
+            return {"returncode": 0, "stdout": "debugpy ready", "stderr": ""}
+        time.sleep(1)
+
     return {
         "returncode": 1,
         "stdout": "",

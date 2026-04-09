@@ -10,6 +10,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu \
     curl \
     jq \
+    iputils-ping \
+    telnet \
     && rm -rf /var/lib/apt/lists/*
 
 # Download latest VSIX from GitHub releases
