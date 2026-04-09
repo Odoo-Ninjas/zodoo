@@ -3,7 +3,6 @@ import arrow
 import re
 import click
 from .tools import _execute_sql
-from .tools import table_exists
 from .cli import cli, pass_config, Commands
 from .lib_clickhelpers import AliasedGroup
 from .tools import __hash_odoo_password
@@ -223,8 +222,6 @@ def __execute_linebyline_sql(conn, sql, env):
 @pass_config
 def prolong(config):
     conn = config.get_odoo_conn()
-    if not table_exists(conn, "ir_config_parameter"):
-        return
     date = arrow.get().shift(months=6).strftime("%Y-%m-%d %H:%M:%S")
     _execute_sql(
         conn,
@@ -244,8 +241,6 @@ def prolong(config):
 @pass_config
 def remove_settings(config, settings):
     conn = config.get_odoo_conn()
-    if not table_exists(conn, "ir_config_parameter"):
-        return
     for setting in settings.split(","):
         _execute_sql(
             conn,
@@ -260,8 +255,6 @@ def remove_settings(config, settings):
 @pass_config
 def update_setting(config, key, value):
     conn = config.get_odoo_conn()
-    if not table_exists(conn, "ir_config_parameter"):
-        return
     _update_setting(conn, key, value)
 
 
