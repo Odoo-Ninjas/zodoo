@@ -1,0 +1,14 @@
+services:
+  coding:
+    labels:
+      proxy_config: ${ODOO_IMAGES}/coding/proxy/coding.conf
+    build:
+      context: $ODOO_IMAGES/coding
+    restart: "unless-stopped"
+    profiles:
+      - manual
+    environment:
+      OWNER_UID: ${OWNER_UID}
+    volumes:
+      - ${HOST_CUSTOMS_DIR}:/opt/src
+      - /var/run/docker.sock:/var/run/docker.sock
