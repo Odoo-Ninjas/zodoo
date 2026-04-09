@@ -40,14 +40,17 @@ RUN VIM_EXT_URL=$(curl -fsSL "https://open-vsx.org/api/vscodevim/vim/latest" \
 
 COPY coding/bin/vim-toggle.js /usr/local/bin/vim-toggle.js
 
-# Create robot virtualenv with robot framework requirements
+# Create robot virtualenv with robot framework requirements and zodoo
 COPY robot/requirements.txt /tmp/robot_requirements.txt
+COPY zodoo/src /tmp/zodoo_src
 RUN python3 -m venv /opt/robotenv && \
     /opt/robotenv/bin/pip install --no-cache-dir -U pip setuptools wheel && \
     /opt/robotenv/bin/pip install --no-cache-dir -r /tmp/robot_requirements.txt && \
+    /opt/robotenv/bin/pip install --no-cache-dir -e /tmp/zodoo_src && \
     rm /tmp/robot_requirements.txt && \
     apt-get purge -y build-essential python3-dev && \
     apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
+ENV PATH="/opt/robotenv/bin:$PATH"
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
