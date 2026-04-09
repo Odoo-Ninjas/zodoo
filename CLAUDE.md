@@ -29,6 +29,27 @@ This:
 1. Clones this repo to `~/.odoo/images/`
 2. Installs the `wodoo` Python package (from `wodoo/src/`) via `pipx` → provides the `odoo` command
 
+## Changelog / Releasing
+
+Changes to the `wodoo` CLI are tracked with **towncrier**.
+
+- Changelog fragments live in `wodoo/src/changelog.d/`
+- Fragment filename format: `<short-description>.<type>.md`
+  - Types: `bugfix`, `feature`, `misc`
+  - Example: `preserve-custom-scss.bugfix.md`
+- To build the changelog and bump the version:
+
+```bash
+cd wodoo/src
+towncrier build --version <new_version> --yes
+# then update setup.cfg and wodoo/version.txt to match
+git add CHANGELOG.md setup.cfg wodoo/version.txt changelog.d/
+git commit -m "release <new_version>"
+git push
+```
+
+**Always use towncrier for changelog entries — do not edit `CHANGELOG.md` directly.**
+
 ## Working on this repo
 
 ### Prerequisites
