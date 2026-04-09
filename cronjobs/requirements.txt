@@ -8,4 +8,3 @@ humanize
 pudb
 psycopg2-binary
 click
-wodoo

@@ -1,0 +1,3 @@
+type: fix
+description: "Sanitize project name: replace special characters to avoid Docker errors"
+breaking: false

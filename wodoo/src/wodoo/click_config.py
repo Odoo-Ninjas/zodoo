@@ -89,6 +89,9 @@ class Config:
 
     @project_name.setter
     def project_name(self, value):
+        if value:
+            for c in " ?:/*\\!@#$%^&*()":
+                value = value.replace(c, "_")
         self._project_name = value
         if os.getenv("DOCKER_HOST_RUN_DIR") and _is_in_container():
             self.HOST_RUN_DIR = Path(os.environ["DOCKER_HOST_RUN_DIR"])
