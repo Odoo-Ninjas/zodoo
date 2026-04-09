@@ -98,7 +98,7 @@ if [[ -x "$OPENVSCODE" ]]; then
     exec gosu "$USERNAME" "$OPENVSCODE" \
         --host 0.0.0.0 \
         --port 8080 \
-        --server-base-path /code1 \
+        --server-base-path /code \
         --without-connection-token \
         --default-folder /opt/src
 else
