@@ -81,13 +81,19 @@ cat > "$VSCODE_DIR/launch.json" <<'LAUNCH'
   ]
 }
 LAUNCH
-# Create default settings.json with vim disabled (preserve existing on restart)
+# Ensure settings.json exists and has robotcode.python configured
 if [[ ! -f "$VSCODE_DIR/settings.json" ]]; then
     cat > "$VSCODE_DIR/settings.json" <<'SETTINGS'
 {
-  "vim.enable": false
+  "vim.enable": false,
+  "robotcode.python": "/opt/robotenv/bin/python"
 }
 SETTINGS
+else
+    # Add robotcode.python if not already present
+    if ! grep -q "robotcode.python" "$VSCODE_DIR/settings.json"; then
+        sed -i 's/^{$/{\n  "robotcode.python": "\/opt\/robotenv\/bin\/python",/' "$VSCODE_DIR/settings.json"
+    fi
 fi
 chown -R "$USERNAME:$USERNAME" "$VSCODE_DIR"
 

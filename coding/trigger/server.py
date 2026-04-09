@@ -210,6 +210,67 @@ def _robot(test_file):
     }
 
 
+def _wait_for_postgres():
+    """Wait until PostgreSQL is accepting connections."""
+    deadline = time.time() + 60
+    container = _container_name("postgres")
+    while time.time() < deadline:
+        check = subprocess.run(
+            ["docker", "exec", container, "pg_isready", "-U", "odoo"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if check.returncode == 0:
+            return {
+                "returncode": 0,
+                "stdout": "Postgres now available.",
+                "stderr": "",
+            }
+        time.sleep(1)
+    return {
+        "returncode": 1,
+        "stdout": "",
+        "stderr": "Timeout waiting for postgres",
+    }
+
+
+def _odoo_command(cmd_str):
+    """Execute a docker-compose command derived from an odoo CLI command string.
+
+    Maps odoo CLI commands to docker compose equivalents:
+      up -d [--no-recreate] [service]  -> docker compose up -d [--no-recreate] [service]
+      kill <service>                    -> docker compose kill <service>
+      restart <service>                 -> docker compose restart <service>
+      wait-for-container-postgres       -> pg_isready loop
+      update <module>                   -> docker compose run --rm odoo odoo update <module>
+      setting                           -> docker compose exec -T odoo odoo setting
+    """
+    import shlex
+
+    parts = shlex.split(cmd_str)
+    if not parts:
+        return {"returncode": 1, "stdout": "", "stderr": "Empty command"}
+
+    verb = parts[0]
+
+    if verb == "wait-for-container-postgres":
+        return _wait_for_postgres()
+    elif verb == "up":
+        return _dc(*parts)
+    elif verb == "kill":
+        return _dc(*parts)
+    elif verb == "restart":
+        return _dc(*parts)
+    elif verb == "update":
+        modules = parts[1:]
+        return _dc("exec", "-T", "odoo", "odoo", "update", *modules)
+    elif verb == "setting":
+        return _dc("exec", "-T", "odoo", "odoo", "setting")
+    else:
+        return _dc(*parts)
+
+
 ACTIONS = {
     "/restart": lambda: _dc("restart", "odoo"),
     "/debug": _debug,
@@ -225,9 +286,32 @@ class Handler(BaseHTTPRequestHandler):
             return json.loads(self.rfile.read(length))
         return {}
 
+    def _json_response(self, code, data):
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps(data).encode())
+
     def do_POST(self):
         parsed = urlparse(self.path)
         path = parsed.path
+
+        # /odoo-command: generic odoo CLI proxy
+        # Body: {"command": "up -d --no-recreate postgres"}
+        if path == "/odoo-command":
+            try:
+                body = self._read_body()
+                cmd_str = body.get("command", "")
+                if not cmd_str:
+                    return self._json_response(
+                        400, {"error": "command required"}
+                    )
+                result = _odoo_command(cmd_str)
+                return self._json_response(
+                    200 if result["returncode"] == 0 else 500, result
+                )
+            except Exception as ex:
+                return self._json_response(500, {"error": str(ex)})
 
         # /robot endpoint: accepts {"test_file": "relative/path.robot"}
         if path == "/robot":
@@ -235,24 +319,15 @@ class Handler(BaseHTTPRequestHandler):
                 body = self._read_body()
                 test_file = body.get("test_file", "")
                 if not test_file:
-                    self.send_response(400)
-                    self.send_header("Content-Type", "application/json")
-                    self.end_headers()
-                    self.wfile.write(
-                        json.dumps({"error": "test_file required"}).encode()
+                    return self._json_response(
+                        400, {"error": "test_file required"}
                     )
-                    return
                 result = _robot(test_file)
-                self.send_response(200 if result["returncode"] == 0 else 500)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps(result).encode())
+                return self._json_response(
+                    200 if result["returncode"] == 0 else 500, result
+                )
             except Exception as ex:
-                self.send_response(500)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": str(ex)}).encode())
-            return
+                return self._json_response(500, {"error": str(ex)})
 
         action = ACTIONS.get(path)
         if not action:
@@ -265,15 +340,11 @@ class Handler(BaseHTTPRequestHandler):
 
         try:
             result = action()
-            self.send_response(200 if result["returncode"] == 0 else 500)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps(result).encode())
+            return self._json_response(
+                200 if result["returncode"] == 0 else 500, result
+            )
         except Exception as ex:
-            self.send_response(500)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps({"error": str(ex)}).encode())
+            return self._json_response(500, {"error": str(ex)})
 
     def do_GET(self):
         if self.path == "/health":
@@ -281,11 +352,21 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b"ok")
             return
+        if self.path == "/setting":
+            result = _dc("exec", "-T", "odoo", "odoo", "setting")
+            return self._json_response(
+                200 if result["returncode"] == 0 else 500, result
+            )
         if self.path == "/actions":
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            self.wfile.write(json.dumps(list(ACTIONS.keys())).encode())
+            actions = list(ACTIONS.keys()) + [
+                "/odoo-command",
+                "/robot",
+                "/setting",
+            ]
+            self.wfile.write(json.dumps(actions).encode())
             return
         self.send_response(404)
         self.end_headers()

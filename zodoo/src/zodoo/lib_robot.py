@@ -202,6 +202,11 @@ def do_new(ctx, config, name, no_install_pip):
     "--no-install-further-modules",
     is_flag=True,
 )
+@click.option(
+    "--test-tv",
+    is_flag=True,
+    help="Run browser non-headless so you can watch at /test.tv/",
+)
 @pass_config
 @click.pass_context
 def run(
@@ -224,6 +229,7 @@ def run(
     no_sysexit=False,
     debug=False,
     no_install_further_modules=False,
+    test_tv=False,
 ):
     PARAM = param
     del param
@@ -383,6 +389,7 @@ def run(
             output_json,
             keep_token_dir,
             debug=debug,
+            test_tv=test_tv,
         )
         if not res:
             count_faileds += 1
@@ -418,11 +425,12 @@ def _run_test(
     output_json,
     keep_token_dir,
     debug=False,
+    test_tv=False,
     browser=None,
 ):
     from .odoo_config import MANIFEST
 
-    headless = os.getenv("IS_COBOT_CONTAINER") != "1"
+    headless = os.getenv("IS_COBOT_CONTAINER") != "1" and not test_tv
 
     manifest = MANIFEST()
     if not browser:

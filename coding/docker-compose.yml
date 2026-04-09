@@ -18,13 +18,15 @@ services:
       proxy_config: ${ODOO_IMAGES}/coding/proxy/coding.conf
       proxy_config_vim: ${ODOO_IMAGES}/coding/proxy/codevim.conf
     build:
-      context: $ODOO_IMAGES/coding
+      context: $ODOO_IMAGES
+      dockerfile: coding/Dockerfile
     restart: "unless-stopped"
     profiles:
       - manual
     environment:
       OWNER_UID: ${OWNER_UID}
       TRIGGER_URL: http://coding_trigger:8090
+      CODING_TRIGGER_URL: http://coding_trigger:8090
     volumes:
       - ${HOST_CUSTOMS_DIR}:/opt/src
     depends_on:
