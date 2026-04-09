@@ -769,6 +769,7 @@ def docker_sizes(context, config, name):
         )
     )
     sizes = {}
+    image_sizes = {}
     for imagename in image_names:
         click.secho(f"Analyzing {imagename} ...", fg="yellow")
         try:
@@ -798,6 +799,49 @@ def docker_sizes(context, config, name):
             continue
         out = out.split("\t")[0]
         sizes[imagename] = out
+
+        # Get total image size (includes all layers, even dead ones)
+        try:
+            img_size_bytes = subprocess.check_output(
+                [
+                    "docker",
+                    "image",
+                    "inspect",
+                    "--format",
+                    "{{.Size}}",
+                    imagename,
+                ],
+                text=True,
+                stderr=subprocess.DEVNULL,
+            ).strip()
+            image_sizes[imagename] = int(img_size_bytes)
+        except (subprocess.CalledProcessError, ValueError):
+            pass
+
+    def _format_bytes(b):
+        for unit in ["B", "K", "M", "G", "T"]:
+            if b < 1024:
+                return f"{b:.1f}{unit}"
+            b /= 1024
+        return f"{b:.1f}P"
+
+    def _parse_human_size(s):
+        """Parse sizes like '1.2G', '500M', '100K' to bytes."""
+        if not s:
+            return None
+        s = s.strip()
+        units = {"B": 1, "K": 1024, "M": 1024**2, "G": 1024**3, "T": 1024**4}
+        for suffix, mult in units.items():
+            if s.upper().endswith(suffix):
+                try:
+                    return float(s[:-1]) * mult
+                except ValueError:
+                    return None
+        try:
+            return float(s)
+        except ValueError:
+            return None
+
     recs = []
 
     def _get_size(imagename):
@@ -809,9 +853,19 @@ def docker_sizes(context, config, name):
     for name in sorted(image_names, key=lambda x: x):
         if not name:
             continue
-        recs.append((name, _get_size(name)))
+        fs_size = _get_size(name)
+        img_bytes = image_sizes.get(name)
+        dead = ""
+        if img_bytes and fs_size:
+            fs_bytes = _parse_human_size(fs_size)
+            if fs_bytes and img_bytes > fs_bytes:
+                dead = _format_bytes(img_bytes - fs_bytes)
+        img_total = _format_bytes(img_bytes) if img_bytes else ""
+        recs.append((name, fs_size, img_total, dead))
 
-    click.echo(tabulate(recs, ["Image Name", "Size"]))
+    click.echo(
+        tabulate(recs, ["Image Name", "FS Size", "Image Size", "Dead Layers"])
+    )
 
 
 def _cleanup_local_files(ctx, config):
