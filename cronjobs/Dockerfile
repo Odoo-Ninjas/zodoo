@@ -58,6 +58,8 @@ RUN rm -Rf \
 /usr/bin/containerd \
 /usr/bin/ctr \
 /usr/bin/runc \
-/usr/lib/aarch*/perl
+/usr/libexec/docker \
+/usr/lib/aarch*/perl \
+/usr/lib/systemd
 
 RUN find / -name __pycache__ -exec rm -Rf {} \; || true

@@ -5,6 +5,5 @@ docker
 retrying
 tabulate
 humanize
-pudb
 psycopg2-binary
 click

@@ -12,8 +12,8 @@ COPY log.io /usr/local/src/log.io
 WORKDIR /usr/local/src/log.io/server
 RUN ./bin/build-ui.sh
 RUN npm install
-RUN npm update
 RUN npm run build:js
+RUN npm prune --production
 RUN npm set strict-ssl false
 RUN npm install -g log.io-file-input --unsafe-perm
 
@@ -39,5 +39,4 @@ RUN rm -Rf \
 /usr/lib/aarch*/gconv \
 /usr/lib/python2.7 \
 /usr/lib/python3/dist-packages/mercurial \
-/usr/local/src/log.io/ui/node_modules \
-/usr/local/src/log.server/ui/node_modules
+/usr/local/src/log.io/ui/node_modules
