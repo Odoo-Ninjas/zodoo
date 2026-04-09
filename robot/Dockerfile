@@ -12,18 +12,15 @@ ENV PATH="$PATH:/opt/robot/.local/bin"
 
 RUN #___SNIPPET_APT_INSTALL___ \
 wget unzip python3 \
-python3-pip python3-magic libmagickwand-dev xvfb curl \
-sudo curl software-properties-common pipx build-essential python3-dev \
-gnupg-agent
+python3-pip python3-magic libmagickwand-dev curl \
+sudo software-properties-common pipx build-essential python3-dev \
+gnupg-agent git gosu net-tools rsync ssh ca-certificates gnupg lsb-release
 
 COPY ./requirements.txt /tmp/requirements.txt
 RUN python3 -mpip install -U pip
 RUN python3 -mpip install $(cat /etc/pip_options) setuptools python-dotenv
 RUN python3 -mpip install $(cat /etc/pip_options) -r /tmp/requirements.txt
 RUN rm -rf /tmp/requirements.txt
-
-
-#___SNIPPET_FIREFOX___
 
 
 WORKDIR $WORKDIR
@@ -39,8 +36,7 @@ USER root
 
 RUN mkdir -p /opt/robot/.local && chown robot /opt/robot /opt/robot/.local
 USER robot
-RUN pip install setuptools==65.6.0 && \
-pip install $(cat /etc/pip_options) debugpy pudb --break-system-packages
+RUN pip install setuptools==65.6.0 --break-system-packages
 RUN mkdir -p /opt/robot/.ssh && \
 chmod 500 /opt/robot/.ssh
 #--------------------------------------------
@@ -53,9 +49,6 @@ RUN chown robot /opt/robot/.ssh/config
 
 # hadolint ignore=DL3002
 USER root
-COPY openbox/rc.xml  /opt/robot/.config/openbox/rc.xml
-COPY openbox/menu.xml  /opt/robot/.config/openbox/menu.xml
-
 
 # ###########################
 # Scripties
@@ -63,15 +56,21 @@ RUN touch /opt/robot/.hushlogin
 COPY robotest.py ./
 COPY entrypoint.sh ./
 RUN chmod a+x entrypoint*.sh
-COPY openbox/welcome.txt /etc/welcome.txt
-
-COPY conky.txt /opt/robot/.conkyrc
 COPY set_docker_group.sh /usr/local/bin/set_docker_group.sh
 
 #___SNIPPET_CLEANUP___
 RUN rm -Rf \
 /usr/libexec/docker \
 /usr/lib/systemd \
-/root/.cache/pip
+/root/.cache/pip \
+/usr/bin/containerd \
+/usr/bin/ctr \
+/usr/bin/runc \
+/usr/bin/containerd-shim-runc-v2 \
+/usr/bin/aarch64-linux-gnu-lto-dump-11 \
+/usr/bin/aarch64-linux-gnu-ld.gold \
+/usr/bin/aarch64-linux-gnu-dwp \
+/opt/robot/.local/lib/python*/site-packages/pygments \
+/opt/robot/.cache
 
 ENTRYPOINT ["/opt/robot/entrypoint.sh"]
