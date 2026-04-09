@@ -29,5 +29,7 @@ services:
       CODING_TRIGGER_URL: http://coding_trigger:8090
     volumes:
       - ${HOST_CUSTOMS_DIR}:/opt/src
+      - ${ODOO_IMAGES}:/opt/images
+      - ${HOST_RUN_DIR}:/opt/run
     depends_on:
       - coding_trigger
