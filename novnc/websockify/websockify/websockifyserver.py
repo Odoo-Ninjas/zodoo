@@ -25,7 +25,7 @@ for mod, msg in [
         globals()[mod] = __import__(mod)
     except ImportError:
         globals()[mod] = None
-        print("WARNING: no '%s' module, %s" % (mod, msg))
+        print("WARNING: no '{}' module, {}".format(mod, msg))
 
 if sys.platform == "win32":
     # make sockets pickle-able/inheritable
@@ -119,17 +119,17 @@ class WebSockifyRequestHandler(
     def msg(self, msg, *args, **kwargs):
         """Output message with handler_id prefix."""
         prefix = "% 3d: " % self.handler_id
-        self.logger.log(logging.INFO, "%s%s" % (prefix, msg), *args, **kwargs)
+        self.logger.log(logging.INFO, "{}{}".format(prefix, msg), *args, **kwargs)
 
     def vmsg(self, msg, *args, **kwargs):
         """Same as msg() but as debug."""
         prefix = "% 3d: " % self.handler_id
-        self.logger.log(logging.DEBUG, "%s%s" % (prefix, msg), *args, **kwargs)
+        self.logger.log(logging.DEBUG, "{}{}".format(prefix, msg), *args, **kwargs)
 
     def warn(self, msg, *args, **kwargs):
         """Same as msg() but as warning."""
         prefix = "% 3d: " % self.handler_id
-        self.logger.log(logging.WARN, "%s%s" % (prefix, msg), *args, **kwargs)
+        self.logger.log(logging.WARN, "{}{}".format(prefix, msg), *args, **kwargs)
 
     #
     # Main WebSocketRequestHandler methods
@@ -153,7 +153,7 @@ class WebSockifyRequestHandler(
                         .decode("ascii")
                         .replace("'", "\\'")
                     )
-                    self.rec.write("'{{{0}{{{1}',\n".format(tdelta, bufstr))
+                    self.rec.write(f"'{{{tdelta}{{{bufstr}',\n")
                 self.send_parts.append(buf)
 
         while self.send_parts:
@@ -203,7 +203,7 @@ class WebSockifyRequestHandler(
                     .decode("ascii")
                     .replace("'", "\\'")
                 )
-                self.rec.write("'}}{0}}}{1}',\n".format(tdelta, bufstr))
+                self.rec.write(f"'}}{tdelta}}}{bufstr}',\n")
 
             bufs.append(buf)
 
@@ -216,11 +216,11 @@ class WebSockifyRequestHandler(
         """Send a WebSocket orderly close frame."""
         self.request.shutdown(socket.SHUT_RDWR, code, reason)
 
-    def send_pong(self, data="".encode("ascii")):
+    def send_pong(self, data=b""):
         """Send a WebSocket pong frame."""
         self.request.pong(data)
 
-    def send_ping(self, data="".encode("ascii")):
+    def send_ping(self, data=b""):
         """Send a WebSocket ping frame."""
         self.request.ping(data)
 
@@ -261,7 +261,7 @@ class WebSockifyRequestHandler(
 
         if self.record:
             # Record raw frame data as JavaScript array
-            fname = "%s.%s" % (self.record, self.handler_id)
+            fname = "{}.{}".format(self.record, self.handler_id)
             self.log_message("opening record file: %s", fname)
             self.rec = open(fname, "w+")
             self.rec.write("var VNC_frame_data = [\n")
@@ -762,7 +762,7 @@ class WebSockifyServer:
                 _, exc, _ = sys.exc_info()
                 # Connection was not a WebSockets connection
                 if exc.args[0]:
-                    self.msg("%s: %s" % (address[0], exc.args[0]))
+                    self.msg("{}: {}".format(address[0], exc.args[0]))
             except WebSockifyServer.Terminate:
                 raise
             except Exception:

@@ -239,6 +239,10 @@ RUN rm -Rf /opt/zodoo/.git \
 /usr/lib/aarch64-linux-gnu/perl \
 /usr/lib/aarch64-linux-gnu/perl-base
 ENV ZSTDOPTIONS="-11 -T4"
-RUN cd /usr && #___SNIPPET_TAR___ share | zstd $ZSTDOPTIONS > share.tar.zst && rm -Rf share && cd - '
-RUN cd /opt && #___SNIPPET_TAR___ venv zodoo_pipx | zstd $ZSTDOPTIONS > venv.tar.zst && rm -Rf venv zodoo_pipx '
+RUN cd /usr && \
+    #___SNIPPET_TAR___
+    share | zstd $ZSTDOPTIONS > share.tar.zst && rm -Rf share && cd - '
+RUN cd /opt && \
+    #___SNIPPET_TAR___
+    venv zodoo_pipx | zstd $ZSTDOPTIONS > venv.tar.zst && rm -Rf venv zodoo_pipx '
 RUN find /opt /usr -name '*.a' -delete

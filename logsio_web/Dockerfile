@@ -12,6 +12,7 @@ COPY log.io /usr/local/src/log.io
 WORKDIR /usr/local/src/log.io/server
 RUN ./bin/build-ui.sh
 RUN npm install
+RUN npm update
 RUN npm run build:js
 RUN npm prune --production
 RUN npm set strict-ssl false

@@ -55,19 +55,19 @@ The `MANIFEST` file lives at the **project root** and controls which Odoo module
 
 ## Fields
 
-| Field | Description |
-|-------|-------------|
-| `version` | Odoo version as float: `17.0`, `16.0`, etc. |
-| `server-wide-modules` | Loaded without a database. Always include `"web"`. |
-| `python_version` | Python version for the Odoo Docker image. |
-| `install` | Modules to install/keep installed. |
-| `uninstall` | Modules to force-uninstall. |
-| `devmode_uninstall` | Modules to uninstall when `DEVMODE=1`. |
-| `tests` | Modules to run tests for (used by `odoo module run-tests`). |
-| `before-odoo-update` | Module update steps to run before main update. |
-| `addons_paths` | Directories where Odoo searches for modules. Order matters. |
-| `odoo_dir` | Where the Odoo source is cloned (default: `odoo`). |
-| `upgrade_path` | Path to upgrade-utils for OpenUpgrade migrations. |
+| Field                 | Description                                                 |
+| --------------------- | ----------------------------------------------------------- |
+| `version`             | Odoo version as float: `17.0`, `16.0`, etc.                 |
+| `server-wide-modules` | Loaded without a database. Always include `"web"`.          |
+| `python_version`      | Python version for the Odoo Docker image.                   |
+| `install`             | Modules to install/keep installed.                          |
+| `uninstall`           | Modules to force-uninstall.                                 |
+| `devmode_uninstall`   | Modules to uninstall when `DEVMODE=1`.                      |
+| `tests`               | Modules to run tests for (used by `odoo module run-tests`). |
+| `before-odoo-update`  | Module update steps to run before main update.              |
+| `addons_paths`        | Directories where Odoo searches for modules. Order matters. |
+| `odoo_dir`            | Where the Odoo source is cloned (default: `odoo`).          |
+| `upgrade_path`        | Path to upgrade-utils for OpenUpgrade migrations.           |
 
 ## OCA addons
 

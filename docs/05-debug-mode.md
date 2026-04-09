@@ -34,14 +34,17 @@ odoo debug odoo_debug
 ```
 
 Inside the container prompt that opens, type:
+
 ```
 debug
 ```
+
 and press ENTER. The debug container starts and attaches to your debugger.
 
 ### 4. Activate debug mode in your browser
 
 Navigate to:
+
 ```
 https://<your-system-url>/debugpython
 ```

@@ -80,8 +80,8 @@ odoo docker-registry self-sign-hub-certificate
 
 ## Settings reference
 
-| Setting | Description |
-|---------|-------------|
-| `HUB_URL` | Registry URL: `user:password@host:port/path` or `host:port/path` |
-| `REGISTRY` | `1` = force pull from registry, block local builds (use on production) |
-| `DOCKER_IMAGE_TAG` | Tag for images (e.g. `latest`, `v1.2.3`, `main`) |
+| Setting            | Description                                                            |
+| ------------------ | ---------------------------------------------------------------------- |
+| `HUB_URL`          | Registry URL: `user:password@host:port/path` or `host:port/path`       |
+| `REGISTRY`         | `1` = force pull from registry, block local builds (use on production) |
+| `DOCKER_IMAGE_TAG` | Tag for images (e.g. `latest`, `v1.2.3`, `main`)                       |

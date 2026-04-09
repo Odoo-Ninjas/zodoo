@@ -56,7 +56,9 @@ zstd
 
 ENV ZSTDOPTIONS="-10 -T4"
 
-RUN cd /opt && #___SNIPPET_TAR___ venv zodoo_pipx | zstd $ZSTDOPTIONS > venv.tar.zst && rm -Rf venv zodoo_pipx '
+RUN cd /opt && \
+    #___SNIPPET_TAR___
+    venv zodoo_pipx | zstd $ZSTDOPTIONS > venv.tar.zst && rm -Rf venv zodoo_pipx '
 
 
 
@@ -107,6 +109,8 @@ RUN rm -Rf \
 
 
 
-RUN cd /usr && #___SNIPPET_TAR___ share | zstd $ZSTDOPTIONS > share.tar.zst && rm -Rf share && cd - '
+RUN cd /usr && \
+    #___SNIPPET_TAR___
+    share | zstd $ZSTDOPTIONS > share.tar.zst && rm -Rf share && cd - '
 
 # MARKER COMMON.DOCKER END

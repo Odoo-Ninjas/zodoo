@@ -5,30 +5,28 @@
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/webssh.svg)
 ![PyPI](https://img.shields.io/pypi/v/webssh.svg)
 
-
 ### Introduction
 
 A simple web application to be used as an ssh client to connect to your ssh servers. It is written in Python, base on tornado, paramiko and xterm.js.
 
 ### Features
 
-* SSH password authentication supported, including empty password.
-* SSH public-key authentication supported, including DSA RSA ECDSA Ed25519 keys.
-* Encrypted keys supported.
-* Two-Factor Authentication (time-based one-time password) supported.
-* Fullscreen terminal supported.
-* Terminal window resizable.
-* Auto detect the ssh server's default encoding.
-* Modern browsers including Chrome, Firefox, Safari, Edge, Opera supported.
-
+- SSH password authentication supported, including empty password.
+- SSH public-key authentication supported, including DSA RSA ECDSA Ed25519 keys.
+- Encrypted keys supported.
+- Two-Factor Authentication (time-based one-time password) supported.
+- Fullscreen terminal supported.
+- Terminal window resizable.
+- Auto detect the ssh server's default encoding.
+- Modern browsers including Chrome, Firefox, Safari, Edge, Opera supported.
 
 ### Preview
 
 ![Login](preview/login.png)
 ![Terminal](preview/terminal.png)
 
-
 ### How it works
+
 ```
 +---------+     http     +--------+    ssh    +-----------+
 | browser | <==========> | webssh | <=======> | ssh server|
@@ -37,8 +35,7 @@ A simple web application to be used as an ssh client to connect to your ssh serv
 
 ### Requirements
 
-* Python 3.10+
-
+- Python 3.10+
 
 ### Quickstart
 
@@ -46,7 +43,6 @@ A simple web application to be used as an ssh client to connect to your ssh serv
 2. Start a webserver, run command `wssh`
 3. Open your browser, navigate to `127.0.0.1:8888`
 4. Input your data, submit the form.
-
 
 ### Server options
 
@@ -78,13 +74,13 @@ wssh.connect(hostname, port, username, password, privatekey, passphrase, totp);
 
 // pass an object to wssh.connect
 var opts = {
-  hostname: 'hostname',
-  port: 'port',
-  username: 'username',
-  password: 'password',
-  privatekey: 'the private key text',
-  passphrase: 'passphrase',
-  totp: 'totp'
+  hostname: "hostname",
+  port: "port",
+  username: "username",
+  password: "password",
+  privatekey: "the private key text",
+  passphrase: "passphrase",
+  totp: "totp",
 };
 wssh.connect(opts);
 
@@ -98,7 +94,7 @@ wssh.set_encoding(encoding);
 wssh.reset_encoding();
 
 // send a command to the server
-wssh.send('ls -l');
+wssh.send("ls -l");
 ```
 
 ### Custom Font
@@ -110,41 +106,49 @@ To use custom font, put your font file in the directory `webssh/static/css/fonts
 Support passing arguments by url (query or fragment) like following examples:
 
 Passing form data (password must be encoded in base64, privatekey not supported)
+
 ```bash
 http://localhost:8888/?hostname=xx&username=yy&password=str_base64_encoded
 ```
 
 Passing a terminal background color
+
 ```bash
 http://localhost:8888/#bgcolor=green
 ```
 
 Passing a terminal font color
+
 ```bash
 http://localhost:8888/#fontcolor=red
 ```
 
 Passing a user defined title
+
 ```bash
 http://localhost:8888/?title=my-ssh-server
 ```
 
 Passing an encoding
+
 ```bash
 http://localhost:8888/#encoding=gbk
 ```
 
 Passing a font size
+
 ```bash
 http://localhost:8888/#fontsize=24
 ```
 
 Passing a command executed right after login
+
 ```bash
 http://localhost:8888/?command=pwd
 ```
 
 Passing a terminal type
+
 ```bash
 http://localhost:8888/?term=xterm-256color
 ```
@@ -152,11 +156,13 @@ http://localhost:8888/?term=xterm-256color
 ### Use Docker
 
 Start up the app
+
 ```
 docker-compose up
 ```
 
 Tear down the app
+
 ```
 docker-compose down
 ```
@@ -164,16 +170,19 @@ docker-compose down
 ### Tests
 
 Requirements
+
 ```
 pip install pytest pytest-cov codecov flake8 mock
 ```
 
 Use unittest to run all tests
+
 ```
 python -m unittest discover tests
 ```
 
 Use pytest to run all tests
+
 ```
 python -m pytest tests
 ```
@@ -185,6 +194,7 @@ Running behind an Nginx server
 ```bash
 wssh --address='127.0.0.1' --port=8888 --policy=reject
 ```
+
 ```nginx
 # Nginx config example
 location / {
@@ -200,13 +210,13 @@ location / {
 ```
 
 Running as a standalone server
+
 ```bash
 wssh --port=8080 --sslport=4433 --certfile='cert.crt' --keyfile='cert.key' --xheaders=False --policy=reject
 ```
 
-
 ### Tips
 
-* For whatever deployment choice you choose, don't forget to enable SSL.
-* By default plain http requests from a public network will be either redirected or blocked and being redirected takes precedence over being blocked.
-* Try to use reject policy as the missing host key policy along with your verified known_hosts, this will prevent man-in-the-middle attacks. The idea is that it checks the system host keys file("~/.ssh/known_hosts") and the application host keys file("./known_hosts") in order, if the ssh server's hostname is not found or the key is not matched, the connection will be aborted.
+- For whatever deployment choice you choose, don't forget to enable SSL.
+- By default plain http requests from a public network will be either redirected or blocked and being redirected takes precedence over being blocked.
+- Try to use reject policy as the missing host key policy along with your verified known_hosts, this will prevent man-in-the-middle attacks. The idea is that it checks the system host keys file("~/.ssh/known_hosts") and the application host keys file("./known_hosts") in order, if the ssh server's hostname is not found or the key is not matched, the connection will be aborted.
