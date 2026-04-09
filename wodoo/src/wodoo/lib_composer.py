@@ -316,7 +316,7 @@ def do_reload(
 
     setup_launch_json(config)
     _setup_claude_settings(config)
-    _install_zebroo_extension()
+    _install_zebroo_extension(config)
     final_notes(config)
 
 
@@ -1862,11 +1862,30 @@ def get_host_info():
     return hostname, fqdn, local_ip
 
 
-def _install_zebroo_extension():
+def _install_zebroo_extension(config):
     """Install the Zebroo VSCode extension if 'code' CLI is available."""
+    from .lib_zodoo_registry import _read_user_setting, _write_user_setting
+
     code_bin = shutil.which("code") or shutil.which("code-insiders")
     if not code_bin:
         return
+
+    if _read_user_setting(config, "INSTALL_ZEBROO_EXTENSION") == "0":
+        return
+
+    if _read_user_setting(config, "INSTALL_ZEBROO_EXTENSION") != "1":
+        if not sys.stdin.isatty():
+            return
+        if not click.confirm("Install Zebroo VSCode extension?"):
+            _write_user_setting(config, "INSTALL_ZEBROO_EXTENSION", "0")
+            click.secho(
+                "Zebroo extension declined. Will not ask again.\n"
+                "To enable later, set INSTALL_ZEBROO_EXTENSION=1 in ~/.odoo/settings",
+                fg="yellow",
+            )
+            return
+        _write_user_setting(config, "INSTALL_ZEBROO_EXTENSION", "1")
+
     vsix_url = "https://github.com/marcwimmer/vscodeextension_browserodoo/releases/latest/download/zebroo.vsix"
     vsix_path = Path(os.environ.get("HOME", "~")) / ".odoo" / "zebroo.vsix"
     try:
@@ -1900,6 +1919,11 @@ def final_notes(config):
         "'odoo up -d' at least once.\n",
         fg="yellow",
         bold=True,
+    )
+    click.secho(
+        "Tip: For the best Odoo development experience, install the Zebroo VSCode extension:\n"
+        "https://github.com/marcwimmer/vscodeextension_browserodoo/releases/latest",
+        fg="cyan",
     )
 
 
