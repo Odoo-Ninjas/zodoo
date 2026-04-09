@@ -44,8 +44,8 @@ cmd, args = None, None
 try:
     if sys.argv[1].endswith(".py"):
         # If the first argument is a Python script, execute it with the Python interpreter
-        WODOO_PYTHON = os.getenv("WODOO_PYTHON")
-        cmd, args = WODOO_PYTHON, [WODOO_PYTHON] + sys.argv[1:]
+        ZODOO_PYTHON = os.getenv("ZODOO_PYTHON")
+        cmd, args = ZODOO_PYTHON, [ZODOO_PYTHON] + sys.argv[1:]
     else:
         cmd, args = sys.argv[1], sys.argv[1:]
     os.execvp(cmd, args)

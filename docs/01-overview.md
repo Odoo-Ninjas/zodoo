@@ -27,15 +27,15 @@ zodoo repo (~/.odoo/images/)
 ├── cronjobs/       ← Cron container
 ├── logsio_web/     ← logs.io web interface
 ├── templates/      ← Project templates (copied on `odoo init`)
-└── wodoo/          ← Python CLI source (the `odoo` command)
+└── zodoo/          ← Python CLI source (the `odoo` command)
 ```
 
 ### Two components
 
-| Component | What it is | Where |
-|-----------|-----------|-------|
-| **zodoo** | Docker images + templates | `~/.odoo/images/` (cloned from GitHub) |
-| **wodoo** | Python CLI providing the `odoo` command | installed via `pipx` |
+| Component | What it is                              | Where                                  |
+| --------- | --------------------------------------- | -------------------------------------- |
+| **zodoo** | Docker images + templates               | `~/.odoo/images/` (cloned from GitHub) |
+| **zodoo** | Python CLI providing the `odoo` command | installed via `pipx`                   |
 
 ### Settings resolution order
 
@@ -49,17 +49,18 @@ Settings are merged from multiple locations (later overrides earlier):
 
 ## Containers (Services)
 
-| Container | Purpose | Always on? |
-|-----------|---------|------------|
-| `odoo` | Main Odoo web server | yes |
-| `odoo_cronjobs` | Cron job runner | configurable |
-| `odoo_queuejobs` | Queue job runner | configurable |
-| `postgres` | PostgreSQL database | yes |
-| `proxy` | Node.js reverse proxy, request buffering | configurable |
-| `mail` | Catch-all SMTP (MailHog) | dev only |
-| `redis` | Redis for sessions/cache | if modules need it |
+| Container        | Purpose                                  | Always on?         |
+| ---------------- | ---------------------------------------- | ------------------ |
+| `odoo`           | Main Odoo web server                     | yes                |
+| `odoo_cronjobs`  | Cron job runner                          | configurable       |
+| `odoo_queuejobs` | Queue job runner                         | configurable       |
+| `postgres`       | PostgreSQL database                      | yes                |
+| `proxy`          | Node.js reverse proxy, request buffering | configurable       |
+| `mail`           | Catch-all SMTP (MailHog)                 | dev only           |
+| `redis`          | Redis for sessions/cache                 | if modules need it |
 
 Toggle containers via settings:
+
 ```
 RUN_ODOO_CRONJOBS=1
 RUN_ODOO_QUEUEJOBS=1

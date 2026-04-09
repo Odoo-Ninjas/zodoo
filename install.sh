@@ -4,10 +4,11 @@ set -e
 
 REPO_URL="https://github.com/Odoo-Ninjas/zodoo"
 TARGET_DIR="$HOME/.odoo/images"
-SRC_DIR="$TARGET_DIR/wodoo/src"
+SRC_DIR="$TARGET_DIR/zodoo/src"
 OS="$(uname -s)"
 
-pipx uninstall wodoo || true  # remove any old version
+pipx uninstall zodoo || true  # remove any old version
+pipx uninstall wodoo || true  # remove legacy name
 
 echo "🔍 Checking for git..."
 if ! command -v git >/dev/null 2>&1; then

@@ -1,7 +1,7 @@
-#!/opt/wodoo_pipx/venvs/wodoo/bin/python3
+#!/opt/zodoo_pipx/venvs/zodoo/bin/python3
 import os
 import sys
-from wodoo.odoo_config import current_version
+from zodoo.odoo_config import current_version
 from tools import exec_odoo
 from tools import prepare_run
 

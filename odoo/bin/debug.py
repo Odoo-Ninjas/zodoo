@@ -10,10 +10,10 @@ import tools
 from tools import prepare_run
 from tools import sane_tty
 from tools import get_config_file  # NOQA
-from wodoo.odoo_config import current_version  # NOQA
-from wodoo.odoo_config import get_settings  # NOQA
-from wodoo.module_tools import update_view_in_db  # NOQA
-from wodoo.module_tools import Modules  # NOQA
+from zodoo.odoo_config import current_version  # NOQA
+from zodoo.odoo_config import get_settings  # NOQA
+from zodoo.module_tools import update_view_in_db  # NOQA
+from zodoo.module_tools import Modules  # NOQA
 from tools import kill_odoo
 
 config = get_settings()
@@ -92,7 +92,7 @@ class Debugger:
             f"remote debugg: {self.remote_debugging}, waiting for debugger: {self.wait_for_remote}"
         )
 
-        cmd = [os.environ["WODOO_PYTHON"], "run_debug.py"]
+        cmd = [os.environ["ZODOO_PYTHON"], "run_debug.py"]
         if self.remote_debugging:
             cmd += ["--remote-debug"]
         if self.wait_for_remote:
@@ -115,7 +115,7 @@ class Debugger:
             PARAMS_CONST += ["--no-tests"]
         res = self.execpy(
             [
-                os.environ["WODOO_PYTHON"],
+                os.environ["ZODOO_PYTHON"],
                 "/odoolib/update_modules.py",
                 module,
             ]
@@ -148,7 +148,7 @@ class Debugger:
             )
         res = self.execpy(
             [
-                os.environ["WODOO_PYTHON"],
+                os.environ["ZODOO_PYTHON"],
                 "unit_test.py",
                 self.last_unit_test,
             ]
@@ -167,7 +167,7 @@ class Debugger:
         kill_odoo()
         subprocess.call(["/usr/bin/reset"])
         self.execpy(
-            [os.environ["WODOO_PYTHON"], "export_i18n.py", lang, module]
+            [os.environ["ZODOO_PYTHON"], "export_i18n.py", lang, module]
         )
         self.trigger_restart()
 
@@ -175,7 +175,7 @@ class Debugger:
         kill_odoo()
         self.execpy(["/usr/bin/reset"])
         if self.execpy(
-            [os.environ["WODOO_PYTHON"], "import_i18n.py", lang, filepath]
+            [os.environ["ZODOO_PYTHON"], "import_i18n.py", lang, filepath]
         ):
             self.trigger_restart()
 
@@ -341,7 +341,7 @@ def command_debug(
         )
     prepare_run()
 
-    os.environ["WODOO_LOGLEVEL"] = loglevel
+    os.environ["ZODOO_LOGLEVEL"] = loglevel
 
     Debugger(
         sync_common_modules=sync_common_modules,

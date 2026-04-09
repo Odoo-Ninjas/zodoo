@@ -1,11 +1,11 @@
-#!/usr/bin/env wodoo_python
+#!/usr/bin/env zodoo_python
 import click
 import shutil
 import tempfile
 import os
 import sys
 import pwd
-from wodoo.module_tools import Module
+from zodoo.module_tools import Module
 from pathlib import Path
 from tools import _run_shell_cmd
 
@@ -17,7 +17,7 @@ LANG = sys.argv[1]
 MODULES = sys.argv[2]
 
 # definitly in version 15+
-from wodoo.odoo_config import MANIFEST
+from zodoo.odoo_config import MANIFEST
 
 manifest = MANIFEST()
 if float(manifest["version"]) < 18.0:
@@ -56,7 +56,7 @@ for module in MODULES.split(","):
         click.secho(f"Error exporting language of {module}", fg="red")
         sys.exit(-1)
 
-    dest_path = root / module.path / "i18n" / "{}.po".format(LANG)
+    dest_path = root / module.path / "i18n" / f"{LANG}.po"
     shutil.copy(str(filename), str(dest_path))
     filename.unlink()
     odoo_user = pwd.getpwnam(os.environ["ODOO_USER"]).pw_uid

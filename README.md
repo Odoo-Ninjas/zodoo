@@ -32,7 +32,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Odoo-Ninjas/zodoo/refs/heads
 
 ```bash
 cat << 'EOF' > /etc/sudoers.d/odoo
-Cmnd_Alias ODOO_COMMANDS_ODOO = /usr/bin/find *, /var/lib/wodoo_env/bin/odoo *, /usr/bin/btrfs subvolume *, /usr/bin/mkdir *, /usr/bin/mv *, /usr/bin/rsync *, /usr/bin/rm *,  /usr/bin/du *, /usr/local/bin/odoo *, /usr/bin/btrfs subvol show *, /usr/sbin/gosu *
+Cmnd_Alias ODOO_COMMANDS_ODOO = /usr/bin/find *, /var/lib/zodoo_env/bin/odoo *, /usr/bin/btrfs subvolume *, /usr/bin/mkdir *, /usr/bin/mv *, /usr/bin/rsync *, /usr/bin/rm *,  /usr/bin/du *, /usr/local/bin/odoo *, /usr/bin/btrfs subvol show *, /usr/sbin/gosu *
 odoo ALL=NOPASSWD:SETENV: ODOO_COMMANDS_ODOO
 
 EOF
@@ -258,8 +258,8 @@ time sudo -E pytest
 # Performance Check
 
 ```python
-pipx runpip wodoo install line_profiler
-$WODOO_PYTHON -mkernprof -l -v odoo reload
+pipx runpip zodoo install line_profiler
+$ZODOO_PYTHON -mkernprof -l -v odoo reload
 ```
 
 # Odoo warmup parameters

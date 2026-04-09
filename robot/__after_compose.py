@@ -17,8 +17,8 @@ def after_compose(config, settings, yml, globals):
         current_dir.parent / "common_snippets" / "set_docker_group.sh",
         current_dir / "set_docker_group.sh",
     )
-    src = current_dir.parent / "wodoo" / "src"
-    dest = current_dir / "wodoo_src"
+    src = current_dir.parent / "zodoo" / "src"
+    dest = current_dir / "zodoo_src"
     import time
     import random
 

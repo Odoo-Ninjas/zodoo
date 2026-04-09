@@ -38,7 +38,7 @@ build-essential gcc python3-dev tmux && \
 python3 -mpip install $(cat /etc/pip_options) -r requirements.txt
 
 #___SNIPPET_PYTHON311___
-#___SNIPPET_WODOO___
+#___SNIPPET_ZODOO___
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod a+x /entrypoint.sh

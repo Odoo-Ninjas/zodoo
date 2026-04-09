@@ -4,6 +4,7 @@
 The coding container calls these endpoints instead of having Docker access.
 """
 
+import base64
 import os
 import socket
 import subprocess
@@ -11,6 +12,7 @@ import json
 import tempfile
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from urllib.parse import urlparse
 
 PROJECT_NAME = os.environ.get("PROJECT_NAME", "")
 COMPOSE_FILE = os.environ.get("COMPOSE_FILE", "")
@@ -152,6 +154,62 @@ def _debug():
     }
 
 
+def _robot(test_file):
+    """Start seleniumdriver, then run robot test via docker compose run."""
+    # Ensure seleniumdriver is running
+    result = _dc("up", "-d", "seleniumdriver")
+    if result["returncode"] != 0:
+        return result
+
+    # Wait for Selenium to be ready
+    selenium_name = _container_name("seleniumdriver")
+    selenium_ip = _get_container_ip(selenium_name)
+    if not selenium_ip:
+        return {
+            "returncode": 1,
+            "stdout": "",
+            "stderr": "Could not determine seleniumdriver IP",
+        }
+    if not _wait_for_port(selenium_ip, 4444, timeout=30):
+        return {
+            "returncode": 1,
+            "stdout": "",
+            "stderr": "Timeout waiting for seleniumdriver:4444",
+        }
+
+    # Build archive params (base64-encoded JSON piped to robot stdin)
+    params = {
+        "SELENIUM_SERVICE_NAME": "seleniumdriver",
+        "test_files": [test_file],
+        "params": {
+            "browser": "chrome",
+            "parallel": 1,
+        },
+        "token": "latest",
+        "results_file": "results.json",
+        "debug": False,
+    }
+    archive = base64.b64encode(json.dumps(params).encode())
+
+    # Run robot container with archive on stdin
+    cmd = ["docker", "compose", "-p", PROJECT_NAME]
+    if COMPOSE_FILE:
+        cmd.extend(["-f", COMPOSE_FILE])
+    cmd.extend(["run", "--rm", "-T", "robot"])
+
+    result = subprocess.run(
+        cmd,
+        input=archive,
+        capture_output=True,
+        timeout=600,
+    )
+    return {
+        "returncode": result.returncode,
+        "stdout": result.stdout.decode(errors="replace")[-2000:],
+        "stderr": result.stderr.decode(errors="replace")[-2000:],
+    }
+
+
 ACTIONS = {
     "/restart": lambda: _dc("restart", "odoo"),
     "/debug": _debug,
@@ -161,13 +219,47 @@ ACTIONS = {
 
 
 class Handler(BaseHTTPRequestHandler):
+    def _read_body(self):
+        length = int(self.headers.get("Content-Length", 0))
+        if length:
+            return json.loads(self.rfile.read(length))
+        return {}
+
     def do_POST(self):
-        action = ACTIONS.get(self.path)
+        parsed = urlparse(self.path)
+        path = parsed.path
+
+        # /robot endpoint: accepts {"test_file": "relative/path.robot"}
+        if path == "/robot":
+            try:
+                body = self._read_body()
+                test_file = body.get("test_file", "")
+                if not test_file:
+                    self.send_response(400)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(
+                        json.dumps({"error": "test_file required"}).encode()
+                    )
+                    return
+                result = _robot(test_file)
+                self.send_response(200 if result["returncode"] == 0 else 500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(result).encode())
+            except Exception as ex:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(ex)}).encode())
+            return
+
+        action = ACTIONS.get(path)
         if not action:
             self.send_response(404)
             self.end_headers()
             self.wfile.write(
-                json.dumps({"error": f"Unknown action: {self.path}"}).encode()
+                json.dumps({"error": f"Unknown action: {path}"}).encode()
             )
             return
 

@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 def after_settings(settings, config):
-    from wodoo import odoo_config
+    from zodoo import odoo_config
 
     if settings.get("ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER") == "1":
         settings["RUN_ODOO_QUEUEJOBS"] = "0"

@@ -4,7 +4,7 @@ from tools import prepare_run
 import subprocess
 import sys
 
-WODOO_PYTHON = os.getenv("WODOO_PYTHON")
+ZODOO_PYTHON = os.getenv("ZODOO_PYTHON")
 
 print("Updating modules")
 prepare_run()

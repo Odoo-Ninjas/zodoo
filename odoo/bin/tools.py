@@ -11,10 +11,10 @@ from consts import ODOO_USER
 import subprocess
 import configparser
 import os
-from wodoo import odoo_config
-from wodoo.odoo_config import customs_dir
-from wodoo.odoo_config import get_conn_autoclose
-from wodoo.odoo_config import current_version
+from zodoo import odoo_config
+from zodoo.odoo_config import customs_dir
+from zodoo.odoo_config import get_conn_autoclose
+from zodoo.odoo_config import current_version
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -422,7 +422,7 @@ def get_odoo_bin(for_shell=False):
 
 
 def is_in_container():
-    from wodoo.tools import _is_in_container
+    from zodoo.tools import _is_in_container
 
     return _is_in_container()
 

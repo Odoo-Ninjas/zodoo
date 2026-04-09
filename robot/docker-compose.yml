@@ -3,37 +3,21 @@ volumes:
   robo_upload_files:
 
 services:
-  seleniumvnc:
-    build:
-      context: ${ODOO_IMAGES}/selenium_customized
+  seleniumdriver:
     labels:
       proxy_config: ${ODOO_IMAGES}/robot/proxy/selenium.conf
-    shm_size: 4gb
-    mem_limit: 4g
-    environment:
-      - XPRA_RESIZE_DISPLAY=1
-      - XPRA_HTML5_BASE=/code/
-      - VNC_SERVER=seleniumdriver:5900
-      - VNC_PASSWORD=secret
-    # ports:
-    #     - 5901:5900
-    volumes:
-      - ${ODOO_IMAGES}/selenium_customized/start.sh:/usr/local/bin/start.sh
-      - ${ODOO_IMAGES}/selenium_customized/entrypoint.sh:/usr/local/bin/entrypoint.sh
-
-  seleniumdriver:
     image: selenium/standalone-chromium:138.0
     shm_size: 4gb
     mem_limit: 4g
     expose:
       - 4444
-    # ports:
-    #     - 5901:5900
+      - 7900
     volumes:
       - robo_upload_files:/tmp/robo_upload_files
     environment:
       - SE_NODE_MAX_SESSIONS=1
       - SE_SESSION_REQUEST_TIMEOUT=300
+      - SE_VNC_NO_PASSWORD=1
 
   seleniumdriver_template:
     image: selenium/standalone-chromium:138.0

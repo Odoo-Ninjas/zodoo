@@ -1,8 +1,8 @@
-#!/usr/bin/env wodoo_python
+#!/usr/bin/env zodoo_python
 import os
 import sys
 import subprocess
-from wodoo.module_tools import Module
+from zodoo.module_tools import Module
 
 if len(sys.argv) == 1:
     print("Usage: import_i18n de_DE pofilepath")
@@ -27,7 +27,7 @@ module = Module(FILEPATH)
 # e.g. api.fieldonchange
 subprocess.check_call(
     [
-        os.getenv("WODOO_PYTHON"),
+        os.getenv("ZODOO_PYTHON"),
         "/odoolib/update_modules.py",
         module.name,
         "--i18n",

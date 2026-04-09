@@ -4,9 +4,9 @@ import os
 
 
 def after_settings(settings, config):
-    module_name = "wodoo_logging"
+    module_name = "zodoo_logging"
     gimera = Path(os.getcwd()) / "gimera.yml"
-    url = "git@github.com:Odoo-Ninjas/wodoo-logging"
+    url = "git@github.com:Odoo-Ninjas/zodoo-logging"
     if url in gimera.read_text():
         return
     if not config.RUN_LOGCOLLECTOR:
@@ -14,7 +14,7 @@ def after_settings(settings, config):
     manifestfile = Path(os.getcwd()) / "MANIFEST"
     manifest = eval(manifestfile.read_text())
     version = str(manifest["version"])
-    path = "addons/wodoo-logging"
+    path = "addons/zodoo-logging"
     subprocess.check_call(
         [
             "gimera",

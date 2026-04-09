@@ -9,6 +9,6 @@ services:
       - ~/.config/pudb:/home/odoo/.config/pudb
       - ${ODOO_IMAGES}/odoo/bin:/odoolib:ro
       - ${ODOO_IMAGES}/odoo/config/${ODOO_VERSION_INT}/config:/etc/odoo/config.template:ro
-      - ${ODOO_IMAGES}/wodoo/src:/opt/wodoo:rw
+      - ${ODOO_IMAGES}/zodoo/src:/opt/zodoo:rw
     environment:
       - OPENUPGRADE_TARGET_VERSION=${ODOO_VERSION}

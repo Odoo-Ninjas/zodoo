@@ -1,11 +1,11 @@
-#!/opt/wodoo_pipx/venvs/wodoo/bin/python3
+#!/opt/zodoo_pipx/venvs/zodoo/bin/python3
 from collections import defaultdict
 import click
 import os
 import sys
-from wodoo.module_tools import DBModules
-from wodoo.odoo_config import MANIFEST
-from wodoo.odoo_config import current_version
+from zodoo.module_tools import DBModules
+from zodoo.odoo_config import MANIFEST
+from zodoo.odoo_config import current_version
 from tools import prepare_run
 from tools import exec_odoo
 from tools import _run_shell_cmd
@@ -24,7 +24,7 @@ mode_text = {
 }
 
 
-class Config(object):  # NOQA
+class Config:  # NOQA
     pass
 
 
@@ -156,16 +156,12 @@ def _get_to_install_modules(config, modules):
                     update_module_list(config)
                     listed = DBModules.is_module_listed(module)
                 elif not listed:
-                    raise Exception(
-                        ("Module not found to " f"update: {module}")
-                    )
+                    raise Exception("Module not found to " f"update: {module}")
 
                 if not listed:
                     raise Exception(
-                        (
-                            "After updating module list, module "
-                            f"was not found: {module}"
-                        )
+                        "After updating module list, module "
+                        f"was not found: {module}"
                     )
 
             yield module
@@ -179,10 +175,8 @@ def dangling_check(config):
         if (
             config.interactive
             and input(
-                (
-                    "Uninstallable modules found - shall I set "
-                    "them to 'uninstalled'? [y/N]"
-                )
+                "Uninstallable modules found - shall I set "
+                "them to 'uninstalled'? [y/N]"
             ).lower()
             == "y"
         ):

@@ -267,7 +267,7 @@ def _restore(
 
     started = datetime.now()
     click.echo("Restoring DB...")
-    PV_CMD = " ".join(shlex.quote(s) for s in ["pv", str(filepath)])
+    PV_CMD = shlex.join(["pv", str(filepath)])
     if workers > 1 and needs_unzip:
         workers = 1
         click.secho(
@@ -283,13 +283,12 @@ def _restore(
         CMD += " | "
     else:
         CMD = ""
-    CMD += " ".join(shlex.quote(s) for s in method)
+    CMD += shlex.join(method)
     CMD += " "
     if method == PGRESTORE and verbose:
         CMD += " --verbose "
-    CMD += " ".join(
-        shlex.quote(s)
-        for s in [
+    CMD += shlex.join(
+        [
             "--dbname",
             dbname,
         ]
@@ -414,9 +413,11 @@ def __get_dump_type(filepath):
     if first_line.startswith("dump_all\n"):
         return "dump_all"
 
-    if first_line.startswith("WODOO_BIN\n"):
+    if first_line.startswith("ZODOO_BIN\n") or first_line.startswith(
+        "WODOO_BIN\n"
+    ):
         version = first_line.split("\n")[1]
-        return f"wodoo_bin {version}"
+        return f"zodoo_bin {version}"
 
     if first_line and zipped:
         if MARKER in first_line or first_line.strip() == "--":
@@ -464,15 +465,13 @@ def extract_dumps_all(tmppath, filepath):
     with autocleanpaper() as scriptfile:
         lendumpall = len("dump_all") + 2
         scriptfile.write_text(
-            (
-                "#!/bin/bash\n"
-                "set -e\n"
-                f"rm -Rf '{tmppath}'\n"
-                f"mkdir -p '{tmppath}'\n"
-                f"cd '{tmppath}'\n"
-                f"tail '{filepath}' -c +{lendumpall} | "
-                f"tar xz\n"
-            )
+            "#!/bin/bash\n"
+            "set -e\n"
+            f"rm -Rf '{tmppath}'\n"
+            f"mkdir -p '{tmppath}'\n"
+            f"cd '{tmppath}'\n"
+            f"tail '{filepath}' -c +{lendumpall} | "
+            f"tar xz\n"
         )
         subprocess.check_call(["/bin/bash", scriptfile])
         yield tmppath / "db", tmppath / "files"

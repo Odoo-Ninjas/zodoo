@@ -158,21 +158,21 @@ RUN mkdir /opt/venv; ln -s /usr/bin /opt/venv/bin
 RUN python3 -mpip install pipx
 RUN python3 -mpipx ensurepath
 COPY config/$ODOO_VERSION/constraints.txt /opt/constraints.txt
-ENV WODOO_SRC=/opt/wodoo
-ENV WODOO_PIPX_HOME=/opt/wodoo_pipx
-ENV WODOO_ENV_DIR=/opt/wodoo_pipx/venvs/wodoo
-ENV WODOO_PYTHON=${WODOO_ENV_DIR}/bin/python3
+ENV ZODOO_SRC=/opt/zodoo
+ENV ZODOO_PIPX_HOME=/opt/zodoo_pipx
+ENV ZODOO_ENV_DIR=/opt/zodoo_pipx/venvs/zodoo
+ENV ZODOO_PYTHON=${ZODOO_ENV_DIR}/bin/python3
 RUN git clone --depth 1 https://github.com/Odoo-Ninjas/zodoo /opt/zodoo
-RUN rsync /opt/zodoo/wodoo/src/ $WODOO_SRC/ -ar
+RUN rsync /opt/zodoo/zodoo/src/ $ZODOO_SRC/ -ar
 
-RUN rm $WODOO_SRC/wodoo/requirements.txt
-COPY config/$ODOO_VERSION/wodoo_requirements.txt $WODOO_SRC/wodoo/requirements.txt
+RUN rm $ZODOO_SRC/zodoo/requirements.txt
+COPY config/$ODOO_VERSION/zodoo_requirements.txt $ZODOO_SRC/zodoo/requirements.txt
 
 RUN \
-export PIPX_HOME="${WODOO_PIPX_HOME}" && \
+export PIPX_HOME="${ZODOO_PIPX_HOME}" && \
 export PIPX_BIN_DIR=/usr/local/bin && \
 PIPX_DEFAULT_PYTHON=/opt/venv/bin/python3 \
-pipx install --pip-args="--constraint /opt/constraints.txt" -e $WODOO_SRC && \
+pipx install --pip-args="--constraint /opt/constraints.txt" -e $ZODOO_SRC && \
 echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
 RUN pip3 install $(cat /etc/pip_options) lxml==4.6.0
 
@@ -219,7 +219,7 @@ ADD bin/ /odoolib/
 ENV ODOO_CONFIG_DIR=${ODOO_CONFIG_DIR}
 ADD config/${ODOO_VERSION}/config ${ODOO_CONFIG_DIR}.template
 
-CMD ["sh", "-c", "/opt/wodoo_pipx/venvs/wodoo/bin/python3 /odoolib/run.py"]
+CMD ["sh", "-c", "/opt/zodoo_pipx/venvs/zodoo/bin/python3 /odoolib/run.py"]
 ENTRYPOINT ["/odoolib/entrypoint.sh"]
 
 #___SNIPPET_CLEANUP___
@@ -239,8 +239,6 @@ RUN rm -Rf /opt/zodoo/.git \
 /usr/lib/aarch64-linux-gnu/perl \
 /usr/lib/aarch64-linux-gnu/perl-base
 ENV ZSTDOPTIONS="-11 -T4"
-RUN cd /usr && #___SNIPPET_TAR___
-share | zstd $ZSTDOPTIONS > share.tar.zst && rm -Rf share && cd - '
-RUN cd /opt && #___SNIPPET_TAR___
-venv wodoo_pipx | zstd $ZSTDOPTIONS > venv.tar.zst && rm -Rf venv wodoo_pipx '
+RUN cd /usr && #___SNIPPET_TAR___ share | zstd $ZSTDOPTIONS > share.tar.zst && rm -Rf share && cd - '
+RUN cd /opt && #___SNIPPET_TAR___ venv zodoo_pipx | zstd $ZSTDOPTIONS > venv.tar.zst && rm -Rf venv zodoo_pipx '
 RUN find /opt /usr -name '*.a' -delete

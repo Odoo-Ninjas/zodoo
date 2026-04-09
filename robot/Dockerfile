@@ -35,7 +35,7 @@ RUN echo 'robot ALL=NOPASSWD:SETENV: ALL' > /etc/sudoers.d/robot
 
 
 USER root
-#___SNIPPET_WODOO___
+#___SNIPPET_ZODOO___
 
 RUN mkdir -p /opt/robot/.local && chown robot /opt/robot /opt/robot/.local
 USER robot
@@ -51,6 +51,7 @@ COPY ssh_config /opt/robot/.ssh/config
 RUN chown robot /opt/robot/.ssh/config
 
 
+# hadolint ignore=DL3002
 USER root
 COPY openbox/rc.xml  /opt/robot/.config/openbox/rc.xml
 COPY openbox/menu.xml  /opt/robot/.config/openbox/menu.xml
@@ -66,5 +67,11 @@ COPY openbox/welcome.txt /etc/welcome.txt
 
 COPY conky.txt /opt/robot/.conkyrc
 COPY set_docker_group.sh /usr/local/bin/set_docker_group.sh
+
+#___SNIPPET_CLEANUP___
+RUN rm -Rf \
+/usr/libexec/docker \
+/usr/lib/systemd \
+/root/.cache/pip
 
 ENTRYPOINT ["/opt/robot/entrypoint.sh"]

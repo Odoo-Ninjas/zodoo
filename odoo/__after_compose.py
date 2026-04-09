@@ -25,7 +25,7 @@ my_cache = {}
 
 def after_compose(config, settings, yml, globals):
     # store also in clear text the requirements
-    from wodoo.odoo_config import MANIFEST
+    from zodoo.odoo_config import MANIFEST
 
     shutil.copy(
         current_dir.parent / "common_snippets" / "set_docker_group.sh",
@@ -125,7 +125,7 @@ def _remove_requirements_from_requirements(the_list, remove_this):
 
 
 def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
-    from wodoo.odoo_config import customs_dir, MANIFEST
+    from zodoo.odoo_config import customs_dir, MANIFEST
 
     manifest = MANIFEST()
 
@@ -235,7 +235,7 @@ def _hack_patch_requirements(external_dependencies):
 
 
 def _dir_dirty(globals):
-    from wodoo.odoo_config import customs_dir
+    from zodoo.odoo_config import customs_dir
 
     tools = globals["tools"]
     return not tools.is_git_clean(
@@ -255,7 +255,7 @@ def all_submodules_checked_out():
 
 
 def cache_dir(tools):
-    path = Path(os.path.expanduser("~/.cache/wodoo_image_odoo"))
+    path = Path(os.path.expanduser("~/.cache/zodoo_image_odoo"))
     path.mkdir(exist_ok=True, parents=True)
     tools.__try_to_set_owner(tools.whoami(), path)
     return path
@@ -353,7 +353,7 @@ def _get_dependencies(
 
 
 def append_odoo_requirements(config, external_dependencies, tools):
-    from wodoo.odoo_config import MANIFEST
+    from zodoo.odoo_config import MANIFEST
 
     manifest = MANIFEST()
     odoo_dir = manifest.get("odoo_dir", "odoo")

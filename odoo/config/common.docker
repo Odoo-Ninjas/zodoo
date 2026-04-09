@@ -1,12 +1,12 @@
 # MARKER COMMON.DOCKER BEGIN
 
-# install wodoo
+# install zodoo
 RUN #___SNIPPET_APT_INSTALL___ \
 build-essential python3-dev
 RUN python3 -mpip install $(cat /etc/pip_options) pipx --upgrade
 USER root
 
-#___SNIPPET_WODOO___
+#___SNIPPET_ZODOO___
 
 USER root
 RUN echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
@@ -45,7 +45,7 @@ ADD bin/ /odoolib/
 ENV ODOO_CONFIG_DIR=${ODOO_CONFIG_DIR}
 ADD config/${ODOO_VERSION}/config ${ODOO_CONFIG_DIR}.template
 
-CMD ["sh", "-c", "$WODOO_PYTHON /odoolib/run.py"]
+CMD ["sh", "-c", "$ZODOO_PYTHON /odoolib/run.py"]
 ENTRYPOINT ["/odoolib/entrypoint.sh"]
 
 ADD static /var/www/html
@@ -56,8 +56,7 @@ zstd
 
 ENV ZSTDOPTIONS="-10 -T4"
 
-RUN cd /opt && #___SNIPPET_TAR___
-venv wodoo_pipx | zstd $ZSTDOPTIONS > venv.tar.zst && rm -Rf venv wodoo_pipx '
+RUN cd /opt && #___SNIPPET_TAR___ venv zodoo_pipx | zstd $ZSTDOPTIONS > venv.tar.zst && rm -Rf venv zodoo_pipx '
 
 
 
@@ -108,7 +107,6 @@ RUN rm -Rf \
 
 
 
-RUN cd /usr && #___SNIPPET_TAR___
-share | zstd $ZSTDOPTIONS > share.tar.zst && rm -Rf share && cd - '
+RUN cd /usr && #___SNIPPET_TAR___ share | zstd $ZSTDOPTIONS > share.tar.zst && rm -Rf share && cd - '
 
 # MARKER COMMON.DOCKER END

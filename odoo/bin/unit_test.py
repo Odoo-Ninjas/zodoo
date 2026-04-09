@@ -1,11 +1,11 @@
-#!/usr/bin/env wodoo_python
+#!/usr/bin/env zodoo_python
 from datetime import datetime
 import json
 import os
 import sys
 import click
-from wodoo.module_tools import Module
-from wodoo.odoo_config import current_version
+from zodoo.module_tools import Module
+from zodoo.odoo_config import current_version
 from pathlib import Path
 from tools import exec_odoo
 from tools import prepare_run

@@ -81,3 +81,5 @@ ADD test_killswitch.sh /usr/local/bin/test_killswitch.sh
 RUN #___SNIPPET_APT_INSTALL___ \
   python3 python3-pip python3-setuptools python3-wheel
 RUN python3 -mpip install psutil
+
+#___SNIPPET_CLEANUP___

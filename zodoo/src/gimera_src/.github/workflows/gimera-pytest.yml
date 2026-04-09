@@ -1,0 +1,116 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 pytest click inquirer pyyaml
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Test with pytest
+        run: |
+          git config --global user.email test@gimera.de
+          git config --global user.name gimera
+          pytest
+
+  check-changelog:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for changelog fragment
+        run: |
+          FRAGMENTS=$(git diff --name-only origin/${{ github.base_ref }}...HEAD -- 'changes/*.md' | grep -v README.md || true)
+          if [ -z "$FRAGMENTS" ]; then
+            echo "::error::Kein Changelog-Fragment in changes/ gefunden."
+            echo ""
+            echo "Bitte eine Fragment-Datei in changes/ hinzufuegen:"
+            echo "  echo '* [IMP] Beschreibung' > changes/meine-aenderung.md"
+            echo ""
+            echo "Prefixes: [FIX], [IMP], [NEW], [REMOVE]"
+            exit 1
+          fi
+          echo "Changelog fragments found:"
+          echo "$FRAGMENTS"
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: setup git
+        run: |
+          git config --global user.email 'github-action@github.com'
+          git config --global user.name 'github-action@github.com'
+          git fetch
+
+      - name: increment version and compile changelog
+        run: |
+          python3 scripts/compile_changelog.py
+
+      - name: commit and tag new version
+        run: |
+          set -x
+          git fetch --tags
+
+          COMMIT_MSG='autocommit by github action'
+          if [ $(git log -n1 | grep -q "$COMMIT_MSG") ]; then
+            echo "No new commit"
+            echo "DO_PYPI=0" >> "$GITHUB_ENV"
+          else
+            git add .
+            git commit -am "$COMMIT_MSG"
+            VERSION=$(cat VERSION)
+            git tag ${VERSION}
+            git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$GITHUB_REPOSITORY
+            git push origin --tags
+            git push
+            python3 setup.py sdist
+            echo "DO_PYPI=1" >> "$GITHUB_ENV"
+          fi
+
+      - name: Publish to PyPi
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+        if: env.DO_PYPI == '1'

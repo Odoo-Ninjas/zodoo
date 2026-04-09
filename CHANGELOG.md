@@ -47,7 +47,7 @@ All notable changes to this project will be documented in this file.
 - Add `@retry` to rsync functions, replace `shutil.copytree` with rsync
 - Fix volume removal: call `fix_permissions` on mountpoint when `docker volume rm` fails
 - Multiple bugfixes across `lib_src.py`, `module_tools.py`, `lib_control.py`
-- Exclude `.pyc` and `__pycache__` from wodoo_src sync in cronjobs
+- Exclude `.pyc` and `__pycache__` from zodoo_src sync in cronjobs
 
 ## 0.10.0 — February 2026
 
@@ -55,7 +55,7 @@ All notable changes to this project will be documented in this file.
 
 - Global settings switch: user-wide and system-wide settings support
 - Settings stored in file (settings_in_file)
-- Remove wodoo_src container (faster builds)
+- Remove zodoo_src container (faster builds)
 - Better warmup strategy
 - Delegator configuration support
 - Profiles as set

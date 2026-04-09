@@ -44,7 +44,7 @@ if os.getenv("IS_ODOO_DEBUG") == "1":
     sys.exit(0)
 
 LEVEL = os.getenv("ODOO_LOG_LEVEL", "debug")
-WODOO_PYTHON = os.getenv("WODOO_PYTHON")
+ZODOO_PYTHON = os.getenv("ZODOO_PYTHON")
 
 
 class OnlyIndexHandler(SimpleHTTPRequestHandler):
@@ -62,7 +62,7 @@ class OnlyIndexHandler(SimpleHTTPRequestHandler):
 if os.getenv("UPDATE_ON_STARTUP") == "1":
     try:
         subprocess.run(
-            [WODOO_PYTHON, "/odoolib/update_on_startup.py"],
+            [ZODOO_PYTHON, "/odoolib/update_on_startup.py"],
             check=True,
             cwd="/opt/src",
         )

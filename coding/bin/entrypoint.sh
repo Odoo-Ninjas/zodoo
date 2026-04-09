@@ -44,6 +44,14 @@ cat > "$VSCODE_DIR/tasks.json" <<TASKS
       "options": { "cwd": "\${workspaceFolder}" },
       "presentation": { "reveal": "always", "panel": "shared", "close": true },
       "problemMatcher": []
+    },
+    {
+      "label": "robot:run",
+      "type": "shell",
+      "command": "curl -sf -X POST -H 'Content-Type: application/json' -d '{\"test_file\": \"\${relativeFile}\"}' ${TRIGGER_URL}/robot | jq .",
+      "options": { "cwd": "\${workspaceFolder}" },
+      "presentation": { "reveal": "always", "panel": "shared" },
+      "problemMatcher": []
     }
   ]
 }

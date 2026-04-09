@@ -12,7 +12,7 @@ This is the **zodoo repository** — the source for Docker images and project te
 | `postgres/`, `proxy/`, `mail/`, `redis/`, ... | Service Docker images                                                      |
 | `templates/customs_template/`                 | Project init templates (copied by `odoo init`)                             |
 | `templates/module_template/`                  | Module scaffold templates (used by `odoo src make-module`)                 |
-| `wodoo/`                                      | Git submodule → Python CLI source (`wodoo` package)                        |
+| `zodoo/`                                      | Git submodule → Python CLI source (`zodoo` package)                        |
 | `docs/`                                       | Full documentation                                                         |
 | `install.sh`                                  | One-line installer script                                                  |
 
@@ -27,23 +27,23 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Odoo-Ninjas/zodoo/refs/heads
 This:
 
 1. Clones this repo to `~/.odoo/images/`
-2. Installs the `wodoo` Python package (from `wodoo/src/`) via `pipx` → provides the `odoo` command
+2. Installs the `zodoo` Python package (from `zodoo/src/`) via `pipx` → provides the `odoo` command
 
 ## Changelog / Releasing
 
-Changes to the `wodoo` CLI are tracked with **towncrier**.
+Changes to the `zodoo` CLI are tracked with **towncrier**.
 
-- Changelog fragments live in `wodoo/src/changelog.d/`
+- Changelog fragments live in `zodoo/src/changelog.d/`
 - Fragment filename format: `<short-description>.<type>.md`
   - Types: `bugfix`, `feature`, `misc`
   - Example: `preserve-custom-scss.bugfix.md`
 - To build the changelog and bump the version:
 
 ```bash
-cd wodoo/src
+cd zodoo/src
 towncrier build --version <new_version> --yes
-# then update setup.cfg and wodoo/version.txt to match
-git add CHANGELOG.md setup.cfg wodoo/version.txt changelog.d/
+# then update setup.cfg and zodoo/version.txt to match
+git add CHANGELOG.md setup.cfg zodoo/version.txt changelog.d/
 git commit -m "release <new_version>"
 git push
 ```
@@ -59,16 +59,16 @@ git push
 - pipx
 - gimera (`pipx install gimera`)
 
-### Run wodoo from source (for development)
+### Run zodoo from source (for development)
 
 ```bash
-cd wodoo/src
+cd zodoo/src
 pipx install -e . --force
 ```
 
-### Submodule (wodoo)
+### Submodule (zodoo)
 
-The `wodoo/` directory is a git submodule pointing to the wodoo Python package repo.
+The `zodoo/` directory is a git submodule pointing to the zodoo Python package repo.
 
 ```bash
 git submodule update --init

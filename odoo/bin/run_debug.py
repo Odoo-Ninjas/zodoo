@@ -1,4 +1,4 @@
-#!/usr/bin/env wodoo_python
+#!/usr/bin/env zodoo_python
 import os
 from tools import exec_odoo
 import sys
