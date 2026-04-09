@@ -771,7 +771,7 @@ def get_db_name(db, project_name):
 
     if db and db[0] in "0123456789":
         db = "db" + db
-    for c in "?:/*\\!@#$%^&*()-.":
+    for c in " ?:/*\\!@#$%^&*()-.":
         db = db.replace(c, "_")
     db = db.lower()
     return db
