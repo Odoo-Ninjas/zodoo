@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM ubuntu:22.04 AS builder
 ARG POSTGRES_VERSION
 ENV DEBIAN_FRONTEND=noninteractive
 ENV POSTGRES_VERSION=$POSTGRES_VERSION
@@ -20,10 +20,8 @@ unzip libpq-dev
 # install docker
 #___SNIPPET_DOCKER___
 
-
 # install postgres
 #___SNIPPET_POSTGRES___
-
 
 WORKDIR /usr/local/bin
 
@@ -42,7 +40,6 @@ python3 -mpip install $(cat /etc/pip_options) -r requirements.txt
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod a+x /entrypoint.sh
-ENTRYPOINT ["/entrypoint.sh"]
 
 COPY bin/ /usr/local/bin/
 RUN chmod a+x /usr/local/bin/*.py /usr/local/bin/*.sh
@@ -50,16 +47,40 @@ RUN chmod a+x /usr/local/bin/*.py /usr/local/bin/*.sh
 RUN #___SNIPPET_APT_INSTALL___ \
 ncdu
 
-RUN apt-get purge -y build-essential gcc
-#___SNIPPET_CLEANUP___
-RUN rm -Rf \
-/usr/lib/gcc \
-/usr/lib/aarch*/libLLVM* \
-/usr/bin/containerd \
-/usr/bin/ctr \
-/usr/bin/runc \
-/usr/libexec/docker \
-/usr/lib/aarch*/perl \
-/usr/lib/systemd
+# cleanup in builder so the final COPY --from=builder gets clean files
+RUN apt-get purge -y build-essential gcc g++ libpq-dev python3-dev && \
+apt-get autoremove -y && \
+apt-get clean -y && \
+rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /var/log/* \
+/usr/share/doc /usr/share/man /usr/share/icons /usr/share/vim \
+/usr/share/perl /usr/share/poppler /usr/share/i18n \
+/usr/lib/gcc /usr/lib/git-core /usr/include /var/cache \
+/usr/lib/aarch*/libLLVM* /usr/lib/aarch*/perl /usr/lib/aarch*/gconv \
+/usr/lib/systemd /usr/libexec/docker \
+/usr/bin/containerd /usr/bin/ctr /usr/bin/runc \
+/usr/bin/containerd-shim-runc-v2 \
+/usr/bin/aarch64-linux-gnu-lto-dump-11 \
+/usr/bin/aarch64-linux-gnu-ld.gold \
+/usr/bin/aarch64-linux-gnu-dwp \
+/usr/bin/perl /usr/bin/perl5* \
+/root/.cache && \
+find /usr -name '*.a' -delete && \
+find / -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 
-RUN find / -name __pycache__ -exec rm -Rf {} \; || true
+# --- Final stage: single layer copy ---
+FROM ubuntu:22.04
+ENV DEBIAN_FRONTEND=noninteractive
+ARG POSTGRES_VERSION
+ENV POSTGRES_VERSION=$POSTGRES_VERSION
+ENV PIP_NO_CACHE_DIR=no
+ENV ZODOO_SRC=/opt/zodoo
+ENV ZODOO_PIPX_HOME=/opt/zodoo_pipx
+ENV ZODOO_ENV_DIR=/opt/zodoo_pipx/venvs/zodoo
+ENV ZODOO_PYTHON=$ZODOO_ENV_DIR/bin/python3
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# Copy entire filesystem from builder (cleaned)
+COPY --from=builder / /
+
+ENTRYPOINT ["/entrypoint.sh"]
