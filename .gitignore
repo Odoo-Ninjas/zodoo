@@ -6,3 +6,4 @@ node_modules/
 .gimera
 .python-version
 buildsettings.env
+/*/wodoo_src/
