@@ -138,7 +138,7 @@ def login(config):
         ],
         encoding="utf-8",
     )
-    if "Login succeeded" not in res:
+    if "login succeeded" not in res.lower():
         abort(f"Docker login failed: {res}")
 
 
