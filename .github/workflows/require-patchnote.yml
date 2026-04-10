@@ -6,7 +6,7 @@ on:
     types: [opened, synchronize, reopened, labeled, unlabeled]
 
 jobs:
-  check:
+  patchnote:
     runs-on: ubuntu-latest
     steps:
       - name: Skip if labeled
@@ -30,3 +30,34 @@ jobs:
             exit 1
           fi
           echo "Found patchnote(s): $CHANGED"
+
+  version-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check version files are in sync
+        run: |
+          ROOT_VERSION=$(cat VERSION)
+          SETUP_VERSION=$(grep '^version = ' wodoo/src/setup.cfg | sed 's/version = //')
+          WODOO_VERSION=$(cat wodoo/src/wodoo/version.txt | tr -d '[:space:]')
+
+          echo "VERSION:              $ROOT_VERSION"
+          echo "wodoo/src/setup.cfg:  $SETUP_VERSION"
+          echo "wodoo/src/version.txt: $WODOO_VERSION"
+
+          ERRORS=""
+          if [ "$ROOT_VERSION" != "$SETUP_VERSION" ]; then
+            ERRORS="${ERRORS}VERSION ($ROOT_VERSION) != wodoo/src/setup.cfg ($SETUP_VERSION)\n"
+          fi
+          if [ "$ROOT_VERSION" != "$WODOO_VERSION" ]; then
+            ERRORS="${ERRORS}VERSION ($ROOT_VERSION) != wodoo/src/wodoo/version.txt ($WODOO_VERSION)\n"
+          fi
+
+          if [ -n "$ERRORS" ]; then
+            echo ""
+            echo -e "::error::Version mismatch:\n$ERRORS"
+            echo "All version files must match VERSION. Update them or let the release workflow handle it."
+            exit 1
+          fi
+          echo "All versions in sync: $ROOT_VERSION"
