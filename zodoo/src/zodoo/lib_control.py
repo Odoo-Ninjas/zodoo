@@ -439,7 +439,7 @@ def attach(ctx, config, machine):
     help="Build for a specific platform",
 )
 @click.option(
-    "--no-zodoo-pull",
+    "--no-zodoo-pull", "-ZPl",
     is_flag=True,
     help="Skip pulling from zodoo registry (force local build)",
 )
@@ -449,7 +449,7 @@ def attach(ctx, config, machine):
     help="Only pull from zodoo registry, never build locally. Fails if image not found.",
 )
 @click.option(
-    "--no-zodoo-push",
+    "--no-zodoo-push", "-ZPs",
     is_flag=True,
     help="Skip pushing built images to zodoo registry after build",
 )

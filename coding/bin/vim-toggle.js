@@ -30,7 +30,7 @@ http
         settings["vim.enable"] = false;
       }
       writeSettings(settings);
-      res.writeHead(302, { Location: "/code1/" });
+      res.writeHead(302, { Location: "/code/" });
       res.end();
     } catch (e) {
       res.writeHead(500, { "Content-Type": "text/plain" });
