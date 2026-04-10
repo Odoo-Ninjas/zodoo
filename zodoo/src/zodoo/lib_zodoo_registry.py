@@ -321,7 +321,8 @@ def _docker_login_write_auth(reg):
 
     On macOS the osxkeychain credential helper fails with
     "User interaction is not allowed" when running via SSH.
-    Bypasses credential helpers entirely.
+    Bypasses credential helpers by writing auths directly and
+    setting credHelpers to override credsStore for this registry.
     """
     import os
     import base64
@@ -342,6 +343,14 @@ def _docker_login_write_auth(reg):
         f"{reg['username']}:{reg['password']}".encode()
     ).decode()
     docker_cfg["auths"][reg["url"]] = {"auth": token}
+
+    # When credsStore is set (e.g. osxkeychain), Docker ignores the auths
+    # section. Setting credHelpers for this specific registry to empty string
+    # forces Docker to use the auths section instead of credsStore.
+    if docker_cfg.get("credsStore"):
+        if "credHelpers" not in docker_cfg:
+            docker_cfg["credHelpers"] = {}
+        docker_cfg["credHelpers"][reg["url"]] = ""
 
     with open(docker_cfg_path, "w") as f:
         json.dump(docker_cfg, f, indent=2)

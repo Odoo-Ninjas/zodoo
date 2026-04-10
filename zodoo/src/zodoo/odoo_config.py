@@ -140,7 +140,8 @@ class MANIFEST_CLASS:
         self._update(data)
 
     def _update(self, d):
-        d["install"] = list(sorted(set(d["install"])))
+        if "install" in d:
+            d["install"] = list(sorted(set(d["install"])))
         # remove the system addons path again
         system_addons_paths = d.get("addons_paths_system", [])
         if system_addons_paths:
