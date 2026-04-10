@@ -1,0 +1,32 @@
+name: Require patchnote
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip if labeled
+        if: contains(github.event.pull_request.labels.*.name, 'skip-changelog')
+        run: echo "skip-changelog label found, skipping check."
+
+      - uses: actions/checkout@v4
+        if: "!contains(github.event.pull_request.labels.*.name, 'skip-changelog')"
+        with:
+          fetch-depth: 0
+
+      - name: Check for patchnote fragment
+        if: "!contains(github.event.pull_request.labels.*.name, 'skip-changelog')"
+        run: |
+          CHANGED=$(git diff --name-only origin/main...HEAD -- '.patchnotes/*.yml' | grep -v '.template' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "::error::No patchnote fragment found."
+            echo ""
+            echo "Please add a .patchnotes/<name>.yml file describing your change."
+            echo "Copy .patchnotes/example.yml.template as a starting point."
+            exit 1
+          fi
+          echo "Found patchnote(s): $CHANGED"
