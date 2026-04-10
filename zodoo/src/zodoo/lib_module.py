@@ -315,12 +315,17 @@ def _perform_install(
         )
 
     def _get_outdated_modules():
-        return list(
+        from .module_tools import Modules, DBModules
+
+        outdated = set(
             map(
                 lambda x: x.name,
-                set(_get_outdated_versioned_modules_of_deptree(module)),
+                _get_outdated_versioned_modules_of_deptree(module),
             )
         )
+        mods = Modules()
+        outdated.update(DBModules.get_outdated_installed_modules(mods))
+        return list(outdated)
 
     if not opts.no_restart:
         if config.use_docker and is_docker_available():
@@ -826,14 +831,14 @@ def _get_outdated_versioned_modules_of_deptree(modules):
             version = meta_info["version"]
             if not version:
                 continue
-            try:
-                version = tuple([int(x) for x in version.split(".")])
-            except Exception:
-                click.secho(
-                    f"Broken version name in module {meta_info}: {version}",
-                    fg="red",
-                )
-                sys.exit(-1)
+            version = version.replace("~", ".")
+            # Strip non-numeric prefixes like "saas" (e.g. "saas~19.2.1.3")
+            parts = version.split(".")
+            while parts and not parts[0].isdigit():
+                parts.pop(0)
+            if not parts:
+                continue
+            version = tuple([int(x) for x in parts])
             new_version = Module.get_by_name(dep).manifest_dict.get("version")
             if not new_version:
                 continue

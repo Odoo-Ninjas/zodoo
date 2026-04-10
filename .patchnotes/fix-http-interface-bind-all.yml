@@ -1,0 +1,3 @@
+type: fix
+description: "Set http_interface=0.0.0.0 in Odoo configs 15-19 so proxy can reach Odoo inside Docker; also always update outdated modules during odoo update"
+breaking: false
