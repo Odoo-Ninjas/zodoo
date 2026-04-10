@@ -3,7 +3,8 @@ set -e
 
 # Fix ownership of socket and log dirs (runs as root before gosu drops to postgres)
 mkdir -p /var/run/postgresql /logs
-chown 999:999 /var/run/postgresql /logs
+rm -f /var/run/postgresql/.s.PGSQL.*.lock
+chown -R 999:999 /var/run/postgresql /logs
 
 function make_entrypoint_with_params() {
 python3 <<EOF
