@@ -286,7 +286,35 @@ def _perform_install(
     if effective_sha and module:
         raise Exception("Conflict: since-git-sha and modules")
     if effective_sha:
-        module = _get_modules_since_git_sha(effective_sha)
+        # Proactively check for a usable git repo before invoking git diff.
+        # Baked images strip .git via append_odoo_src; without it any git
+        # subprocess will fail and the failure is unrelated to the SHA.
+        cwd = Path(os.getcwd())
+        if not (cwd / ".git").exists():
+            click.secho(
+                f"No .git in {cwd} — cannot diff against stored update SHA "
+                f"{effective_sha}. Falling back to full MANIFEST update "
+                "(typical for baked images).",
+                fg="yellow",
+            )
+            effective_sha = None
+            manifest_mode = True
+            module = []
+        else:
+            try:
+                module = _get_modules_since_git_sha(effective_sha)
+            except subprocess.CalledProcessError as e:
+                # Stored SHA is unreachable in the current git history
+                # (rebase / squash / partial clone). Don't crash — fall
+                # back to MANIFEST-mode update.
+                click.secho(
+                    f"git diff against stored update SHA {effective_sha} "
+                    f"failed ({e}). Falling back to full MANIFEST update.",
+                    fg="yellow",
+                )
+                effective_sha = None
+                manifest_mode = True
+                module = []
 
         # Even if no modules changed by SHA, check if all manifest modules
         # are actually installed (e.g. after db reset only base is installed)
