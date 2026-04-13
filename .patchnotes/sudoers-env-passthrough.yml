@@ -1,3 +1,0 @@
-type: fix
-description: "sudoers env_keep whitelist in common.docker so ENV vars set for root (k8s pod spec / docker -e) reach the odoo user under `sudo -u odoo`"
-breaking: false

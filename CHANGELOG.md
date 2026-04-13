@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.2
+
+
+- **Fix**: sudoers env_keep whitelist in common.docker so ENV vars set for root (k8s pod spec / docker -e) reach the odoo user under `sudo -u odoo`
+
+
 ## 0.13.1
 
 
