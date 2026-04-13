@@ -538,7 +538,9 @@ def _get_package_version(python, name):
 
 
 def _fix_permissions(config, dirs_to_fix):
-    uid = config.owner_uid or os.getuid()
+    uid = config.owner_uid
+    if not uid:
+        return
 
     for path in dirs_to_fix:
         if not os.path.exists(path):
