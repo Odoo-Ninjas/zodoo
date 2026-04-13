@@ -7,6 +7,7 @@ from ..lib_module import update, UpdateException
 from .basetest_class import BaseTestClass
 
 
+@pytest.mark.slow
 class TestZodoo(BaseTestClass):
     def setup_method(self, method):
         self.path = Path("/tmp/zodootest/" + method.__name__)
