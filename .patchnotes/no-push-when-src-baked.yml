@@ -1,3 +1,0 @@
-type: fix
-description: "Registry push: skip pushing to the shared zodoo registry when SRC_EXTRA is unset/0 (i.e. the customer source is baked into the image, e.g. `odoo bake` or default builds that include source) — uploading would publish the customer's code under a tag other customers may pull"
-breaking: false

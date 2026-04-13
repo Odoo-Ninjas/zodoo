@@ -1,3 +1,0 @@
-type: fix
-description: "Update at startup: if the stored git SHA is not in the current history (typical for baked images that strip .git, or after a rebase/squash), fall back to MANIFEST-mode update with a yellow warning instead of crashing with `subprocess.CalledProcessError`"
-breaking: false
