@@ -1,3 +1,0 @@
-type: fix
-description: "Import _is_in_container in Config.project_name setter; fixed NameError on 'odoo' invocation inside baked containers"
-breaking: false
