@@ -286,7 +286,22 @@ def _perform_install(
     if effective_sha and module:
         raise Exception("Conflict: since-git-sha and modules")
     if effective_sha:
-        module = _get_modules_since_git_sha(effective_sha)
+        try:
+            module = _get_modules_since_git_sha(effective_sha)
+        except subprocess.CalledProcessError:
+            # Stored SHA is unreachable in the current git history.
+            # Common cause: baked images (`odoo bake`) strip .git, or the
+            # local checkout was reset/squashed/rebased after the SHA was
+            # stored. Fall back to MANIFEST-mode update.
+            click.secho(
+                f"Stored update SHA {effective_sha} is not in the current "
+                "git history (rebuilt or rebased?). Falling back to full "
+                "MANIFEST update.",
+                fg="yellow",
+            )
+            effective_sha = None
+            manifest_mode = True
+            module = []
 
         # Even if no modules changed by SHA, check if all manifest modules
         # are actually installed (e.g. after db reset only base is installed)
