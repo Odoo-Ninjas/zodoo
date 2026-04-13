@@ -117,7 +117,8 @@ def backup_all(ctx, config, filename):
         filename = Path(config.dumps_path) / filename
     with autocleanpaper(Path(filename.parent) / str(uuid.uuid4())) as tmppath:
         tmppath.mkdir(exist_ok=True, parents=True)
-        subprocess.check_output(["chown", str(config.owner_uid), tmppath])
+        if config.owner_uid:
+            __try_to_set_owner(int(config.owner_uid), tmppath)
         filepath_db = ctx.invoke(
             backup_db, filename=tmppath / "dump.sql", dumptype="plain"
         )
@@ -148,11 +149,12 @@ def backup_all(ctx, config, filename):
                 cwd=tmppath,
             )
             shutil.move(tmpfile, filename)
-    __try_to_set_owner(
-        int(config.owner_uid),
-        filename,
-        verbose=True,
-    )
+    if config.owner_uid:
+        __try_to_set_owner(
+            int(config.owner_uid),
+            filename,
+            verbose=True,
+        )
     click.secho(f"Created dump-file {filename}", fg="green")
 
 
@@ -391,9 +393,10 @@ def _odoo_sh(ctx, config, filename, params):
                     ]
                 )
                 # change owner to OWNER_UID
-                subprocess.check_call(
-                    ["chown", "-R", str(config.owner_uid), filestore_dest]
-                )
+                if config.owner_uid:
+                    __try_to_set_owner(
+                        int(config.owner_uid), filestore_dest
+                    )
             if sqlfile.exists():
                 click.secho(f"Restoring db {sqlfile}")
                 os.chdir(was_dir)
