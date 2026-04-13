@@ -14,7 +14,6 @@ import secrets
 import string
 import subprocess
 import sys
-import threading
 import urllib.request
 import urllib.error
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -530,7 +529,7 @@ def _other_arch():
 
 
 def _build_and_push_other_arch(config, service_name, tag):
-    """Build for the other architecture via buildx and push (runs in background)."""
+    """Build for the other architecture via buildx and push (runs as detached process)."""
     arch_name, platform_str = _other_arch()
 
     reg = _get_registry_config(config)
@@ -569,30 +568,27 @@ def _build_and_push_other_arch(config, service_name, tag):
     )
 
     click.secho(
-        f"Background: building {service_name} for {platform_str}...",
+        f"Background: building {service_name} for {platform_str} (detached)...",
         fg="yellow",
     )
-    try:
-        subprocess.check_output(
-            cmd, stderr=subprocess.STDOUT, encoding="utf-8"
+    log_file = (
+        Path.home()
+        / ".odoo"
+        / "log"
+        / f"cross_build_{service_name}_{arch_name}.log"
+    )
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    with open(log_file, "w") as fh:
+        subprocess.Popen(
+            cmd,
+            stdout=fh,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
         )
-        click.secho(
-            f"Background: pushed {service_name} for {platform_str}", fg="green"
-        )
-    except subprocess.CalledProcessError as e:
-        if "unauthorized" in (e.output or "").lower():
-            click.secho(
-                f"Background: push for {service_name} ({platform_str}) "
-                "failed — unauthorized. Check your ZODOO_REGISTRY_* settings, "
-                "contact your zodoo administrator, or use your own registry.\n"
-                "Docs: https://docs.zebroo.de/docs/reduce-build-time-and-resources-with-zodoo-registry",
-                fg="red",
-            )
-        else:
-            click.secho(
-                f"Background: failed to build {service_name} for {platform_str}",
-                fg="red",
-            )
+    click.secho(
+        f"Background: {service_name} for {platform_str} running detached (log: {log_file})",
+        fg="yellow",
+    )
 
 
 def _is_arm():
@@ -670,18 +666,8 @@ def zodoo_push_with_background_arch(
         return None
 
     if _can_cross_build():
-        arch_name, platform_str = _other_arch()
-        thread = threading.Thread(
-            target=_build_and_push_other_arch,
-            args=(config, service_name, tag),
-            daemon=True,
-        )
-        thread.start()
-        click.secho(
-            f"Background build for {platform_str} started for {service_name}",
-            fg="yellow",
-        )
-        return thread
+        _build_and_push_other_arch(config, service_name, tag)
+        return None
 
     _, platform_str = _other_arch()
     qemu_cmd = "docker run --rm --privileged multiarch/qemu-user-static --reset -p yes"
@@ -705,7 +691,8 @@ def zodoo_push_with_background_arch(
                 click.secho(
                     "QEMU installed. Starting cross-build...", fg="green"
                 )
-                return _build_and_push_other_arch(config, service_name, tag)
+                _build_and_push_other_arch(config, service_name, tag)
+                return None
             except subprocess.CalledProcessError:
                 click.secho("Failed to install QEMU.", fg="red")
         else:
@@ -813,24 +800,10 @@ def push_to_zodoo_registry(config, machines, suppress_other_platform=False):
 
     zodoo_registry_login(config)
 
-    background_threads = []
     for service_name in machines:
-        thread = zodoo_push_with_background_arch(
+        zodoo_push_with_background_arch(
             config,
             service_name,
             tag,
             suppress_other_platform=suppress_other_platform,
         )
-        if thread:
-            background_threads.append((service_name, thread))
-
-    if background_threads:
-        click.secho(
-            "Waiting for background amd64 builds to complete...", fg="yellow"
-        )
-        for service_name, thread in background_threads:
-            thread.join()
-            click.secho(
-                f"Background amd64 build for {service_name} finished",
-                fg="green",
-            )

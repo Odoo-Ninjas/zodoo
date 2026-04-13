@@ -1,0 +1,3 @@
+type: internal
+description: "Add end-to-end pytest (`pytest -m bake`) and GitHub workflow `bake-test` covering odoo init -> reload -> db reset -> bake; runs on PR (relevant paths), workflow_dispatch (with version input), and weekly schedule"
+breaking: false

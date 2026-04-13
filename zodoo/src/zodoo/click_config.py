@@ -89,6 +89,8 @@ class Config:
 
     @project_name.setter
     def project_name(self, value):
+        from .tools import _is_in_container
+
         if value:
             for c in " ?:/*\\!@#$%^&*()":
                 value = value.replace(c, "_")

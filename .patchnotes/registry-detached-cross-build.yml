@@ -1,0 +1,3 @@
+type: internal
+description: "Registry: cross-architecture builds run as fully detached subprocess instead of waiting threads, so 'odoo bake'/push returns immediately while the other-arch build continues in background (log written to ~/.odoo/log/cross_build_<service>_<arch>.log)"
+breaking: false
