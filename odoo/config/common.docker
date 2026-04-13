@@ -41,6 +41,25 @@ ENV PATH=/odoolib:/opt/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bi
 ENV DOCKER_HOST_RUN_DIR=/opt/run
 ENV IS_ODOO_CONTAINER=1
 
+# Forward zodoo settings through `sudo -u odoo` (see odoo/bin/tools.py).
+# Default sudoers policy is `env_reset`, which drops everything not in
+# `env_keep` — even with `-E`. Without this whitelist, settings defined
+# in a Kubernetes Pod env (or via `docker run -e ...`) reach root inside
+# the container but never the `odoo` user that actually runs Odoo.
+# Names mirror the keys present across all images/*/default.settings.
+RUN { \
+      echo 'Defaults env_keep += "ODOO_* RUN_* DB_* LIMIT_MEMORY_*"'; \
+      echo 'Defaults env_keep += "JOB_* CRONJOB_* BROWSER_* VSCODE_* PROXY_*"'; \
+      echo 'Defaults env_keep += "POSTGRES_* TEST_MAIL_* INTERNAL_ODOO_* ROUNDCUBE_*"'; \
+      echo 'Defaults env_keep += "QUEUEJOBS_* ZODOO_* CONSOLE_PASSWORD CUPS_PORT"'; \
+      echo 'Defaults env_keep += "DEFAULT_DEV_PASSWORD FASTIFY_DEBUG LOGS_PASSWORD"'; \
+      echo 'Defaults env_keep += "MAIL_AUTOLOGIN NAMED_ODOO_POSTGRES_VOLUME"'; \
+      echo 'Defaults env_keep += "SHA_IN_DOCKER SRC_EXTRA CHANGE_POSTGRES_OWNER_TO_ODOO"'; \
+      echo 'Defaults env_keep += "DBNAME PROJECT_NAME CUSTOMS_DIR DOCKER_HOST_RUN_DIR"'; \
+    } > /etc/sudoers.d/zodoo-env-passthrough && \
+    chmod 440 /etc/sudoers.d/zodoo-env-passthrough && \
+    visudo -cf /etc/sudoers.d/zodoo-env-passthrough
+
 ADD bin/ /odoolib/
 ENV ODOO_CONFIG_DIR=${ODOO_CONFIG_DIR}
 ADD config/${ODOO_VERSION}/config ${ODOO_CONFIG_DIR}.template
