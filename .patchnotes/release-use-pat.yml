@@ -1,0 +1,3 @@
+type: internal
+description: "Release workflow: checkout with RELEASE_PAT secret so the release commit + tag can be pushed past the `main` branch protection (default GITHUB_TOKEN is not in the bypass list)"
+breaking: false
