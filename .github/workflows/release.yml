@@ -80,9 +80,9 @@ jobs:
           NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
           echo "$NEW_VERSION" > VERSION
 
-          # Sync version to wodoo package
-          sed -i "s/^version = .*/version = ${NEW_VERSION}/" wodoo/src/setup.cfg
-          echo "$NEW_VERSION" > wodoo/src/wodoo/version.txt
+          # Sync version to zodoo package
+          sed -i "s/^version = .*/version = ${NEW_VERSION}/" zodoo/src/setup.cfg
+          echo "$NEW_VERSION" > zodoo/src/zodoo/version.txt
 
           # Prepend new section to CHANGELOG.md
           TMPFILE=$(mktemp)
@@ -111,7 +111,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add VERSION CHANGELOG.md .patchnotes/ wodoo/src/setup.cfg wodoo/src/wodoo/version.txt
+          git add VERSION CHANGELOG.md .patchnotes/ zodoo/src/setup.cfg zodoo/src/zodoo/version.txt
           git commit -m "release v${{ steps.bump.outputs.version }}"
           git tag "v${{ steps.bump.outputs.version }}"
           git push origin main --tags
