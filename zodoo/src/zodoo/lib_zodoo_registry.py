@@ -783,6 +783,18 @@ def try_pull_from_zodoo_registry(config, machines):
 
 def push_to_zodoo_registry(config, machines, suppress_other_platform=False):
     """Push all build-services to registry after build."""
+    # SRC_EXTRA=0 means the customer source is baked into the image
+    # (see lib_composer.append_odoo_src). Pushing such an image to the
+    # shared zodoo registry would publish the customer's code, so skip.
+    if not config.SRC_EXTRA:
+        click.secho(
+            "Skipping zodoo registry push: SRC_EXTRA=0 — customer source is "
+            "baked into the image and must not be uploaded to the shared "
+            "zodoo registry.",
+            fg="yellow",
+        )
+        return
+
     if _is_images_dirty():
         click.secho(
             "Skipping zodoo registry push: ~/.odoo/images has uncommitted changes.",
