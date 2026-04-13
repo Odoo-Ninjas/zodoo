@@ -1183,11 +1183,12 @@ def update(
 
         update_log_file = customs_dir() / "update.log"
         update_log_file.write_text("")
-        __try_to_set_owner(
-            int(config.owner_uid),
-            update_log_file,
-            verbose=True,
-        )
+        if config.owner_uid:
+            __try_to_set_owner(
+                int(config.owner_uid),
+                update_log_file,
+                verbose=True,
+            )
         manifest_mode = manifest
         if is_docker_available() and not dry_run:
             start_postgres_if_local(ctx, config)
