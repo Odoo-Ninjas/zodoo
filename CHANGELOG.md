@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.13.0
+
+
+- **Feature**: Add 'backup show-dumps' command to list dumps with size and age (default: newest 5)
+- **Feature**: Changelog system with patchnotes, automated versioning and GitHub releases
+- **Feature**: Add expanded Claude Code permissions (edit, read, git, tmp) with dynamic home paths
+- **Fix**: Remove unused wodoo dependency from cronjobs requirements
+- **Fix**: Set http_interface=0.0.0.0 in Odoo configs 15-19 so proxy can reach Odoo inside Docker; also always update outdated modules during odoo update
+- **Fix**: Sanitize project name: replace special characters to avoid Docker errors
+- **Fix**: Skip registry fallback images with wrong architecture instead of pulling arm64 on amd64 hosts
+- **Fix**: Add trailing newline to generated requirements.txt and requirements.txt.all
+- **Fix**: Preserve /_custom/ SCSS attachments (website theme fonts/colors) when running remove-web-assets
+- **Feature**: Show changelog since last version after `odoo upgrade`
+
+
 All notable changes to this project will be documented in this file.
 
 ## 0.12.2 — April 2026

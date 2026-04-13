@@ -1,3 +1,0 @@
-type: fix
-description: "Preserve /_custom/ SCSS attachments (website theme fonts/colors) when running remove-web-assets"
-breaking: false

@@ -1,3 +1,0 @@
-type: feature
-description: "Add expanded Claude Code permissions (edit, read, git, tmp) with dynamic home paths"
-breaking: false

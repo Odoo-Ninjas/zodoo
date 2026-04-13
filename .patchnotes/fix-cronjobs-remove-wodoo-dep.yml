@@ -1,3 +1,0 @@
-type: fix
-description: "Remove unused wodoo dependency from cronjobs requirements"
-breaking: false

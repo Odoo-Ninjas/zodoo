@@ -1,3 +1,0 @@
-type: feature
-description: "Show changelog since last version after `odoo upgrade`"
-breaking: false

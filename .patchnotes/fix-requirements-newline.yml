@@ -1,3 +1,0 @@
-type: fix
-description: "Add trailing newline to generated requirements.txt and requirements.txt.all"
-breaking: false

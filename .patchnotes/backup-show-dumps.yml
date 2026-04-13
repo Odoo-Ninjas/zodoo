@@ -1,3 +1,0 @@
-type: feature
-description: "Add 'backup show-dumps' command to list dumps with size and age (default: newest 5)"
-breaking: false
