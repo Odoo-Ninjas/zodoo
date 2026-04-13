@@ -10,63 +10,23 @@ Walks through the full user journey:
 and verifies the bake artefact (`{project}.env`) and the docker images.
 
 Heavy: requires Docker, gimera, network access (clones Odoo + addons).
-Marked with the `bake` marker so it is opt-in (`pytest -m bake`).
+Self-skips via `requires_full_stack` when Docker / `odoo` CLI is missing,
+so it is safe to run as part of a plain `pytest` invocation.
 
 Versions tested are taken from the `ZODOO_BAKE_TEST_VERSIONS` env var
 (comma-separated, e.g. `15.0,19.0`); defaults to `19.0`.
 """
 
 import os
-import shutil
 import subprocess
 
 import pytest
 
+from .conftest import _run, requires_full_stack
+
 DEFAULT_VERSIONS = os.environ.get("ZODOO_BAKE_TEST_VERSIONS", "19.0").split(
     ","
 )
-
-
-def _has_docker():
-    try:
-        subprocess.run(
-            ["docker", "info"],
-            check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return False
-    return True
-
-
-def _has_odoo_cli():
-    return shutil.which("odoo") is not None
-
-
-requires_full_stack = pytest.mark.skipif(
-    not _has_docker() or not _has_odoo_cli(),
-    reason="needs docker daemon and 'odoo' CLI on PATH",
-)
-
-
-def _run(cmd, *, cwd, env=None, timeout=None, check=True):
-    """Run a shell command, streaming output to stdout for CI logs."""
-    full_env = os.environ.copy()
-    if env:
-        full_env.update(env)
-    print(f"\n$ {' '.join(cmd)}    (cwd={cwd})", flush=True)
-    result = subprocess.run(
-        cmd,
-        cwd=str(cwd),
-        env=full_env,
-        timeout=timeout,
-    )
-    if check and result.returncode != 0:
-        raise AssertionError(
-            f"Command failed (exit {result.returncode}): {' '.join(cmd)}"
-        )
-    return result
 
 
 @pytest.fixture
@@ -86,7 +46,7 @@ def project_dir(tmp_path):
     return p
 
 
-@pytest.mark.bake
+@pytest.mark.slow
 @requires_full_stack
 @pytest.mark.parametrize("version", DEFAULT_VERSIONS)
 def test_bake_flow(version, isolated_home, project_dir):

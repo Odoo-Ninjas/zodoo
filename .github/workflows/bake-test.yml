@@ -57,10 +57,17 @@ jobs:
           gimera --version || true
           python --version
 
+      - name: Inject pytest into zodoo venv
+        # pytest must run inside the zodoo pipx venv so it can import
+        # zodoo + click + passlib + ... from the same environment. A
+        # top-level `pip install pytest` would put pytest into a
+        # different interpreter and fail with ModuleNotFoundError.
+        run: |
+          pipx inject zodoo pytest pytest-cov
+
       - name: Run bake test
         run: |
-          pip install pytest
-          pytest -m bake -vv -s zodoo/src/zodoo/tests/test_bake.py
+          "$HOME/.local/pipx/venvs/zodoo/bin/python" -m pytest -vv -s zodoo/src/zodoo/tests/test_bake.py
 
       - name: Collect docker logs on failure
         if: failure()
