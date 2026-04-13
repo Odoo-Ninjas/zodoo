@@ -1,3 +1,0 @@
-type: internal
-description: "Release workflow: target zodoo/src/setup.cfg and zodoo/src/zodoo/version.txt instead of legacy wodoo/* paths (the wodoo->zodoo rename had left the version-bump step writing to a non-existent file, breaking every release since)"
-breaking: false
