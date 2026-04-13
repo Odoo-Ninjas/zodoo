@@ -39,19 +39,19 @@ jobs:
       - name: Check version files are in sync
         run: |
           ROOT_VERSION=$(cat VERSION)
-          SETUP_VERSION=$(grep '^version = ' wodoo/src/setup.cfg | sed 's/version = //')
-          WODOO_VERSION=$(cat wodoo/src/wodoo/version.txt | tr -d '[:space:]')
+          SETUP_VERSION=$(grep '^version = ' zodoo/src/setup.cfg | sed 's/version = //')
+          ZODOO_VERSION=$(cat zodoo/src/zodoo/version.txt | tr -d '[:space:]')
 
-          echo "VERSION:              $ROOT_VERSION"
-          echo "wodoo/src/setup.cfg:  $SETUP_VERSION"
-          echo "wodoo/src/version.txt: $WODOO_VERSION"
+          echo "VERSION:                  $ROOT_VERSION"
+          echo "zodoo/src/setup.cfg:      $SETUP_VERSION"
+          echo "zodoo/src/zodoo/version.txt: $ZODOO_VERSION"
 
           ERRORS=""
           if [ "$ROOT_VERSION" != "$SETUP_VERSION" ]; then
-            ERRORS="${ERRORS}VERSION ($ROOT_VERSION) != wodoo/src/setup.cfg ($SETUP_VERSION)\n"
+            ERRORS="${ERRORS}VERSION ($ROOT_VERSION) != zodoo/src/setup.cfg ($SETUP_VERSION)\n"
           fi
-          if [ "$ROOT_VERSION" != "$WODOO_VERSION" ]; then
-            ERRORS="${ERRORS}VERSION ($ROOT_VERSION) != wodoo/src/wodoo/version.txt ($WODOO_VERSION)\n"
+          if [ "$ROOT_VERSION" != "$ZODOO_VERSION" ]; then
+            ERRORS="${ERRORS}VERSION ($ROOT_VERSION) != zodoo/src/zodoo/version.txt ($ZODOO_VERSION)\n"
           fi
 
           if [ -n "$ERRORS" ]; then
