@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.1
+
+
+- **Internal**: Release workflow: checkout with RELEASE_PAT secret so the release commit + tag can be pushed past the `main` branch protection (default GITHUB_TOKEN is not in the bypass list)
+
+
 ## 0.13.0
 
 
