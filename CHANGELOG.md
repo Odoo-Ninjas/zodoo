@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.12.2 — April 2026
+
+### Fixes
+
+- Registry push: skip pushing to the shared zodoo registry when `SRC_EXTRA` is unset/0 (i.e. customer source is baked into the image, e.g. `odoo bake` or default builds that include source) — uploading would publish the customer's code under a tag other customers may pull
+- Update at startup: if the stored git SHA is not in the current history (typical for baked images that strip `.git`, or after a rebase/squash), fall back to MANIFEST-mode update with a yellow warning instead of crashing with `subprocess.CalledProcessError`
+
 ## 0.12.1 — April 2026
 
 ### Fixes
