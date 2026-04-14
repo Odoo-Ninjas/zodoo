@@ -240,7 +240,11 @@ def get_settings():
         for k, v in os.environ.items():
             v = v.replace("\n", " ")
             content += f"{k}={v}\n"
-        settings_path.write_text(content)
+        try:
+            settings_path.write_text(content)
+            os.chmod(settings_path, 0o644)
+        except PermissionError:
+            pass  # Already written by root; env vars are identical via sudo -E
     else:
         settings_path = Path(os.environ["HOST_RUN_DIR"]) / "settings"
     myconfig = MyConfigParser(settings_path)
