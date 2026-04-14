@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.0
+
+
+- **Feature**: `odoo setup zodoo-tests` command to run the unit-test suite (--slow for E2E tests)
+
+
 ## 0.13.3
 
 

@@ -1,3 +1,0 @@
-type: feature
-description: "`odoo setup zodoo-tests` command to run the unit-test suite (--slow for E2E tests)"
-breaking: false
