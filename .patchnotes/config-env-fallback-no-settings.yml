@@ -1,0 +1,3 @@
+type: fix
+description: "Config now falls back to os.environ when no settings file exists (fixes DBNAME lookup in k8s containers that only have ENV vars)"
+breaking: false
