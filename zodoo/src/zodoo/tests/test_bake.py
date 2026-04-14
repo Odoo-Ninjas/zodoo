@@ -85,12 +85,8 @@ def test_bake_flow(version, isolated_home, project_dir):
             timeout=long_timeout,
         )
 
-        # 2) Explicit reload — idempotent; ensures images are built.
-        _run(
-            ["odoo", "-p", project_name, "reload"],
-            cwd=project_dir,
-            timeout=long_timeout,
-        )
+        # 2) `odoo src init` already calls `reload` internally —
+        #    no separate reload needed.
 
         # 3) Reset database.
         _run(
