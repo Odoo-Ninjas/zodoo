@@ -1,6 +1,6 @@
 import os
 import shutil
-from tools import prepare_run
+from tools import prepare_run, sudo_odoo_cmd
 import subprocess
 import sys
 
@@ -15,7 +15,7 @@ manifest = eval(Path("/opt/src/MANIFEST").read_text())
 
 try:
     subprocess.run(
-        ["/odoolib/odoo", "update", "--no-progress"],
+        sudo_odoo_cmd(["/odoolib/odoo", "update", "--no-progress"]),
         check=True,
         cwd="/opt/src",
     )

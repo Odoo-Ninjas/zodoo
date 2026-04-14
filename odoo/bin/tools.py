@@ -9,6 +9,19 @@ import requests
 import click
 from consts import ODOO_USER
 import subprocess
+
+
+def sudo_odoo_cmd(cmd):
+    """Prepend sudo -E -H -u odoo if ODOO_SUDO_CMD=1.
+
+    Central helper so every code path that needs to run something as the
+    odoo user goes through the same sudoers env_keep whitelist.
+    """
+    if os.getenv("ODOO_SUDO_CMD") == "1":
+        return ["/usr/bin/sudo", "-E", "-H", "-u", ODOO_USER] + list(cmd)
+    return list(cmd)
+
+
 import configparser
 import os
 from zodoo import odoo_config
@@ -574,20 +587,12 @@ def exec_odoo(
 
     EXEC, _CONFIG = get_odoo_bin(for_shell=odoo_shell)
     CONFIG = get_config_file(CONFIG or _CONFIG)
-    cmd = []
-    if os.getenv("ODOO_SUDO_CMD") == "1":
-        cmd = [
-            "/usr/bin/sudo",
-            "-E",
-            "-H",
-            "-u",
-            ODOO_USER,
-        ]
-    cmd += __python_exe(
-        remote_debug=remote_debug, wait_for_remote=wait_for_remote
-    ) + [
-        EXEC,
-    ]
+    cmd = sudo_odoo_cmd(
+        __python_exe(
+            remote_debug=remote_debug, wait_for_remote=wait_for_remote
+        )
+        + [EXEC]
+    )
     if odoo_shell:
         cmd += ["shell"]
     try:
