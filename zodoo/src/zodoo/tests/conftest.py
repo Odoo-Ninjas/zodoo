@@ -203,6 +203,8 @@ def odoo_project_19_running(odoo_project_19):
     back on the running stack.
     """
     long_timeout = 60 * 20
+    # Postgres must be running before db reset can work.
+    odoo_project_19.run("up", "-d", "postgres", timeout=long_timeout)
     odoo_project_19.run_force("db", "reset", timeout=long_timeout)
     odoo_project_19.run("up", "-d", timeout=long_timeout)
     try:
