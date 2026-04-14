@@ -735,10 +735,17 @@ def get_docker_version():
 
 
 def __get_cmd(config, profile="auto"):
+    from .consts import _resolve_docker_compose_bin
+
     if get_docker_version()[0] >= 26:
         cmd = config.commands["dc2"]
     else:
-        cmd = config.commands["dc"]
+        dc_bin = _resolve_docker_compose_bin()
+        if not dc_bin:
+            abort(
+                "Neither 'docker compose' nor 'docker-compose' found in PATH."
+            )
+        cmd = list(dc_bin) + list(config.commands["dc"])
     if isinstance(profile, str):
         profile = [profile]
     for profile in profile or []:

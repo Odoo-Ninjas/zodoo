@@ -89,24 +89,34 @@ default_files = {
     "project_msg": "~/.odoo/settings.${project_name}.msg.txt",
 }
 
-try:
-    subprocess.run(
-        [str(_search_path("docker")), "compose"],
-        check=True,
-        capture_output=True,
-    )
-    default_files["docker_compose_bin"] = [_search_path("docker"), "compose"]
-except (subprocess.CalledProcessError, FileNotFoundError):
+
+def _resolve_docker_compose_bin():
+    """Detect whether docker compose (v2) or docker-compose (v1) is available.
+
+    Called lazily the first time a command actually needs Docker — not at
+    import time — so the CLI stays usable inside containers where Docker
+    is absent (e.g. ``odoo update`` inside a Kubernetes pod).
+    """
     try:
-        default_files["docker_compose_bin"] = [
-            str(_search_path("docker-compose"))
-        ]
+        docker = _search_path("docker")
+        if docker:
+            subprocess.run(
+                [docker, "compose"], check=True, capture_output=True
+            )
+            return [docker, "compose"]
     except (subprocess.CalledProcessError, FileNotFoundError):
-        default_files["docker_compose_bin"] = None
+        pass
+    try:
+        dc = _search_path("docker-compose")
+        if dc:
+            return [dc]
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+    return None
+
 
 default_commands = {
-    "dc": (default_files["docker_compose_bin"] or [])
-    + [
+    "dc": [
         "-p",
         "${project_name}",
         "-f",

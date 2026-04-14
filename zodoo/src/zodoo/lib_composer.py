@@ -1164,7 +1164,16 @@ def __run_docker_compose_config(config, contents, env):
             del file_path
 
         def buildcmd(files):
-            cmdline = [] + config.files["docker_compose_bin"]
+            from .consts import _resolve_docker_compose_bin
+
+            dc_bin = _resolve_docker_compose_bin()
+            if not dc_bin:
+                from .tools import abort
+
+                abort(
+                    "Neither 'docker compose' nor 'docker-compose' found in PATH."
+                )
+            cmdline = list(dc_bin)
             cmdline += ["-p", config.project_name]
             for profile in all_profiles:
                 cmdline += ["--profile", profile]
