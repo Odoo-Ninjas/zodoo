@@ -157,6 +157,7 @@ class MANIFEST_CLASS:
         s = json.dumps(d, indent=4)
         fd, tmp = tempfile.mkstemp(suffix=".MANIFEST")
         try:
+            os.chmod(tmp, 0o644)
             with os.fdopen(fd, "w") as fh:
                 fh.write(s)
                 fh.write("\n")
