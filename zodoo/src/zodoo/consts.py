@@ -90,18 +90,22 @@ default_files = {
 }
 
 try:
+    _docker_path = _search_path("docker")
+    if not _docker_path:
+        raise FileNotFoundError("docker not found in PATH")
     subprocess.run(
-        [str(_search_path("docker")), "compose"],
+        [_docker_path, "compose"],
         check=True,
         capture_output=True,
     )
-    default_files["docker_compose_bin"] = [_search_path("docker"), "compose"]
-except (subprocess.CalledProcessError, FileNotFoundError):
+    default_files["docker_compose_bin"] = [_docker_path, "compose"]
+except (subprocess.CalledProcessError, FileNotFoundError, TypeError):
     try:
-        default_files["docker_compose_bin"] = [
-            str(_search_path("docker-compose"))
-        ]
-    except (subprocess.CalledProcessError, FileNotFoundError):
+        _dc_path = _search_path("docker-compose")
+        if not _dc_path:
+            raise FileNotFoundError("docker-compose not found in PATH")
+        default_files["docker_compose_bin"] = [_dc_path]
+    except (subprocess.CalledProcessError, FileNotFoundError, TypeError):
         default_files["docker_compose_bin"] = None
 
 default_commands = {
