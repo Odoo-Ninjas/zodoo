@@ -1,0 +1,3 @@
+type: fix
+description: "bake test symlinks gimera cache into isolated HOME to avoid multi-GB re-clone"
+breaking: false

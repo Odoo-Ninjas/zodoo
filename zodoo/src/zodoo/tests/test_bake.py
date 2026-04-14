@@ -39,6 +39,12 @@ def isolated_home(tmp_path, monkeypatch):
     images_dir = _resolve_images_dir()
     if images_dir is not None:
         (home / ".odoo" / "images").symlink_to(images_dir)
+    # Reuse the host's gimera cache so the test doesn't have to clone
+    # multi-GB repos (Odoo, enterprise, ...) from scratch every run.
+    real_gimera_cache = Path.home() / ".cache" / "gimera"
+    if real_gimera_cache.is_dir():
+        (home / ".cache").mkdir(parents=True, exist_ok=True)
+        (home / ".cache" / "gimera").symlink_to(real_gimera_cache)
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("ODOO_HOME", str(home / ".odoo"))
     yield home
