@@ -1671,6 +1671,7 @@ def append_odoo_src(config, path):
 RUN mkdir -p /opt/src
 COPY ./src/{config.project_name} /opt/src
 RUN find /opt/src -name .git -type d -exec rm -rf {{}} \\;
+RUN chown -R odoo:odoo /opt/src
     """
     path.write_text(path.read_text() + "\n" + content)
 

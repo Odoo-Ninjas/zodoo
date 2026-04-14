@@ -111,7 +111,10 @@ class MANIFEST_CLASS:
         self.patch_dir = customs_dir() / "patches"
 
         if "version" in d:
-            self["version"] = float(d["version"])
+            try:
+                self["version"] = float(d["version"])
+            except Exception:
+                pass
 
     def _get_data(self):
         content = self.path.read_text() or "{}"
