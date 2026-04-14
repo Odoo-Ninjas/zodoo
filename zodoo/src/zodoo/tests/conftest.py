@@ -47,16 +47,25 @@ def _run(cmd, *, cwd, env=None, timeout=None, check=True):
     full_env = os.environ.copy()
     if env:
         full_env.update(env)
-    print(f"\n$ {' '.join(str(x) for x in cmd)}    (cwd={cwd})", flush=True)
+    cmd_str = " ".join(str(x) for x in cmd)
+    print(f"\n$ {cmd_str}    (cwd={cwd})", flush=True)
     result = subprocess.run(
         [str(x) for x in cmd],
         cwd=str(cwd),
         env=full_env,
         timeout=timeout,
+        capture_output=True,
+        text=True,
     )
+    if result.stdout:
+        print(result.stdout, end="", flush=True)
+    if result.stderr:
+        print(result.stderr, end="", flush=True)
     if check and result.returncode != 0:
         raise AssertionError(
-            f"Command failed (exit {result.returncode}): {' '.join(str(x) for x in cmd)}"
+            f"Command failed (exit {result.returncode}): {cmd_str}\n"
+            f"--- stdout (last 2000 chars) ---\n{(result.stdout or '')[-2000:]}\n"
+            f"--- stderr (last 2000 chars) ---\n{(result.stderr or '')[-2000:]}"
         )
     return result
 
