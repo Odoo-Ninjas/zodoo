@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.1
+
+
+- **Fix**: `update_on_startup.py` now runs `odoo update` as the odoo user (via shared `sudo_odoo_cmd` helper), fixing missing DBNAME and root-owned file issues in k8s
+
+
 ## 0.14.0
 
 
