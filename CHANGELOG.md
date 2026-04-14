@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.3
+
+
+- **Fix**: bake test symlinks gimera cache into isolated HOME to avoid multi-GB re-clone
+
+
 ## 0.14.2
 
 
