@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.2
+
+
+- **Fix**: Config now falls back to os.environ when no settings file exists (fixes DBNAME lookup in k8s containers that only have ENV vars)
+
+
 ## 0.14.1
 
 
