@@ -133,6 +133,12 @@ def _session_home(tmp_path_factory):
     if images_dir is not None:
         (home / ".odoo" / "images").symlink_to(images_dir)
 
+    # Reuse the host's gimera cache (multi-GB Odoo/enterprise clones).
+    real_gimera_cache = Path.home() / ".cache" / "gimera"
+    if real_gimera_cache.is_dir():
+        (home / ".cache").mkdir(parents=True, exist_ok=True)
+        (home / ".cache" / "gimera").symlink_to(real_gimera_cache)
+
     saved = {k: os.environ.get(k) for k in ("HOME", "ODOO_HOME")}
     os.environ["HOME"] = str(home)
     os.environ["ODOO_HOME"] = str(home / ".odoo")
