@@ -1,3 +1,0 @@
-type: fix
-description: "graceful fallback when docker CLI is not installed (e.g. inside a Kubernetes container)"
-breaking: false

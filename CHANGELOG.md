@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.3
+
+
+- **Fix**: graceful fallback when docker CLI is not installed (e.g. inside a Kubernetes container)
+
+
 ## 0.13.2
 
 
