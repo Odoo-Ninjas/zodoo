@@ -144,6 +144,14 @@ class Config:
             from .tools import _is_in_container
 
             if "settings" not in self.files:
+                # No settings file configured (e.g. no project_name set).
+                # Fall through to os.environ inside containers so env vars
+                # like DBNAME still work when the CLI is invoked without -p.
+                if _is_in_container():
+                    candidates = [name, name.lower(), name.upper()]
+                    for tries in candidates:
+                        if tries in os.environ:
+                            return os.environ[tries]
                 return None
             myconfig = MyConfigParser(self.files["settings"])
 
