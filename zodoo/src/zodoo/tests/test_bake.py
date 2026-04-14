@@ -32,8 +32,13 @@ DEFAULT_VERSIONS = os.environ.get("ZODOO_BAKE_TEST_VERSIONS", "19.0").split(
 @pytest.fixture
 def isolated_home(tmp_path, monkeypatch):
     """Override HOME so ~/.odoo/ does not collide with the developer's setup."""
+    from .conftest import _resolve_images_dir
+
     home = tmp_path / "home"
     (home / ".odoo").mkdir(parents=True)
+    images_dir = _resolve_images_dir()
+    if images_dir is not None:
+        (home / ".odoo" / "images").symlink_to(images_dir)
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("ODOO_HOME", str(home / ".odoo"))
     yield home
