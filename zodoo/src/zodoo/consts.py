@@ -90,13 +90,28 @@ default_files = {
 }
 
 
+_docker_compose_bin_cache = None
+_docker_compose_bin_resolved = False
+
+
 def _resolve_docker_compose_bin():
     """Detect whether docker compose (v2) or docker-compose (v1) is available.
 
     Called lazily the first time a command actually needs Docker — not at
     import time — so the CLI stays usable inside containers where Docker
     is absent (e.g. ``odoo update`` inside a Kubernetes pod).
+
+    Result is cached so the subprocess probe only runs once per process.
     """
+    global _docker_compose_bin_cache, _docker_compose_bin_resolved
+    if _docker_compose_bin_resolved:
+        return _docker_compose_bin_cache
+    _docker_compose_bin_resolved = True
+    _docker_compose_bin_cache = _probe_docker_compose()
+    return _docker_compose_bin_cache
+
+
+def _probe_docker_compose():
     try:
         docker = _search_path("docker")
         if docker:
@@ -104,13 +119,15 @@ def _resolve_docker_compose_bin():
                 [docker, "compose"], check=True, capture_output=True
             )
             return [docker, "compose"]
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
         pass
     try:
         dc = _search_path("docker-compose")
         if dc:
+            # Verify it actually runs (broken shebang → FileNotFoundError/OSError)
+            subprocess.run([dc, "version"], check=True, capture_output=True)
             return [dc]
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
         pass
     return None
 
