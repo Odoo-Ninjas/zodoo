@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.4
+
+
+- **Fix**: E2E test fixtures: start postgres before db reset, remove redundant reload from bake test
+
+
 ## 0.14.3
 
 
