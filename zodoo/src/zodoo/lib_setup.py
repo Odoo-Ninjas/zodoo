@@ -318,6 +318,37 @@ def reinstall():
     _reinstall()
 
 
+@setup.command(
+    name="zodoo-tests",
+    help="Run the zodoo unit-test suite. Use --slow to include heavy "
+    "end-to-end tests that need Docker + gimera + network.",
+    context_settings={
+        "ignore_unknown_options": True,
+        "allow_extra_args": True,
+    },
+)
+@click.option(
+    "--slow",
+    is_flag=True,
+    help="Include @slow E2E tests (requires Docker, minutes to run).",
+)
+@click.pass_context
+def zodoo_tests(ctx, slow):
+    zodoo_src = Path(os.path.expanduser("~/.odoo/images/zodoo/src"))
+    if not (zodoo_src / "pytest.ini").exists():
+        abort(f"pytest.ini not found in {zodoo_src}")
+
+    cmd = [sys.executable, "-m", "pytest"]
+    if slow:
+        cmd += ["-m", "slow"]
+    else:
+        cmd += ["-m", "not slow"]
+    cmd += ctx.args
+    click.secho(f"Running: {' '.join(cmd)}", fg="yellow")
+    rc = subprocess.run(cmd, cwd=zodoo_src).returncode
+    sys.exit(rc)
+
+
 @setup.command()
 @click.argument("lines")
 def produce_test_lines(lines):
