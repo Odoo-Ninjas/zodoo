@@ -354,14 +354,12 @@ def test_rebuild_command_dispatches(monkeypatch):
 def test_restart_command_dispatches_brutal_in_devmode(monkeypatch):
     seen = {}
 
-    def capture(
-        ctx, cfg, machines, profile, brutal, force_recreate, no_recreate
-    ):
-        seen["brutal"] = brutal
+    def capture(ctx, cfg, machines, **kwargs):
+        seen.update(kwargs)
 
     _patch_lib_with_docker(monkeypatch, restart=capture)
     res = _invoke(mod.restart, FakeConfig(devmode=True), ["odoo"])
-    assert res.exit_code == 0 and seen["brutal"] is True
+    assert res.exit_code == 0 and seen.get("brutal") is True
 
 
 def test_rm_command_dispatches(monkeypatch):
