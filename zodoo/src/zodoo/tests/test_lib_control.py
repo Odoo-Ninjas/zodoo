@@ -354,14 +354,12 @@ def test_rebuild_command_dispatches(monkeypatch):
 def test_restart_command_dispatches_brutal_in_devmode(monkeypatch):
     seen = {}
 
-    def capture(
-        ctx, cfg, machines, profile, brutal, force_recreate, no_recreate
-    ):
-        seen["brutal"] = brutal
+    def capture(ctx, cfg, machines, **kwargs):
+        seen.update(kwargs)
 
     _patch_lib_with_docker(monkeypatch, restart=capture)
     res = _invoke(mod.restart, FakeConfig(devmode=True), ["odoo"])
-    assert res.exit_code == 0 and seen["brutal"] is True
+    assert res.exit_code == 0 and seen.get("brutal") is True
 
 
 def test_rm_command_dispatches(monkeypatch):
@@ -708,7 +706,7 @@ def test_e2e_kill_and_restart(odoo_project_19_running):
         "kill", "-b", "postgres", check=False
     )
     assert r1.returncode == 0
-    r2 = odoo_project_19_running.run(
-        "up", "-d", "postgres", check=False, timeout=120
-    )
+    # Bring the full stack back (not just postgres) so later tests
+    # in the session don't trip on broken dependencies.
+    r2 = odoo_project_19_running.run("up", "-d", check=False, timeout=180)
     assert r2.returncode == 0

@@ -695,11 +695,13 @@ def test_e2e_cronjob_driven_backup(odoo_project_19_running):
     try:
         settings_path.write_text(original + "\n" + cron_line)
 
-        # Reload so the cron table is regenerated from the new settings,
-        # then restart the cronjobs container to pick it up.
+        # Reload regenerates the cron table from the new settings.
         project.run("reload", timeout=60 * 5)
-        project.run_force("restart", "cronjobs", timeout=120, check=False)
-        project.run("up", "-d", "cronjobs", timeout=120)
+        # Ensure dependencies are up (earlier tests may have killed
+        # postgres), then force-recreate cronjobs so it picks up the
+        # new cron table.
+        project.run("up", "-d", "postgres", timeout=120)
+        project.run("up", "-d", "--force-recreate", "cronjobs", timeout=180)
 
         # Poll for the dump file (up to 3 minutes — one cron tick +
         # backup time). DUMPS_PATH defaults to ~/odoo_dumps.
