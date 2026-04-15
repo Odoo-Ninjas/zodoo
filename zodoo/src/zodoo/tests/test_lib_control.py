@@ -706,7 +706,7 @@ def test_e2e_kill_and_restart(odoo_project_19_running):
         "kill", "-b", "postgres", check=False
     )
     assert r1.returncode == 0
-    r2 = odoo_project_19_running.run(
-        "up", "-d", "postgres", check=False, timeout=120
-    )
+    # Bring the full stack back (not just postgres) so later tests
+    # in the session don't trip on broken dependencies.
+    r2 = odoo_project_19_running.run("up", "-d", check=False, timeout=180)
     assert r2.returncode == 0
