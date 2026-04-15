@@ -697,11 +697,15 @@ def test_e2e_cronjob_driven_backup(odoo_project_19_running):
 
         # Reload regenerates the cron table from the new settings.
         project.run("reload", timeout=60 * 5)
-        # Ensure dependencies are up (earlier tests may have killed
-        # postgres), then force-recreate cronjobs so it picks up the
-        # new cron table.
+        # Ensure postgres is up (earlier tests may have killed it), then
+        # force-recreate the cronjobshell container so it picks up the
+        # new cron table. NOTE: the generic cronjobs service is renamed
+        # to `cronjobshell` during compose merge — `odoo_cronjobs` is
+        # a different thing (Odoo queuejob worker).
         project.run("up", "-d", "postgres", timeout=120)
-        project.run("up", "-d", "--force-recreate", "cronjobs", timeout=180)
+        project.run(
+            "up", "-d", "--force-recreate", "cronjobshell", timeout=180
+        )
 
         # Poll for the dump file (up to 3 minutes — one cron tick +
         # backup time). DUMPS_PATH defaults to ~/odoo_dumps.
