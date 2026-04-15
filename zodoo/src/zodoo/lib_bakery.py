@@ -8,6 +8,7 @@ import click
 from .cli import cli, pass_config
 from .lib_clickhelpers import AliasedGroup
 from .cli import cli, pass_config, Commands
+from .tools import update_setting
 
 WHITELIST_PROPS = [
     "DBNAME",
@@ -73,6 +74,9 @@ def bake(ctx, config, params):
             sorted(metadata.items(), key=lambda k: k[0].lower()),
         )
     )
+    # Force SRC_EXTRA=0 directly in the project settings file before reload
+    # so no settings file can override it and cause source code to be skipped.
+    update_setting(config, "SRC_EXTRA", "0")
     Commands.invoke(
         ctx,
         "reload",
