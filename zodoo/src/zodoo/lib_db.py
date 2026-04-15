@@ -10,6 +10,7 @@ from .tools import abort
 from .tools import _wait_postgres
 from .tools import _dropdb
 from .tools import __dcrun, _remove_postgres_connections, _execute_sql
+from .tools import __get_cmd
 from .tools import exec_file_in_path
 from .cli import cli, pass_config, Commands
 from .lib_clickhelpers import AliasedGroup
@@ -147,6 +148,105 @@ def psql(config, dbname, params, sql, non_interactive):
     )
 
 
+def _has_compose_service(config, service):
+    """Check if a service is defined in the current docker-compose config.
+
+    Used to decide whether the pgtools compose service can be used.
+    Returns False whenever the compose config cannot be resolved (e.g. no
+    project_name, compose file not rendered yet), so the caller
+    transparently falls back.
+    """
+    if not getattr(config, "project_name", None):
+        return False
+    try:
+        cmd = __get_cmd(config) + ["config", "--services"]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            return False
+        return service in result.stdout.split()
+    except Exception:
+        return False
+
+
+def _bin_runs_on_host(bin):
+    """Return True only if `bin` is on PATH AND actually executes.
+
+    Debian/Ubuntu's `postgresql-client-common` installs a wrapper at
+    /usr/bin/psql that errors with
+        "You must install at least one postgresql-client-<version> package"
+    when no versioned postgresql-client package is installed. That wrapper
+    passes a plain PATH check but is unusable, so we verify by invoking
+    `<bin> --version` and treat a non-zero exit as "not available".
+    """
+    path = _search_path(bin)
+    if not path:
+        return False
+    try:
+        result = subprocess.run(
+            [path, "--version"],
+            capture_output=True,
+            check=False,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+def _docker_run_postgres_bin(
+    config, bin, cmd_args, env=None, interactive=True, socket_host=None
+):
+    """Run a postgres-client binary via the stock `postgres` docker image.
+
+    Fallback used when the binary is not installed on the host AND the
+    pgtools compose service is not available (e.g. wodoo project is not
+    set up, or pgtools image hasn't been built). Uses host networking so
+    127.0.0.1:HOST_DB_PORT is reachable, and bind-mounts the socket
+    directory when the connection is via unix socket.
+    """
+    version = (
+        getattr(config, "postgres_version", None)
+        or os.environ.get("POSTGRES_VERSION")
+        or "17"
+    )
+    image = f"postgres:{version}"
+
+    docker_cmd = ["docker", "run", "--rm"]
+    if interactive and sys.stdin.isatty():
+        docker_cmd += ["-it"]
+    else:
+        docker_cmd += ["-i"]
+    # Host networking so 127.0.0.1 + HOST_DB_PORT reaches the postgres
+    # container the same way a host-local psql invocation would.
+    docker_cmd += ["--network=host"]
+    # When connecting via unix socket, bind-mount the socket directory
+    # into the container at the same path. Also run as the invoking user
+    # so socket permissions match, and override the postgres image's
+    # default /var/lib/postgresql HOME (which the postgres uid owns)
+    # because we're running as a different uid.
+    if socket_host:
+        socket_dir = Path(socket_host)
+        if socket_dir.exists():
+            docker_cmd += ["-v", f"{socket_dir}:{socket_dir}"]
+            docker_cmd += ["--user", f"{os.getuid()}:{os.getgid()}"]
+            docker_cmd += ["-e", "HOME=/tmp"]
+    for key, value in (env or {}).items():
+        docker_cmd += ["-e", f"{key}={value}"]
+    docker_cmd += [image, bin] + list(cmd_args)
+    click.secho(
+        f"No host `{bin}` and no pgtools compose service — "
+        f"falling back to `{image}` via `docker run`.",
+        fg="yellow",
+    )
+    subprocess.call(docker_cmd)
+
+
 def _psql(
     config,
     params,
@@ -159,8 +259,7 @@ def _psql(
     bin_on_host = False
     if use_docker_container is None:
         if not am_i_inside_docker_container():
-            test = _search_path(bin)
-            if test:
+            if _bin_runs_on_host(bin):
                 bin_on_host = True
 
     if not am_i_inside_docker_container() and bin_on_host:
@@ -170,7 +269,21 @@ def _psql(
     elif not bin_on_host:
         use_docker_container = True
 
-    conn = config.get_odoo_conn(force_inside_container=use_docker_container)
+    # For standard postgres-client bins (psql / pg_dump / pg_restore) we
+    # fall back to the stock `postgres` image via `docker run` — no build
+    # required, works anywhere docker does. `pgcli` / `pg_activity` are
+    # only shipped by the pgtools compose service, so those still go
+    # through pgtools when available. Connection endpoint differs between
+    # paths: pgtools joins the compose network (internal host name); the
+    # stock-image fallback uses host networking (external 127.0.0.1 or
+    # socket), so do NOT force the internal host name there.
+    use_pgtools = False
+    if use_docker_container and bin not in ("psql", "pg_dump", "pg_restore"):
+        use_pgtools = _has_compose_service(config, "pgtools")
+
+    conn = config.get_odoo_conn(
+        force_inside_container=use_docker_container and use_pgtools
+    )
     if dbname:
         conn = conn.clone(dbname)
 
@@ -196,14 +309,36 @@ def _psql(
     click.secho(f"Connecting to {conn.host}:{conn.port}/{dbname}", fg="green")
 
     if use_docker_container:
-        __dcrun(
-            config,
-            ["pgtools", bin] + cmd,
-            interactive=interactive,
-            env={
-                "PGPASSWORD": conn.pwd,
-            },
-        )
+        if bin in ("psql", "pg_dump", "pg_restore"):
+            # If conn.host is a unix socket directory on the host, mount
+            # it into the container so psql can connect via socket.
+            socket_host = None
+            if conn.host and str(conn.host).startswith("/"):
+                socket_host = str(conn.host)
+            _docker_run_postgres_bin(
+                config,
+                bin,
+                cmd,
+                env={"PGPASSWORD": conn.pwd},
+                interactive=interactive,
+                socket_host=socket_host,
+            )
+        elif use_pgtools:
+            __dcrun(
+                config,
+                ["pgtools", bin] + cmd,
+                interactive=interactive,
+                env={
+                    "PGPASSWORD": conn.pwd,
+                },
+            )
+        else:
+            abort(
+                f"`{bin}` is not installed on the host and the pgtools "
+                f"compose service is not configured. The stock postgres "
+                f"image does not ship `{bin}` — install it on the host or "
+                f"configure pgtools."
+            )
     else:
         env2 = os.environ.copy()
         env2["PGPASSWORD"] = conn.pwd
