@@ -73,8 +73,19 @@ def test_bake_flow(version, isolated_home, tmp_path):
             timeout=long_timeout,
         )
 
-        # 2) `odoo src init` already calls `reload` internally —
-        #    no separate reload needed.
+        # 2) Reload + build — init's internal reload runs without `-p`
+        #    (derives project_name from cwd), then we need to build
+        #    images so `db reset` can start postgres.
+        _run(
+            ["odoo", "-p", project_name, "reload"],
+            cwd=project_dir,
+            timeout=long_timeout,
+        )
+        _run(
+            ["odoo", "-p", project_name, "build", "--no-zodoo-pull"],
+            cwd=project_dir,
+            timeout=long_timeout,
+        )
 
         # 3) Reset database.
         _run(

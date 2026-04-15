@@ -176,6 +176,13 @@ def odoo_project_19(_session_home, tmp_path_factory, request):
 
     project = OdooProject(name=name, path=project_dir, home=_session_home)
 
+    # Reload + build — init's internal reload runs without `-p` so it uses
+    # the dir name; we do it again with the correct `-p` to make sure the
+    # settings/compose files are written under `name`. Then build images
+    # so `up -d` (which uses --no-build) can actually start containers.
+    project.run("reload", timeout=long_timeout)
+    project.run("build", "--no-zodoo-pull", timeout=long_timeout)
+
     try:
         yield project
     finally:
