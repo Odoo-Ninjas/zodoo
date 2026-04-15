@@ -67,6 +67,10 @@ class BaseTestClass:
         os.system("chmod a+x odoo.sh")
         self._adapt_requirement_for_m1()
         self.run(do_reload, ["--demo"])
+        # reload generates compose files but does NOT build images; `up -d`
+        # runs with --no-build and would fail otherwise ("No such image:
+        # <project>-odoo_update:latest").
+        self.run(build, ["--no-zodoo-pull"], catch_exceptions=False)
         try:
             yield
         except Exception:
