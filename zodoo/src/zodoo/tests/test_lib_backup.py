@@ -705,24 +705,33 @@ def test_e2e_cronjob_driven_backup(odoo_project_19_running):
     dumps_path = _get_dumps_path()
 
     original = settings_path.read_text()
-    cron_line = (
-        f"CRONJOB_TEST_BACKUP=* * * * * odoo backup odoo-db "
-        f"/host/dumps/{sentinel}\n"
+    # RUN_CRONJOBS=1 → the actual `cronjobs` daemon service becomes
+    # part of the compose. `cronjobshell` (a different service) is
+    # just an interactive sleep-container used for debugging.
+    #
+    # We use a simple `touch` instead of `odoo backup odoo-db` because
+    # the latter triggers a nested `docker compose run cronjobshell …`
+    # chain that has its own failure modes — out of scope for *this*
+    # test, which is verifying that the cronjobs daemon picks up
+    # CRONJOB_* env vars and actually fires them on schedule.
+    extra_settings = (
+        "\nRUN_CRONJOBS=1\n"
+        f"CRONJOB_TEST_BACKUP=* * * * * touch /host/dumps/{sentinel} && "
+        f"echo cronjob-fired > /host/dumps/{sentinel}\n"
     )
     try:
-        settings_path.write_text(original + "\n" + cron_line)
+        settings_path.write_text(original + extra_settings)
 
-        # Reload regenerates the cron table from the new settings.
+        # Reload regenerates the cron table + brings the cronjobs
+        # service into the compose file.
         project.run("reload", timeout=60 * 5)
-        # Ensure postgres is up (earlier tests may have killed it), then
-        # force-recreate the cronjobshell container so it picks up the
-        # new cron table. NOTE: the generic cronjobs service is renamed
-        # to `cronjobshell` during compose merge — `odoo_cronjobs` is
-        # a different thing (Odoo queuejob worker).
+        # Session fixture built images with RUN_CRONJOBS=0 (default), so
+        # the cronjobs daemon image isn't there yet — build it now.
+        project.run("build", "--no-zodoo-pull", "cronjobs", timeout=60 * 10)
+        # Ensure postgres is up (earlier tests may have killed it),
+        # then force-recreate the cronjobs daemon container.
         project.run("up", "-d", "postgres", timeout=120)
-        project.run(
-            "up", "-d", "--force-recreate", "cronjobshell", timeout=180
-        )
+        project.run("up", "-d", "--force-recreate", "cronjobs", timeout=180)
 
         # Poll for the dump file (up to 3 minutes — one cron tick +
         # backup time). dumps_path resolved above from settings.
