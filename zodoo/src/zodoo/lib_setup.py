@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 import tempfile
 import click
@@ -213,47 +214,61 @@ def _show_changelog_since(images_dir, old_version):
 @click.pass_context
 def upgrade(ctx, config, no_install):
 
+    stashed = False
     if not is_git_clean(config.dirs["images"]):
-        abort(
-            f"Directory {config.dirs['images']} is not clean, please commit or stash your changes before upgrading."
+        click.secho("Stashing local changes...", fg="yellow")
+        subprocess.run(
+            ["git", "stash", "--include-untracked"],
+            cwd=config.dirs["images"],
+            check=True,
+        )
+        stashed = True
+
+    try:
+        version_file = config.dirs["images"] / "VERSION"
+        old_version = (
+            version_file.read_text().strip() if version_file.exists() else ""
         )
 
-    version_file = config.dirs["images"] / "VERSION"
-    old_version = (
-        version_file.read_text().strip() if version_file.exists() else ""
-    )
+        click.secho("Pulling zodoo from git repository...", fg="yellow")
+        result = subprocess.run(
+            [
+                "git",
+                "pull",
+                "--ff-only",
+                "--no-edit",
+                "--progress",
+                "--rebase=false",
+                "--autostash",
+                "--quiet",
+            ],
+            cwd=config.dirs["images"],
+            capture_output=True,
+            encoding="utf-8",
+            text=True,
+            env={**os.environ, "LANG": "C", "LC_ALL": "C"},
+        )
 
-    click.secho("Pulling zodoo from git repository...", fg="yellow")
-    result = subprocess.run(
-        [
-            "git",
-            "pull",
-            "--ff-only",
-            "--no-edit",
-            "--progress",
-            "--rebase=false",
-            "--autostash",
-            "--quiet",
-        ],
-        cwd=config.dirs["images"],
-        capture_output=True,
-        encoding="utf-8",
-        text=True,
-        env={**os.environ, "LANG": "C", "LC_ALL": "C"},
-    )
+        output = result.stdout.strip() + result.stderr.strip()
 
-    output = result.stdout.strip() + result.stderr.strip()
+        # Check for typical "no changes" messages
+        if "Already up to date." in output or "Already up-to-date." in output:
+            click.secho("No changes pulled; skipping reinstall.", fg="cyan")
+        else:
+            if not no_install:
+                _reinstall()
+            _show_changelog_since(config.dirs["images"], old_version)
 
-    # Check for typical "no changes" messages
-    if "Already up to date." in output or "Already up-to-date." in output:
-        click.secho("No changes pulled; skipping reinstall.", fg="cyan")
-    else:
-        if not no_install:
-            _reinstall()
-        _show_changelog_since(config.dirs["images"], old_version)
-
-    _update_gimera_src(config)
-    _fix_permissions(config, [str(config.dirs["images"])])
+        _update_gimera_src(config)
+        _fix_permissions(config, [str(config.dirs["images"])])
+    finally:
+        if stashed:
+            click.secho("Restoring stashed changes...", fg="yellow")
+            subprocess.run(
+                ["git", "stash", "pop"],
+                cwd=config.dirs["images"],
+                check=False,
+            )
 
 
 def _update_gimera_src(config):
@@ -278,10 +293,11 @@ def _update_gimera_src(config):
         return
 
     click.secho("Updating gimera source...", fg="yellow")
+    python = sys.executable if Path(sys.executable).exists() else (shutil.which("python3") or "python3")
     env = {**os.environ, "PYTHONPATH": str(zodoo_src / "gimera_src")}
     subprocess.run(
         [
-            sys.executable,
+            python,
             "-m",
             "gimera.gimera",
             "apply",

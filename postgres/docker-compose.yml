@@ -2,20 +2,6 @@
 volumes:
   odoo_postgres_volume:
 services:
-  postgres_change_permissions:
-    image: ubuntu:22.04
-    volumes:
-      - $HOST_RUN_DIR:/opt/hostrundir
-    entrypoint: ["/bin/sh", "-c"]
-    profiles:
-      - auto
-    command:
-      - |
-        mkdir -p /opt/hostrundir/postgres.socket
-        chown 999:999 /opt/hostrundir/postgres.socket -R
-        chown 999:999 /opt/hostrundir/postgres.logs -R
-        echo Successfully setup ownership of socketfile
-
   postgres:
     build:
       context: $ODOO_IMAGES/postgres
@@ -26,8 +12,6 @@ services:
     profiles:
       - auto
 
-    depends_on:
-      - postgres_change_permissions
     volumes:
       - $DUMPS_PATH:/opt/dumps
       # volume mount safe (if odoo is mounted into virtual box)
