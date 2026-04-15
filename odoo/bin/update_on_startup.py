@@ -11,7 +11,15 @@ prepare_run()
 
 from pathlib import Path
 
-manifest = eval(Path("/opt/src/MANIFEST").read_text())
+manifest_path = Path("/opt/src/MANIFEST")
+if not manifest_path.exists():
+    print(
+        "ERROR: /opt/src/MANIFEST not found — source code is missing from "
+        "the container. Was the image baked without source (SRC_EXTRA=1)?"
+    )
+    sys.exit(-1)
+
+manifest = eval(manifest_path.read_text())
 
 try:
     subprocess.run(
