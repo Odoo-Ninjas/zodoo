@@ -169,19 +169,18 @@ def regpush(ctx, config, baseimage, machines):
     if hub["username"]:
         ctx.invoke(login)
     tags = list(_apply_tags(config))
-    if not config.SRC_EXTRA:
-        odoo_tags = [t for t in tags if "/odoo:" in t]
-        for tag in odoo_tags:
-            result = subprocess.run(
-                ["docker", "run", "--rm", "--entrypoint", "test", tag, "-f", "/opt/src/MANIFEST"],
-                capture_output=True,
+    odoo_tags = [t for t in tags if "/odoo:" in t]
+    for tag in odoo_tags:
+        result = subprocess.run(
+            ["docker", "run", "--rm", "--entrypoint", "test", tag, "-f", "/opt/src/MANIFEST"],
+            capture_output=True,
+        )
+        if result.returncode != 0:
+            raise click.ClickException(
+                f"Aborting push: /opt/src/MANIFEST missing in {tag}. "
+                "Source code was not baked into the image."
             )
-            if result.returncode != 0:
-                raise click.ClickException(
-                    f"Aborting push: /opt/src/MANIFEST missing in {tag}. "
-                    "Source code was not baked into the image."
-                )
-            click.secho(f"/opt/src/MANIFEST OK in {tag}", fg="green")
+        click.secho(f"/opt/src/MANIFEST OK in {tag}", fg="green")
     for tag in tags:
         click.secho(f"Pushing tag {tag}")
         subprocess.check_call(["docker", "push", tag])
