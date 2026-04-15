@@ -260,8 +260,23 @@ def restart(
     brutal=True,
     force_recreate=False,
     no_recreate=None,
+    restart_all=False,
 ):
     machines = list(machines)
+
+    # When no specific machines given and not --all, only restart odoo
+    # containers (those inheriting from odoo_base). This leaves postgres,
+    # proxy, redis etc. running and makes restarts much faster.
+    if not machines and not restart_all:
+        from .tools import get_services
+
+        machines = get_services(config, "odoo_base")
+        if machines:
+            click.secho(
+                f"Restarting only Odoo containers: {', '.join(sorted(machines))}  "
+                f"(use -a/--all to restart everything)",
+                fg="yellow",
+            )
 
     # this is faster than docker restart: tested with normal project 6.75 seconds vs. 4.8 seconds
     do_kill(ctx, config, machines=machines, profile=profile, brutal=brutal)

@@ -372,7 +372,9 @@ def rebuild(ctx, config, machines):
 
 
 @docker.command(
-    help="Restart containers. In devmode uses brutal (SIGKILL) restart."
+    help="Restart containers. In devmode uses brutal (SIGKILL) restart. "
+    "By default only Odoo containers are restarted (postgres, proxy etc. "
+    "keep running). Use -a/--all to restart everything."
 )
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_machines)
 @click.option("-p", "--profile", default="auto")
@@ -382,9 +384,18 @@ def rebuild(ctx, config, machines):
 @click.option(
     "-R", "--no-recreate", is_flag=True, help="Dont recreate containers"
 )
+@click.option(
+    "-a",
+    "--all",
+    "restart_all",
+    is_flag=True,
+    help="Restart all containers including postgres, proxy etc.",
+)
 @pass_config
 @click.pass_context
-def restart(ctx, config, machines, profile, force_recreate, no_recreate):
+def restart(
+    ctx, config, machines, profile, force_recreate, no_recreate, restart_all
+):
     ensure_project_name(config)
     from .lib_control_with_docker import restart as lib_restart
 
@@ -397,6 +408,7 @@ def restart(ctx, config, machines, profile, force_recreate, no_recreate):
         brutal=brutal,
         force_recreate=force_recreate,
         no_recreate=no_recreate,
+        restart_all=restart_all,
     )
 
 
