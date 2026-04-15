@@ -667,3 +667,58 @@ def test_e2e_backup_db_then_restore(odoo_project_19_running, tmp_path):
         "restore", "odoo-db", str(dump), timeout=60 * 15, check=False
     )
     assert res.returncode == 0
+
+
+@pytest.mark.slow
+@requires_full_stack
+def test_e2e_cronjob_driven_backup(odoo_project_19_running):
+    """Verify the cronjobs container actually runs scheduled backups.
+
+    Adds a `CRONJOB_TEST_BACKUP` entry to the project settings that
+    fires every minute, restarts the cronjobs container so the new
+    cron table is picked up, then waits up to 3 minutes for the
+    resulting dump file to appear in DUMPS_PATH.
+    """
+    import time
+
+    project = odoo_project_19_running
+    sentinel = f"cronjob_test_{int(time.time())}.dump.gz"
+
+    settings_path = Path.home() / ".odoo" / f"settings.{project.name}"
+    assert settings_path.exists(), f"settings file missing: {settings_path}"
+
+    original = settings_path.read_text()
+    cron_line = (
+        f"CRONJOB_TEST_BACKUP=* * * * * odoo backup odoo-db "
+        f"/host/dumps/{sentinel}\n"
+    )
+    try:
+        settings_path.write_text(original + "\n" + cron_line)
+
+        # Reload so the cron table is regenerated from the new settings,
+        # then restart the cronjobs container to pick it up.
+        project.run("reload", timeout=60 * 5)
+        project.run_force("restart", "cronjobs", timeout=120, check=False)
+        project.run("up", "-d", "cronjobs", timeout=120)
+
+        # Poll for the dump file (up to 3 minutes — one cron tick +
+        # backup time). DUMPS_PATH defaults to ~/odoo_dumps.
+        dumps_path = Path.home() / "odoo_dumps"
+        sentinel_file = dumps_path / sentinel
+        deadline = time.time() + 60 * 3
+        while time.time() < deadline:
+            if sentinel_file.exists() and sentinel_file.stat().st_size > 0:
+                break
+            time.sleep(5)
+        assert sentinel_file.exists() and sentinel_file.stat().st_size > 0, (
+            f"cronjob did not produce backup at {sentinel_file} "
+            f"within 3 minutes"
+        )
+    finally:
+        # restore original settings + cleanup dump
+        settings_path.write_text(original)
+        try:
+            (Path.home() / "odoo_dumps" / sentinel).unlink(missing_ok=True)
+        except Exception:
+            pass
+        project.run("reload", check=False, timeout=120)

@@ -15,6 +15,7 @@ import os
 import platform
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from click.testing import CliRunner
@@ -460,6 +461,13 @@ services:
         pushes.append(cmd)
 
     monkeypatch.setattr(subprocess, "check_call", fake_check_call)
+    # regpush runs `docker run --rm ... test -f /opt/src/MANIFEST` to
+    # verify the image has source baked in — stub it to return success.
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda *a, **kw: SimpleNamespace(returncode=0, stdout=b"", stderr=b""),
+    )
 
     cfg = FakeConfig(
         HUB_URL="user:pw@r.example:5000/project",
