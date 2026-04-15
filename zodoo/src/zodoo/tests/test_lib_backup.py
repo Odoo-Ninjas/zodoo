@@ -719,6 +719,9 @@ def test_e2e_cronjob_driven_backup(odoo_project_19_running):
         # Reload regenerates the cron table + brings the cronjobs
         # service into the compose file.
         project.run("reload", timeout=60 * 5)
+        # Session fixture built images with RUN_CRONJOBS=0 (default), so
+        # the cronjobs daemon image isn't there yet — build it now.
+        project.run("build", "--no-zodoo-pull", "cronjobs", timeout=60 * 10)
         # Ensure postgres is up (earlier tests may have killed it),
         # then force-recreate the cronjobs daemon container.
         project.run("up", "-d", "postgres", timeout=120)
