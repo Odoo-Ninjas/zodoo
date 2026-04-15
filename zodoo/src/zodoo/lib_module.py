@@ -331,7 +331,7 @@ def _perform_install(
             )
             module = list(set(module + not_installed))
 
-        if not module:
+        if not module and not manifest_mode:
             click.secho("No module update required - exiting.")
             return
     else:
