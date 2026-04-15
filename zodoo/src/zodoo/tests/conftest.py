@@ -152,8 +152,10 @@ def odoo_project_19(_session_home, tmp_path_factory, request):
     if not (_has_docker() and _has_odoo_cli()):
         pytest.skip("needs docker daemon and 'odoo' CLI on PATH")
 
-    project_dir = tmp_path_factory.mktemp("proj19")
     name = "zodoo_pytest_19"
+    # Dir name must match project name — see test_bake.py comment for why.
+    project_dir = tmp_path_factory.mktemp("pyt") / name
+    project_dir.mkdir()
     long_timeout = 60 * 30
 
     # `odoo src init` bootstraps the project and runs an internal reload.

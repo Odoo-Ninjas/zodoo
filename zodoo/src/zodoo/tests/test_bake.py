@@ -40,18 +40,16 @@ def isolated_home():
     yield Path.home()
 
 
-@pytest.fixture
-def project_dir(tmp_path):
-    p = tmp_path / "project"
-    p.mkdir()
-    return p
-
-
 @pytest.mark.slow
 @requires_full_stack
 @pytest.mark.parametrize("version", DEFAULT_VERSIONS)
-def test_bake_flow(version, isolated_home, project_dir):
+def test_bake_flow(version, isolated_home, tmp_path):
     project_name = f"baketest{version.replace('.', '')}"
+    # The dir name must match project_name because `make_customs` runs an
+    # internal `odoo reload` without `-p`, which derives the project name
+    # from the current directory.
+    project_dir = tmp_path / project_name
+    project_dir.mkdir()
 
     # 30 minute cap per heavy step; covers Odoo clone + docker build on cold cache.
     long_timeout = 60 * 30
