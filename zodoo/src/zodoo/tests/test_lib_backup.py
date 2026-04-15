@@ -705,24 +705,24 @@ def test_e2e_cronjob_driven_backup(odoo_project_19_running):
     dumps_path = _get_dumps_path()
 
     original = settings_path.read_text()
-    cron_line = (
+    # RUN_CRONJOBS=1 → the actual `cronjobs` daemon service becomes
+    # part of the compose. `cronjobshell` (a different service) is
+    # just an interactive sleep-container used for debugging.
+    extra_settings = (
+        "\nRUN_CRONJOBS=1\n"
         f"CRONJOB_TEST_BACKUP=* * * * * odoo backup odoo-db "
         f"/host/dumps/{sentinel}\n"
     )
     try:
-        settings_path.write_text(original + "\n" + cron_line)
+        settings_path.write_text(original + extra_settings)
 
-        # Reload regenerates the cron table from the new settings.
+        # Reload regenerates the cron table + brings the cronjobs
+        # service into the compose file.
         project.run("reload", timeout=60 * 5)
-        # Ensure postgres is up (earlier tests may have killed it), then
-        # force-recreate the cronjobshell container so it picks up the
-        # new cron table. NOTE: the generic cronjobs service is renamed
-        # to `cronjobshell` during compose merge — `odoo_cronjobs` is
-        # a different thing (Odoo queuejob worker).
+        # Ensure postgres is up (earlier tests may have killed it),
+        # then force-recreate the cronjobs daemon container.
         project.run("up", "-d", "postgres", timeout=120)
-        project.run(
-            "up", "-d", "--force-recreate", "cronjobshell", timeout=180
-        )
+        project.run("up", "-d", "--force-recreate", "cronjobs", timeout=180)
 
         # Poll for the dump file (up to 3 minutes — one cron tick +
         # backup time). dumps_path resolved above from settings.
