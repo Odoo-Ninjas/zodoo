@@ -115,19 +115,19 @@ def _probe_docker_compose():
     try:
         docker = _search_path("docker")
         if docker:
-            subprocess.run(
-                [docker, "compose"], check=True, capture_output=True
-            )
-            return [docker, "compose"]
-    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+            r = subprocess.run([docker, "compose"], capture_output=True)
+            if r.returncode == 0:
+                return [docker, "compose"]
+    except (FileNotFoundError, OSError):
         pass
     try:
         dc = _search_path("docker-compose")
         if dc:
-            # Verify it actually runs (broken shebang → FileNotFoundError/OSError)
-            subprocess.run([dc, "version"], check=True, capture_output=True)
-            return [dc]
-    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+            # Verify it actually runs (broken shebang → OSError at exec time)
+            r = subprocess.run([dc, "version"], capture_output=True)
+            if r.returncode == 0:
+                return [dc]
+    except (FileNotFoundError, OSError):
         pass
     return None
 

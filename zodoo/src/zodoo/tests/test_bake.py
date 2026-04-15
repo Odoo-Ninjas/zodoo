@@ -46,6 +46,10 @@ def isolated_home(tmp_path, monkeypatch):
     if real_gimera_cache.is_dir():
         (home / ".cache").mkdir(parents=True, exist_ok=True)
         (home / ".cache" / "gimera").symlink_to(real_gimera_cache)
+    # Docker CLI plugins (compose v2) live in ~/.docker/cli-plugins/.
+    real_docker = Path.home() / ".docker"
+    if real_docker.is_dir():
+        (home / ".docker").symlink_to(real_docker)
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("ODOO_HOME", str(home / ".odoo"))
     yield home
