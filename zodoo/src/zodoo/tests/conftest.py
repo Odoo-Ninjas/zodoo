@@ -127,44 +127,19 @@ def _resolve_images_dir() -> Path | None:
 
 @pytest.fixture(scope="session")
 def _session_home(tmp_path_factory):
-    """Session-scoped tempdir that takes over HOME / ODOO_HOME.
+    """Session-scoped HOME.
 
-    Also symlinks a usable ``~/.odoo/images`` into the temp home so
-    ``odoo src init`` can find its templates — without it the init step
-    can't locate ``templates/customs_template/<version>/``.
+    Previously this tried to fully isolate HOME with symlinks for
+    ``~/.odoo/images``, ``~/.cache/gimera`` and ``~/.docker``, but zodoo
+    has too many implicit assumptions about the real HOME (settings file
+    discovery, docker CLI plugin config, git identity, …) to make that
+    reliably work across all versions.
 
-    Restores the original environment on teardown.
+    Instead we now keep the real HOME and rely on each test using a
+    unique project name (``zodoo_pytest_19``, ``baketest19_0``, ...).
+    Cleanup happens via ``odoo -p <project> down -v`` at session end.
     """
-    home = tmp_path_factory.mktemp("zodoo_home")
-    (home / ".odoo").mkdir(parents=True, exist_ok=True)
-
-    images_dir = _resolve_images_dir()
-    if images_dir is not None:
-        (home / ".odoo" / "images").symlink_to(images_dir)
-
-    # Reuse the host's gimera cache (multi-GB Odoo/enterprise clones).
-    real_gimera_cache = Path.home() / ".cache" / "gimera"
-    if real_gimera_cache.is_dir():
-        (home / ".cache").mkdir(parents=True, exist_ok=True)
-        (home / ".cache" / "gimera").symlink_to(real_gimera_cache)
-
-    # Docker CLI looks for compose plugin in ~/.docker/cli-plugins/.
-    # Without symlinking it, `docker compose` is an unknown command.
-    real_docker = Path.home() / ".docker"
-    if real_docker.is_dir():
-        (home / ".docker").symlink_to(real_docker)
-
-    saved = {k: os.environ.get(k) for k in ("HOME", "ODOO_HOME")}
-    os.environ["HOME"] = str(home)
-    os.environ["ODOO_HOME"] = str(home / ".odoo")
-    try:
-        yield home
-    finally:
-        for k, v in saved.items():
-            if v is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = v
+    yield Path.home()
 
 
 @pytest.fixture(scope="session")

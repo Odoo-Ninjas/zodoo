@@ -31,28 +31,13 @@ DEFAULT_VERSIONS = os.environ.get("ZODOO_BAKE_TEST_VERSIONS", "19.0").split(
 
 
 @pytest.fixture
-def isolated_home(tmp_path, monkeypatch):
-    """Override HOME so ~/.odoo/ does not collide with the developer's setup."""
-    from .conftest import _resolve_images_dir
-
-    home = tmp_path / "home"
-    (home / ".odoo").mkdir(parents=True)
-    images_dir = _resolve_images_dir()
-    if images_dir is not None:
-        (home / ".odoo" / "images").symlink_to(images_dir)
-    # Reuse the host's gimera cache so the test doesn't have to clone
-    # multi-GB repos (Odoo, enterprise, ...) from scratch every run.
-    real_gimera_cache = Path.home() / ".cache" / "gimera"
-    if real_gimera_cache.is_dir():
-        (home / ".cache").mkdir(parents=True, exist_ok=True)
-        (home / ".cache" / "gimera").symlink_to(real_gimera_cache)
-    # Docker CLI plugins (compose v2) live in ~/.docker/cli-plugins/.
-    real_docker = Path.home() / ".docker"
-    if real_docker.is_dir():
-        (home / ".docker").symlink_to(real_docker)
-    monkeypatch.setenv("HOME", str(home))
-    monkeypatch.setenv("ODOO_HOME", str(home / ".odoo"))
-    yield home
+def isolated_home():
+    """Uses the real HOME — test relies on a unique project_name
+    (``baketest<version>``) instead of HOME isolation, which had too
+    many edge cases (missing docker cli-plugins, no gimera cache,
+    settings file paths, ...).
+    """
+    yield Path.home()
 
 
 @pytest.fixture
