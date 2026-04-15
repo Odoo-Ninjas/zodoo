@@ -67,6 +67,11 @@ def _is_zfs_path(path):
     """
     path e.g. tankdocker/volumes/postgres1
     """
+    if not zfs:
+        # zfs not installed (e.g. macOS). Skip — otherwise `sudo` with an
+        # empty argv[1] prompts for the user's password, which hangs
+        # non-interactive test runs.
+        return False
     try:
         subprocess.check_output(
             ["sudo", zfs, "list", str(path)],
