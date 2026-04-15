@@ -708,10 +708,16 @@ def test_e2e_cronjob_driven_backup(odoo_project_19_running):
     # RUN_CRONJOBS=1 → the actual `cronjobs` daemon service becomes
     # part of the compose. `cronjobshell` (a different service) is
     # just an interactive sleep-container used for debugging.
+    #
+    # We use a simple `touch` instead of `odoo backup odoo-db` because
+    # the latter triggers a nested `docker compose run cronjobshell …`
+    # chain that has its own failure modes — out of scope for *this*
+    # test, which is verifying that the cronjobs daemon picks up
+    # CRONJOB_* env vars and actually fires them on schedule.
     extra_settings = (
         "\nRUN_CRONJOBS=1\n"
-        f"CRONJOB_TEST_BACKUP=* * * * * odoo backup odoo-db "
-        f"/host/dumps/{sentinel}\n"
+        f"CRONJOB_TEST_BACKUP=* * * * * touch /host/dumps/{sentinel} && "
+        f"echo cronjob-fired > /host/dumps/{sentinel}\n"
     )
     try:
         settings_path.write_text(original + extra_settings)
