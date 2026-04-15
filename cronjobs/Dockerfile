@@ -56,7 +56,7 @@ rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /var/log/* \
 /usr/share/perl /usr/share/poppler /usr/share/i18n \
 /usr/lib/gcc /usr/lib/git-core /usr/include /var/cache \
 /usr/lib/aarch*/libLLVM* /usr/lib/aarch*/perl /usr/lib/aarch*/gconv \
-/usr/lib/systemd /usr/libexec/docker \
+/usr/lib/systemd /usr/libexec/docker/docker-init \
 /usr/bin/containerd /usr/bin/ctr /usr/bin/runc \
 /usr/bin/containerd-shim-runc-v2 \
 /usr/bin/aarch64-linux-gnu-lto-dump-11 \
