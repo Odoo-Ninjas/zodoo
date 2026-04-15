@@ -687,6 +687,23 @@ def test_e2e_cronjob_driven_backup(odoo_project_19_running):
     settings_path = Path.home() / ".odoo" / f"settings.{project.name}"
     assert settings_path.exists(), f"settings file missing: {settings_path}"
 
+    # Resolve DUMPS_PATH from the project settings (defaults differ
+    # between hosts: ~/odoo_dumps vs ~/dumps). Read both the user-level
+    # settings file and the project run/settings file.
+    def _get_dumps_path():
+        for p in [
+            settings_path,
+            Path.home() / ".odoo" / "run" / project.name / "settings",
+        ]:
+            if not p.exists():
+                continue
+            for line in p.read_text().splitlines():
+                if line.startswith("DUMPS_PATH="):
+                    return Path(line.split("=", 1)[1].strip()).expanduser()
+        return Path.home() / "odoo_dumps"
+
+    dumps_path = _get_dumps_path()
+
     original = settings_path.read_text()
     cron_line = (
         f"CRONJOB_TEST_BACKUP=* * * * * odoo backup odoo-db "
@@ -708,8 +725,7 @@ def test_e2e_cronjob_driven_backup(odoo_project_19_running):
         )
 
         # Poll for the dump file (up to 3 minutes — one cron tick +
-        # backup time). DUMPS_PATH defaults to ~/odoo_dumps.
-        dumps_path = Path.home() / "odoo_dumps"
+        # backup time). dumps_path resolved above from settings.
         sentinel_file = dumps_path / sentinel
         deadline = time.time() + 60 * 3
         while time.time() < deadline:
@@ -724,7 +740,7 @@ def test_e2e_cronjob_driven_backup(odoo_project_19_running):
         # restore original settings + cleanup dump
         settings_path.write_text(original)
         try:
-            (Path.home() / "odoo_dumps" / sentinel).unlink(missing_ok=True)
+            (dumps_path / sentinel).unlink(missing_ok=True)
         except Exception:
             pass
         project.run("reload", check=False, timeout=120)
