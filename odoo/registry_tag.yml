@@ -1,0 +1,16 @@
+settings:
+  - ODOO_PYTHON_VERSION
+tag_prefix:
+  - odoo_version
+  - ODOO_PYTHON_VERSION
+include_requirements_hash: true
+extra_paths:
+  - odoo/config/${odoo_version_int}/Dockerfile
+  - odoo/config/common.docker
+  - odoo/bin
+# Files relative to the project WORKING_DIR whose content affects the build.
+project_files:
+  - requirements.txt.all
+# Glob patterns relative to WORKING_DIR (custom Dockerfiles in the project).
+project_globs:
+  - "**/Dockerfile.appendix"

@@ -7,9 +7,13 @@ Settings:
     ZODOO_REGISTRY_PASSWORD=zebroo
 """
 
+import functools
 import getpass
+import hashlib
 import json
+import os
 import platform
+import re
 import secrets
 import string
 import subprocess
@@ -294,6 +298,218 @@ def get_zodoo_image_tag(config):
         return None
     combined = hashlib.sha256(f"{req_hash}{images_sha}".encode()).hexdigest()
     return f"{odoo_version}-{python_version}-{combined[:8]}"
+
+
+# ---------------------------------------------------------------------------
+# Per-service image tag computation
+# ---------------------------------------------------------------------------
+
+_EXCLUDE_DIRS = {".git", "__pycache__", "zodoo_src", ".mypy_cache"}
+_EXCLUDE_FILES = {"buildsettings.env", ".gitignore"}
+
+# Services whose build context points to a different image directory.
+_BUILD_CONTEXT_ALIASES = {
+    "cronjobshell": "cronjobs",
+    "odoo_base": "odoo",
+}
+
+
+def _get_directory_content_hash(path):
+    """Compute a deterministic blake2b hash of all files in *path*.
+
+    File paths are sorted for reproducibility.  Directories and files
+    matching the module-level exclude sets are skipped.
+    """
+    path = Path(path)
+    if not path.is_dir():
+        return None
+
+    h = hashlib.blake2b()
+    files = []
+    for root, dirs, filenames in os.walk(path):
+        dirs[:] = sorted(d for d in dirs if d not in _EXCLUDE_DIRS)
+        for fname in sorted(filenames):
+            if fname in _EXCLUDE_FILES or fname.endswith(".pyc"):
+                continue
+            files.append(os.path.join(root, fname))
+
+    for filepath in sorted(files):
+        rel = os.path.relpath(filepath, path)
+        h.update(rel.encode())
+        with open(filepath, "rb") as f:
+            for chunk in iter(lambda: f.read(8192), b""):
+                h.update(chunk)
+
+    return h.hexdigest()
+
+
+@functools.lru_cache(maxsize=1)
+def _get_zodoo_src_hash():
+    """Hash the zodoo CLI source (zodoo/src/).
+
+    Cached because multiple images may include zodoo.
+    """
+    src_dir = IMAGES_DIR / "zodoo" / "src"
+    return _get_directory_content_hash(src_dir)
+
+
+def _get_snippets_used(image_dir):
+    """Detect snippet names referenced in Dockerfiles under *image_dir*."""
+    snippets = set()
+    for df in Path(image_dir).glob("Dockerfile*"):
+        content = df.read_text()
+        snippets.update(re.findall(r"#___SNIPPET_(\w+)___", content))
+    return snippets
+
+
+def _get_snippet_hashes(snippet_names):
+    """Hash the content of the named common_snippets."""
+    h = hashlib.blake2b()
+    snippets_dir = IMAGES_DIR / "common_snippets"
+    for name in sorted(snippet_names):
+        snippet_file = snippets_dir / name.lower()
+        if snippet_file.exists():
+            h.update(name.encode())
+            h.update(snippet_file.read_bytes())
+            # Recurse: a snippet may reference other snippets.
+            nested = set(
+                re.findall(r"#___SNIPPET_(\w+)___", snippet_file.read_text())
+            )
+            for nested_name in sorted(nested):
+                nested_file = snippets_dir / nested_name.lower()
+                if nested_file.exists():
+                    h.update(nested_name.encode())
+                    h.update(nested_file.read_bytes())
+    return h.hexdigest()
+
+
+def _load_registry_tag_config(image_dir):
+    """Load ``registry_tag.yml`` from *image_dir*, or return ``None``."""
+    tag_file = Path(image_dir) / "registry_tag.yml"
+    if not tag_file.exists():
+        return None
+    return yaml.safe_load(tag_file.read_text()) or {}
+
+
+def _resolve_image_dir(service_name):
+    """Map a compose service name to its canonical image directory."""
+    canonical = _BUILD_CONTEXT_ALIASES.get(service_name, service_name)
+    image_dir = IMAGES_DIR / canonical
+    if image_dir.is_dir():
+        return image_dir
+    return None
+
+
+def _resolve_extra_path(raw_path, config):
+    """Resolve ``${varname}`` placeholders in *raw_path* using *config*."""
+
+    def _sub(m):
+        attr = m.group(1)
+        return str(getattr(config, attr, "") or "")
+
+    resolved = re.sub(r"\$\{(\w+)\}", _sub, raw_path)
+    return IMAGES_DIR / resolved
+
+
+def get_zodoo_image_tag_for_service(config, service_name):
+    """Compute a per-service deterministic image tag.
+
+    If the image directory contains a ``registry_tag.yml`` the tag is
+    built from only the settings, directory content, snippets and
+    (optionally) zodoo source that actually influence the build.
+
+    Images without ``registry_tag.yml`` fall back to the global
+    :func:`get_zodoo_image_tag`.
+    """
+    image_dir = _resolve_image_dir(service_name)
+    if not image_dir:
+        return get_zodoo_image_tag(config)
+
+    tag_config = _load_registry_tag_config(image_dir)
+    if tag_config is None:
+        return get_zodoo_image_tag(config)
+
+    # 1. Relevant setting values
+    setting_values = []
+    for s in tag_config.get("settings", []):
+        val = str(getattr(config, s, "") or "")
+        setting_values.append(f"{s}={val}")
+
+    # 2. Image directory content hash
+    dir_hash = _get_directory_content_hash(image_dir) or ""
+
+    # 3. Snippet hashes
+    snippets_used = _get_snippets_used(image_dir)
+    snippet_hash = _get_snippet_hashes(snippets_used) if snippets_used else ""
+
+    # 4. Extra paths (e.g. odoo version-specific Dockerfile)
+    extra_parts = []
+    for raw in tag_config.get("extra_paths", []):
+        p = _resolve_extra_path(raw, config)
+        if p.is_file():
+            with open(p, "rb") as f:
+                extra_parts.append(hashlib.blake2b(f.read()).hexdigest())
+        elif p.is_dir():
+            h = _get_directory_content_hash(p)
+            if h:
+                extra_parts.append(h)
+    extra_hash = "|".join(extra_parts)
+
+    # 5. Zodoo source hash (auto-detect from SNIPPET_ZODOO or explicit)
+    zodoo_hash = ""
+    includes_zodoo = tag_config.get("includes_zodoo")
+    if includes_zodoo is None:
+        includes_zodoo = "ZODOO" in snippets_used
+    if includes_zodoo:
+        zodoo_hash = _get_zodoo_src_hash() or ""
+
+    # 6. Requirements hash (only for images that declare it, e.g. odoo)
+    req_hash = ""
+    if tag_config.get("include_requirements_hash"):
+        req_hash = _get_requirements_hash(config) or ""
+
+    # 7. Project files (relative to WORKING_DIR, e.g. requirements.txt.all)
+    project_parts = []
+    working_dir = getattr(config, "WORKING_DIR", None)
+    if working_dir:
+        for rel in tag_config.get("project_files", []):
+            p = Path(working_dir) / rel
+            if p.is_file():
+                with open(p, "rb") as f:
+                    project_parts.append(hashlib.blake2b(f.read()).hexdigest())
+        for pattern in tag_config.get("project_globs", []):
+            for p in sorted(Path(working_dir).glob(pattern)):
+                if p.is_file():
+                    with open(p, "rb") as f:
+                        project_parts.append(
+                            hashlib.blake2b(f.read()).hexdigest()
+                        )
+    project_hash = "|".join(project_parts)
+
+    # 8. Combine everything
+    combined_input = "|".join(
+        setting_values
+        + [
+            dir_hash,
+            snippet_hash,
+            extra_hash,
+            zodoo_hash,
+            req_hash,
+            project_hash,
+        ]
+    )
+    combined_hash = hashlib.sha256(combined_input.encode()).hexdigest()[:8]
+
+    # 9. Human-readable prefix
+    prefix_parts = []
+    for p in tag_config.get("tag_prefix", []):
+        val = getattr(config, p, None)
+        if val is not None and str(val):
+            prefix_parts.append(str(val))
+
+    if prefix_parts:
+        return f"{'-'.join(prefix_parts)}-{combined_hash}"
+    return combined_hash
 
 
 def _registry_image_name(registry_url, service_name, tag):
@@ -723,7 +939,8 @@ def try_pull_from_zodoo_registry(config, machines):
     """Try to pull all build-services from registry.
 
     Returns list of services that were successfully pulled
-    (and thus don't need building).
+    (and thus don't need building).  Each service gets its own
+    content-based tag via :func:`get_zodoo_image_tag_for_service`.
     """
     if _is_images_dirty():
         click.secho(
@@ -736,18 +953,17 @@ def try_pull_from_zodoo_registry(config, machines):
     if not reg:
         return []
 
-    tag = get_zodoo_image_tag(config)
-    if not tag:
-        click.secho(
-            "Cannot compute zodoo image tag (missing requirements.hash?). "
-            "Run 'odoo reload' first.",
-            fg="yellow",
-        )
-        return []
-
     zodoo_registry_login(config)
 
     def _check_and_pull(service_name):
+        tag = get_zodoo_image_tag_for_service(config, service_name)
+        if not tag:
+            click.secho(
+                f"Cannot compute tag for {service_name} "
+                "(missing requirements.hash?). Run 'odoo reload' first.",
+                fg="yellow",
+            )
+            return None
         registry_image = _resolve_registry_image(reg["url"], service_name, tag)
         if registry_image:
             click.secho(
@@ -782,7 +998,11 @@ def try_pull_from_zodoo_registry(config, machines):
 
 
 def push_to_zodoo_registry(config, machines, suppress_other_platform=False):
-    """Push all build-services to registry after build."""
+    """Push all build-services to registry after build.
+
+    Each service gets its own content-based tag via
+    :func:`get_zodoo_image_tag_for_service`.
+    """
     # SRC_EXTRA=0 means the customer source is baked into the image
     # (see lib_composer.append_odoo_src). Pushing such an image to the
     # shared zodoo registry would publish the customer's code, so skip.
@@ -806,13 +1026,16 @@ def push_to_zodoo_registry(config, machines, suppress_other_platform=False):
     if not reg:
         return
 
-    tag = get_zodoo_image_tag(config)
-    if not tag:
-        return
-
     zodoo_registry_login(config)
 
     for service_name in machines:
+        tag = get_zodoo_image_tag_for_service(config, service_name)
+        if not tag:
+            click.secho(
+                f"Cannot compute tag for {service_name}, skipping push.",
+                fg="yellow",
+            )
+            continue
         zodoo_push_with_background_arch(
             config,
             service_name,
