@@ -8,6 +8,14 @@ extra_paths:
   - odoo/config/${odoo_version_int}/Dockerfile
   - odoo/config/common.docker
   - odoo/bin
+# Only hash the zodoo source files that actually run inside the container.
+# Full zodoo/src/ is too broad — CLI-only changes should not invalidate the image.
+includes_zodoo: false
+zodoo_paths:
+  - zodoo/src/zodoo/lib_module.py
+  - zodoo/src/zodoo/module_tools.py
+  - zodoo/src/zodoo/odoo_config.py
+  - zodoo/src/zodoo/tools.py
 # Files relative to the project WORKING_DIR whose content affects the build.
 project_files:
   - requirements.txt.all

@@ -455,13 +455,30 @@ def get_zodoo_image_tag_for_service(config, service_name):
                 extra_parts.append(h)
     extra_hash = "|".join(extra_parts)
 
-    # 5. Zodoo source hash (auto-detect from SNIPPET_ZODOO or explicit)
-    zodoo_hash = ""
-    includes_zodoo = tag_config.get("includes_zodoo")
-    if includes_zodoo is None:
-        includes_zodoo = "ZODOO" in snippets_used
-    if includes_zodoo:
-        zodoo_hash = _get_zodoo_src_hash() or ""
+    # 5. Zodoo source hash
+    #    zodoo_paths: list of specific files (relative to IMAGES_DIR) to hash
+    #                 instead of the entire zodoo/src/ tree.
+    #    includes_zodoo: if true (or auto-detected from SNIPPET_ZODOO),
+    #                    hash the full zodoo/src/ tree.
+    zodoo_parts = []
+    for zp in tag_config.get("zodoo_paths", []):
+        p = IMAGES_DIR / zp
+        if p.is_file():
+            with open(p, "rb") as f:
+                zodoo_parts.append(hashlib.blake2b(f.read()).hexdigest())
+        elif p.is_dir():
+            h = _get_directory_content_hash(p)
+            if h:
+                zodoo_parts.append(h)
+    if not zodoo_parts:
+        includes_zodoo = tag_config.get("includes_zodoo")
+        if includes_zodoo is None:
+            includes_zodoo = "ZODOO" in snippets_used
+        if includes_zodoo:
+            full = _get_zodoo_src_hash() or ""
+            if full:
+                zodoo_parts.append(full)
+    zodoo_hash = "|".join(zodoo_parts)
 
     # 6. Requirements hash (only for images that declare it, e.g. odoo)
     req_hash = ""

@@ -339,3 +339,40 @@ class TestGetZodooImageTagForService:
         )
         tag2 = mod.get_zodoo_image_tag_for_service(config, "odoo")
         assert tag1 != tag2
+
+    def test_zodoo_paths_hashes_specific_files(self, images_dir):
+        """zodoo_paths hashes only listed files, not the full zodoo/src/."""
+        img = images_dir / "odoo"
+        img.mkdir()
+        _write(img / "Dockerfile", "FROM ubuntu")
+
+        # Create two zodoo source files
+        _write(images_dir / "zodoo" / "src" / "zodoo" / "lib_module.py", "v1")
+        _write(
+            images_dir / "zodoo" / "src" / "zodoo" / "cli_unrelated.py", "x"
+        )
+
+        _write(
+            img / "registry_tag.yml",
+            textwrap.dedent("""\
+                settings: []
+                tag_prefix: []
+                includes_zodoo: false
+                zodoo_paths:
+                  - zodoo/src/zodoo/lib_module.py
+            """),
+        )
+        config = FakeConfig(WORKING_DIR=images_dir)
+        tag1 = mod.get_zodoo_image_tag_for_service(config, "odoo")
+
+        # Changing the listed file changes the tag
+        _write(images_dir / "zodoo" / "src" / "zodoo" / "lib_module.py", "v2")
+        tag2 = mod.get_zodoo_image_tag_for_service(config, "odoo")
+        assert tag1 != tag2
+
+        # Changing an unlisted file does NOT change the tag
+        _write(
+            images_dir / "zodoo" / "src" / "zodoo" / "cli_unrelated.py", "y"
+        )
+        tag3 = mod.get_zodoo_image_tag_for_service(config, "odoo")
+        assert tag2 == tag3
