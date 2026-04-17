@@ -238,6 +238,14 @@ def main(
     log,
     upgrade_path,
 ):
+    import importlib.metadata
+
+    try:
+        _zodoo_version = importlib.metadata.version("zodoo")
+    except importlib.metadata.PackageNotFoundError:
+        _zodoo_version = "unknown"
+    print(f"zodoo {_zodoo_version}")
+
     # region config
     config.interactive = not non_interactive
     config.i18n_overwrite = i18n

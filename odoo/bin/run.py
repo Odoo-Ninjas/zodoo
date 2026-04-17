@@ -32,7 +32,13 @@ if is_odoo_cronjob:
 
     threading.Thread(target=_monitor_output, daemon=True).start()
 
-print("Starting up odoo")
+import importlib.metadata
+
+try:
+    _zodoo_version = importlib.metadata.version("zodoo")
+except importlib.metadata.PackageNotFoundError:
+    _zodoo_version = "unknown"
+print(f"Starting up odoo (zodoo {_zodoo_version})")
 prepare_run()
 
 TOUCH_URL = not is_odoo_cronjob and not is_odoo_queuejob
