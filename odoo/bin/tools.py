@@ -333,7 +333,6 @@ def prepare_run(local_config=None):
         os.environ["OUT_DIR"],
         os.environ["RUN_DIR"],
         os.environ["ODOO_DATA_DIR"],
-        os.environ["ODOO_CONFIG_DIR"],
         os.getenv("INTERCOM_DIR", ""),
         Path(os.environ["RUN_DIR"]) / "debug",
         Path(os.environ["ODOO_DATA_DIR"]) / "addons",
