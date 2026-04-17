@@ -1,0 +1,3 @@
+type: feature
+description: "tests: unit tests for sudo_odoo_cmd + bake-test regression guard for permission + double-sudo startup bugs"
+breaking: false

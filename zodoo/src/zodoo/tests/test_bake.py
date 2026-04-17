@@ -131,6 +131,56 @@ def test_bake_flow(version, isolated_home, tmp_path):
             f"available:\n{result.stdout}"
         )
 
+        # 7) Regression guard for the K8s-style startup flow.  The
+        # baked image is used in production as a root→sudo-u-odoo
+        # chain; we exercise the same chain locally to catch:
+        #   - PermissionError on /etc/odoo/config/* when templates
+        #     are copied as root and later re-copied as odoo
+        #     (fix/chown-config-files-recursive)
+        #   - "odoo is not in the sudoers file" when sudo_odoo_cmd
+        #     double-wraps sudo while already running as odoo
+        #     (fix/sudo-odoo-cmd-skip-when-already-odoo)
+        odoo_image = next(
+            (line for line in images if f"{project_name}-odoo:" in line),
+            None,
+        )
+        if odoo_image:
+            run_result = subprocess.run(
+                [
+                    "docker",
+                    "run",
+                    "--rm",
+                    "-e",
+                    "ODOO_SUDO_CMD=1",
+                    "-e",
+                    "IS_ODOO_DEBUG=1",  # prepare_run then exit, no DB needed
+                    "-e",
+                    "DBNAME=baketest",
+                    "--entrypoint",
+                    "/bin/bash",
+                    odoo_image,
+                    "-c",
+                    # Run update_on_startup.py to exercise:
+                    # root → sudo_odoo_cmd("/odoolib/odoo update") → odoo
+                    # → /odoolib/odoo update → update_modules.py
+                    # → exec_odoo() → sudo_odoo_cmd(odoo-bin) [MUST NOT re-wrap]
+                    "python3 /odoolib/update_on_startup.py || true",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=300,
+            )
+            combined = run_result.stdout + run_result.stderr
+            assert "PermissionError" not in combined, (
+                "Permission bug re-introduced (see "
+                "fix/chown-config-files-recursive):\n" + combined[-2000:]
+            )
+            assert "not in the sudoers file" not in combined, (
+                "sudo double-wrap bug re-introduced (see "
+                "fix/sudo-odoo-cmd-skip-when-already-odoo):\n"
+                + combined[-2000:]
+            )
+
     finally:
         # Best-effort teardown so a failed run does not leave containers behind.
         subprocess.run(

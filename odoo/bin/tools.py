@@ -7,33 +7,8 @@ import arrow
 import shutil
 import requests
 import click
-from consts import ODOO_USER
+from sudo_odoo import sudo_odoo_cmd  # noqa: F401  (re-export)
 import subprocess
-
-
-def sudo_odoo_cmd(cmd):
-    """Prepend sudo -E -H -u odoo if ODOO_SUDO_CMD=1.
-
-    Central helper so every code path that needs to run something as the
-    odoo user goes through the same sudoers env_keep whitelist.
-
-    Skip the prefix if we are already running as the odoo user — the
-    odoo user is not in sudoers, so adding sudo would fail with
-    "odoo is not in the sudoers file".  This happens when update_on_startup.py
-    wraps the update command in sudo, and update_modules.py then calls
-    exec_odoo() which would wrap it in sudo a second time.
-    """
-    if os.getenv("ODOO_SUDO_CMD") != "1":
-        return list(cmd)
-    import pwd
-
-    try:
-        current_user = pwd.getpwuid(os.geteuid()).pw_name
-    except KeyError:
-        current_user = None
-    if current_user == ODOO_USER:
-        return list(cmd)
-    return ["/usr/bin/sudo", "-E", "-H", "-u", ODOO_USER] + list(cmd)
 
 
 import configparser
