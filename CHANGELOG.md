@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.15.1
+
+
+- **Fix**: fix PermissionError on /etc/odoo/config when update_modules.py runs as odoo user
+
+
 ## 0.15.0
 
 
