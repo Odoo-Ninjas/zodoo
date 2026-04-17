@@ -4,7 +4,7 @@
 # ~/.odoo/postgres.conf
 # ~/.odoo/postgres.<project>.conf
 
-max_connections=5000
+max_connections=200
 track_activity_query_size=16384
 wal_compression=on
 effective_cache_size=4GB
@@ -17,3 +17,17 @@ track_activity_query_size=16384;
 #log_filename=postgresql.log
 #log_statement=all
 shared_preload_libraries='pg_stat_statements,auto_explain'
+
+# observability — measure which queries are slow and where I/O time goes
+track_io_timing=on
+log_min_duration_statement=1000
+
+# autovacuum — keep up with write-heavy Odoo workloads (hr_attendance,
+# mail_message, queue_job tend to bloat fast)
+autovacuum_max_workers=6
+autovacuum_vacuum_cost_limit=2000
+
+# Odoo queries are I/O-bound and cheap to plan; JIT compilation usually
+# costs more than it saves.  Disable globally — re-enable per session
+# with SET jit=on if a specific report benefits.
+jit=off
