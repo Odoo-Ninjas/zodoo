@@ -326,7 +326,10 @@ def get_config_file(confname):
 
 def prepare_run(local_config=None):
     # chown all writable dirs first so the odoo user (when run via
-    # sudo_odoo_cmd) can write to them before any other code tries to
+    # sudo_odoo_cmd) can write to them before any other code tries to.
+    # Recursive because _replace_variables_in_config_files below may
+    # re-run later as the odoo user and then needs to overwrite files
+    # that were originally created by a root-owned first invocation.
     user_id = int(os.getenv("OWNER_UID", os.getuid()))
     for path in [
         os.environ["ODOO_CONFIG_DIR"],
@@ -346,7 +349,14 @@ def prepare_run(local_config=None):
             out_dir.mkdir(parents=True, exist_ok=True)
         if out_dir.exists():
             if out_dir.stat().st_uid == 0:
-                shutil.chown(str(out_dir), user=user_id, group=user_id)
+                subprocess.call(
+                    [
+                        "chown",
+                        "-R",
+                        f"{user_id}:{user_id}",
+                        str(out_dir),
+                    ]
+                )
         del path
         del out_dir
 
