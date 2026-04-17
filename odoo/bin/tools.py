@@ -204,10 +204,20 @@ def _replace_variables_in_config_files(local_config):
     config_dir = Path(os.environ["ODOO_CONFIG_DIR"])
     config_dir_template = Path(os.environ["ODOO_CONFIG_TEMPLATE_DIR"])
     config_dir.mkdir(exist_ok=True, parents=True)
+    user_id = int(os.getenv("OWNER_UID", os.getuid()))
     for file in config_dir_template.glob("*"):
         path = str(config_dir / file.name)
         shutil.copy(str(file), path)
         subprocess.call(["chmod", "a+r", path])
+        # chown to the odoo user so a later re-invocation as that user
+        # (via sudo_odoo_cmd) can overwrite these files.  Silently
+        # ignored when we're already running as non-root (chown of a
+        # file we own is a no-op; chown of a foreign file fails — that
+        # path means the first invocation already did the right thing).
+        try:
+            shutil.chown(path, user=user_id, group=user_id)
+        except (PermissionError, LookupError):
+            pass
         del path
 
     no_extra_addons_paths = False
@@ -326,7 +336,10 @@ def get_config_file(confname):
 
 def prepare_run(local_config=None):
     # chown all writable dirs first so the odoo user (when run via
-    # sudo_odoo_cmd) can write to them before any other code tries to
+    # sudo_odoo_cmd) can write to them before any other code tries to.
+    # Recursive because _replace_variables_in_config_files below may
+    # re-run later as the odoo user and then needs to overwrite files
+    # that were originally created by a root-owned first invocation.
     user_id = int(os.getenv("OWNER_UID", os.getuid()))
     for path in [
         os.environ["ODOO_CONFIG_DIR"],
@@ -346,7 +359,14 @@ def prepare_run(local_config=None):
             out_dir.mkdir(parents=True, exist_ok=True)
         if out_dir.exists():
             if out_dir.stat().st_uid == 0:
-                shutil.chown(str(out_dir), user=user_id, group=user_id)
+                subprocess.call(
+                    [
+                        "chown",
+                        "-R",
+                        f"{user_id}:{user_id}",
+                        str(out_dir),
+                    ]
+                )
         del path
         del out_dir
 
