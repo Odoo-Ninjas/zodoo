@@ -1,3 +1,0 @@
-type: feature
-description: "postgres: add observability (pg_stat_statements tracking, slow-query log, I/O timing), tune autovacuum, disable JIT, lower max_connections to sane default"
-breaking: false

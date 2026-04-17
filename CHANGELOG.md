@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.15.0
+
+
+- **Feature**: postgres: add observability (pg_stat_statements tracking, slow-query log, I/O timing), tune autovacuum, disable JIT, lower max_connections to sane default
+
+
 ## 0.14.4
 
 
