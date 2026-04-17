@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.4
+
+
+- **Fix**: sudo_odoo_cmd: skip sudo prefix when already running as odoo user — fixes 'odoo is not in the sudoers file' when update_on_startup.py + exec_odoo double-wrap in sudo
+
+
 ## 0.16.3
 
 
