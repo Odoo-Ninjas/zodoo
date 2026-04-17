@@ -7,3 +7,5 @@ node_modules/
 .python-version
 buildsettings.env
 /*/wodoo_src/
+.coverage
+scheduled_tasks.lock
