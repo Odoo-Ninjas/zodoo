@@ -1,3 +1,0 @@
-type: fix
-description: "prepare_run: chown -R writable dirs so files inside (created by root on first invocation) can be overwritten on re-invocation as the odoo user"
-breaking: false
