@@ -4,7 +4,9 @@
 # ~/.odoo/postgres.conf
 # ~/.odoo/postgres.<project>.conf
 
-max_connections=200
+# max_connections is computed dynamically in postgres/__after_settings.py
+# from ODOO_WORKERS_WEB + ODOO_MAX_CRON_THREADS + queuejob_workers * 1.2 + 10.
+# Override by setting max_connections= in POSTGRES_CONFIG.
 track_activity_query_size=16384
 wal_compression=on
 effective_cache_size=4GB
