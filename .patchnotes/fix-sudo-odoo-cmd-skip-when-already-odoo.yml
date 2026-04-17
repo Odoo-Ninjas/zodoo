@@ -1,0 +1,3 @@
+type: fix
+description: "sudo_odoo_cmd: skip sudo prefix when already running as odoo user — fixes 'odoo is not in the sudoers file' when update_on_startup.py + exec_odoo double-wrap in sudo"
+breaking: false
