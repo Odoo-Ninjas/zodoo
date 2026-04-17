@@ -204,10 +204,20 @@ def _replace_variables_in_config_files(local_config):
     config_dir = Path(os.environ["ODOO_CONFIG_DIR"])
     config_dir_template = Path(os.environ["ODOO_CONFIG_TEMPLATE_DIR"])
     config_dir.mkdir(exist_ok=True, parents=True)
+    user_id = int(os.getenv("OWNER_UID", os.getuid()))
     for file in config_dir_template.glob("*"):
         path = str(config_dir / file.name)
         shutil.copy(str(file), path)
         subprocess.call(["chmod", "a+r", path])
+        # chown to the odoo user so a later re-invocation as that user
+        # (via sudo_odoo_cmd) can overwrite these files.  Silently
+        # ignored when we're already running as non-root (chown of a
+        # file we own is a no-op; chown of a foreign file fails — that
+        # path means the first invocation already did the right thing).
+        try:
+            shutil.chown(path, user=user_id, group=user_id)
+        except (PermissionError, LookupError):
+            pass
         del path
 
     no_extra_addons_paths = False
