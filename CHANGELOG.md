@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.0
+
+
+- **Feature**: Print zodoo version at startup in run.py and odoo update
+
+
 ## 0.15.1
 
 

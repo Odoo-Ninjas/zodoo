@@ -1,3 +1,0 @@
-type: feature
-description: "Print zodoo version at startup in run.py and odoo update"
-breaking: false
