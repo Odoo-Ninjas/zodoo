@@ -325,20 +325,14 @@ def get_config_file(confname):
 
 
 def prepare_run(local_config=None):
-    _replace_variables_in_config_files(local_config)
-
-    if config["RUN_AUTOSETUP"] == "1":
-        _run_autosetup()
-
-    _run_libreoffice_in_background()
-
-    # make sure out dir is owned by odoo user to be writable
+    # chown all writable dirs first so the odoo user (when run via
+    # sudo_odoo_cmd) can write to them before any other code tries to
     user_id = int(os.getenv("OWNER_UID", os.getuid()))
     for path in [
+        os.environ["ODOO_CONFIG_DIR"],
         os.environ["OUT_DIR"],
         os.environ["RUN_DIR"],
         os.environ["ODOO_DATA_DIR"],
-        os.environ["ODOO_CONFIG_DIR"],
         os.getenv("INTERCOM_DIR", ""),
         Path(os.environ["RUN_DIR"]) / "debug",
         Path(os.environ["ODOO_DATA_DIR"]) / "addons",
@@ -355,6 +349,13 @@ def prepare_run(local_config=None):
                 shutil.chown(str(out_dir), user=user_id, group=user_id)
         del path
         del out_dir
+
+    _replace_variables_in_config_files(local_config)
+
+    if config["RUN_AUTOSETUP"] == "1":
+        _run_autosetup()
+
+    _run_libreoffice_in_background()
 
     if (
         os.getenv("IS_ODOO_QUEUEJOB", "") == "1"
