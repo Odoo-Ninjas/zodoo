@@ -253,11 +253,12 @@ def upgrade(ctx, config, no_install):
 
         # Check for typical "no changes" messages
         if "Already up to date." in output or "Already up-to-date." in output:
-            click.secho("No changes pulled; skipping reinstall.", fg="cyan")
-        else:
-            if not no_install:
-                _reinstall()
-            _show_changelog_since(config.dirs["images"], old_version)
+            click.secho("Already up to date — nothing to do.", fg="green")
+            return
+
+        if not no_install:
+            _reinstall()
+        _show_changelog_since(config.dirs["images"], old_version)
 
         _update_gimera_src(config)
         _fix_permissions(config, [str(config.dirs["images"])])
@@ -293,7 +294,11 @@ def _update_gimera_src(config):
         return
 
     click.secho("Updating gimera source...", fg="yellow")
-    python = sys.executable if Path(sys.executable).exists() else (shutil.which("python3") or "python3")
+    python = (
+        sys.executable
+        if Path(sys.executable).exists()
+        else (shutil.which("python3") or "python3")
+    )
     env = {**os.environ, "PYTHONPATH": str(zodoo_src / "gimera_src")}
     subprocess.run(
         [
