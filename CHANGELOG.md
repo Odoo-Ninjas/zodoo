@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.18.0
+
+
+- **Feature**: odoo setup upgrade: early-return when git pull has nothing to fetch — no reinstall, no gimera update, no permission fix
+
+
 ## 0.17.0
 
 

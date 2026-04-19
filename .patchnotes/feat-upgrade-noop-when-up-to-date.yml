@@ -1,3 +1,0 @@
-type: feature
-description: "odoo setup upgrade: early-return when git pull has nothing to fetch — no reinstall, no gimera update, no permission fix"
-breaking: false
