@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.17.0
+
+
+- **Feature**: perf: cache bashfind + negative-cache NotInAddonsPath in Module.get_by_name — `odoo reload` ~1.4x faster on projects with many uninstalled modules (bvodin-mig18 17.6s → 12.5s), immune to cold-cache pathologies from per-miss `find .` subprocesses
+
+
 ## 0.16.4
 
 
