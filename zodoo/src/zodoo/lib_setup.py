@@ -1,3 +1,4 @@
+import ipaddress
 import os
 import shutil
 import sys
@@ -6,6 +7,7 @@ import click
 import subprocess
 import re
 from pathlib import Path
+from urllib.parse import urlparse
 from .tools import _askcontinue
 from .tools import remove_webassets
 from .cli import cli, pass_config, Commands
@@ -116,6 +118,15 @@ def status(config):
     _status(config)
 
 
+def _domain_is_ip(domain):
+    host = urlparse(domain).hostname or domain.split(":", 1)[0].strip("/")
+    try:
+        ipaddress.ip_address(host)
+        return True
+    except ValueError:
+        return False
+
+
 def _status(config):
     color = "yellow"
     EXTERNAL_DOMAIN = config.EXTERNAL_DOMAIN
@@ -136,9 +147,11 @@ def _status(config):
     )
     if config.PROXY_PORT:
         click.secho("url: ", nl=False)
-        click.secho(
-            f"{EXTERNAL_DOMAIN}:{config.PROXY_PORT}", fg=color, bold=True
-        )
+        if EXTERNAL_DOMAIN and not _domain_is_ip(EXTERNAL_DOMAIN):
+            url = EXTERNAL_DOMAIN
+        else:
+            url = f"{EXTERNAL_DOMAIN or ''}:{config.PROXY_PORT}"
+        click.secho(url, fg=color, bold=True)
 
     for key in [
         "DEFAULT_DEV_PASSWORD",
