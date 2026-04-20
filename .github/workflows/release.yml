@@ -38,7 +38,8 @@ jobs:
       - name: Run unit tests
         working-directory: zodoo/src
         run: |
-          "$HOME/.local/pipx/venvs/zodoo/bin/python" -m pytest -m "not slow" -vv
+          ZODOO_PY="$(pipx environment --value PIPX_LOCAL_VENVS)/zodoo/bin/python"
+          "$ZODOO_PY" -m pytest -m "not slow" -vv
 
   release:
     needs: test
