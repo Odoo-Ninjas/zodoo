@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.19.1
+
+
+- **Fix**: MANIFEST writer aborts instead of overwriting a populated MANIFEST with a near-empty one (would drop install/addons_paths/server-wide-modules). Protects against accidental truncation seen in the wild.
+
+
 ## 0.19.0
 
 
