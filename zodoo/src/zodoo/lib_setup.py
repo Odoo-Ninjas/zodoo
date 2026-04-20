@@ -228,43 +228,26 @@ def upgrade(ctx, config, no_install):
         stashed = True
 
     try:
-        version_file = config.dirs["images"] / "VERSION"
+        images_dir = config.dirs["images"]
+        version_file = images_dir / "VERSION"
         old_version = (
             version_file.read_text().strip() if version_file.exists() else ""
         )
 
-        click.secho("Pulling zodoo from git repository...", fg="yellow")
-        result = subprocess.run(
-            [
-                "git",
-                "pull",
-                "--ff-only",
-                "--no-edit",
-                "--progress",
-                "--rebase=false",
-                "--autostash",
-                "--quiet",
-            ],
-            cwd=config.dirs["images"],
-            capture_output=True,
-            encoding="utf-8",
-            text=True,
-            env={**os.environ, "LANG": "C", "LC_ALL": "C"},
-        )
+        if _zodoo_devmode(config):
+            changed = _upgrade_track_main(images_dir)
+        else:
+            changed = _upgrade_checkout_latest_tag(images_dir)
 
-        output = result.stdout.strip() + result.stderr.strip()
-
-        # Check for typical "no changes" messages
-        if "Already up to date." in output or "Already up-to-date." in output:
-            click.secho("Already up to date — nothing to do.", fg="green")
+        if not changed:
             return
 
         if not no_install:
             _reinstall()
-        _show_changelog_since(config.dirs["images"], old_version)
+        _show_changelog_since(images_dir, old_version)
 
         _update_gimera_src(config)
-        _fix_permissions(config, [str(config.dirs["images"])])
+        _fix_permissions(config, [str(images_dir)])
     finally:
         if stashed:
             click.secho("Restoring stashed changes...", fg="yellow")
@@ -273,6 +256,130 @@ def upgrade(ctx, config, no_install):
                 cwd=config.dirs["images"],
                 check=False,
             )
+
+
+def _zodoo_devmode(config):
+    """True when ZODOO_DEVMODE=1 (env, user settings, or defaults).
+
+    Used by `odoo setup upgrade` to decide whether to track `main` (dev
+    machines) or pin to the latest release tag (production installs).
+    """
+    val = os.environ.get("ZODOO_DEVMODE")
+    if val is None:
+        try:
+            from .myconfigparser import MyConfigParser
+
+            user_settings_file = config.files.get("user_settings")
+            if user_settings_file and Path(user_settings_file).exists():
+                val = MyConfigParser(user_settings_file).get(
+                    "ZODOO_DEVMODE", ""
+                )
+        except Exception:
+            val = None
+    if not val:
+        val = getattr(config, "ZODOO_DEVMODE", "0") or "0"
+    return str(val).strip() in ("1", "true", "True", "yes", "on")
+
+
+def _upgrade_track_main(images_dir):
+    """Dev mode: fast-forward pull of the current branch (usually main).
+
+    Returns True when something was actually pulled.
+    """
+    click.secho(
+        "ZODOO_DEVMODE=1 → tracking current branch (git pull)...", fg="yellow"
+    )
+    result = subprocess.run(
+        [
+            "git",
+            "pull",
+            "--ff-only",
+            "--no-edit",
+            "--progress",
+            "--rebase=false",
+            "--autostash",
+            "--quiet",
+        ],
+        cwd=images_dir,
+        capture_output=True,
+        encoding="utf-8",
+        text=True,
+        env={**os.environ, "LANG": "C", "LC_ALL": "C"},
+    )
+    output = result.stdout.strip() + result.stderr.strip()
+    if "Already up to date." in output or "Already up-to-date." in output:
+        click.secho("Already up to date — nothing to do.", fg="green")
+        return False
+    return True
+
+
+def _latest_semver_tag(images_dir):
+    """Return the highest vX.Y.Z tag (semver-sorted), or empty string."""
+    result = subprocess.run(
+        ["git", "tag", "--list", "v*", "--sort=-v:refname"],
+        cwd=images_dir,
+        capture_output=True,
+        encoding="utf-8",
+        text=True,
+        check=True,
+    )
+    for line in result.stdout.splitlines():
+        tag = line.strip()
+        # Guard against non-semver tags sneaking in (e.g. "vnext").
+        if re.match(r"^v\d+\.\d+\.\d+$", tag):
+            return tag
+    return ""
+
+
+def _upgrade_checkout_latest_tag(images_dir):
+    """Production mode: fetch tags and check out the highest semver tag.
+
+    Returns True when HEAD actually moved.
+    """
+    click.secho("Fetching tags from origin...", fg="yellow")
+    subprocess.run(
+        ["git", "fetch", "--tags", "--prune", "--quiet", "origin"],
+        cwd=images_dir,
+        check=True,
+    )
+
+    latest = _latest_semver_tag(images_dir)
+    if not latest:
+        abort(
+            "No semver tags (vX.Y.Z) found in origin — set ZODOO_DEVMODE=1 "
+            "to fall back to tracking main."
+        )
+
+    current = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=images_dir,
+        capture_output=True,
+        encoding="utf-8",
+        text=True,
+        check=True,
+    ).stdout.strip()
+    target = subprocess.run(
+        ["git", "rev-parse", latest],
+        cwd=images_dir,
+        capture_output=True,
+        encoding="utf-8",
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+    if current == target:
+        click.secho(
+            f"Already on latest tag {latest} — nothing to do.", fg="green"
+        )
+        return False
+
+    click.secho(f"Checking out {latest}...", fg="yellow")
+    subprocess.run(
+        ["git", "checkout", "--quiet", latest],
+        cwd=images_dir,
+        check=True,
+    )
+    return True
 
 
 def _update_gimera_src(config):

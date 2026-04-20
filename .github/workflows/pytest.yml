@@ -10,10 +10,6 @@ on:
     paths:
       - "zodoo/src/**"
       - ".github/workflows/pytest.yml"
-  push:
-    branches: [main]
-    paths:
-      - "zodoo/src/**"
   workflow_dispatch:
 
 jobs:

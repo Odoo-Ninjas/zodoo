@@ -8,7 +8,37 @@ permissions:
   contents: write
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pipx
+        run: |
+          python -m pip install --upgrade pip pipx
+
+      - name: Install zodoo (editable, from this checkout)
+        run: |
+          pipx install -e zodoo/src
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Inject pytest into zodoo venv
+        run: |
+          pipx inject zodoo pytest pytest-cov
+
+      - name: Run unit tests
+        working-directory: zodoo/src
+        run: |
+          "$HOME/.local/pipx/venvs/zodoo/bin/python" -m pytest -m "not slow" -vv
+
   release:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
