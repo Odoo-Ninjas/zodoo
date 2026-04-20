@@ -154,6 +154,27 @@ class MANIFEST_CLASS:
                 if p not in system_addons_paths
             ]
 
+        # safety net: never overwrite an existing non-trivial MANIFEST with
+        # a near-empty one (we've seen this corrupt MANIFESTs in the wild).
+        try:
+            existing_content = self.path.read_text() or ""
+            existing = (
+                OrderedDict(ast.literal_eval(existing_content))
+                if existing_content.strip()
+                else {}
+            )
+        except Exception:
+            existing = {}
+        critical_keys = {"install", "addons_paths", "server-wide-modules"}
+        existing_has_critical = bool(critical_keys & set(existing.keys()))
+        new_has_critical = bool(critical_keys & set(d.keys()))
+        if existing_has_critical and not new_has_critical:
+            abort(
+                f"Refusing to overwrite {self.path} with a minimal MANIFEST "
+                f"(would drop keys: {sorted(set(existing.keys()) - set(d.keys()))}). "
+                f"This protects against accidental MANIFEST truncation."
+            )
+
         s = json.dumps(d, indent=4)
         fd, tmp = tempfile.mkstemp(suffix=".MANIFEST")
         try:
