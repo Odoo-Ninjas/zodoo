@@ -1,3 +1,0 @@
-type: fix
-description: "odoo status: omit :PROXY_PORT when EXTERNAL_DOMAIN is a hostname (not an IP)"
-breaking: false

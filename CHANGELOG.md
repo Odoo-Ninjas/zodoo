@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.18.1
+
+
+- **Fix**: odoo status: omit :PROXY_PORT when EXTERNAL_DOMAIN is a hostname (not an IP)
+
+
 ## 0.18.0
 
 
