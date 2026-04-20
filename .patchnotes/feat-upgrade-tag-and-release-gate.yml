@@ -1,3 +1,0 @@
-type: feature
-description: "odoo setup upgrade pins to the latest semver tag by default; release workflow now runs pytest before tagging. Set ZODOO_DEVMODE=1 to keep tracking main on dev hosts."
-breaking: false
