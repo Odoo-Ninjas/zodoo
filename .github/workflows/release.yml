@@ -29,6 +29,9 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Inject pytest into zodoo venv
+        # cd /tmp: newer pipx treats `zodoo` as a path when a ./zodoo/
+        # directory exists in cwd, breaking the inject.
+        working-directory: /tmp
         run: |
           pipx inject zodoo pytest pytest-cov
 
