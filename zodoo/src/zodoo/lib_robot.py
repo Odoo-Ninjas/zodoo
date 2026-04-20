@@ -13,6 +13,7 @@ import click
 from .odoo_config import current_version
 from .tools import __dcrun
 from .tools import __dc  # NOQA
+from .tools import public_base_url
 from .cli import cli, pass_config, Commands
 from .lib_clickhelpers import AliasedGroup
 from .tools import __empty_dir
@@ -740,7 +741,7 @@ def start_cobot(ctx, config):
 
     click.secho(f"Access cobot at: ")
     click.secho(
-        f"\n{config.EXTERNAL_DOMAIN}:{config.PROXY_PORT}/cobot\n\n",
+        f"\n{public_base_url(config.EXTERNAL_DOMAIN, config.PROXY_PORT)}/cobot\n\n",
         fg="green",
         bold=True,
     )

@@ -1,4 +1,6 @@
+import ipaddress
 import urllib.request
+from urllib.parse import urlparse
 import json
 import platform
 import passlib
@@ -2524,3 +2526,22 @@ def _is_in_container():
         )
     except Exception:
         return False
+
+
+def public_base_url(domain, port):
+    """Join domain and port — omit ":port" when domain is a public hostname.
+
+    Hostnames are typically fronted by a reverse proxy on 80/443, so the
+    internal port would produce an unreachable URL. Empty domains, localhost,
+    and IP addresses still get the port (no proxy in front).
+    """
+    if not domain:
+        return f":{port}"
+    host = urlparse(domain).hostname or domain.split(":", 1)[0].strip("/")
+    if host in ("localhost", "127.0.0.1"):
+        return f"{domain}:{port}"
+    try:
+        ipaddress.ip_address(host)
+        return f"{domain}:{port}"
+    except ValueError:
+        return domain
