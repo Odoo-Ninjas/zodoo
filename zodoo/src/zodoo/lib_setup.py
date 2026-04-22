@@ -13,7 +13,7 @@ from .lib_clickhelpers import AliasedGroup
 from .tools import abort
 from .tools import is_git_clean
 from .tools import on_osx, on_windows_wsl
-from .tools import public_base_url
+from .tools import split_external_domains
 from .tools import update_setting
 from .tools import vscode_setting
 from .tools import __assure_gitignore
@@ -136,12 +136,11 @@ def _status(config):
         bold=True,
     )
     if config.PROXY_PORT:
-        click.secho("url: ", nl=False)
-        click.secho(
-            public_base_url(EXTERNAL_DOMAIN, config.PROXY_PORT),
-            fg=color,
-            bold=True,
-        )
+        domains = split_external_domains(EXTERNAL_DOMAIN) or [""]
+        for idx, d in enumerate(domains):
+            url = f"{d}:{config.PROXY_PORT}" if d else f":{config.PROXY_PORT}"
+            click.secho("url: " if idx == 0 else "     ", nl=False)
+            click.secho(url, fg=color, bold=True)
 
     for key in [
         "DEFAULT_DEV_PASSWORD",

@@ -13,7 +13,7 @@ import click
 from .odoo_config import current_version
 from .tools import __dcrun
 from .tools import __dc  # NOQA
-from .tools import public_base_url
+from .tools import public_base_url, split_external_domains
 from .cli import cli, pass_config, Commands
 from .lib_clickhelpers import AliasedGroup
 from .tools import __empty_dir
@@ -752,7 +752,8 @@ def start_cobot(ctx, config):
 @pass_config
 @click.pass_context
 def make_variable_file(ctx, config, userpassword=None):
-    host = os.getenv("ROBO_ODOO_HOST") or config.EXTERNAL_DOMAIN
+    domains = split_external_domains(config.EXTERNAL_DOMAIN)
+    host = os.getenv("ROBO_ODOO_HOST") or (domains[0] if domains else "")
     url = f"http://{host}:{config.PROXY_PORT}"
     from .odoo_config import customs_dir
 
