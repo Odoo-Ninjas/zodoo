@@ -540,8 +540,21 @@ def restore_db(
         )
 
     if config.run_postgres:
+        click.secho(
+            "TRACE RESTORE bringing up main postgres after helper teardown",
+            fg="cyan",
+        )
+        _trace_docker("before-up-main-pg", config.project_name)
         __dc(config, ["up", "-d", "postgres"])
         Commands.invoke(ctx, "wait_for_container_postgres")
+        _trace_docker("after-up-main-pg", config.project_name)
+        try:
+            _trace_dbs(config.get_odoo_conn(), "main-pg-up")
+        except Exception as ex:  # noqa: BLE001
+            click.secho(
+                f"TRACE RESTORE cannot list dbs on main-pg: {ex}",
+                fg="yellow",
+            )
         if config.devmode:
             Commands.invoke(ctx, "pghba_conf_wide_open")
 
@@ -550,6 +563,56 @@ def restore_db(
         f"---------------------------------\nSuccessfully restored {filename} after {seconds} seconds.\n\n",
         fg="green",
     )
+
+
+def _trace_dbs(conn, label):
+    try:
+        rows = _execute_sql(
+            conn.clone(dbname="postgres"),
+            "SELECT datname FROM pg_database ORDER BY datname",
+            fetchall=True,
+        )
+        dbs = [r[0] for r in (rows or [])]
+    except Exception as ex:  # noqa: BLE001
+        click.secho(
+            f"TRACE DBS [{label}] cannot list dbs: {ex}", fg="yellow"
+        )
+        return
+    click.secho(
+        f"TRACE DBS [{label}] on host={conn.host}:{conn.port} → {dbs}",
+        fg="cyan",
+    )
+
+
+def _trace_docker(label, project_name):
+    try:
+        out = subprocess.check_output(
+            ["docker", "ps", "-a", "--format", "{{.Names}}\t{{.Status}}"],
+            text=True,
+        )
+        lines = [
+            line
+            for line in out.splitlines()
+            if project_name in line or line.startswith("postgres_")
+        ]
+    except Exception as ex:  # noqa: BLE001
+        click.secho(f"TRACE DOCKER [{label}] ps failed: {ex}", fg="yellow")
+        return
+    click.secho(
+        f"TRACE DOCKER [{label}] project={project_name} →", fg="cyan"
+    )
+    for line in lines:
+        click.secho(f"  {line}", fg="cyan")
+    try:
+        out = subprocess.check_output(
+            ["docker", "volume", "ls", "--format", "{{.Name}}"],
+            text=True,
+        )
+        vols = [v for v in out.splitlines() if project_name in v]
+    except Exception as ex:  # noqa: BLE001
+        click.secho(f"TRACE DOCKER [{label}] volume ls failed: {ex}", fg="yellow")
+        return
+    click.secho(f"TRACE DOCKER [{label}] volumes → {vols}", fg="cyan")
 
 
 def _restore_dump(
@@ -567,6 +630,13 @@ def _restore_dump(
     dbname,
 ):
     DBNAME_RESTORING = (dbname or config.dbname) + "_restoring"
+    click.secho(
+        f"TRACE RESTORE dbname={dbname or config.dbname} "
+        f"DBNAME_RESTORING={DBNAME_RESTORING} "
+        f"run_postgres={config.run_postgres} use_docker={config.use_docker}",
+        fg="cyan",
+    )
+    _trace_docker("restore-start", config.project_name)
     if config.run_postgres and config.use_docker:
         for container_id in docker_list_containers(
             config.project_name, "postgres", "running"
@@ -575,9 +645,11 @@ def _restore_dump(
             del container_id
 
         Commands.invoke(ctx, "remove-volumes")
+        _trace_docker("after-remove-volumes", config.project_name)
         Commands.invoke(
             ctx, "up", machines=["postgres"], daemon=True, allow_build=True
         )
+        _trace_docker("after-up-postgres", config.project_name)
     Commands.invoke(ctx, "wait_for_container_postgres", missing_ok=True)
     conn = config.get_odoo_conn()
     dest_db = conn.dbname
@@ -635,8 +707,17 @@ def _restore_dump(
             # if postgres docker is used, then make a temporary config to restart docker container
             # with external directory mapped; after that remove config
             if config.run_postgres:
+                click.secho(
+                    "TRACE RESTORE killing main postgres before helper run",
+                    fg="cyan",
+                )
                 __dc(config, ["kill", "postgres"])
+                _trace_docker("after-kill-main-pg", config.project_name)
                 postgres_name = f"postgres_{uuid.uuid4()}"
+                click.secho(
+                    f"TRACE RESTORE starting helper postgres name={postgres_name}",
+                    fg="cyan",
+                )
                 __dc(
                     config,
                     [
@@ -654,6 +735,7 @@ def _restore_dump(
                 Commands.invoke(
                     ctx, "wait_for_container_postgres", missing_ok=True
                 )
+                _trace_docker("after-helper-pg-started", config.project_name)
                 effective_host_name = postgres_name
 
             cmd = [
@@ -700,16 +782,31 @@ def _restore_dump(
                 Path(config.dumps_path) / filename,
             )
 
+        _trace_dbs(conn, "after-pg_restore")
         _after_restore(ctx, conn, config, no_dev_scripts, no_remove_webassets)
+        _trace_dbs(conn, "after-dev-scripts before-rename")
+        click.secho(
+            f"TRACE RESTORE renaming {DBNAME_RESTORING} → "
+            f"{dbname or config.dbname} on host={conn.host}:{conn.port}",
+            fg="cyan",
+        )
         __rename_db_drop_target(
             conn.clone(dbname="postgres"),
             DBNAME_RESTORING,
             dbname or config.dbname,
         )
+        _trace_dbs(conn, "after-rename")
         _remove_postgres_connections(conn, dest_db)
+        _trace_dbs(conn, "after-remove-connections")
 
     finally:
         if config.run_postgres and config.use_docker:
+            click.secho(
+                f"TRACE RESTORE finally: stopping/removing helper "
+                f"postgres {postgres_name}",
+                fg="cyan",
+            )
+            _trace_docker("finally-before-stop-helper", config.project_name)
             # stop the run started postgres container; softly
             subprocess.check_output(["docker", "stop", postgres_name])
             try:
@@ -721,6 +818,7 @@ def _restore_dump(
                 subprocess.check_output(["docker", "rm", "-f", postgres_name])
             except Exception:
                 pass
+            _trace_docker("finally-after-remove-helper", config.project_name)
 
 
 def _add_cronjob_scripts(config):
