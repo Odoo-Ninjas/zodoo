@@ -166,6 +166,9 @@ def backup(
         for exclude in exclude:
             excludes += ["-T", exclude]
 
+        # pg_dump's -j (parallel) is only valid with directory format; with
+        # custom/plain pg_dump aborts ("parallel backup only supported by the
+        # directory format"). Guard against silently passing -j in those cases.
         cmd = (
             f"pg_dump {column_inserts} "
             f"--clean "
@@ -177,17 +180,24 @@ def backup(
             f"-F{dumptype[0].lower()} "
         )
         if dumptype != "plain":
-            cmd += f"-Z{compression} " f"-j {worker} "
+            cmd += f"-Z{compression} "
+        if dumptype == "directory":
+            cmd += f"-j {worker} "
         cmd += f" {dbname} " f"2>{err_dump} " f"| pv -s {bytes} "
         if pigz:
-            cmd += "| pigz --rsyncable 2>{err_pigz}"
+            cmd += f"| pigz --rsyncable 2>{err_pigz} "
         cmd += f"> {temp_filepath} "
-        try:
-            os.system(cmd)
-        finally:
-            for file in [err_dump, err_pigz]:
-                if file.exists() and file.read_text().strip():
-                    raise Exception(file.read_text().strip())
+        # pipefail so pg_dump failures (exit != 0) are not masked by pv/pigz;
+        # run under bash to guarantee pipefail is honored across distros.
+        rc = subprocess.call(["bash", "-o", "pipefail", "-c", cmd])
+        for file in [err_dump, err_pigz]:
+            if file.exists() and file.read_text().strip():
+                raise Exception(file.read_text().strip())
+        if rc != 0:
+            raise Exception(
+                f"pg_dump pipeline failed with exit code {rc}. "
+                f"Command: {cmd}"
+            )
 
         subprocess.check_call(["mv", temp_filepath, filepath])
         subprocess.check_call(["chown", os.environ["OWNER_UID"], filepath])
