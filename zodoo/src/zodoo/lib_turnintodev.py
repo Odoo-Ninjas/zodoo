@@ -3,6 +3,7 @@ import arrow
 import re
 import click
 from .tools import _execute_sql
+from .tools import table_exists
 from .cli import cli, pass_config, Commands
 from .lib_clickhelpers import AliasedGroup
 from .tools import __hash_odoo_password
@@ -241,6 +242,12 @@ def prolong(config):
 @pass_config
 def remove_settings(config, settings):
     conn = config.get_odoo_conn()
+    if not table_exists(conn, "ir_config_parameter"):
+        click.secho(
+            "ir_config_parameter does not exist yet - skipping remove-settings.",
+            fg="yellow",
+        )
+        return
     for setting in settings.split(","):
         _execute_sql(
             conn,
@@ -255,6 +262,13 @@ def remove_settings(config, settings):
 @pass_config
 def update_setting(config, key, value):
     conn = config.get_odoo_conn()
+    if not table_exists(conn, "ir_config_parameter"):
+        click.secho(
+            f"ir_config_parameter does not exist yet - skipping update-setting "
+            f"{key}={value}.",
+            fg="yellow",
+        )
+        return
     _update_setting(conn, key, value)
 
 
