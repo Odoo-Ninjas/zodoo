@@ -798,6 +798,12 @@ def _restore_dump(
         _trace_dbs(conn, "after-rename")
         _remove_postgres_connections(conn, dest_db)
         _trace_dbs(conn, "after-remove-connections")
+        click.secho(
+            f"=== ZODOO_RESTORE_FINALIZED "
+            f"dbname={dbname or config.dbname} "
+            f"time={datetime.now().isoformat()} ===",
+            fg="green",
+        )
 
     finally:
         if config.run_postgres and config.use_docker:
