@@ -320,7 +320,7 @@ def down(
 
     print_prod_env(config)
 
-    if not config.devmode and volumes:
+    if not config.devmode and volumes and not config.force:
         force_input_hostname()
 
     if postgres_volume or volumes:
