@@ -1,67 +1,92 @@
 # Changelog
 
-## 0.15.1
+## Unreleased
 
+- **Feature**: EXTERNAL_DOMAIN accepts a comma-separated list of URLs (e.g. `http://10.8.99.1,http://127.0.0.1`). `odoo status` prints each URL on its own line (with `:PROXY_PORT`) so they stay cmd+clickable in the terminal.
+
+## 0.19.1
+
+- **Fix**: MANIFEST writer aborts instead of overwriting a populated MANIFEST with a near-empty one (would drop install/addons_paths/server-wide-modules). Protects against accidental truncation seen in the wild.
+
+## 0.19.0
+
+- **Feature**: odoo setup upgrade pins to the latest semver tag by default; release workflow now runs pytest before tagging. Set ZODOO_DEVMODE=1 to keep tracking main on dev hosts.
+- **Fix**: CI test steps resolve pipx venv path via `pipx environment --value PIPX_LOCAL_VENVS` instead of hardcoding $HOME/.local/pipx — GitHub's ubuntu-latest runner stores pipx venvs under /opt/pipx.
+- **Fix**: CI pytest.yml + release.yml pipx inject step now runs from /tmp so pipx no longer treats the package name 'zodoo' as a path (the repo has a ./zodoo/ directory). Broke silently — pytest.yml had been failing on every push for weeks.
+
+## 0.18.1
+
+- **Fix**: odoo status: omit :PROXY_PORT when EXTERNAL_DOMAIN is a hostname (not an IP)
+
+## 0.18.0
+
+- **Feature**: odoo setup upgrade: early-return when git pull has nothing to fetch — no reinstall, no gimera update, no permission fix
+
+## 0.17.0
+
+- **Feature**: perf: cache bashfind + negative-cache NotInAddonsPath in Module.get_by_name — `odoo reload` ~1.4x faster on projects with many uninstalled modules (bvodin-mig18 17.6s → 12.5s), immune to cold-cache pathologies from per-miss `find .` subprocesses
+
+## 0.16.4
+
+- **Fix**: sudo_odoo_cmd: skip sudo prefix when already running as odoo user — fixes 'odoo is not in the sudoers file' when update_on_startup.py + exec_odoo double-wrap in sudo
+
+## 0.16.3
+
+- **Fix**: prepare_run: chown -R writable dirs so files inside (created by root on first invocation) can be overwritten on re-invocation as the odoo user
+
+## 0.16.2
+
+- **Fix**: prepare_run: chown -R writable dirs so files inside (created by root on first invocation) can be overwritten on re-invocation as the odoo user
+
+## 0.16.1
 
 - **Fix**: fix PermissionError on /etc/odoo/config when update_modules.py runs as odoo user
 
+## 0.16.0
+
+- **Feature**: Print zodoo version at startup in run.py and odoo update
+
+## 0.15.1
+
+- **Fix**: fix PermissionError on /etc/odoo/config when update_modules.py runs as odoo user
 
 ## 0.15.0
 
-
 - **Feature**: postgres: add observability (pg_stat_statements tracking, slow-query log, I/O timing), tune autovacuum, disable JIT, lower max_connections to sane default
-
 
 ## 0.14.4
 
-
 - **Fix**: E2E test fixtures: start postgres before db reset, remove redundant reload from bake test
-
 
 ## 0.14.3
 
-
 - **Fix**: bake test symlinks gimera cache into isolated HOME to avoid multi-GB re-clone
-
 
 ## 0.14.2
 
-
 - **Fix**: Config now falls back to os.environ when no settings file exists (fixes DBNAME lookup in k8s containers that only have ENV vars)
-
 
 ## 0.14.1
 
-
 - **Fix**: `update_on_startup.py` now runs `odoo update` as the odoo user (via shared `sudo_odoo_cmd` helper), fixing missing DBNAME and root-owned file issues in k8s
-
 
 ## 0.14.0
 
-
 - **Feature**: `odoo setup zodoo-tests` command to run the unit-test suite (--slow for E2E tests)
-
 
 ## 0.13.3
 
-
 - **Fix**: graceful fallback when docker CLI is not installed (e.g. inside a Kubernetes container)
-
 
 ## 0.13.2
 
-
 - **Fix**: sudoers env_keep whitelist in common.docker so ENV vars set for root (k8s pod spec / docker -e) reach the odoo user under `sudo -u odoo`
-
 
 ## 0.13.1
 
-
 - **Internal**: Release workflow: checkout with RELEASE_PAT secret so the release commit + tag can be pushed past the `main` branch protection (default GITHUB_TOKEN is not in the bypass list)
 
-
 ## 0.13.0
-
 
 - **Feature**: Add 'backup show-dumps' command to list dumps with size and age (default: newest 5)
 - **Feature**: Changelog system with patchnotes, automated versioning and GitHub releases
@@ -71,9 +96,8 @@
 - **Fix**: Sanitize project name: replace special characters to avoid Docker errors
 - **Fix**: Skip registry fallback images with wrong architecture instead of pulling arm64 on amd64 hosts
 - **Fix**: Add trailing newline to generated requirements.txt and requirements.txt.all
-- **Fix**: Preserve /_custom/ SCSS attachments (website theme fonts/colors) when running remove-web-assets
+- **Fix**: Preserve /\_custom/ SCSS attachments (website theme fonts/colors) when running remove-web-assets
 - **Feature**: Show changelog since last version after `odoo upgrade`
-
 
 All notable changes to this project will be documented in this file.
 

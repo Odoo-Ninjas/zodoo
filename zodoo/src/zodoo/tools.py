@@ -1,4 +1,6 @@
+import ipaddress
 import urllib.request
+from urllib.parse import urlparse
 import json
 import platform
 import passlib
@@ -2524,3 +2526,49 @@ def _is_in_container():
         )
     except Exception:
         return False
+
+
+def split_external_domains(value):
+    """Split an EXTERNAL_DOMAIN value into a list of domains.
+
+    EXTERNAL_DOMAIN may contain multiple domains separated by commas.
+    """
+    if not value:
+        return []
+    return [d.strip() for d in value.split(",") if d.strip()]
+
+
+def public_base_url(domain, port):
+    """Join domain and port — omit ":port" when domain is a public hostname.
+
+    Hostnames are typically fronted by a reverse proxy on 80/443, so the
+    internal port would produce an unreachable URL. Empty domains, localhost,
+    and IP addresses still get the port (no proxy in front).
+
+    When ``domain`` is a comma-separated list, only the first entry is used.
+    """
+    domains = split_external_domains(domain) if isinstance(domain, str) else []
+    if domains:
+        domain = domains[0]
+    if not domain:
+        return f":{port}"
+    host = urlparse(domain).hostname or domain.split(":", 1)[0].strip("/")
+    if host in ("localhost", "127.0.0.1"):
+        return f"{domain}:{port}"
+    try:
+        ipaddress.ip_address(host)
+        return f"{domain}:{port}"
+    except ValueError:
+        return domain
+
+
+def public_base_urls(domain, port):
+    """Return all public base URLs for a (possibly comma-separated) EXTERNAL_DOMAIN."""
+    domains = (
+        split_external_domains(domain)
+        if isinstance(domain, str)
+        else list(domain or [])
+    )
+    if not domains:
+        return [public_base_url("", port)]
+    return [public_base_url(d, port) for d in domains]

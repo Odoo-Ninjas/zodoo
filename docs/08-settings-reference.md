@@ -21,13 +21,13 @@ Or edit the files directly. Run `odoo reload` after manual edits.
 
 ## Project Settings
 
-| Setting           | Default            | Description                                                                     |
-| ----------------- | ------------------ | ------------------------------------------------------------------------------- |
-| `PROJECT_NAME`    | —                  | Container name prefix and postgres volume name. **Keep short** (max ~20 chars). |
-| `DBNAME`          | PROJECT_NAME       | PostgreSQL database name.                                                       |
-| `PROXY_PORT`      | —                  | HTTP port to access Odoo in browser. Set with `odoo setup next-port`.           |
-| `DEBUG_PORT`      | —                  | Port for Python debugger. Set with `odoo setup next-port`.                      |
-| `EXTERNAL_DOMAIN` | `http://localhost` | Public URL of the system.                                                       |
+| Setting           | Default            | Description                                                                                                   |
+| ----------------- | ------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `PROJECT_NAME`    | —                  | Container name prefix and postgres volume name. **Keep short** (max ~20 chars).                               |
+| `DBNAME`          | PROJECT_NAME       | PostgreSQL database name.                                                                                     |
+| `PROXY_PORT`      | —                  | HTTP port to access Odoo in browser. Set with `odoo setup next-port`.                                         |
+| `DEBUG_PORT`      | —                  | Port for Python debugger. Set with `odoo setup next-port`.                                                    |
+| `EXTERNAL_DOMAIN` | `http://localhost` | Public URL of the system. Comma-separated list of URLs is allowed; `odoo status` prints each on its own line. |
 
 ## Developer Settings
 

@@ -10,10 +10,6 @@ on:
     paths:
       - "zodoo/src/**"
       - ".github/workflows/pytest.yml"
-  push:
-    branches: [main]
-    paths:
-      - "zodoo/src/**"
   workflow_dispatch:
 
 jobs:
@@ -40,10 +36,14 @@ jobs:
       - name: Inject pytest into zodoo venv
         # zodoo lives in its own pipx venv; pytest must run there so it
         # can import zodoo + click + passlib + ... from the same env.
+        # cd /tmp: newer pipx treats `zodoo` as a path when a ./zodoo/
+        # directory exists in cwd, breaking the inject.
+        working-directory: /tmp
         run: |
           pipx inject zodoo pytest pytest-cov
 
       - name: Run unit tests
         working-directory: zodoo/src
         run: |
-          "$HOME/.local/pipx/venvs/zodoo/bin/python" -m pytest -m "not slow" -vv
+          ZODOO_PY="$(pipx environment --value PIPX_LOCAL_VENVS)/zodoo/bin/python"
+          "$ZODOO_PY" -m pytest -m "not slow" -vv

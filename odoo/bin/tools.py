@@ -16,10 +16,24 @@ def sudo_odoo_cmd(cmd):
 
     Central helper so every code path that needs to run something as the
     odoo user goes through the same sudoers env_keep whitelist.
+
+    Skip the prefix if we are already running as the odoo user — the
+    odoo user is not in sudoers, so adding sudo would fail with
+    "odoo is not in the sudoers file".  This happens when update_on_startup.py
+    wraps the update command in sudo, and update_modules.py then calls
+    exec_odoo() which would wrap it in sudo a second time.
     """
-    if os.getenv("ODOO_SUDO_CMD") == "1":
-        return ["/usr/bin/sudo", "-E", "-H", "-u", ODOO_USER] + list(cmd)
-    return list(cmd)
+    if os.getenv("ODOO_SUDO_CMD") != "1":
+        return list(cmd)
+    import pwd
+
+    try:
+        current_user = pwd.getpwuid(os.geteuid()).pw_name
+    except KeyError:
+        current_user = None
+    if current_user == ODOO_USER:
+        return list(cmd)
+    return ["/usr/bin/sudo", "-E", "-H", "-u", ODOO_USER] + list(cmd)
 
 
 import configparser
@@ -204,10 +218,20 @@ def _replace_variables_in_config_files(local_config):
     config_dir = Path(os.environ["ODOO_CONFIG_DIR"])
     config_dir_template = Path(os.environ["ODOO_CONFIG_TEMPLATE_DIR"])
     config_dir.mkdir(exist_ok=True, parents=True)
+    user_id = int(os.getenv("OWNER_UID", os.getuid()))
     for file in config_dir_template.glob("*"):
         path = str(config_dir / file.name)
         shutil.copy(str(file), path)
         subprocess.call(["chmod", "a+r", path])
+        # chown to the odoo user so a later re-invocation as that user
+        # (via sudo_odoo_cmd) can overwrite these files.  Silently
+        # ignored when we're already running as non-root (chown of a
+        # file we own is a no-op; chown of a foreign file fails — that
+        # path means the first invocation already did the right thing).
+        try:
+            shutil.chown(path, user=user_id, group=user_id)
+        except (PermissionError, LookupError):
+            pass
         del path
 
     no_extra_addons_paths = False
@@ -325,20 +349,17 @@ def get_config_file(confname):
 
 
 def prepare_run(local_config=None):
-    _replace_variables_in_config_files(local_config)
-
-    if config["RUN_AUTOSETUP"] == "1":
-        _run_autosetup()
-
-    _run_libreoffice_in_background()
-
-    # make sure out dir is owned by odoo user to be writable
+    # chown all writable dirs first so the odoo user (when run via
+    # sudo_odoo_cmd) can write to them before any other code tries to.
+    # Recursive because _replace_variables_in_config_files below may
+    # re-run later as the odoo user and then needs to overwrite files
+    # that were originally created by a root-owned first invocation.
     user_id = int(os.getenv("OWNER_UID", os.getuid()))
     for path in [
+        os.environ["ODOO_CONFIG_DIR"],
         os.environ["OUT_DIR"],
         os.environ["RUN_DIR"],
         os.environ["ODOO_DATA_DIR"],
-        os.environ["ODOO_CONFIG_DIR"],
         os.getenv("INTERCOM_DIR", ""),
         Path(os.environ["RUN_DIR"]) / "debug",
         Path(os.environ["ODOO_DATA_DIR"]) / "addons",
@@ -352,9 +373,23 @@ def prepare_run(local_config=None):
             out_dir.mkdir(parents=True, exist_ok=True)
         if out_dir.exists():
             if out_dir.stat().st_uid == 0:
-                shutil.chown(str(out_dir), user=user_id, group=user_id)
+                subprocess.call(
+                    [
+                        "chown",
+                        "-R",
+                        f"{user_id}:{user_id}",
+                        str(out_dir),
+                    ]
+                )
         del path
         del out_dir
+
+    _replace_variables_in_config_files(local_config)
+
+    if config["RUN_AUTOSETUP"] == "1":
+        _run_autosetup()
+
+    _run_libreoffice_in_background()
 
     if (
         os.getenv("IS_ODOO_QUEUEJOB", "") == "1"

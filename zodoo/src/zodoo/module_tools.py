@@ -43,6 +43,36 @@ remark_about_missing_module_info = set()
 dep_tree_cache = {}
 Modules_Cache = {}
 
+# Lazy global index: basename → list of absolute paths.  Populated on the
+# first miss in `_get_by_name` via a single `find . -type d` call, reused
+# for every subsequent miss.  Replaces the per-miss bashfind (each was
+# ~150ms × 79 misses = ~12s in hot paths like `odoo reload`).
+_module_dir_index = None
+
+
+def _get_missing_module_matches(name):
+    """Return candidate dirs named `name` anywhere under the cwd.
+
+    Diagnostic helper for _get_by_name's "Found the missing module
+    here:" hint.  Uses a cached whole-tree index so calling this 1000
+    times is just 1000 dict lookups, not 1000 `find` subprocesses.
+    """
+    global _module_dir_index
+    if _module_dir_index is None:
+        _module_dir_index = {}
+        try:
+            raw = subprocess.check_output(
+                ["find", ".", "-type", "d"],
+                encoding="utf-8",
+                stderr=subprocess.DEVNULL,
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            raw = ""
+        for line in raw.splitlines():
+            p = Path(line)
+            _module_dir_index.setdefault(p.name, []).append(p)
+    return _module_dir_index.get(name, [])
+
 
 def module_or_string(module):
     if isinstance(module, str):
@@ -1310,12 +1340,24 @@ class Module:
 
     @classmethod
     def __get_by_name_cached(cls, name, nocache=False, no_deptree=False):
-        if name not in name_cache:
-            name_cache.setdefault(
+        if name in name_cache:
+            entry = name_cache[name]
+            if isinstance(entry, NotInAddonsPath):
+                raise entry
+            return entry
+        try:
+            mod = cls._get_by_name(
                 name,
-                cls._get_by_name(name, nocache=nocache, no_deptree=no_deptree),
+                nocache=nocache,
+                no_deptree=no_deptree,
             )
-        return name_cache[name]
+        except NotInAddonsPath as ex:
+            # Cache the exception so subsequent lookups of the same
+            # missing name don't re-scan all addons paths.
+            name_cache[name] = ex
+            raise
+        name_cache[name] = mod
+        return mod
 
     @classmethod
     def get_by_name(cls, name, nocache=False, no_deptree=False):
@@ -1337,7 +1379,7 @@ class Module:
                 path = dir
             del dir
         if not path:
-            possible_matches = bashfind(".", name=name, type="d")
+            possible_matches = _get_missing_module_matches(name)
             if possible_matches:
                 click.secho(
                     "Found the missing module here:", fg="yellow", bold=True
