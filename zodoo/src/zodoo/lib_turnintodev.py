@@ -33,6 +33,10 @@ def set_password_all_users(config, ctx, password, default):
             abort("Passwort required!")
     pwd = __hash_odoo_password(password)
     conn = config.get_odoo_conn().clone()
+    check_sql = "select 1 from information_schema.tables where table_name = 'res_users' limit 1"
+    if not _execute_sql(conn, check_sql, fetchall=True):
+        click.secho("Skipping set_password_all_users: res_users table does not exist yet (database not initialized).", fg="yellow")
+        return
     sql = "select login, password from res_users order by login"
     users = _execute_sql(conn, sql, fetchall=True)
     l = len(users)

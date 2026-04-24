@@ -13,7 +13,6 @@ effective_cache_size=4GB
 maintenance_work_mem=512MB
 work_mem=64MB
 shared_buffers=4000MB
-track_activity_query_size=16384;
 #logging_collector=on
 #log_directory=/logs
 #log_filename=postgresql.log
