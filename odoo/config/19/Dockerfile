@@ -11,13 +11,9 @@ ARG CUSTOMS_SHA
 # --------------------------------------------------------------------
 # COMPILE PYTHON
 # --------------------------------------------------------------------
-FROM python:${ODOO_PYTHON_VERSION}-bookworm AS prebuilt_python
-
 FROM $BASE_IMAGE AS python_builder
 ARG ODOO_PYTHON_VERSION
 ARG APT_PROXY_IP
-ARG BUILDPLATFORM
-ARG TARGETPLATFORM
 
 COPY python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
 WORKDIR /usr/local/src

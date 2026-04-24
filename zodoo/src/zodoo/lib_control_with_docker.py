@@ -397,16 +397,18 @@ def build(
         platform = subprocess.check_output(
             ["/usr/bin/uname", "-m"], encoding="utf8"
         ).strip()
-    _arch_map = {"x86_64": "amd64", "aarch64": "arm64"}
-    _arch = platform.split("/")[-1]
-    _arch = _arch_map.get(_arch, _arch)
+    # options += ["--platform", platform]
+
+    # if platform:
+    #     import pudb;pudb.set_trace()
+    #     options += ["--platform", platform]
 
     __dc(
         config,
         ["build"] + options + list(machines),
         env={
             "ODOO_VERSION": config.odoo_version,
-            "DOCKER_DEFAULT_PLATFORM": f"linux/{_arch}",
+            "DOCKER_DEFAULT_PLATFORM": f"linux/{platform}",
             "DOCKER_BUILDKIT": "1",
             "COMPOSE_BAKE": "true",
         },

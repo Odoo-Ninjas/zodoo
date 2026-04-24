@@ -1,10 +1,2 @@
-RUN --mount=from=prebuilt_python,source=/usr/local,target=/prebuilt,ro \
-    if [ -n "$TARGETPLATFORM" ] && [ -n "$BUILDPLATFORM" ] && [ "$BUILDPLATFORM" != "$TARGETPLATFORM" ]; then \
-        echo "Cross-build ($BUILDPLATFORM -> $TARGETPLATFORM): using prebuilt python from python:${ODOO_PYTHON_VERSION}-bookworm"; \
-        cp -a /prebuilt/. /usr/local/; \
-        mkdir -p /python/content && cp -a /usr/local/. /python/content/ && \
-        printf 'install:\n\tcp -a content/. /usr/local/\n' > /python/Makefile; \
-    else \
-        ./configure --enable-optimizations >/dev/null && make -j4 > /dev/null && make install > /dev/null 2>&1; \
-        rsync /usr/local/src/Python-${ODOO_PYTHON_VERSION}/ /python -ar; \
-    fi
+RUN ./configure --enable-optimizations >/dev/null && make -j4 > /dev/null && make install > /dev/null 2>&1
+RUN rsync /usr/local/src/Python-${ODOO_PYTHON_VERSION}/ /python -ar
