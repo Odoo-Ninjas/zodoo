@@ -48,7 +48,9 @@ jobs:
         run: |
           pipx install -e zodoo/src
           # Make pipx-installed binaries reachable for subsequent steps.
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          # PIPX_BIN_DIR differs by platform (GitHub runner uses /opt/pipx_bin,
+          # local install uses $HOME/.local/bin) — resolve dynamically.
+          pipx environment --value PIPX_BIN_DIR >> "$GITHUB_PATH"
 
       - name: Show tool versions
         run: |
