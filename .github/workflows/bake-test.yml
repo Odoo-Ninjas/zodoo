@@ -72,6 +72,10 @@ jobs:
 
       - name: Run bake test
         run: |
+          echo "PATH=$PATH"
+          echo "which odoo: $(command -v odoo || echo NOT_FOUND)"
+          echo "which docker: $(command -v docker || echo NOT_FOUND)"
+          docker info > /dev/null 2>&1 && echo "docker info: OK" || echo "docker info: FAILED (exit $?)"
           ZODOO_PY="$(pipx environment --value PIPX_LOCAL_VENVS)/zodoo/bin/python"
           "$ZODOO_PY" -m pytest -vv -s zodoo/src/zodoo/tests/test_bake.py
 
