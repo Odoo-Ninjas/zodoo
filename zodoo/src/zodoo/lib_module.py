@@ -1727,7 +1727,10 @@ def _exec_update(
         )
         yield ret.returncode
     else:
-        params = ["odoo_update", "/odoolib/update_modules.py"] + params
+        # `odoo_update` used to be a dedicated compose service; after
+        # consolidation all odoo roles share the single `odoo` image, so
+        # updates run as a one-off `docker compose run --rm odoo ...`.
+        params = ["odoo", "/odoolib/update_modules.py"] + params
         if not non_interactive:
             yield __cmd_interactive(
                 config,

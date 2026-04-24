@@ -255,6 +255,36 @@ def rebuild(ctx, config, machines=[]):
     build(ctx, config, machines=machines, no_cache=True)
 
 
+# Legacy compose-service names that used to be separate containers but now
+# live as roles inside the single `odoo` container (see
+# docker-compose.default_containers.yml and odoo/bin/supervisor.py).
+# `odoo restart odoo_cronjobs` etc. must still work — we forward the call
+# to the in-container supervisor instead of touching compose.
+_LEGACY_ROLE_MAP = {
+    "odoo_cronjobs": "cronjobs",
+    "odoo_queuejobs": "queuejobs",
+}
+
+
+def _supervisor_restart_role(config, role):
+    container = f"{config.project_name}_odoo"
+    click.secho(
+        f"Legacy service name → supervisor: restart {role} in {container}",
+        fg="yellow",
+    )
+    subprocess.check_call(
+        [
+            "docker",
+            "exec",
+            container,
+            "/opt/venv/bin/python",
+            "/odoolib/supervisor.py",
+            "restart",
+            role,
+        ]
+    )
+
+
 def restart(
     ctx,
     config,
@@ -267,13 +297,33 @@ def restart(
 ):
     machines = list(machines)
 
+    # Redirect legacy service names to the in-container supervisor so
+    # existing robot tests that do `odoo restart odoo_cronjobs` keep working.
+    legacy = [m for m in machines if m in _LEGACY_ROLE_MAP]
+    machines = [m for m in machines if m not in _LEGACY_ROLE_MAP]
+    for m in legacy:
+        _supervisor_restart_role(config, _LEGACY_ROLE_MAP[m])
+    if legacy and not machines:
+        return
+
     # When no specific machines given and not --all, only restart odoo
     # containers (those inheriting from odoo_base). This leaves postgres,
-    # proxy, redis etc. running and makes restarts much faster.
+    # proxy, redis etc. running and makes restarts much faster. Skip
+    # services that live behind the `manual` profile (e.g. odoo_debug) —
+    # those are only meant to be spun up on demand.
     if not machines and not restart_all:
-        from .tools import get_services
+        from .tools import get_services, _parse_yaml
 
         machines = get_services(config, "odoo_base")
+        yml = _parse_yaml(config.files["docker_compose"].read_text())
+        machines = [
+            m
+            for m in machines
+            if "manual"
+            not in (yml.get("services", {}).get(m, {}) or {}).get(
+                "profiles", []
+            )
+        ]
         if machines:
             click.secho(
                 f"Restarting only Odoo containers: {', '.join(sorted(machines))}  "
@@ -347,18 +397,16 @@ def build(
         platform = subprocess.check_output(
             ["/usr/bin/uname", "-m"], encoding="utf8"
         ).strip()
-    # options += ["--platform", platform]
-
-    # if platform:
-    #     import pudb;pudb.set_trace()
-    #     options += ["--platform", platform]
+    _arch_map = {"x86_64": "amd64", "aarch64": "arm64"}
+    _arch = platform.split("/")[-1]
+    _arch = _arch_map.get(_arch, _arch)
 
     __dc(
         config,
         ["build"] + options + list(machines),
         env={
             "ODOO_VERSION": config.odoo_version,
-            "DOCKER_DEFAULT_PLATFORM": f"linux/{platform}",
+            "DOCKER_DEFAULT_PLATFORM": f"linux/{_arch}",
             "DOCKER_BUILDKIT": "1",
             "COMPOSE_BAKE": "true",
         },

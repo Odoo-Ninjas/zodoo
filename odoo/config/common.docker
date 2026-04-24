@@ -64,7 +64,7 @@ ADD bin/ /odoolib/
 ENV ODOO_CONFIG_DIR=${ODOO_CONFIG_DIR}
 ADD config/${ODOO_VERSION}/config ${ODOO_CONFIG_DIR}.template
 
-CMD ["sh", "-c", "$ZODOO_PYTHON /odoolib/run.py"]
+CMD ["sh", "-c", "$ZODOO_PYTHON /odoolib/supervisor.py"]
 ENTRYPOINT ["/odoolib/entrypoint.sh"]
 
 ADD static /var/www/html
@@ -167,7 +167,7 @@ ENV IS_ODOO_CONTAINER=1
 ENV ZSTDOPTIONS="-10 -T4"
 
 WORKDIR /opt/src
-CMD ["sh", "-c", "$ZODOO_PYTHON /odoolib/run.py"]
+CMD ["sh", "-c", "$ZODOO_PYTHON /odoolib/supervisor.py"]
 ENTRYPOINT ["/odoolib/entrypoint.sh"]
 
 # MARKER COMMON.DOCKER END
