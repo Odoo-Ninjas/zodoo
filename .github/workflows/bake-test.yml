@@ -51,6 +51,11 @@ jobs:
           # PIPX_BIN_DIR differs by platform (GitHub runner uses /opt/pipx_bin,
           # local install uses $HOME/.local/bin) — resolve dynamically.
           pipx environment --value PIPX_BIN_DIR >> "$GITHUB_PATH"
+          # zodoo CLI hardcodes config.dirs["images"] to ~/.odoo/images.
+          # Point it at this checkout so templates/customs_template/<ver>/
+          # and odoo/config/<ver>/ are discoverable in the test.
+          mkdir -p "$HOME/.odoo"
+          ln -sfn "$GITHUB_WORKSPACE" "$HOME/.odoo/images"
 
       - name: Show tool versions
         run: |
