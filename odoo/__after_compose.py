@@ -35,6 +35,14 @@ def after_compose(config, settings, yml, globals):
     yml["services"].pop("odoo_base")
     manifest = MANIFEST()
 
+    # odoo_debug inherits `profiles: [auto]` and `build:` from odoo_base via
+    # compose.merge. We want it manual-only and pointing at the same image
+    # tag as `odoo` (no separate build → truly one odoo image).
+    odoo_debug = yml["services"].get("odoo_debug")
+    if odoo_debug is not None:
+        odoo_debug["profiles"] = ["manual"]
+        odoo_debug.pop("build", None)
+
     # download python3.x version
     if float(settings["ODOO_VERSION"]) >= 13.0:
         python_tgz = (
@@ -523,13 +531,17 @@ def _get_sha(config):
 
 
 def _setup_remote_debugging(config, yml):
-    if config.devmode:
-        key = "odoo"
-    else:
-        key = "odoo_debug"
-    yml["services"][key].setdefault("ports", [])
+    # In devmode, expose debugpy on the long-running `odoo` service.
+    # Otherwise map it on `odoo_debug` (profile-gated, only spun up by
+    # `odoo debug odoo_debug`) so the port is available the moment that
+    # on-demand container starts.
+    key = "odoo" if config.devmode else "odoo_debug"
+    service = yml["services"].get(key)
+    if service is None:
+        return
+    service.setdefault("ports", [])
     if config.ODOO_PYTHON_DEBUG_PORT and config.ODOO_PYTHON_DEBUG_PORT != "0":
-        yml["services"][key]["ports"].append(
+        service["ports"].append(
             f"0.0.0.0:{config.ODOO_PYTHON_DEBUG_PORT}:5678"
         )
 
