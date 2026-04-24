@@ -58,10 +58,12 @@ jobs:
           # local install uses $HOME/.local/bin) — resolve dynamically.
           pipx environment --value PIPX_BIN_DIR >> "$GITHUB_PATH"
           # zodoo CLI hardcodes config.dirs["images"] to ~/.odoo/images.
-          # Point it at this checkout so templates/customs_template/<ver>/
-          # and odoo/config/<ver>/ are discoverable in the test.
-          mkdir -p "$HOME/.odoo"
-          ln -sfn "$GITHUB_WORKSPACE" "$HOME/.odoo/images"
+          # Mirror the checkout there so templates/customs_template/<ver>/
+          # and odoo/config/<ver>/ are discoverable in the test. A symlink
+          # is NOT enough — zodoo uses `find` (no -L) to scan compose files,
+          # which skips symlinked trees entirely.
+          mkdir -p "$HOME/.odoo/images"
+          rsync -a --exclude='.git' "$GITHUB_WORKSPACE/" "$HOME/.odoo/images/"
 
       - name: Show tool versions
         run: |
