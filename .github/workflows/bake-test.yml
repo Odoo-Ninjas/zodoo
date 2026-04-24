@@ -62,12 +62,16 @@ jobs:
         # zodoo + click + passlib + ... from the same environment. A
         # top-level `pip install pytest` would put pytest into a
         # different interpreter and fail with ModuleNotFoundError.
+        # cd /tmp: newer pipx treats `zodoo` as a path when a ./zodoo/
+        # directory exists in cwd, breaking the inject.
+        working-directory: /tmp
         run: |
           pipx inject zodoo pytest pytest-cov
 
       - name: Run bake test
         run: |
-          "$HOME/.local/pipx/venvs/zodoo/bin/python" -m pytest -vv -s zodoo/src/zodoo/tests/test_bake.py
+          ZODOO_PY="$(pipx environment --value PIPX_LOCAL_VENVS)/zodoo/bin/python"
+          "$ZODOO_PY" -m pytest -vv -s zodoo/src/zodoo/tests/test_bake.py
 
       - name: Collect docker logs on failure
         if: failure()
