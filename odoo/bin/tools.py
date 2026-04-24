@@ -45,7 +45,13 @@ from zodoo.odoo_config import current_version
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-pidfile = Path("/tmp/odoo.pid")
+# Per-role pidfile: inside the single consolidated odoo container, web /
+# cronjobs / queuejobs all run as sibling children of the supervisor, so
+# one shared pidfile (or a blanket `pkill -f odoo-bin`) would have each
+# role tearing down the others at startup. The role name is injected by
+# supervisor.py via ZODOO_ROLE.
+_role = os.getenv("ZODOO_ROLE", "web")
+pidfile = Path(f"/tmp/odoo.{_role}.pid")
 config = odoo_config.get_settings()
 version = odoo_config.current_version()
 
@@ -391,10 +397,7 @@ def prepare_run(local_config=None):
 
     _run_libreoffice_in_background()
 
-    if (
-        os.getenv("IS_ODOO_QUEUEJOB", "") == "1"
-        or os.getenv("ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER", "") == "1"
-    ):
+    if os.getenv("IS_ODOO_QUEUEJOB", "") == "1":
         # https://www.odoo.com/apps/modules/10.0/queue_job/
         with get_conn_autoclose() as cr:
             sql = "update queue_job set state='pending' where state in ('started', 'enqueued');"
@@ -425,6 +428,10 @@ def column_exists(cr, table, column):
 
 
 def get_odoo_bin(for_shell=False):
+    # Belt-and-suspenders: the supervisor already refuses to spawn a role
+    # when the matching RUN_ODOO_* flag is 0. If something else still invokes
+    # this code path with IS_ODOO_CRONJOB/QUEUEJOB set while the toggle is
+    # off, exit cleanly so the process can't run half-enabled.
     if is_odoo_cronjob and not config.get("RUN_ODOO_CRONJOBS") == "1":
         click.secho("Cronjobs shall not run. Good-bye!")
         sys.exit(0)
@@ -447,21 +454,10 @@ def get_odoo_bin(for_shell=False):
     else:
         CONFIG = "config_webserver"
         if version <= 9.0:
-            if for_shell:
-                EXEC = "openerp-server"
-            else:
-                EXEC = "openerp-server"
+            EXEC = "openerp-server"
         else:
-            try:
-                if config.get("ODOO_GEVENT_MODE", "") == "1":
-                    raise Exception("Dont use GEVENT MODE anymore")
-            except KeyError:
-                pass
-            if os.getenv("ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER", "") == "1":
-                CONFIG = "config_allinone"
-
-            if os.getenv("ODOO_CRON_IN_ONE_CONTAINER", "") == "1":
-                CONFIG = "config_web_and_cron"
+            if config.get("ODOO_GEVENT_MODE", "") == "1":
+                raise Exception("Dont use GEVENT MODE anymore")
 
     EXEC = "/".join([os.environ["SERVER_DIR"], EXEC])
     if not Path(EXEC).exists() and Path(EXEC).parent.exists():
@@ -495,6 +491,14 @@ def kill_odoo():
             pidfile.unlink()
         except FileNotFoundError:
             pass
+    elif os.getenv("IS_ODOO_CONTAINER") == "1":
+        # Inside the consolidated container the other roles (web / cronjobs
+        # / queuejobs) are sibling processes of the supervisor. A blanket
+        # `pkill -f odoo-bin` would kill them too. With no pidfile there is
+        # nothing *this* role could legitimately kill — the supervisor owns
+        # role lifecycle now.
+        sane_tty()
+        return
     else:
         if version <= 9.0:
             subprocess.run(

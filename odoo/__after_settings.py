@@ -1,4 +1,3 @@
-import sys
 import click
 from pathlib import Path
 
@@ -6,21 +5,21 @@ from pathlib import Path
 def after_settings(settings, config):
     from zodoo import odoo_config
 
-    if settings.get("ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER") == "1":
-        settings["RUN_ODOO_QUEUEJOBS"] = "0"
-        settings["RUN_ODOO_CRONJOBS"] = "0"
-
-    if settings.get("ODOO_CRON_IN_ONE_CONTAINER") == "1":
-        if settings.get("ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER") == "1":
+    # ODOO_*_IN_ONE_CONTAINER is obsolete: web, cronjobs and queuejobs now
+    # always share a single container, managed by supervisor.py. Warn on
+    # legacy usage so stale settings files can be cleaned up.
+    for obsolete in (
+        "ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER",
+        "ODOO_CRON_IN_ONE_CONTAINER",
+    ):
+        if settings.get(obsolete) == "1":
             click.secho(
-                (
-                    "Conflicting settings: "
-                    "ODOO_CRON_IN_WEB_CONTAINER and "
-                    "ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER"
-                ),
-                fg="red",
+                f"Setting {obsolete}=1 is obsolete and ignored — web, "
+                "cronjobs and queuejobs now always run in a single odoo "
+                "container. Toggle RUN_ODOO_CRONJOBS / RUN_ODOO_QUEUEJOBS / "
+                "RUN_ODOO_WEB to disable individual roles.",
+                fg="yellow",
             )
-            sys.exit(-1)
 
     m = odoo_config.MANIFEST()
     settings["SERVER_WIDE_MODULES"] = ",".join(
