@@ -44,6 +44,12 @@ jobs:
           python -m pip install pipx
           pipx install gimera
 
+      - name: Configure git identity (required for odoo src init)
+        run: |
+          git config --global user.email "ci@zodoo.test"
+          git config --global user.name "zodoo CI"
+          git config --global init.defaultBranch main
+
       - name: Install zodoo (this checkout)
         run: |
           pipx install -e zodoo/src
