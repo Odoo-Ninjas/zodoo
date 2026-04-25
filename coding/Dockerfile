@@ -47,7 +47,7 @@ RUN python3 -m venv /opt/robotenv && \
     /opt/robotenv/bin/pip install --no-cache-dir -U pip setuptools wheel && \
     /opt/robotenv/bin/pip install --no-cache-dir -r /tmp/robot_requirements.txt && \
     /opt/robotenv/bin/pip install --no-cache-dir /tmp/zodoo_src && \
-    /opt/robotenv/bin/pip install --no-cache-dir git+https://github.com/Odoo-Ninjas/gimera.git && \
+    /opt/robotenv/bin/pip install --no-cache-dir gimera && \
     rm -rf /tmp/zodoo_src && \
     rm /tmp/robot_requirements.txt && \
     apt-get purge -y build-essential python3-dev && \

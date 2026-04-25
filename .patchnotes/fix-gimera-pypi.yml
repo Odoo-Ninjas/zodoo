@@ -1,0 +1,3 @@
+type: fix
+description: "Install gimera from PyPI in coding container; old GitHub repo Odoo-Ninjas/gimera no longer exists"
+breaking: false
