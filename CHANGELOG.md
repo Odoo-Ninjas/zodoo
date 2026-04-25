@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.2
+
+
+- **Fix**: Stream docker push output live so users see per-layer registry push progress instead of a silent wait
+
+
 ## 1.0.1
 
 
