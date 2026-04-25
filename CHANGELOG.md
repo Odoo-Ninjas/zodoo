@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1
+
+
+- **Fix**: Install gimera from PyPI in coding container; old GitHub repo Odoo-Ninjas/gimera no longer exists
+
+
 ## 1.0.0
 
 
