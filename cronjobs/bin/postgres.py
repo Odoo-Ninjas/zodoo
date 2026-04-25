@@ -114,6 +114,12 @@ def execute(dbname, host, port, user, password, sql):
     "-T", "--exclude", multiple=True, help="Exclude Tables comma separated"
 )
 @click.option("-j", "--worker", default=1)
+@click.option(
+    "-v",
+    "--verify",
+    is_flag=True,
+    help="Verify the produced dump with `pg_restore -l` (TOC listing).",
+)
 def backup(
     dbname,
     host,
@@ -127,6 +133,7 @@ def backup(
     pigz,
     compression,
     worker,
+    verify,
 ):
     port = int(port)
     filepath = Path(filepath)
@@ -201,12 +208,46 @@ def backup(
 
         subprocess.check_call(["mv", temp_filepath, filepath])
         subprocess.check_call(["chown", os.environ["OWNER_UID"], filepath])
+
+        if verify:
+            _verify_dump(filepath, dumptype, pigz)
     finally:
         if temp_filepath and temp_filepath.exists():
             temp_filepath.unlink()
         conn.close()
         if stderr.exists():
             stderr.unlink()
+
+
+def _verify_dump(filepath, dumptype, pigz):
+    """Run `pg_restore -l` on the freshly produced dump to validate its TOC.
+
+    Plain SQL dumps cannot be inspected by pg_restore, so they are skipped
+    with a warning. For pigz-wrapped dumps we stream through gunzip first.
+    """
+    filepath = Path(filepath)
+    if dumptype == "plain":
+        click.secho(
+            f"Skipping pg_restore -l verification for plain dump: {filepath}",
+            fg="yellow",
+        )
+        return
+
+    click.echo(f"Verifying dump with pg_restore -l: {filepath}")
+    quoted = shlex.quote(str(filepath))
+    if pigz:
+        cmd = f"gunzip -c {quoted} | pg_restore -l"
+    else:
+        cmd = f"pg_restore -l {quoted}"
+    rc = subprocess.call(
+        ["bash", "-o", "pipefail", "-c", f"{cmd} > /dev/null"]
+    )
+    if rc != 0:
+        raise Exception(
+            f"pg_restore -l verification failed for {filepath} "
+            f"(exit code {rc})."
+        )
+    click.secho(f"Dump verified successfully: {filepath}", fg="green")
 
 
 @postgres.command()

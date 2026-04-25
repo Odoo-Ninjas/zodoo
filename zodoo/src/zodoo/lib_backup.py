@@ -189,6 +189,12 @@ def backup_all(ctx, config, filename):
     default=5,
 )
 @click.option("-j", "--worker", default=1)
+@click.option(
+    "-v",
+    "--verify",
+    is_flag=True,
+    help="Verify the produced dump with `pg_restore -l` (TOC listing).",
+)
 def backup_db(
     ctx,
     config,
@@ -200,6 +206,7 @@ def backup_db(
     pigz,
     compression,
     worker,
+    verify,
 ):
     filename = Path(
         filename or f"{config.project_name}.{config.dbname}.odoo" + ".dump.gz"
@@ -208,6 +215,12 @@ def backup_db(
         filename = Path(config.dumps_path) / filename
 
     if dumptype in ("zodoobin", "wodoobin"):
+        if verify:
+            click.secho(
+                f"--verify is not supported for dumptype {dumptype}; "
+                "skipping pg_restore -l verification.",
+                fg="yellow",
+            )
         _backup_zodoobin(ctx, config, filename)
     else:
         _backup_pgdump(
@@ -224,6 +237,7 @@ def backup_db(
             column_inserts,
             pigz,
             exclude,
+            verify,
         )
     return filename
 
@@ -394,9 +408,7 @@ def _odoo_sh(ctx, config, filename, params):
                 )
                 # change owner to OWNER_UID
                 if config.owner_uid:
-                    __try_to_set_owner(
-                        int(config.owner_uid), filestore_dest
-                    )
+                    __try_to_set_owner(int(config.owner_uid), filestore_dest)
             if sqlfile.exists():
                 click.secho(f"Restoring db {sqlfile}")
                 os.chdir(was_dir)
@@ -837,6 +849,7 @@ def _backup_pgdump(
     column_inserts,
     pigz,
     exclude,
+    verify,
 ):
     click.secho(f"Backup file will be stored there: {filename.parent}")
     cmd = [
@@ -867,6 +880,8 @@ def _backup_pgdump(
         cmd += ["--column-inserts"]
     if pigz:
         cmd += ["--pigz"]
+    if verify:
+        cmd += ["--verify"]
 
     res = __dc(config, cmd)
     if res:
