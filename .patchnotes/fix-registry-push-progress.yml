@@ -1,0 +1,3 @@
+type: fix
+description: "Stream docker push output live so users see per-layer registry push progress instead of a silent wait"
+breaking: false

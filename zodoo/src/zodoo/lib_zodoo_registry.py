@@ -486,14 +486,9 @@ def zodoo_tag_and_push(config, service_name, tag):
     subprocess.check_call(["docker", "tag", local_image, registry_image])
 
     click.secho(f"Pushing {registry_image}...", fg="cyan")
-    try:
-        subprocess.check_output(
-            ["docker", "push", registry_image],
-            stderr=subprocess.STDOUT,
-            encoding="utf-8",
-        )
-    except subprocess.CalledProcessError as e:
-        if "unauthorized" in (e.output or "").lower():
+    returncode, output = _docker_push_streaming(registry_image)
+    if returncode != 0:
+        if "unauthorized" in output.lower():
             click.secho(
                 "\n========================================\n"
                 "Push to zodoo registry failed: unauthorized\n"
@@ -516,9 +511,37 @@ def zodoo_tag_and_push(config, service_name, tag):
                 fg="red",
             )
             return False
-        raise
+        raise subprocess.CalledProcessError(
+            returncode, ["docker", "push", registry_image], output=output
+        )
     click.secho(f"Pushed {registry_image}", fg="green")
     return True
+
+
+def _docker_push_streaming(image):
+    """Run `docker push <image>` streaming output to stdout in real time.
+
+    Docker's native push output (per-layer progress bars) is shown live
+    instead of being buffered until completion. The output is also captured
+    so callers can inspect it (e.g. to detect 'unauthorized' errors).
+
+    Returns (returncode, captured_output).
+    """
+    proc = subprocess.Popen(
+        ["docker", "push", image],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    output_lines = []
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        sys.stdout.write(line)
+        sys.stdout.flush()
+        output_lines.append(line)
+    proc.wait()
+    return proc.returncode, "".join(output_lines)
 
 
 def _other_arch():
@@ -639,14 +662,9 @@ def zodoo_push_with_background_arch(
                 reg["url"], service_name, arch_specific
             )
             subprocess.check_call(["docker", "tag", local_image, arch_image])
-            try:
-                subprocess.check_output(
-                    ["docker", "push", arch_image],
-                    stderr=subprocess.STDOUT,
-                    encoding="utf-8",
-                )
-            except subprocess.CalledProcessError as e:
-                if "unauthorized" in (e.output or "").lower():
+            returncode, output = _docker_push_streaming(arch_image)
+            if returncode != 0:
+                if "unauthorized" in output.lower():
                     click.secho(
                         f"Push of {arch_image} failed — unauthorized. "
                         "Check your ZODOO_REGISTRY_* settings, "
@@ -655,7 +673,9 @@ def zodoo_push_with_background_arch(
                         fg="red",
                     )
                     return None
-                raise
+                raise subprocess.CalledProcessError(
+                    returncode, ["docker", "push", arch_image], output=output
+                )
             click.secho(f"Pushed {arch_image}", fg="green")
 
     if suppress_other_platform:
