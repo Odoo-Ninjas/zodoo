@@ -775,34 +775,66 @@ def test_e2e_cronjob_driven_backup(odoo_project_19_running):
     try:
         settings_path.write_text(original + extra_settings)
 
+        # Earlier tests in the session (e.g. backup → restore) may have
+        # left postgres mid-restart; wait until it's healthy before any
+        # reload/build, otherwise the cronjobs daemon comes up and
+        # immediately crashloops on connection refused.
+        project.run("up", "-d", "postgres", timeout=120)
+        project.run("wait_for_container_postgres", check=False, timeout=120)
+
+        # Drop any stale cronjobs container from prior reruns of this
+        # test in the same session — `up --force-recreate` doesn't
+        # rebuild, it just recreates from the current image, so a
+        # stale container with old env vars (or in error state) would
+        # be picked up otherwise.
+        project.run_force("kill", "-b", "cronjobs", check=False, timeout=60)
+        project.run_force("rm", "cronjobs", check=False, timeout=60)
+
         # Reload regenerates the cron table + brings the cronjobs
         # service into the compose file.
         project.run("reload", timeout=60 * 5)
         # Session fixture built images with RUN_CRONJOBS=0 (default), so
         # the cronjobs daemon image isn't there yet — build it now.
         project.run("build", "--no-zodoo-pull", "cronjobs", timeout=60 * 10)
-        # Ensure postgres is up (earlier tests may have killed it),
-        # then force-recreate the cronjobs daemon container.
-        project.run("up", "-d", "postgres", timeout=120)
         project.run("up", "-d", "--force-recreate", "cronjobs", timeout=180)
 
-        # Poll for the dump file (up to 3 minutes — one cron tick +
-        # backup time). dumps_path resolved above from settings.
+        # Poll for the dump file (up to 5 minutes — one cron tick can
+        # take up to 60s plus backup time, and a freshly recreated
+        # cronjobs container needs a few seconds to import deps and
+        # schedule the job before the first tick fires).
         sentinel_file = dumps_path / sentinel
-        deadline = time.time() + 60 * 3
+        deadline = time.time() + 60 * 5
         while time.time() < deadline:
             if sentinel_file.exists() and sentinel_file.stat().st_size > 0:
                 break
             time.sleep(5)
-        assert sentinel_file.exists() and sentinel_file.stat().st_size > 0, (
-            f"cronjob did not produce backup at {sentinel_file} "
-            f"within 3 minutes"
-        )
+        if not (sentinel_file.exists() and sentinel_file.stat().st_size > 0):
+            # On failure, surface the cronjobs container logs so the
+            # next run isn't a silent black-box ("did the daemon even
+            # start? did it parse the env var? did the cron tick?").
+            container = f"{project.name}_cronjobs"
+            try:
+                logs = subprocess.check_output(
+                    ["docker", "logs", "--tail", "200", container],
+                    stderr=subprocess.STDOUT,
+                    encoding="utf-8",
+                    timeout=30,
+                )
+            except Exception as ex:
+                logs = f"<could not read docker logs: {ex}>"
+            raise AssertionError(
+                f"cronjob did not produce backup at {sentinel_file} "
+                f"within 5 minutes.\n"
+                f"--- {container} logs ---\n{logs}"
+            )
     finally:
-        # restore original settings + cleanup dump
+        # restore original settings + cleanup dump + bring cronjobs
+        # back down so it doesn't pollute the rest of the session.
         settings_path.write_text(original)
         try:
             (dumps_path / sentinel).unlink(missing_ok=True)
         except Exception:
             pass
+        project.run_force("kill", "-b", "cronjobs", check=False, timeout=60)
+        project.run_force("rm", "cronjobs", check=False, timeout=60)
         project.run("reload", check=False, timeout=120)
