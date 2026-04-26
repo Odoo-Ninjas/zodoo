@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.0
+
+
+- **Feature**: Add --verify/-v option to `odoo backup odoo-db` to validate the produced dump with `pg_restore -l`
+- **Fix**: Default `_backup_pgdump(verify=False)` so the existing pytest suite still runs after the verify-option feature; add positive/negative tests for the --verify pass-through.
+
+
 ## 1.0.2
 
 
