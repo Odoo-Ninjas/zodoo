@@ -1,3 +1,0 @@
-type: feature
-description: "`odoo build` retries once with `--no-cache` when the failure looks like a transient Launchpad / DNS hiccup (`ServerNotFoundError`, `api.launchpad.net`, `Could not resolve host`) — refreshes the apt layer that often poisons the cache."
-breaking: false

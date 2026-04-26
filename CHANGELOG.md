@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.0
+
+
+- **Feature**: `odoo build` retries once with `--no-cache` when the failure looks like a transient Launchpad / DNS hiccup (`ServerNotFoundError`, `api.launchpad.net`, `Could not resolve host`) — refreshes the apt layer that often poisons the cache.
+
+
 ## 1.2.1
 
 
