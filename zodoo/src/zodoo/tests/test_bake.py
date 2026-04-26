@@ -51,8 +51,10 @@ def test_bake_flow(version, isolated_home, tmp_path):
     project_dir = tmp_path / project_name
     project_dir.mkdir()
 
-    # 30 minute cap per heavy step; covers Odoo clone + docker build on cold cache.
-    long_timeout = 60 * 30
+    # 60 minute cap per heavy step; covers Odoo clone + docker build on cold
+    # cache, including the Python-from-source compile in the prebuilt-python
+    # image when ODOO_PYTHON_VERSION hasn't been pushed to the registry yet.
+    long_timeout = 60 * 60
 
     try:
         # 1) Initialise a fresh project. `odoo src init` ends with sys.exit(0)
