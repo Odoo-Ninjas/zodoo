@@ -712,11 +712,39 @@ def _make_prebuilt_layout(
 
 
 class _PrebuiltCfg:
-    def __init__(self, images_dir, py_version="3.13.13", registry="r.example"):
+    def __init__(
+        self,
+        images_dir,
+        py_version="3.13.13",
+        registry="r.example",
+        odoo_version=19.0,
+    ):
         self.dirs = {"images": images_dir}
-        self.odoo_version = 19
+        # Mirrors real Config.odoo_version which is always a float parsed
+        # from MANIFEST (e.g. 19.0), even though the on-disk dir is "19".
+        self.odoo_version = odoo_version
         self.ODOO_PYTHON_VERSION = py_version
         self.ZODOO_REGISTRY_URL = registry
+
+
+def test_locate_dockerfile_matches_int_dir_for_float_version(tmp_path):
+    """Regression: config.odoo_version is 19.0 (float) but on-disk dir is "19"."""
+    import zodoo.lib_control_with_docker as lcd
+
+    images = _make_prebuilt_layout(tmp_path)
+    df = lcd._locate_odoo_config_dockerfile(images, 19.0)
+    assert df is not None and df.parent.name == "19"
+
+
+def test_locate_dockerfile_falls_back_to_float_named_dir(tmp_path):
+    """Older Odoo releases (e.g. 6.1) live under .../config/6.1/Dockerfile."""
+    import zodoo.lib_control_with_docker as lcd
+
+    images = tmp_path / "images"
+    (images / "odoo" / "config" / "6.1").mkdir(parents=True)
+    (images / "odoo" / "config" / "6.1" / "Dockerfile").write_text("FROM x\n")
+    df = lcd._locate_odoo_config_dockerfile(images, 6.1)
+    assert df is not None and df.parent.name == "6.1"
 
 
 def test_ensure_prebuilt_skips_when_script_missing(tmp_path, monkeypatch):

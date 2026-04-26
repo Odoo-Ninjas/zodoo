@@ -415,6 +415,29 @@ def build(
     )
 
 
+def _locate_odoo_config_dockerfile(images_dir, odoo_version):
+    """Return the Dockerfile path for the requested Odoo version, or None.
+
+    The on-disk layout is inconsistent: very old versions live under
+    ``odoo/config/6.0/`` (float-like names) while modern ones live under
+    ``odoo/config/19/`` (int-like names). ``config.odoo_version`` is always
+    a float (parsed from MANIFEST), so we try the float spelling first and
+    fall back to the int spelling when the version is integral.
+    """
+    candidates = [str(odoo_version)]
+    try:
+        as_float = float(odoo_version)
+        if as_float.is_integer():
+            candidates.append(str(int(as_float)))
+    except (TypeError, ValueError):
+        pass
+    for variant in candidates:
+        path = images_dir / "odoo" / "config" / variant / "Dockerfile"
+        if path.exists():
+            return path
+    return None
+
+
 def _ensure_prebuilt_python_image(config, arch):
     """Auto-build the prebuilt Python image if it's missing in the registry.
 
@@ -437,16 +460,11 @@ def _ensure_prebuilt_python_image(config, arch):
     if not script.exists():
         return
 
-    odoo_dockerfile = (
-        images_dir
-        / "odoo"
-        / "config"
-        / str(config.odoo_version)
-        / "Dockerfile"
+    odoo_dockerfile = _locate_odoo_config_dockerfile(
+        images_dir, config.odoo_version
     )
-    if (
-        not odoo_dockerfile.exists()
-        or "zodoo/python:" not in odoo_dockerfile.read_text()
+    if odoo_dockerfile is None or (
+        "zodoo/python:" not in odoo_dockerfile.read_text()
     ):
         return
 
