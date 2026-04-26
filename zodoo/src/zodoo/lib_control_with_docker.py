@@ -17,6 +17,10 @@ from .tools import __dc_out
 from .tools import _get_host_ip
 from .tools import __needs_docker
 from .tools import get_docker_version
+from .tools import __get_cmd
+from .tools import _set_default_envs
+from .tools import _merge_env_dict
+from .tools import ensure_project_name
 import subprocess
 from .cli import Commands
 import tempfile
@@ -403,16 +407,81 @@ def build(
 
     _ensure_prebuilt_python_image(config, _arch)
 
-    __dc(
-        config,
-        ["build"] + options + list(machines),
-        env={
-            "ODOO_VERSION": config.odoo_version,
-            "DOCKER_DEFAULT_PLATFORM": f"linux/{_arch}",
-            "DOCKER_BUILDKIT": "1",
-            "COMPOSE_BAKE": "true",
-        },
-    )
+    build_env = {
+        "ODOO_VERSION": config.odoo_version,
+        "DOCKER_DEFAULT_PLATFORM": f"linux/{_arch}",
+        "DOCKER_BUILDKIT": "1",
+        "COMPOSE_BAKE": "true",
+    }
+    _build_with_network_retry(config, options, machines, build_env)
+
+
+_BUILD_NETWORK_ERROR_PATTERN = (
+    r"api\.launchpad\.net|"
+    r"ServerNotFoundError|"
+    r"Temporary failure resolving|"
+    r"[Cc]ould not resolve host|"
+    r"[Cc]ould not connect to (?:archive|ports|security)\.ubuntu\.com|"
+    r"deadsnakes"
+)
+
+
+def _build_with_network_retry(config, options, machines, env):
+    """Run ``docker compose build``; retry once with ``--no-cache`` when the
+    failure looks like a transient network/PPA glitch.
+
+    The cronjobshell/odoo Dockerfiles reach out to ``ppa.launchpadcontent.net``
+    via ``add-apt-repository ppa:deadsnakes/ppa``. When BuildKit's snapshot
+    of the apt state is cached but Launchpad / DNS is flaky, the layer
+    fails with ``ServerNotFoundError: api.launchpad.net``. ``--no-cache``
+    forces a fresh apt index fetch, which usually clears the issue.
+
+    Streams build output live to stdout while capturing it for the
+    post-mortem regex match.
+    """
+    import re
+
+    pattern = re.compile(_BUILD_NETWORK_ERROR_PATTERN)
+    ensure_project_name(config)
+    full_env = _merge_env_dict(_set_default_envs(env))
+
+    def _run(extra_options):
+        cmd = (
+            __get_cmd(config, profile="auto")
+            + ["build"]
+            + extra_options
+            + list(machines)
+        )
+        proc = subprocess.Popen(
+            cmd,
+            env=full_env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        captured = []
+        assert proc.stdout is not None
+        for raw in iter(proc.stdout.readline, b""):
+            decoded = raw.decode("utf-8", errors="replace")
+            sys.stdout.write(decoded)
+            sys.stdout.flush()
+            captured.append(decoded)
+        proc.wait()
+        return proc.returncode, "".join(captured), cmd
+
+    rc, log, cmd = _run(options)
+    if rc == 0:
+        return
+    if "--no-cache" not in options and pattern.search(log):
+        click.secho(
+            "Build failed with a transient network error (Launchpad / DNS) — "
+            "retrying once with --no-cache to refresh the apt layer ...",
+            fg="yellow",
+        )
+        rc2, _, cmd2 = _run(options + ["--no-cache"])
+        if rc2 == 0:
+            return
+        raise subprocess.CalledProcessError(rc2, cmd2)
+    raise subprocess.CalledProcessError(rc, cmd)
 
 
 def _locate_odoo_config_dockerfile(images_dir, odoo_version):

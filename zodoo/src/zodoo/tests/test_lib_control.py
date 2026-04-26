@@ -736,6 +736,125 @@ def test_locate_dockerfile_matches_int_dir_for_float_version(tmp_path):
     assert df is not None and df.parent.name == "19"
 
 
+class _FakeStdout:
+    """Mimics a Popen stdout pipe with a readline() that returns b'' on EOF."""
+
+    def __init__(self, lines):
+        self._lines = list(lines)
+
+    def readline(self):
+        if not self._lines:
+            return b""
+        return self._lines.pop(0)
+
+
+class _FakeProc:
+    def __init__(self, lines, rc):
+        self.stdout = _FakeStdout(lines)
+        self.returncode = rc
+
+    def wait(self):
+        return self.returncode
+
+
+def _patch_build_helpers(monkeypatch, lcd):
+    monkeypatch.setattr(
+        lcd, "__get_cmd", lambda *a, **k: ["docker", "compose"]
+    )
+    monkeypatch.setattr(lcd, "_set_default_envs", lambda env: env)
+    monkeypatch.setattr(lcd, "_merge_env_dict", lambda env: env)
+    monkeypatch.setattr(lcd, "ensure_project_name", lambda c: None)
+
+
+def test_build_with_network_retry_returns_on_first_success(monkeypatch):
+    import zodoo.lib_control_with_docker as lcd
+
+    seen_cmds = []
+
+    def fake_popen(cmd, **kwargs):
+        seen_cmds.append(list(cmd))
+        return _FakeProc([b"#1 ok\n"], 0)
+
+    monkeypatch.setattr(lcd.subprocess, "Popen", fake_popen)
+    _patch_build_helpers(monkeypatch, lcd)
+
+    lcd._build_with_network_retry(_PrebuiltCfg(None), [], ["odoo"], {})
+    assert len(seen_cmds) == 1
+    assert "--no-cache" not in seen_cmds[0]
+
+
+def test_build_with_network_retry_retries_with_no_cache_on_launchpad(
+    monkeypatch,
+):
+    import zodoo.lib_control_with_docker as lcd
+
+    seen_cmds = []
+    state = {"call": 0}
+
+    def fake_popen(cmd, **kwargs):
+        seen_cmds.append(list(cmd))
+        state["call"] += 1
+        if state["call"] == 1:
+            return _FakeProc(
+                [
+                    b"#42 ERROR: ServerNotFoundError: "
+                    b"Unable to find the server at api.launchpad.net\n"
+                ],
+                1,
+            )
+        return _FakeProc([b"#1 ok\n"], 0)
+
+    monkeypatch.setattr(lcd.subprocess, "Popen", fake_popen)
+    _patch_build_helpers(monkeypatch, lcd)
+
+    lcd._build_with_network_retry(_PrebuiltCfg(None), [], ["odoo"], {})
+    assert len(seen_cmds) == 2
+    assert "--no-cache" in seen_cmds[1]
+    assert "--no-cache" not in seen_cmds[0]
+
+
+def test_build_with_network_retry_does_not_retry_on_unrelated_failure(
+    monkeypatch,
+):
+    import zodoo.lib_control_with_docker as lcd
+
+    seen_cmds = []
+
+    def fake_popen(cmd, **kwargs):
+        seen_cmds.append(list(cmd))
+        return _FakeProc([b"#1 some other error\n"], 7)
+
+    monkeypatch.setattr(lcd.subprocess, "Popen", fake_popen)
+    _patch_build_helpers(monkeypatch, lcd)
+
+    with pytest.raises(subprocess.CalledProcessError):
+        lcd._build_with_network_retry(_PrebuiltCfg(None), [], ["odoo"], {})
+    assert len(seen_cmds) == 1
+
+
+def test_build_with_network_retry_does_not_double_retry_when_already_no_cache(
+    monkeypatch,
+):
+    import zodoo.lib_control_with_docker as lcd
+
+    seen_cmds = []
+
+    def fake_popen(cmd, **kwargs):
+        seen_cmds.append(list(cmd))
+        return _FakeProc(
+            [b"ServerNotFoundError: Unable to find api.launchpad.net\n"], 1
+        )
+
+    monkeypatch.setattr(lcd.subprocess, "Popen", fake_popen)
+    _patch_build_helpers(monkeypatch, lcd)
+
+    with pytest.raises(subprocess.CalledProcessError):
+        lcd._build_with_network_retry(
+            _PrebuiltCfg(None), ["--no-cache"], ["odoo"], {}
+        )
+    assert len(seen_cmds) == 1
+
+
 def test_locate_dockerfile_falls_back_to_float_named_dir(tmp_path):
     """Older Odoo releases (e.g. 6.1) live under .../config/6.1/Dockerfile."""
     import zodoo.lib_control_with_docker as lcd
