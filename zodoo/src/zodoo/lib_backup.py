@@ -849,7 +849,7 @@ def _backup_pgdump(
     column_inserts,
     pigz,
     exclude,
-    verify,
+    verify=False,
 ):
     click.secho(f"Backup file will be stored there: {filename.parent}")
     cmd = [
