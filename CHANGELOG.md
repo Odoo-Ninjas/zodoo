@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0
+
+
+- **Feature**: `odoo build` now auto-builds & pushes the prebuilt Python image (registry/zodoo/python:<ver>-<arch>) on registry miss instead of failing with a cryptic Docker `not found` error.
+
+
 ## 1.1.0
 
 

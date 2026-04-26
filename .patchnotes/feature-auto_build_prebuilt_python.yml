@@ -1,3 +1,0 @@
-type: feature
-description: "`odoo build` now auto-builds & pushes the prebuilt Python image (registry/zodoo/python:<ver>-<arch>) on registry miss instead of failing with a cryptic Docker `not found` error."
-breaking: false
