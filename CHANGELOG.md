@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.2
+
+
+- **Fix**: Make `test_e2e_cronjob_driven_backup` robust against session-fixture state from prior backup/restore tests: wait for postgres health, kill stale cronjobs container before reload, dump container logs on failure, raise poll deadline 3 → 5 min.
+
+
 ## 1.3.1
 
 
