@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.1
+
+
+- **Internal**: Bump bake-test long_timeout from 30 to 60 min to survive cold-cache builds on busy machines (e.g. Python prebuilt compile when registry image hasn't been pushed yet).
+
+
 ## 1.3.0
 
 
