@@ -544,6 +544,59 @@ def test_backup_pgdump_assembles_expected_dc_cmd(tmp_path, monkeypatch):
     assert "--exclude" in cmd and "mail_message" in cmd
 
 
+def test_backup_pgdump_passes_verify_flag(tmp_path, monkeypatch):
+    received = {}
+
+    def fake_dc(cfg, cmd):
+        received["cmd"] = cmd
+
+    monkeypatch.setattr(mod, "__dc", fake_dc)
+    cfg = FakeConfig(dumps_path=str(tmp_path))
+    mod._backup_pgdump(
+        cfg,
+        filename=tmp_path / "d.dump",
+        dbname="mydb",
+        db_host="dbhost",
+        db_port="5432",
+        db_user="u",
+        db_pwd="p",
+        dumptype="custom",
+        compression=5,
+        worker=1,
+        column_inserts=False,
+        pigz=False,
+        exclude=(),
+        verify=True,
+    )
+    assert "--verify" in received["cmd"]
+
+
+def test_backup_pgdump_omits_verify_flag_by_default(tmp_path, monkeypatch):
+    received = {}
+
+    def fake_dc(cfg, cmd):
+        received["cmd"] = cmd
+
+    monkeypatch.setattr(mod, "__dc", fake_dc)
+    cfg = FakeConfig(dumps_path=str(tmp_path))
+    mod._backup_pgdump(
+        cfg,
+        filename=tmp_path / "d.dump",
+        dbname="mydb",
+        db_host="dbhost",
+        db_port="5432",
+        db_user="u",
+        db_pwd="p",
+        dumptype="custom",
+        compression=5,
+        worker=1,
+        column_inserts=False,
+        pigz=False,
+        exclude=(),
+    )
+    assert "--verify" not in received["cmd"]
+
+
 def test_backup_pgdump_raises_when_dc_returns_truthy(tmp_path, monkeypatch):
     monkeypatch.setattr(mod, "__dc", lambda cfg, cmd: 1)
     cfg = FakeConfig(dumps_path=str(tmp_path))
