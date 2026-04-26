@@ -683,6 +683,155 @@ def test_e2e_up_down_cycle(odoo_project_19):
         odoo_project_19.run_force("down", check=False, timeout=120)
 
 
+# ---------------------------------------------------------------------------
+# _ensure_prebuilt_python_image — auto-build hook in lib_control_with_docker
+# ---------------------------------------------------------------------------
+
+
+def _make_prebuilt_layout(
+    tmp_path, with_python_dir=True, dockerfile_uses=True
+):
+    """Build a minimal images/ tree mimicking ~/.odoo/images for the hook."""
+    images = tmp_path / "images"
+    if with_python_dir:
+        (images / "python_prebuilt").mkdir(parents=True, exist_ok=True)
+        script = images / "python_prebuilt" / "build.sh"
+        script.write_text("#!/bin/bash\nexit 0\n")
+        script.chmod(0o755)
+    odoo_cfg = images / "odoo" / "config" / "19"
+    odoo_cfg.mkdir(parents=True, exist_ok=True)
+    df = odoo_cfg / "Dockerfile"
+    if dockerfile_uses:
+        df.write_text(
+            "FROM ${ZODOO_REGISTRY_URL}/zodoo/python:"
+            "${ODOO_PYTHON_VERSION}-${TARGETARCH} AS python_builder\n"
+        )
+    else:
+        df.write_text("FROM scratch\n")
+    return images
+
+
+class _PrebuiltCfg:
+    def __init__(self, images_dir, py_version="3.13.13", registry="r.example"):
+        self.dirs = {"images": images_dir}
+        self.odoo_version = 19
+        self.ODOO_PYTHON_VERSION = py_version
+        self.ZODOO_REGISTRY_URL = registry
+
+
+def test_ensure_prebuilt_skips_when_script_missing(tmp_path, monkeypatch):
+    import zodoo.lib_control_with_docker as lcd
+
+    images = _make_prebuilt_layout(tmp_path, with_python_dir=False)
+    calls = []
+    monkeypatch.setattr(
+        lcd.subprocess,
+        "check_output",
+        lambda *a, **k: calls.append("co") or b"",
+    )
+    monkeypatch.setattr(
+        lcd.subprocess,
+        "check_call",
+        lambda *a, **k: calls.append("cc") or 0,
+    )
+    lcd._ensure_prebuilt_python_image(_PrebuiltCfg(images), "arm64")
+    assert calls == []
+
+
+def test_ensure_prebuilt_skips_when_dockerfile_does_not_use_image(
+    tmp_path, monkeypatch
+):
+    import zodoo.lib_control_with_docker as lcd
+
+    images = _make_prebuilt_layout(tmp_path, dockerfile_uses=False)
+    calls = []
+    monkeypatch.setattr(
+        lcd.subprocess,
+        "check_output",
+        lambda *a, **k: calls.append("co") or b"",
+    )
+    monkeypatch.setattr(
+        lcd.subprocess,
+        "check_call",
+        lambda *a, **k: calls.append("cc") or 0,
+    )
+    lcd._ensure_prebuilt_python_image(_PrebuiltCfg(images), "arm64")
+    assert calls == []
+
+
+def test_ensure_prebuilt_no_op_when_image_exists(tmp_path, monkeypatch):
+    import zodoo.lib_control_with_docker as lcd
+
+    images = _make_prebuilt_layout(tmp_path)
+    seen = {"manifest": None, "called": False}
+
+    def fake_check_output(cmd, *a, **k):
+        seen["manifest"] = cmd
+        return b"{}"
+
+    def fake_check_call(cmd, *a, **k):
+        seen["called"] = True
+        return 0
+
+    monkeypatch.setattr(lcd.subprocess, "check_output", fake_check_output)
+    monkeypatch.setattr(lcd.subprocess, "check_call", fake_check_call)
+
+    lcd._ensure_prebuilt_python_image(_PrebuiltCfg(images), "arm64")
+
+    assert seen["manifest"][:3] == ["docker", "manifest", "inspect"]
+    assert seen["manifest"][3] == "r.example/zodoo/python:3.13.13-arm64"
+    assert seen["called"] is False
+
+
+def test_ensure_prebuilt_runs_build_script_when_image_missing(
+    tmp_path, monkeypatch
+):
+    import zodoo.lib_control_with_docker as lcd
+
+    images = _make_prebuilt_layout(tmp_path)
+
+    def fake_check_output(cmd, *a, **k):
+        raise subprocess.CalledProcessError(1, cmd, output=b"manifest unknown")
+
+    invoked = {}
+
+    def fake_check_call(cmd, *a, **k):
+        invoked["cmd"] = cmd
+        return 0
+
+    monkeypatch.setattr(lcd.subprocess, "check_output", fake_check_output)
+    monkeypatch.setattr(lcd.subprocess, "check_call", fake_check_call)
+
+    lcd._ensure_prebuilt_python_image(_PrebuiltCfg(images), "amd64")
+
+    expected_script = str(images / "python_prebuilt" / "build.sh")
+    assert invoked["cmd"] == [expected_script, "3.13.13", "--push"]
+
+
+def test_ensure_prebuilt_skips_when_settings_incomplete(tmp_path, monkeypatch):
+    import zodoo.lib_control_with_docker as lcd
+
+    images = _make_prebuilt_layout(tmp_path)
+    calls = []
+    monkeypatch.setattr(
+        lcd.subprocess,
+        "check_output",
+        lambda *a, **k: calls.append("co") or b"",
+    )
+    monkeypatch.setattr(
+        lcd.subprocess,
+        "check_call",
+        lambda *a, **k: calls.append("cc") or 0,
+    )
+
+    cfg = _PrebuiltCfg(images, py_version="", registry="r.example")
+    lcd._ensure_prebuilt_python_image(cfg, "arm64")
+    cfg = _PrebuiltCfg(images, py_version="3.13.13", registry="")
+    lcd._ensure_prebuilt_python_image(cfg, "arm64")
+
+    assert calls == []
+
+
 @pytest.mark.slow
 @requires_full_stack
 def test_e2e_show_volumes(odoo_project_19_running):

@@ -401,6 +401,8 @@ def build(
     _arch = platform.split("/")[-1]
     _arch = _arch_map.get(_arch, _arch)
 
+    _ensure_prebuilt_python_image(config, _arch)
+
     __dc(
         config,
         ["build"] + options + list(machines),
@@ -411,6 +413,67 @@ def build(
             "COMPOSE_BAKE": "true",
         },
     )
+
+
+def _ensure_prebuilt_python_image(config, arch):
+    """Auto-build the prebuilt Python image if it's missing in the registry.
+
+    Odoo >= 19 builds derive their Python interpreter from
+    ``${ZODOO_REGISTRY_URL}/zodoo/python:${ODOO_PYTHON_VERSION}-${TARGETARCH}``.
+    If that image is not available in the configured registry, BuildKit
+    fails with a cryptic ``not found`` error half-way through the build.
+
+    This hook checks the registry up-front via ``docker manifest inspect``
+    and, on miss, transparently runs ``images/python_prebuilt/build.sh``
+    to build & push the image before continuing with the regular build.
+
+    Silently no-ops when:
+      - the prebuilt-python infrastructure is not present (older image set),
+      - the project's Odoo Dockerfile does not reference the prebuilt image,
+      - ``ODOO_PYTHON_VERSION`` or ``ZODOO_REGISTRY_URL`` are unset.
+    """
+    images_dir = Path(config.dirs["images"])
+    script = images_dir / "python_prebuilt" / "build.sh"
+    if not script.exists():
+        return
+
+    odoo_dockerfile = (
+        images_dir
+        / "odoo"
+        / "config"
+        / str(config.odoo_version)
+        / "Dockerfile"
+    )
+    if (
+        not odoo_dockerfile.exists()
+        or "zodoo/python:" not in odoo_dockerfile.read_text()
+    ):
+        return
+
+    python_version = getattr(config, "ODOO_PYTHON_VERSION", None)
+    registry_url = (getattr(config, "ZODOO_REGISTRY_URL", None) or "").rstrip(
+        "/"
+    )
+    if not python_version or not registry_url:
+        return
+
+    image = f"{registry_url}/zodoo/python:{python_version}-{arch}"
+    try:
+        subprocess.check_output(
+            ["docker", "manifest", "inspect", image],
+            stderr=subprocess.STDOUT,
+        )
+        return
+    except subprocess.CalledProcessError:
+        pass
+
+    click.secho(
+        f"Prebuilt Python image not found in registry: {image}\n"
+        f"Building & pushing it now via {script} ...",
+        fg="yellow",
+    )
+    subprocess.check_call([str(script), python_version, "--push"])
+    click.secho(f"Prebuilt Python image built and pushed: {image}", fg="green")
 
 
 def debug(ctx, config, machine, ports, cmd=None, set_docker_command=False):
