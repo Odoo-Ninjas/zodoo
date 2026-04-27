@@ -54,12 +54,16 @@ fi
 
 # Old pipx (e.g. 0.12 from Ubuntu 20.04) has a broken editable + --force
 # combo that creates the venv inside the source path, wiping setup.py.
-# Force-upgrade pipx to a sane version (>=1.0) before continuing.
+# Force-upgrade pipx to a sane version (>=1.0) and make sure subsequent
+# `pipx` calls hit the upgraded copy in ~/.local/bin (apt's pipx in
+# /usr/bin would otherwise still shadow it via PATH).
 PIPX_MAJOR="$(pipx --version 2>/dev/null | cut -d. -f1)"
 if [ "${PIPX_MAJOR:-0}" -lt 1 ]; then
     echo "⚙️  Old pipx detected ($(pipx --version)) — upgrading to current."
     python3 -m pip install --user --upgrade pipx
+    export PATH="$HOME/.local/bin:$PATH"
     hash -r
+    echo "    now using $(command -v pipx) ($(pipx --version))"
 fi
 
 # Install the editable package using pipx
