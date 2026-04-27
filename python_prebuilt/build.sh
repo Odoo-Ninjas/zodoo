@@ -22,10 +22,16 @@ if [ -z "$PYTHON_VERSION" ]; then
   exit 1
 fi
 
-# Read registry URL from zodoo settings
-REGISTRY_URL=$(grep -E "^ZODOO_REGISTRY_URL=" ~/.odoo/settings | head -1 | cut -d= -f2)
+# Read registry URL: env var first (so callers like
+# zodoo's _ensure_prebuilt_python_image can pass it without the
+# script having to read user-level settings), then ~/.odoo/settings
+# as fallback for manual invocations.
+REGISTRY_URL="${ZODOO_REGISTRY_URL:-}"
+if [ -z "$REGISTRY_URL" ] && [ -f "${HOME}/.odoo/settings" ]; then
+  REGISTRY_URL=$(grep -E "^ZODOO_REGISTRY_URL=" "${HOME}/.odoo/settings" 2>/dev/null | head -1 | cut -d= -f2 || true)
+fi
 if [ -z "$REGISTRY_URL" ]; then
-  echo "ZODOO_REGISTRY_URL not set in ~/.odoo/settings" >&2
+  echo "ZODOO_REGISTRY_URL not set (env or ~/.odoo/settings)" >&2
   exit 1
 fi
 

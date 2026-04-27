@@ -580,7 +580,11 @@ def _ensure_prebuilt_python_image(config, arch):
         + " ...",
         fg="yellow",
     )
-    subprocess.check_call([str(script), python_version, *extra_args])
+    # Pass the registry URL via env so build.sh doesn't need to read
+    # ~/.odoo/settings (CI runners may not have a user-level settings
+    # file, but the project config we just resolved does have it).
+    env = {**os.environ, "ZODOO_REGISTRY_URL": registry_url}
+    subprocess.check_call([str(script), python_version, *extra_args], env=env)
     click.secho(
         f"Prebuilt Python image built{' and pushed' if pushable else ''}: "
         f"{image}",
