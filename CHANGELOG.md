@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.2
+
+
+- **Fix**: MyConfigParser: add __contains__ and __iter__ so `key in settings` no longer crashes with `KeyError: 'Key N doesn't exist'`
+
+
 ## 2.0.1
 
 
