@@ -569,15 +569,25 @@ def __python_exe(remote_debug=False, wait_for_remote=False):
 
 def wait_postgres(timeout=10):
     import psycopg2
+    from contextlib import closing
 
     def connect():
-        psycopg2.connect(
-            dbname="postgres",
-            host=os.environ["DB_HOST"],
-            user=os.environ["DB_USER"],
-            password=os.environ["DB_PWD"],
-            port=int(os.environ["DB_PORT"]),
-        )
+        # Probe connection only — close immediately so we don't leak
+        # one connection per retry (the loop below can fire many
+        # `connect()` calls during a slow startup).
+        # NOTE: `with psycopg2.connect()` only ends the transaction,
+        # NOT the connection — wrap in `contextlib.closing` to actually
+        # close it.
+        with closing(
+            psycopg2.connect(
+                dbname="postgres",
+                host=os.environ["DB_HOST"],
+                user=os.environ["DB_USER"],
+                password=os.environ["DB_PWD"],
+                port=int(os.environ["DB_PORT"]),
+            )
+        ):
+            pass
 
     deadline = arrow.get().shift(seconds=timeout)
     count = 0

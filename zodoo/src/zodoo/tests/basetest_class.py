@@ -29,6 +29,14 @@ class BaseTestClass:
     def _write_configuration(self, configuration):
         configuration.setdefault("PROXY_PORT", "1200")
         configuration.setdefault("RUN_CRONJOBS", "0")
+        # The default zodoo settings turn ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER
+        # on, which appends `queue_job` to Odoo's --load list. The test
+        # gimera.yml only pulls Odoo core (no OCA queue_job module), so the
+        # web container would crash with `ModuleNotFoundError:
+        # odoo.addons.queue_job` before the registry is even built.
+        # Disable the queuejob hookup for the test environment.
+        configuration.setdefault("ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER", "0")
+        configuration.setdefault("RUN_ODOO_QUEUEJOBS", "0")
         txt = []
         for k, v in configuration.items():
             txt.append(f"{k}={v}")

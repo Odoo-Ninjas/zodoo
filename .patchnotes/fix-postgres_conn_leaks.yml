@@ -1,0 +1,3 @@
+type: fix
+description: "Fix postgres connection leaks in `get_conn` (odoo_config), `wait_postgres` (odoo/bin/tools.py) and `DBSizeOutputter` / `execute` (cronjobs/bin/postgres.py). Without `contextlib.closing` around `psycopg2.connect()` the `with` block only ends the transaction, leaking the connection — heavy reset_db / update flows hit `FATAL: sorry, too many clients already`. Also fix test_zodoo basetest defaults (disable queue_job server-wide so tests don't import a missing OCA module)."
+breaking: false
