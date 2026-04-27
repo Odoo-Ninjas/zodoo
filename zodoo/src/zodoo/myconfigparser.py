@@ -127,6 +127,24 @@ class MyConfigParser:
                 continue
         raise KeyError(f"Key {key} doesn't exist in {self.fileName}")
 
+    def __contains__(self, key):
+        if not isinstance(key, str):
+            return False
+        lower = key.lower()
+        for data in (self.configOptions, os.environ):
+            if data is self.configOptions and key in self.remove_keys:
+                continue
+            for k in data.keys():
+                if k.lower() == lower:
+                    return True
+        return False
+
+    def __iter__(self):
+        for k in self.configOptions.keys():
+            if k in self.remove_keys:
+                continue
+            yield k
+
     def __setitem__(self, key, value):
         if key in self.remove_keys:
             self.remove_keys.remove(key)
