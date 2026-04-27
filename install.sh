@@ -53,7 +53,7 @@ if [[ "$OS" == "Darwin" ]]; then
     DARWIN_PYTHON=$(cat "$TARGET_DIR/darwin_python_version")
     PYTHONARG=(--python "python${DARWIN_PYTHON}")
 fi
-pipx install -e "$SRC_DIR" -f ${PYTHONARG[@]} || \
+pipx install -e "$SRC_DIR" --force ${PYTHONARG[@]} || \
 pipx install -e "$SRC_DIR" ${PYTHONARG[@]}
 
 # Setting up completion
