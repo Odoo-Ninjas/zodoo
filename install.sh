@@ -52,6 +52,16 @@ if ! command -v pipx >/dev/null 2>&1; then
     exit 1
 fi
 
+# Old pipx (e.g. 0.12 from Ubuntu 20.04) has a broken editable + --force
+# combo that creates the venv inside the source path, wiping setup.py.
+# Force-upgrade pipx to a sane version (>=1.0) before continuing.
+PIPX_MAJOR="$(pipx --version 2>/dev/null | cut -d. -f1)"
+if [ "${PIPX_MAJOR:-0}" -lt 1 ]; then
+    echo "⚙️  Old pipx detected ($(pipx --version)) — upgrading to current."
+    python3 -m pip install --user --upgrade pipx
+    hash -r
+fi
+
 # Install the editable package using pipx
 echo "📦 Installing $SRC_DIR via pipx..."
 # ubuntu 20.04 has no -f flag
