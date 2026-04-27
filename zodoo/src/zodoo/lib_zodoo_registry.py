@@ -110,6 +110,13 @@ def _get_registry_config(config):
         return None
 
     if not suggested:
+        # Non-interactive contexts (CI, scripted invocations) cannot
+        # answer the prompt; aborting would hard-fail the build for
+        # everyone running zodoo via cron, in containers, or in CI
+        # bake tests. Treat as "registry not configured" without
+        # persisting so a real user still gets prompted later.
+        if not sys.stdin.isatty():
+            return None
         click.secho(
             "\n========================================\n"
             "Zodoo Registry Setup\n"
