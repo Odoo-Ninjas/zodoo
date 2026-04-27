@@ -29,9 +29,13 @@ def _compute_max_connections(settings):
     the only one) * 2.  The +10 covers superuser / monitoring /
     maintenance sessions.
 
-    The computed value is appended to POSTGRES_CONFIG so it overrides
-    any static max_connections from postgres/config.  Skipped if the
-    user already set max_connections in POSTGRES_CONFIG explicitly.
+    Additionally compute postgres `superuser_reserved_connections` as
+    ~10% of max_connections (min 3, capped at 20) so admin / monitoring
+    can still log in when regular workers exhausted the pool.
+
+    Both values are appended to POSTGRES_CONFIG so they override any
+    static defaults from postgres/config.  Skipped if the user already
+    set the corresponding key in POSTGRES_CONFIG explicitly.
     """
     import math
 
@@ -87,3 +91,14 @@ def _compute_max_connections(settings):
     settings["POSTGRES_CONFIG"] = (
         f"{existing_config}{glue}max_connections={max_conn}"
     )
+
+    # superuser_reserved_connections: ~10 % of max_connections (min 3, capped at 20)
+    # so admins / monitoring can still connect when the regular pool is exhausted.
+    # Skipped if the user already set the key in POSTGRES_CONFIG.
+    if "superuser_reserved_connections" not in settings.get("POSTGRES_CONFIG", ""):
+        reserved = max(3, min(20, math.ceil(max_conn * 0.1)))
+        current = settings["POSTGRES_CONFIG"]
+        glue2 = "" if current.endswith(";") else ";"
+        settings["POSTGRES_CONFIG"] = (
+            f"{current}{glue2}superuser_reserved_connections={reserved}"
+        )
