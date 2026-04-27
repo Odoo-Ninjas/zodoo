@@ -554,13 +554,63 @@ def _ensure_prebuilt_python_image(config, arch):
     except subprocess.CalledProcessError:
         pass
 
+    # The image is not in the registry. Build it locally so the
+    # subsequent `docker compose build` can FROM-it from the local
+    # daemon. Pushing to the registry is optional — only attempt it if
+    # we actually have credentials for that registry, otherwise CI
+    # runners (no creds) would fail here with a 401 even though the
+    # build succeeded locally.
+    pushable = _has_registry_credentials(registry_url)
+    extra_args = ["--push"] if pushable else []
     click.secho(
         f"Prebuilt Python image not found in registry: {image}\n"
-        f"Building & pushing it now via {script} ...",
+        f"Building it now via {script}"
+        + (
+            " (and pushing to registry)"
+            if pushable
+            else " (local-only — "
+            "no registry credentials configured for this host, skipping push)"
+        )
+        + " ...",
         fg="yellow",
     )
-    subprocess.check_call([str(script), python_version, "--push"])
-    click.secho(f"Prebuilt Python image built and pushed: {image}", fg="green")
+    subprocess.check_call([str(script), python_version, *extra_args])
+    click.secho(
+        f"Prebuilt Python image built{' and pushed' if pushable else ''}: "
+        f"{image}",
+        fg="green",
+    )
+
+
+def _has_registry_credentials(registry_url):
+    """Return True if `~/.docker/config.json` has an `auths` entry for
+    `registry_url` (or `registry_url:443` — docker normalises the port).
+
+    Used to decide whether `python_prebuilt/build.sh --push` makes sense
+    on this host. Without this guard CI runners (which have no
+    registry creds) would fail the auto-build hook with a cryptic 401
+    even though the local-only build would have been enough for the
+    subsequent `docker compose build` to consume the image from the
+    local daemon.
+    """
+    import json
+
+    cfg_path = Path.home() / ".docker" / "config.json"
+    if not cfg_path.exists():
+        return False
+    try:
+        cfg = json.loads(cfg_path.read_text())
+    except (OSError, ValueError):
+        return False
+    auths = (cfg or {}).get("auths") or {}
+    needle = registry_url.rstrip("/")
+    candidates = {
+        needle,
+        f"{needle}:443",
+        f"https://{needle}",
+        f"http://{needle}",
+    }
+    return any(c in auths for c in candidates)
 
 
 def debug(ctx, config, machine, ports, cmd=None, set_docker_command=False):

@@ -930,7 +930,7 @@ def test_ensure_prebuilt_no_op_when_image_exists(tmp_path, monkeypatch):
     assert seen["called"] is False
 
 
-def test_ensure_prebuilt_runs_build_script_when_image_missing(
+def test_ensure_prebuilt_runs_build_script_with_push_when_creds_present(
     tmp_path, monkeypatch
 ):
     import zodoo.lib_control_with_docker as lcd
@@ -948,11 +948,94 @@ def test_ensure_prebuilt_runs_build_script_when_image_missing(
 
     monkeypatch.setattr(lcd.subprocess, "check_output", fake_check_output)
     monkeypatch.setattr(lcd.subprocess, "check_call", fake_check_call)
+    monkeypatch.setattr(lcd, "_has_registry_credentials", lambda url: True)
 
     lcd._ensure_prebuilt_python_image(_PrebuiltCfg(images), "amd64")
 
     expected_script = str(images / "python_prebuilt" / "build.sh")
     assert invoked["cmd"] == [expected_script, "3.13.13", "--push"]
+
+
+def test_ensure_prebuilt_runs_build_script_local_only_when_no_creds(
+    tmp_path, monkeypatch
+):
+    """CI runner case: no registry credentials → build without --push.
+
+    Regression: previously the hook unconditionally added --push, which
+    failed with HTTP 401 on hosts that haven't `docker login`-ed to the
+    registry. The local image is still consumed by the subsequent
+    `docker compose build` so the push isn't needed for the build to
+    succeed.
+    """
+    import zodoo.lib_control_with_docker as lcd
+
+    images = _make_prebuilt_layout(tmp_path)
+
+    def fake_check_output(cmd, *a, **k):
+        raise subprocess.CalledProcessError(1, cmd, output=b"manifest unknown")
+
+    invoked = {}
+
+    def fake_check_call(cmd, *a, **k):
+        invoked["cmd"] = cmd
+        return 0
+
+    monkeypatch.setattr(lcd.subprocess, "check_output", fake_check_output)
+    monkeypatch.setattr(lcd.subprocess, "check_call", fake_check_call)
+    monkeypatch.setattr(lcd, "_has_registry_credentials", lambda url: False)
+
+    lcd._ensure_prebuilt_python_image(_PrebuiltCfg(images), "amd64")
+
+    expected_script = str(images / "python_prebuilt" / "build.sh")
+    assert invoked["cmd"] == [expected_script, "3.13.13"]
+    assert "--push" not in invoked["cmd"]
+
+
+def test_has_registry_credentials_no_config_file(tmp_path, monkeypatch):
+    import zodoo.lib_control_with_docker as lcd
+
+    monkeypatch.setattr(lcd.Path, "home", classmethod(lambda cls: tmp_path))
+    assert lcd._has_registry_credentials("registry.example.com") is False
+
+
+def test_has_registry_credentials_match(tmp_path, monkeypatch):
+    import json
+
+    import zodoo.lib_control_with_docker as lcd
+
+    docker_dir = tmp_path / ".docker"
+    docker_dir.mkdir()
+    (docker_dir / "config.json").write_text(
+        json.dumps({"auths": {"registry.example.com": {"auth": "xyz"}}})
+    )
+    monkeypatch.setattr(lcd.Path, "home", classmethod(lambda cls: tmp_path))
+    assert lcd._has_registry_credentials("registry.example.com") is True
+    assert lcd._has_registry_credentials("other.example.com") is False
+
+
+def test_has_registry_credentials_handles_port_443(tmp_path, monkeypatch):
+    import json
+
+    import zodoo.lib_control_with_docker as lcd
+
+    docker_dir = tmp_path / ".docker"
+    docker_dir.mkdir()
+    (docker_dir / "config.json").write_text(
+        json.dumps({"auths": {"registry.example.com:443": {"auth": "xyz"}}})
+    )
+    monkeypatch.setattr(lcd.Path, "home", classmethod(lambda cls: tmp_path))
+    # Lookup on the bare host should still match the :443 entry.
+    assert lcd._has_registry_credentials("registry.example.com") is True
+
+
+def test_has_registry_credentials_malformed_config(tmp_path, monkeypatch):
+    import zodoo.lib_control_with_docker as lcd
+
+    docker_dir = tmp_path / ".docker"
+    docker_dir.mkdir()
+    (docker_dir / "config.json").write_text("not json {")
+    monkeypatch.setattr(lcd.Path, "home", classmethod(lambda cls: tmp_path))
+    assert lcd._has_registry_credentials("registry.example.com") is False
 
 
 def test_ensure_prebuilt_skips_when_settings_incomplete(tmp_path, monkeypatch):
