@@ -427,14 +427,18 @@ _BUILD_NETWORK_ERROR_PATTERN = (
 
 
 def _build_with_network_retry(config, options, machines, env):
-    """Run ``docker compose build``; retry once with ``--no-cache`` when the
-    failure looks like a transient network/PPA glitch.
+    """Run ``docker compose build`` with two fallback retries:
 
-    The cronjobshell/odoo Dockerfiles reach out to ``ppa.launchpadcontent.net``
-    via ``add-apt-repository ppa:deadsnakes/ppa``. When BuildKit's snapshot
-    of the apt state is cached but Launchpad / DNS is flaky, the layer
-    fails with ``ServerNotFoundError: api.launchpad.net``. ``--no-cache``
-    forces a fresh apt index fetch, which usually clears the issue.
+    1. Transient network/PPA glitch (e.g. flaky Launchpad / DNS while
+       ``add-apt-repository ppa:deadsnakes/ppa`` runs in cronjobshell/odoo):
+       retry once with ``--no-cache`` to force a fresh apt index fetch.
+
+    2. ``COMPOSE_BAKE=true`` failing at ``load local bake definitions``:
+       buildx-bake occasionally cannot assemble the bake graph for
+       multi-service parallel builds (observed on fresh projects where one
+       helper image — e.g. ``squid-deb-cacher-zodoo`` — was just built in
+       a preceding step). Retry once without ``COMPOSE_BAKE`` so the build
+       runs sequentially via classic compose, which is robust.
 
     Streams build output live to stdout while capturing it for the
     post-mortem regex match.
@@ -445,7 +449,7 @@ def _build_with_network_retry(config, options, machines, env):
     ensure_project_name(config)
     full_env = _merge_env_dict(_set_default_envs(env))
 
-    def _run(extra_options):
+    def _run(extra_options, run_env=None):
         cmd = (
             __get_cmd(config, profile="auto")
             + ["build"]
@@ -454,7 +458,7 @@ def _build_with_network_retry(config, options, machines, env):
         )
         proc = subprocess.Popen(
             cmd,
-            env=full_env,
+            env=run_env if run_env is not None else full_env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
         )
@@ -478,6 +482,21 @@ def _build_with_network_retry(config, options, machines, env):
             fg="yellow",
         )
         rc2, _, cmd2 = _run(options + ["--no-cache"])
+        if rc2 == 0:
+            return
+        raise subprocess.CalledProcessError(rc2, cmd2)
+    if (
+        env.get("COMPOSE_BAKE") == "true"
+        and "load local bake definitions" in log
+    ):
+        click.secho(
+            "Build failed at 'load local bake definitions' (buildx-bake) — "
+            "retrying once without COMPOSE_BAKE (sequential compose build) ...",
+            fg="yellow",
+        )
+        env_no_bake = {k: v for k, v in env.items() if k != "COMPOSE_BAKE"}
+        full_env_no_bake = _merge_env_dict(_set_default_envs(env_no_bake))
+        rc2, _, cmd2 = _run(options, run_env=full_env_no_bake)
         if rc2 == 0:
             return
         raise subprocess.CalledProcessError(rc2, cmd2)

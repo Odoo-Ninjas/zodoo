@@ -1,0 +1,3 @@
+type: fix
+description: "Retry odoo build without COMPOSE_BAKE when buildx-bake fails at 'load local bake definitions'"
+breaking: false
