@@ -76,9 +76,13 @@ def test_queue_job_installed_fail_soft_on_postgres_unreachable(monkeypatch):
 
 
 def test_queue_job_installed_fail_soft_on_undefined_table(monkeypatch):
+    # Importing `psycopg2.errors` is not done by default in some
+    # psycopg2 builds, so reference the SQLSTATE-mapped exception via
+    # the runtime-accessible path. We use the generic `psycopg2.Error`
+    # to mimic any such DB-level failure here.
     @contextmanager
     def fake_autoclose(*a, **kw):
-        raise psycopg2.errors.UndefinedTable("ir_module_module")
+        raise psycopg2.Error("relation ir_module_module does not exist")
         yield
 
     monkeypatch.setattr(mod, "get_conn_autoclose", fake_autoclose)
