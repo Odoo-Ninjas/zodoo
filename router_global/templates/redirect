@@ -1,0 +1,14 @@
+server {
+ listen 80;
+ #server_name www.raumschmiede.de raumschmiede.de;
+ server_name {{ item.server_name }};
+
+ proxy_read_timeout 720s;
+ proxy_connect_timeout 720s;
+ proxy_send_timeout 720s;
+ client_max_body_size 50M;
+
+ #return 301 https://www.raumschmiede.de$request_uri;
+ return 301 https://{{ item.redirect_to }}$request_uri;
+
+}
