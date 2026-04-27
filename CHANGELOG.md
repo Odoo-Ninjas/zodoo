@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.3
+
+
+- **Fix**: Pass TARGETARCH explicitly as --build-arg so prebuilt Python image resolves under docker buildx bake
+
+
 ## 2.0.2
 
 

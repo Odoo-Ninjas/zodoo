@@ -1,3 +1,0 @@
-type: fix
-description: "Pass TARGETARCH explicitly as --build-arg so prebuilt Python image resolves under docker buildx bake"
-breaking: false
