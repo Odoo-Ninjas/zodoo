@@ -18,16 +18,30 @@ def _compute_max_connections(settings):
     """
     Derive postgres max_connections from the odoo process counts:
 
-        max_connections = ceil(
-            (ODOO_WORKERS_WEB
-             + ODOO_MAX_CRON_THREADS
-             + queuejob_workers) * 1.2
-        ) + 10
+        max_connections = max(
+            MIN_FLOOR,
+            ceil(
+                (ODOO_WORKERS_WEB
+                 + ODOO_MAX_CRON_THREADS
+                 + queuejob_workers) * PER_PROCESS
+            ) + HEADROOM,
+        )
 
     where queuejob_workers mirrors the formula in odoo/bin/tools.py:
     sum of the non-root channel capacities (or the root channel if it's
-    the only one) * 2.  The +10 covers superuser / monitoring /
-    maintenance sessions.
+    the only one) * 2.
+
+    PER_PROCESS = 3 because each odoo worker holds steady-state at least
+    a main + longpoll + occasional snapshot/maintenance cursor; the old
+    1.2 multiplier underestimated this and caused "too many clients
+    already" on `odoo update` of small dev installs (default 6 web + 2
+    cron + 2 queuejob → 22 conns, instantly exhausted).
+
+    HEADROOM = 30 covers superuser / monitoring / maintenance sessions
+    plus the side processes that an `odoo update` spawns transiently.
+
+    MIN_FLOOR = 100 keeps even tiny installs (e.g. 1 web worker) above
+    the threshold where postgres clients exhaust during init.
 
     The computed value is appended to POSTGRES_CONFIG so it overrides
     any static max_connections from postgres/config.  Skipped if the
@@ -79,7 +93,10 @@ def _compute_max_connections(settings):
         queuejob_workers = qj_sum * 2  # matches _get_queuejob_channels
 
         total = web + cron + queuejob_workers
-        max_conn = math.ceil(total * 1.2) + 10
+        PER_PROCESS = 3.0
+        HEADROOM = 30
+        MIN_FLOOR = 100
+        max_conn = max(MIN_FLOOR, math.ceil(total * PER_PROCESS) + HEADROOM)
     except (ValueError, TypeError):
         return
 
