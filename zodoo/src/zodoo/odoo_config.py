@@ -275,8 +275,15 @@ def get_settings():
 def get_conn(db=None, host=None):
     config = get_settings()
     if db != "postgres":
-        # waiting until postgres is up
-        get_conn(db="postgres")
+        # Waiting until postgres is up: open a probe connection to the
+        # default `postgres` database and close it via the autoclose
+        # context manager. Previously the probe leaked one connection
+        # per call (no .close() ever ran), which exhausted
+        # `max_connections` after a few dozen invocations and surfaced
+        # as `FATAL: sorry, too many clients already` during heavy
+        # reset_db / update flows.
+        with get_conn_autoclose(db="postgres"):
+            pass
 
     host, port, user, password = get_postgres_connection_params()
     db = db or config["DBNAME"]

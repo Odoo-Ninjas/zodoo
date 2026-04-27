@@ -13,7 +13,7 @@ import click
 from pathlib import Path
 from datetime import datetime
 import logging
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 
 FORMAT = "[%(levelname)s] %(name) -12s %(asctime)s %(message)s"
 logging.basicConfig(format=FORMAT)
@@ -35,12 +35,18 @@ class DBSizeOutputter(Thread):
     def run(self):
         while not self._stop:
             try:
-                with psycopg2.connect(
-                    host=self.host,
-                    database=self.dbname,
-                    port=self.port,
-                    user=self.user,
-                    password=self.password,
+                # `with psycopg2.connect()` only ends the transaction,
+                # NOT the connection — without `closing()` this loop
+                # would leak one open connection per iteration and
+                # exhaust the postgres `max_connections` pool.
+                with closing(
+                    psycopg2.connect(
+                        host=self.host,
+                        database=self.dbname,
+                        port=self.port,
+                        user=self.user,
+                        password=self.password,
+                    )
                 ) as conn:
                     with conn.cursor() as cr:
                         cr.execute(
@@ -76,12 +82,14 @@ def postgres():
 @click.argument("password", required=True)
 @click.argument("sql", required=True)
 def execute(dbname, host, port, user, password, sql):
-    with psycopg2.connect(
-        host=host,
-        database=dbname,
-        port=port,
-        user=user,
-        password=password,
+    with closing(
+        psycopg2.connect(
+            host=host,
+            database=dbname,
+            port=port,
+            user=user,
+            password=password,
+        )
     ) as conn:
         conn.autocommit = True
         with conn.cursor() as cr:
