@@ -318,6 +318,43 @@ def get_conn_autoclose(*args, **kwargs):
         conn.close()
 
 
+def _queue_job_installed():
+    """Probe the project DB for an installed `queue_job` module.
+
+    Returns True iff `ir_module_module` has a row with
+    ``name = 'queue_job' AND state = 'installed'``.
+    Fails soft (returns False) when:
+      - the project DB does not exist yet (fresh build, before `db reset`),
+      - `ir_module_module` does not exist yet (DB exists but `base` not
+        installed),
+      - postgres is unreachable for any other reason.
+
+    The fail-soft behaviour matters because this probe runs at every odoo
+    container start (server-wide-modules / supervisor role decisions); a
+    hard failure here would block the container from coming up at all
+    after every reboot of a not-yet-initialised project.
+    """
+    import psycopg2
+
+    try:
+        with get_conn_autoclose() as cr:
+            cr.execute(
+                "SELECT 1 FROM information_schema.tables "
+                "WHERE table_name = 'ir_module_module'"
+            )
+            if not cr.fetchone():
+                return False
+            cr.execute(
+                "SELECT 1 FROM ir_module_module "
+                "WHERE name = 'queue_job' AND state = 'installed' LIMIT 1"
+            )
+            return cr.fetchone() is not None
+    except (psycopg2.OperationalError, psycopg2.errors.UndefinedTable):
+        return False
+    except Exception:
+        return False
+
+
 def translate_path_into_machine_path(path):
     path = customs_dir() / translate_path_relative_to_customs_root(path)
     return path

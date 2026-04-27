@@ -63,6 +63,8 @@ Toggle containers via settings:
 
 ```
 RUN_ODOO_CRONJOBS=1
-RUN_ODOO_QUEUEJOBS=1
 RUN_PROXY=1
 ```
+
+The queuejobs role is spawned automatically iff the `queue_job` module
+is installed in the project database — no manual toggle is needed.

@@ -104,7 +104,10 @@ def test_bake_flow(version, isolated_home, tmp_path):
                 project_name,
                 "bakery",
                 "bake",
-                "ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER=1",
+                # Pass any user-defined env override; the bake test
+                # only verifies the .env file round-trip and that
+                # docker images get tagged.
+                "ODOO_DEMO=1",
             ],
             cwd=project_dir,
             timeout=long_timeout,
@@ -116,7 +119,7 @@ def test_bake_flow(version, isolated_home, tmp_path):
             env_file.exists()
         ), f"bake did not create the env file at {env_file}"
         env_content = env_file.read_text()
-        assert "ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER=1" in env_content
+        assert "ODOO_DEMO=1" in env_content
         assert "SHA_IN_DOCKER=1" in env_content
         assert "SRC_EXTRA=0" in env_content
 
