@@ -407,6 +407,12 @@ def build(
 
     _ensure_prebuilt_python_image(config, _arch)
 
+    # `docker buildx bake` (COMPOSE_BAKE=true) does not reliably auto-populate
+    # global `ARG TARGETARCH` from DOCKER_DEFAULT_PLATFORM, so a Dockerfile
+    # `FROM …/zodoo/python:${ODOO_PYTHON_VERSION}-${TARGETARCH}` resolves with
+    # an empty arch suffix. Pass it explicitly.
+    options = options + ["--build-arg", f"TARGETARCH={_arch}"]
+
     build_env = {
         "ODOO_VERSION": config.odoo_version,
         "DOCKER_DEFAULT_PLATFORM": f"linux/{_arch}",

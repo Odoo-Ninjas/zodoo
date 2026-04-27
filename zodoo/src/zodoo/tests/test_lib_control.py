@@ -855,6 +855,49 @@ def test_build_with_network_retry_does_not_double_retry_when_already_no_cache(
     assert len(seen_cmds) == 1
 
 
+@pytest.mark.parametrize(
+    "platform, expected_arch",
+    [
+        ("linux/arm64", "arm64"),
+        ("linux/amd64", "amd64"),
+        ("x86_64", "amd64"),
+        ("aarch64", "arm64"),
+    ],
+)
+def test_build_passes_targetarch_as_build_arg(
+    monkeypatch, platform, expected_arch
+):
+    """`docker buildx bake` does not auto-fill global ARG TARGETARCH from
+    DOCKER_DEFAULT_PLATFORM, so `odoo build` must pass it explicitly."""
+    import zodoo.lib_control_with_docker as lcd
+
+    seen_cmds = []
+
+    def fake_popen(cmd, **kwargs):
+        seen_cmds.append(list(cmd))
+        return _FakeProc([b"#1 ok\n"], 0)
+
+    monkeypatch.setattr(lcd.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(
+        lcd.subprocess, "check_output", lambda *a, **k: platform
+    )
+    monkeypatch.setattr(
+        lcd, "_ensure_prebuilt_python_image", lambda *a, **k: None
+    )
+    _patch_build_helpers(monkeypatch, lcd)
+
+    from types import SimpleNamespace
+
+    cfg = SimpleNamespace(verbose=False, odoo_version=19.0)
+    lcd.build(ctx=None, config=cfg, machines=["odoo"], platform=platform)
+
+    assert len(seen_cmds) == 1
+    cmd = seen_cmds[0]
+    assert "--build-arg" in cmd
+    idx = cmd.index("--build-arg")
+    assert cmd[idx + 1] == f"TARGETARCH={expected_arch}"
+
+
 def test_locate_dockerfile_falls_back_to_float_named_dir(tmp_path):
     """Older Odoo releases (e.g. 6.1) live under .../config/6.1/Dockerfile."""
     import zodoo.lib_control_with_docker as lcd
