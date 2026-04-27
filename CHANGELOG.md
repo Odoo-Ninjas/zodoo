@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.5
+
+
+- **Fix**: Skip zodoo-registry-setup prompt in non-interactive shells (CI, cron) instead of aborting the build
+
+
 ## 2.0.4
 
 
