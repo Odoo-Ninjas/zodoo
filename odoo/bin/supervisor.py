@@ -38,6 +38,12 @@ BACKOFF_MAX = 30.0
 # Role definitions. The run.py entrypoint reads IS_ODOO_CRONJOB /
 # IS_ODOO_QUEUEJOB to pick the right odoo config file; for the web role
 # neither is set and run.py falls through to config_webserver.
+#
+# `enabled_key` is the env-var that toggles the role. `enabled_probe`
+# (optional) is an alternative gating function — when present, the role
+# is enabled iff `enabled_probe()` returns True (used for queuejobs:
+# the role spawns iff the `queue_job` module is actually installed in
+# the project DB, replacing the legacy `RUN_ODOO_QUEUEJOBS` toggle).
 ROLES = {
     "web": {
         "env": {},
@@ -49,7 +55,7 @@ ROLES = {
     },
     "queuejobs": {
         "env": {"IS_ODOO_QUEUEJOB": "1"},
-        "enabled_key": "RUN_ODOO_QUEUEJOBS",
+        "enabled_probe": "queue_job_installed",
     },
 }
 
@@ -63,12 +69,37 @@ def _env_truthy(key, default="1"):
     return os.environ.get(key, default) == "1"
 
 
+_PROBES = {}
+
+
+def _resolve_probe(name):
+    """Lazy-import probes — keeps supervisor import-cheap when the probe
+    backend (zodoo / postgres) isn't reachable yet."""
+    if name == "queue_job_installed":
+        from zodoo.odoo_config import _queue_job_installed
+
+        return _queue_job_installed
+    raise KeyError(f"unknown role probe: {name}")
+
+
+def _is_role_enabled(spec):
+    probe_name = spec.get("enabled_probe")
+    if probe_name:
+        try:
+            probe = _PROBES.setdefault(probe_name, _resolve_probe(probe_name))
+            return bool(probe())
+        except Exception as ex:
+            _log(f"role probe {probe_name!r} failed: {ex} — disabling role")
+            return False
+    return _env_truthy(spec["enabled_key"])
+
+
 class Role:
     def __init__(self, name, spec):
         self.name = name
         self.spec = spec
         self.proc = None
-        self.want_running = _env_truthy(spec["enabled_key"])
+        self.want_running = _is_role_enabled(spec)
         self.backoff = BACKOFF_INITIAL
         self.last_spawn = 0.0
         self._log_thread = None

@@ -50,15 +50,13 @@ Or edit the files directly. Run `odoo reload` after manual edits.
 
 ## Containers
 
-| Setting                                | Default | Description                                                    |
-| -------------------------------------- | ------- | -------------------------------------------------------------- |
-| `RUN_ODOO`                             | `1`     | Run the Odoo web container.                                    |
-| `RUN_ODOO_CRONJOBS`                    | `1`     | Run a separate cronjob container.                              |
-| `RUN_ODOO_QUEUEJOBS`                   | `1`     | Run a separate queuejob container.                             |
-| `ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER` | `0`     | `1` = run queuejobs + cronjobs inside the main web container.  |
-| `RUN_PROXY`                            | `1`     | Run the Node.js reverse proxy.                                 |
-| `RUN_PROXY_PUBLISHED`                  | `0`     | `1` = expose proxy port to host (required for browser access). |
-| `RESTART_CONTAINERS`                   | `0`     | `1` = set `restart: unless-stopped` on all containers.         |
+| Setting               | Default | Description                                                    |
+| --------------------- | ------- | -------------------------------------------------------------- |
+| `RUN_ODOO`            | `1`     | Run the Odoo container (web + supervised sibling roles).       |
+| `RUN_ODOO_CRONJOBS`   | `1`     | Spawn the cronjobs sibling role inside the odoo container.     |
+| `RUN_PROXY`           | `1`     | Run the Node.js reverse proxy.                                 |
+| `RUN_PROXY_PUBLISHED` | `0`     | `1` = expose proxy port to host (required for browser access). |
+| `RESTART_CONTAINERS`  | `0`     | `1` = set `restart: unless-stopped` on all containers.         |
 
 ## PostgreSQL
 

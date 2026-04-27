@@ -1,0 +1,4 @@
+type: breaking
+description: "queue_job is now auto-detected from the project DB (`ir_module_module` probe). RUN_ODOO_QUEUEJOBS toggle is removed — the queuejobs role is spawned iff queue_job is installed. Server-wide-modules list follows the same probe. Mandatory ODOO_QUEUEJOBS_CHANNELS / QUEUEJOB_CHANNELS_FILE fail-loud at container start when missing."
+breaking: true
+breaking_description: "RUN_ODOO_QUEUEJOBS / ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER / ODOO_CRON_IN_WEB_CONTAINER / ENABLE_QUEUEJOBS env vars are ignored. Set ODOO_QUEUEJOBS_CHANNELS=root:1 (or higher) when you have queue_job installed."

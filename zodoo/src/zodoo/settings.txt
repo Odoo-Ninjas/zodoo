@@ -11,8 +11,7 @@ RUN_PROXY_PUBLISHED=0/1		If the proxy is reachable from outside the docker netwo
 PROXY_PORT					The port on which you can access with plain http the odoo
 ODOO_IMAGES_BRANCH			The branch used for ~/.odoo/images
 ODOO_INSTALL_LIBPOSTAL=1	If set, then the libpostal lib is installed
-ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER=1	Runs queuejobs and cronjob in the odoo container where also the web application resides
-ODOO_QUEUEJOBS_CHANNELS=root:40,magento2:1		Configures queues for queuejob module
+ODOO_QUEUEJOBS_CHANNELS=root:40,magento2:1		Configures queues for queuejob module (mandatory iff queue_job is installed in DB)
 NAMED_ODOO_POSTGRES_VOLUME	Use a specific external volume; not dropped with down -v command
 CRONJOB_DADDY_CLEANUP=0 */1 * * * ${JOB_DADDY_CLEANUP}	Turn on grandfather-principle based backup
 RESTART_CONTAINERS=1	Sets "restart unless-stopped" policy
@@ -87,7 +86,6 @@ ODOO_PYTHON_DEBUG_PORT=
 ODOO_PYTHON_VERSION=3.9.17
 ODOO_PYTHON_VERSION_SHORT=3.9
 ODOO_QUEUEJOBS_CHANNELS=root:20
-ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER=1
 ODOO_QUEUEJOBS_WORKERS=40
 ODOO_RUN_TESTS=1
 ODOO_VERSION=16.0
@@ -124,7 +122,6 @@ RUN_MONGODB=0
 RUN_MOSQUITTO=0
 RUN_ODOO=1
 RUN_ODOO_CRONJOBS=0
-RUN_ODOO_QUEUEJOBS=0
 RUN_ODOO_VERSION_16=16
 RUN_PERFTEST=0
 RUN_PGTOOLS=1

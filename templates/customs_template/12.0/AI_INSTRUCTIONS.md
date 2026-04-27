@@ -144,7 +144,6 @@ odoo docker-registry login
 | `ODOO_WORKERS_WEB`        | `4`                                  | Number of Odoo web workers                          |
 | `RESTART_CONTAINERS`      | `1`                                  | Auto-restart containers on failure                  |
 | `RUN_ODOO_CRONJOBS`       | `1`                                  | Run cronjobs container                              |
-| `RUN_ODOO_QUEUEJOBS`      | `1`                                  | Run queuejobs container                             |
 | `ODOO_QUEUEJOBS_CHANNELS` | `root:4,magento2:1`                  | Queuejob channel config                             |
 
 ## MANIFEST File

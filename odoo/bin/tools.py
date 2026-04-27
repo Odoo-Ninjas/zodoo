@@ -436,8 +436,16 @@ def get_odoo_bin(for_shell=False):
         click.secho("Cronjobs shall not run. Good-bye!")
         sys.exit(0)
 
-    if is_odoo_queuejob and not config.get("RUN_ODOO_QUEUEJOBS") == "1":
-        click.secho("Queue-Jobs shall not run. Good-bye!")
+    # Queuejob role is gated by `_queue_job_installed()` in the
+    # supervisor (no longer a manual RUN_ODOO_QUEUEJOBS env toggle). If
+    # something invokes this code path with IS_ODOO_QUEUEJOB=1 while the
+    # module is no longer installed, exit cleanly.
+    if is_odoo_queuejob and not odoo_config._queue_job_installed():
+        click.secho(
+            "Queue-Jobs shall not run — `queue_job` is not installed in "
+            "the project DB. Good-bye!",
+            fg="yellow",
+        )
         sys.exit(0)
 
     EXEC = "odoo-bin"
@@ -755,35 +763,52 @@ def _run_shell_cmd(code, do_raise=False):
 
 
 def _get_server_wide_modules(server_wide_modules=None):
+    """Return the list of server-wide modules for this odoo container.
+
+    `queue_job` is added iff the module is installed in the project DB
+    (probed via `ir_module_module`). The legacy env-var-based logic
+    (RUN_ODOO_QUEUEJOBS, IS_ODOO_QUEUEJOB, ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER,
+    ODOO_CRON_IN_WEB_CONTAINER, ENABLE_QUEUEJOBS) is gone — after the
+    single-container refactor `RUN_ODOO_*` toggles only steer the
+    supervisor's role spawning, and `queue_job` server-wide-loading must
+    follow the actual installed-module state instead so that:
+      - fresh / empty DBs don't try to import a module that isn't there,
+      - DBs that DO have queue_job installed get it loaded for every
+        sibling role (web / cronjobs / queuejobs), so `@job` decorators
+        and `delay()` work consistently across processes.
+
+    When queue_job ends up in the server-wide list, the queue_job channel
+    config is mandatory; fail loudly if neither
+    `ODOO_QUEUEJOBS_CHANNELS` nor `QUEUEJOB_CHANNELS_FILE` is set —
+    silently loading the module without a channel definition means jobs
+    accumulate in `pending` forever.
+    """
     if not server_wide_modules:
         server_wide_modules = (
             os.getenv("SERVER_WIDE_MODULES", "") or ""
         ).split(",")
+    server_wide_modules = [m for m in server_wide_modules if m and m.strip()]
 
-    if (
-        os.getenv("IS_ODOO_QUEUEJOB", "") == "1"
-        or os.getenv("ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER", "") == "1"
-    ):
+    needs_queue_job = odoo_config._queue_job_installed()
+    if needs_queue_job:
         if "queue_job" not in server_wide_modules:
             server_wide_modules.append("queue_job")
+        if not (
+            os.getenv("ODOO_QUEUEJOBS_CHANNELS")
+            or os.getenv("QUEUEJOB_CHANNELS_FILE")
+        ):
+            click.secho(
+                "queue_job is installed in the database but no channel "
+                "configuration is set. Define ODOO_QUEUEJOBS_CHANNELS "
+                "(e.g. 'root:1') or QUEUEJOB_CHANNELS_FILE in your "
+                "settings — otherwise queued jobs will never be picked "
+                "up.",
+                fg="red",
+                bold=True,
+            )
+    elif "queue_job" in server_wide_modules:
+        server_wide_modules.remove("queue_job")
 
-    if (
-        os.getenv("IS_ODOO_QUEUEJOB", "") != "1"
-        and os.getenv("ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER", "") != "1"
-    ):
-        if "queue_job" in server_wide_modules:
-            server_wide_modules.remove("queue_job")
-
-    if (
-        os.getenv("ODOO_CRON_IN_WEB_CONTAINER", "") == "1"
-        and os.getenv("ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER", "") != "1"
-    ):
-        if "queue_job" in server_wide_modules:
-            server_wide_modules.remove("queue_job")
-
-    if os.getenv("ENABLE_QUEUEJOBS") == "1":
-        if "queue_job" not in server_wide_modules:
-            server_wide_modules.append("queue_job")
     return server_wide_modules
 
 

@@ -19,7 +19,6 @@ WHITELIST_PROPS = [
     "DB_USER",
     "project_name",
     "ODOO_FILES",
-    "ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER",
     "LIMIT_MEMORY_HARD_CRON",
     "LIMIT_MEMORY_HARD_MIGRATION",
     "LIMIT_MEMORY_HARD_UPDATE",
@@ -100,10 +99,7 @@ def bake(ctx, config, params):
         "How to deploy image to AWS/Kubernetes/Artefacts",
         "-------------------------------------",
         "",
-        "1. All in one container: odoo web service, odoo cronjobs, odoo queuejobs",
-        """
-        odoo bake ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER=1
-        """,
+        "1. Single odoo container: web, cronjobs, queuejobs all run as supervised sibling processes inside the same image. The queuejobs role is spawned automatically iff `queue_job` is installed in the project DB.",
         "",
         "2. Correctly setup proxy regarding longpolling/websocket:",
         """
