@@ -334,7 +334,7 @@ def _queue_job_installed():
     hard failure here would block the container from coming up at all
     after every reboot of a not-yet-initialised project.
     """
-    import psycopg2
+    import psycopg2  # noqa: F401 — kept for backwards-compat call sites
 
     try:
         with get_conn_autoclose() as cr:
@@ -349,9 +349,13 @@ def _queue_job_installed():
                 "WHERE name = 'queue_job' AND state = 'installed' LIMIT 1"
             )
             return cr.fetchone() is not None
-    except (psycopg2.OperationalError, psycopg2.errors.UndefinedTable):
-        return False
     except Exception:
+        # Fail-soft: probe runs at every container start; a hard error
+        # here would block the container from coming up at all on
+        # not-yet-initialised projects (no DB), unreachable postgres,
+        # or any odd pg state. Specific subclasses
+        # (psycopg2.OperationalError, psycopg2.errors.UndefinedTable
+        # via SQLSTATE 42P01) are all swallowed by this catch-all.
         return False
 
 
