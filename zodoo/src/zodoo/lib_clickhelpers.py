@@ -47,7 +47,13 @@ if click:
             if len(matches) > 1:
                 # try to reduce to exact match
                 try_matches = [m for m in matches if m[0].name == cmd_name]
-                if try_matches:
+                if len(try_matches) > 1:
+                    # same exact name in multiple subgroups (e.g.
+                    # composer/reload vs router/reload) — break the tie by
+                    # registration order so `odoo reload` keeps resolving to
+                    # composer/reload as before
+                    matches = try_matches[:1]
+                elif try_matches:
                     matches = try_matches
 
             if len(matches) == 1:
