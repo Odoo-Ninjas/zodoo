@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.4
+
+
+- **Fix**: Pass ZODOO_REGISTRY_URL via env to python_prebuilt/build.sh so it doesn't fail with `exit 2` when ~/.odoo/settings doesn't exist (CI runners). Script also reads from env first, falls back to settings file.
+
+
 ## 2.0.3
 
 
