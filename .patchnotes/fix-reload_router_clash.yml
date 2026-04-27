@@ -1,3 +1,0 @@
-type: fix
-description: "Resolve `odoo reload` clash with `odoo router reload` (registration-order tiebreak in AliasedGroup)"
-breaking: false

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.4
+
+
+- **Fix**: Raise computed postgres max_connections — old formula (1.2 conns/process + 10 buffer) yielded 22 for default 6+2+2 process counts and exhausted instantly during `odoo update`. New: 3 conns/process + 30 buffer + 100 floor.
+- **Fix**: Resolve `odoo reload` clash with `odoo router reload` (registration-order tiebreak in AliasedGroup)
+
+
 ## 1.3.3
 
 
