@@ -156,7 +156,7 @@ def _patch_compose_networks(install_dir, networks):
 def _render_and_sync_vhosts(config, install_dir, vhosts):
     if not vhosts:
         return False  # nothing to render
-    files_dir = _router_files_dir(config)
+    src_root = _router_files_dir(config)
     incoming = install_dir / "sites-incoming"
     if incoming.exists():
         shutil.rmtree(incoming)
@@ -164,8 +164,8 @@ def _render_and_sync_vhosts(config, install_dir, vhosts):
     subprocess.run(
         [
             sys.executable,
-            str(files_dir / "render_configs.py"),
-            str(files_dir / "templates"),
+            str(src_root / "render_configs.py"),
+            str(src_root / "templates"),
             str(incoming),
         ],
         input=json.dumps(vhosts),
@@ -244,12 +244,13 @@ def router(config):
 def setup_(config, is_global, install_dir, binding_80, binding_443, networks,
            vhosts_file, no_start):
     install_dir = _resolve_install_dir(config, is_global, install_dir)
-    files_dir = _router_files_dir(config)
-    if not files_dir.exists():
-        abort(f"Router source files missing: {files_dir}")
+    src_root = _router_files_dir(config)
+    docker_files_src = src_root / "files"
+    if not docker_files_src.exists():
+        abort(f"Router source files missing: {docker_files_src}")
 
     click.secho(f"Installing router into {install_dir}", fg="green")
-    _sync_files(files_dir, install_dir)
+    _sync_files(docker_files_src, install_dir)
     _write_env(install_dir, binding_80, binding_443)
     _patch_compose_networks(install_dir, list(networks))
 
