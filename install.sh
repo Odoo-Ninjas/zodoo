@@ -35,6 +35,13 @@ if [ "$(git rev-parse --abbrev-ref HEAD)" = "2025-05b" ]; then
   git checkout main
 fi
 
+# Force re-materialise the working tree from HEAD. Old git versions
+# (e.g. git 2.25 on Ubuntu 20.04) have been observed to clone with a
+# partial working tree (zodoo/src missing) — a hard reset to the index
+# fixes that and is a no-op on a healthy clone.
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+git reset --hard "origin/${CURRENT_BRANCH}"
+
 # Check for pipx
 echo "🔍 Checking for pipx..."
 if ! command -v pipx >/dev/null 2>&1; then
