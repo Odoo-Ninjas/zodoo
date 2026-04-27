@@ -30,3 +30,4 @@ odoorpc
 IPython
 rich
 click-spinner
+jinja2>=3.0
