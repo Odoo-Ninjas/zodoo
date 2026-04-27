@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.1
+
+
+- **Fix**: _ensure_prebuilt_python_image only attempts `--push` when ~/.docker/config.json has auth credentials for the target registry. Without this guard, CI runners (no creds) failed the hook with a 401 even though a local-only build would have been enough for the subsequent docker compose build.
+
+
 ## 2.0.0
 
 
