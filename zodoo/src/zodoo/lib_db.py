@@ -269,16 +269,23 @@ def _psql(
     elif not bin_on_host:
         use_docker_container = True
 
-    # For standard postgres-client bins (psql / pg_dump / pg_restore) we
-    # fall back to the stock `postgres` image via `docker run` — no build
-    # required, works anywhere docker does. `pgcli` / `pg_activity` are
-    # only shipped by the pgtools compose service, so those still go
-    # through pgtools when available. Connection endpoint differs between
-    # paths: pgtools joins the compose network (internal host name); the
-    # stock-image fallback uses host networking (external 127.0.0.1 or
-    # socket), so do NOT force the internal host name there.
+    # When we have to go through docker, prefer the pgtools compose
+    # service whenever it is available — it joins the compose network
+    # (so the internal `postgres` host name resolves) and ships every
+    # client bin we care about (psql / pg_dump / pg_restore / pgcli /
+    # pg_activity).
+    #
+    # Only when pgtools is NOT available do we fall back to the stock
+    # `postgres` image via `docker run --network=host` for the standard
+    # bins. That fallback CANNOT resolve compose-internal host names
+    # (e.g. `postgres`), so it relies on an external endpoint
+    # (127.0.0.1:HOST_DB_PORT or a unix socket) being reachable — which
+    # is true for typical dev installs but breaks on CI where the
+    # postgres container's port may not be published. pgcli / pg_activity
+    # are only shipped by pgtools, so they have no usable fallback at
+    # all and just abort below.
     use_pgtools = False
-    if use_docker_container and bin not in ("psql", "pg_dump", "pg_restore"):
+    if use_docker_container:
         use_pgtools = _has_compose_service(config, "pgtools")
 
     conn = config.get_odoo_conn(
@@ -309,9 +316,20 @@ def _psql(
     click.secho(f"Connecting to {conn.host}:{conn.port}/{dbname}", fg="green")
 
     if use_docker_container:
-        if bin in ("psql", "pg_dump", "pg_restore"):
-            # If conn.host is a unix socket directory on the host, mount
-            # it into the container so psql can connect via socket.
+        if use_pgtools:
+            __dcrun(
+                config,
+                ["pgtools", bin] + cmd,
+                interactive=interactive,
+                env={
+                    "PGPASSWORD": conn.pwd,
+                },
+            )
+        elif bin in ("psql", "pg_dump", "pg_restore"):
+            # No pgtools — fall back to the stock postgres image via
+            # `docker run --network=host`. Requires the postgres
+            # container's port to be reachable on 127.0.0.1 (or a unix
+            # socket on the host).
             socket_host = None
             if conn.host and str(conn.host).startswith("/"):
                 socket_host = str(conn.host)
@@ -322,15 +340,6 @@ def _psql(
                 env={"PGPASSWORD": conn.pwd},
                 interactive=interactive,
                 socket_host=socket_host,
-            )
-        elif use_pgtools:
-            __dcrun(
-                config,
-                ["pgtools", bin] + cmd,
-                interactive=interactive,
-                env={
-                    "PGPASSWORD": conn.pwd,
-                },
             )
         else:
             abort(
