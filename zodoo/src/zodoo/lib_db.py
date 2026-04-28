@@ -705,8 +705,12 @@ def excel(config, sql, file, base64):
 
     click.secho(f"File created: {filepath}")
     if config.owner_uid:
+        import pwd
+
+        uid = int(config.owner_uid)
+        gid = pwd.getpwuid(uid).pw_gid
         subprocess.run(
-            ["chown", f"{config.owner_uid}:{config.owner_uid}", str(filepath)],
+            ["chown", f"{uid}:{gid}", str(filepath)],
             check=False,
         )
 

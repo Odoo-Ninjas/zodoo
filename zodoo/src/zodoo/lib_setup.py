@@ -697,16 +697,21 @@ def _get_package_version(python, name):
 
 
 def _fix_permissions(config, dirs_to_fix):
+    import pwd
+
     uid = config.owner_uid
     if not uid:
         return
+
+    gid = pwd.getpwuid(int(uid)).pw_gid
+    owner = f"{uid}:{gid}"
 
     for path in dirs_to_fix:
         if not os.path.exists(path):
             click.secho(f"Skipping (does not exist): {path}", fg="red")
             continue
 
-        click.secho(f"Fixing {path} to {uid} ...", fg="yellow")
+        click.secho(f"Fixing {path} to {owner} ...", fg="yellow")
         cmd = [
             "docker",
             "run",
@@ -719,12 +724,18 @@ def _fix_permissions(config, dirs_to_fix):
             "-not",
             "-type",
             "l",
+            "(",
             "-not",
             "-user",
             str(uid),
+            "-o",
+            "-not",
+            "-group",
+            str(gid),
+            ")",
             "-exec",
             "chown",
-            str(uid),
+            owner,
             "{}",
             "+",
         ]
