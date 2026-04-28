@@ -470,6 +470,8 @@ def _build_with_network_retry(config, options, machines, env):
     ensure_project_name(config)
     full_env = _merge_env_dict(_set_default_envs(env))
     use_buildx = _is_buildx_available()
+    if use_buildx:
+        full_env["BUILDX_BAKE_ENTITLEMENTS_FS"] = "0"
 
     def _run(extra_options):
         if use_buildx:
