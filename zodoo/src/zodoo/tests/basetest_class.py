@@ -29,6 +29,7 @@ class BaseTestClass:
     def _write_configuration(self, configuration):
         configuration.setdefault("PROXY_PORT", "1200")
         configuration.setdefault("RUN_CRONJOBS", "0")
+        configuration.setdefault("DEVMODE", "0")
         # The queuejobs role is now spawned iff queue_job is installed
         # in the project DB. The test gimera.yml only pulls Odoo core
         # (no OCA queue_job module), so the role probe will return
