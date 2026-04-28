@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.0
+
+
+- **Feature**: Automatically compute superuser_reserved_connections (~10% of max_connections) for PostgreSQL
+
+
 ## 2.0.8
 
 
