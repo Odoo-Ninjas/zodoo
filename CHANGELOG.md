@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.6
+
+
+- **Fix**: `odoo psql` / `pg_dump` / `pg_restore` now route through the `pgtools` compose service whenever it is available, instead of always falling back to a `docker run --network=host postgres:17` container. The host-networked fallback cannot resolve compose-internal host names (e.g. `postgres`), so it broke on CI runners where the postgres container's port is not published on the host.
+
+
 ## 2.0.5
 
 
