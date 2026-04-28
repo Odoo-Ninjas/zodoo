@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.8
+
+
+- **Fix**: Isolate E2E tests from global DEVMODE=1 setting to prevent docker compose kill failures
+
+
 ## 2.0.7
 
 
