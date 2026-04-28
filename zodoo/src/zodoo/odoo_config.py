@@ -2,6 +2,7 @@ from contextlib import contextmanager
 from collections import Counter
 import shutil
 import tempfile
+import time
 
 try:
     import arrow
@@ -117,7 +118,16 @@ class MANIFEST_CLASS:
                 pass
 
     def _get_data(self):
-        content = self.path.read_text() or "{}"
+        # Retry on empty/tiny reads — external tools (rsync, git checkout)
+        # truncate the file before rewriting, creating a brief window where
+        # the content is empty.
+        for attempt in range(5):
+            content = self.path.read_text()
+            if content and len(content) >= 10:
+                break
+            if attempt < 4:
+                time.sleep(0.05)
+        content = content or "{}"
         try:
             res = OrderedDict(ast.literal_eval(content))
         except Exception:
@@ -182,7 +192,13 @@ class MANIFEST_CLASS:
             with os.fdopen(fd, "w") as fh:
                 fh.write(s)
                 fh.write("\n")
-            shutil.move(tmp, MANIFEST_FILE())
+            # Use os.rename directly for guaranteed atomic replace
+            # (shutil.move may fall back to copy+delete on edge cases).
+            try:
+                os.rename(tmp, str(MANIFEST_FILE()))
+            except OSError:
+                shutil.copy2(tmp, str(MANIFEST_FILE()))
+                os.unlink(tmp)
         except Exception:
             Path(tmp).unlink(missing_ok=True)
             raise
