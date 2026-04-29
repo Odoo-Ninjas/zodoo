@@ -369,7 +369,13 @@ def restart(
 def rm(ctx, config, machines=[], profile="auto"):
     __needs_docker(config)
     machines = list(machines)
-    __dc(config, ["rm", "-f"] + machines, profile=profile)
+    try:
+        __dc(config, ["rm", "-f"] + machines, profile=profile)
+    except subprocess.CalledProcessError:
+        # Docker race condition: container removal already in progress — harmless
+        click.secho(
+            "rm: container already being removed, ignoring.", fg="yellow"
+        )
 
 
 def attach(ctx, config, machine):

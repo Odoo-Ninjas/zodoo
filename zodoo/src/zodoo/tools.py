@@ -740,7 +740,7 @@ def __get_cmd(config, profile="auto"):
     from .consts import _resolve_docker_compose_bin
 
     if get_docker_version()[0] >= 26:
-        cmd = config.commands["dc2"]
+        cmd = list(config.commands["dc2"])
     else:
         dc_bin = _resolve_docker_compose_bin()
         if not dc_bin:
