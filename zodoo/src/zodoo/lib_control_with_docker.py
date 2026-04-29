@@ -243,7 +243,17 @@ def up(
         _start_postgres_before(config)
     for profile in resolve_profiles(profile):
         dc_options2 = dc_options + ["--profile", profile]
-        __dc(config, dc_options2 + ["up"] + options + machines)
+        try:
+            __dc(config, dc_options2 + ["up"] + options + machines)
+        except subprocess.CalledProcessError as e:
+            if no_recreate:
+                # no_recreate means "ensure running" — transient Docker errors are acceptable
+                click.secho(
+                    f"up --no-recreate profile={profile} failed (ignored): {e}",
+                    fg="yellow",
+                )
+            else:
+                raise
 
 
 def down(ctx, config, machines=[], volumes=False, remove_orphans=True):
