@@ -268,7 +268,10 @@ def down(ctx, config, machines=[], volumes=False, remove_orphans=True):
     if config.devmode:
         __dc(config, ["kill"] + machines)
 
-    __dc(config, ["down"] + options + machines)
+    # Use profile="all" so that services behind the "manual" profile (e.g.
+    # odoo_debug) are also removed. Without this they survive `down -v` and
+    # keep a stale network reference that breaks the next `up --no-recreate`.
+    __dc(config, ["down"] + options + machines, profile="all")
 
     if volumes:
         Commands.invoke(ctx, "remove-volumes")
