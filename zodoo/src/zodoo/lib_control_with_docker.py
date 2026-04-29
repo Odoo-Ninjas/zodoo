@@ -154,6 +154,13 @@ def do_kill(ctx, config, machines=[], brutal=False, profile="auto"):
                 SAFE_KILL.append(machine)
 
     machines = list(machines)
+    # Redirect legacy service names to the in-container supervisor.
+    legacy = [m for m in machines if m in _LEGACY_ROLE_MAP]
+    machines = [m for m in machines if m not in _LEGACY_ROLE_MAP]
+    for m in legacy:
+        _supervisor_action_role(config, "stop", _LEGACY_ROLE_MAP[m])
+    if legacy and not machines:
+        return
     if not machines:
         machines = get_all_running_containers(config, profiles=profile)
     safe_stop = []
@@ -208,6 +215,13 @@ def up(
     allow_build=False,
 ):
     machines = list(machines)
+    # Redirect legacy service names to the in-container supervisor.
+    legacy = [m for m in machines if m in _LEGACY_ROLE_MAP]
+    machines = [m for m in machines if m not in _LEGACY_ROLE_MAP]
+    for m in legacy:
+        _supervisor_action_role(config, "start", _LEGACY_ROLE_MAP[m])
+    if legacy and not machines:
+        return
     from .consts import resolve_profiles
 
     options = [
@@ -270,10 +284,10 @@ _LEGACY_ROLE_MAP = {
 }
 
 
-def _supervisor_restart_role(config, role):
+def _supervisor_action_role(config, action, role):
     container = f"{config.project_name}_odoo"
     click.secho(
-        f"Legacy service name → supervisor: restart {role} in {container}",
+        f"Legacy service name → supervisor: {action} {role} in {container}",
         fg="yellow",
     )
     subprocess.check_call(
@@ -283,10 +297,14 @@ def _supervisor_restart_role(config, role):
             container,
             "/opt/venv/bin/python",
             "/odoolib/supervisor.py",
-            "restart",
+            action,
             role,
         ]
     )
+
+
+def _supervisor_restart_role(config, role):
+    _supervisor_action_role(config, "restart", role)
 
 
 def restart(
