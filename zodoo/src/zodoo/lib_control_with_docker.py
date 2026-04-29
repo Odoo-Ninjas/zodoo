@@ -514,6 +514,8 @@ def _build_with_network_retry(config, options, machines, env):
                     data = os.read(master_fd, 4096)
                 except OSError:
                     break
+                if not data:
+                    break
                 decoded = data.decode("utf-8", errors="replace")
                 sys.stdout.write(decoded)
                 sys.stdout.flush()
