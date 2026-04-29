@@ -495,20 +495,46 @@ def _build_with_network_retry(config, options, machines, env):
             + extra_options
             + list(machines)
         )
-        proc = subprocess.Popen(
-            cmd,
-            env=full_env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-        )
         captured = []
-        assert proc.stdout is not None
-        for raw in iter(proc.stdout.readline, b""):
-            decoded = raw.decode("utf-8", errors="replace")
-            sys.stdout.write(decoded)
-            sys.stdout.flush()
-            captured.append(decoded)
-        proc.wait()
+
+        if sys.stdout.isatty():
+            import pty
+
+            master_fd, slave_fd = pty.openpty()
+            proc = subprocess.Popen(
+                cmd,
+                env=full_env,
+                stdout=slave_fd,
+                stderr=slave_fd,
+                close_fds=True,
+            )
+            os.close(slave_fd)
+            while True:
+                try:
+                    data = os.read(master_fd, 4096)
+                except OSError:
+                    break
+                decoded = data.decode("utf-8", errors="replace")
+                sys.stdout.write(decoded)
+                sys.stdout.flush()
+                captured.append(decoded)
+            os.close(master_fd)
+            proc.wait()
+        else:
+            proc = subprocess.Popen(
+                cmd,
+                env=full_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+            assert proc.stdout is not None
+            for raw in iter(proc.stdout.readline, b""):
+                decoded = raw.decode("utf-8", errors="replace")
+                sys.stdout.write(decoded)
+                sys.stdout.flush()
+                captured.append(decoded)
+            proc.wait()
+
         return proc.returncode, "".join(captured), cmd
 
     rc, log, cmd = _run(options)
