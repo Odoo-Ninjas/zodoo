@@ -84,7 +84,7 @@ def _save_vhosts(install_dir, vhosts):
 
 
 def _dc(install_dir, *args, check=True, capture=False):
-    cmd = ["docker-compose", *args]
+    cmd = ["docker", "compose", *args]
     return subprocess.run(
         cmd,
         cwd=install_dir,

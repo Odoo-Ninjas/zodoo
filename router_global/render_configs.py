@@ -26,4 +26,5 @@ out.mkdir(parents=True, exist_ok=True)
 for host in virtual_hosts:
     tpl = env.get_template(host["template"])
     rendered = tpl.render(item=host)
-    (out / host["server_name"]).write_text(rendered)
+    filename = host.get("filename", host["server_name"])
+    (out / filename).write_text(rendered)
