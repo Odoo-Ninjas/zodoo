@@ -438,7 +438,9 @@ def _reinstall():
         )
         cmd.extend(["--python", f"python{python_version}"])
     subprocess.check_call(cmd, shell=False)
-    subprocess.check_call(["pipx", "inject", "zodoo", "gimera"], shell=False)
+    subprocess.check_call(
+        ["pipx", "inject", "--force", "zodoo", "gimera"], shell=False
+    )
 
 
 @setup.command(help="Reinstall zodoo python")
