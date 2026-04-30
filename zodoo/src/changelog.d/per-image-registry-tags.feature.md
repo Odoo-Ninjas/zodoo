@@ -1,0 +1,1 @@
+Registry tags are now computed per image based on the actual build inputs (directory content, relevant settings, snippets, zodoo source) instead of a single global tag. This avoids unnecessary image rebuilds when unrelated files change.

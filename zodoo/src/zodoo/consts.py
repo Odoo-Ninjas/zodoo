@@ -34,6 +34,7 @@ default_dirs = {
     "run.build.odoo": "${run}/build.odoo",
     "run/proxy": "${run}/proxy",
     "run/restore": "${run}/restore",
+    "run/router": "${run}/router",
     "images/proxy": "images/proxy",
     "telegrambot": "config/telegrambat",
     "venv": "${run}/venv",

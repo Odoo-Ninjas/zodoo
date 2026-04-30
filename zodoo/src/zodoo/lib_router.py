@@ -15,8 +15,8 @@ vhost configuration is persisted in `<install_dir>/vhosts.yml` (same schema
 as the ansible `web_router.virtual_hosts` list). It can be loaded via
 `--vhosts-file` or edited with the `vhost` subcommands.
 """
+
 import json
-import os
 import shutil
 import subprocess
 import sys
@@ -64,7 +64,11 @@ def _resolve_install_dir(config, is_global, install_dir):
             "Project-mode router setup requires running inside an odoo "
             "project, or pass --global / --install-dir."
         )
-    return Path(config.WORKING_DIR) / ".odoo" / "router"
+    run_router = Path(config.dirs["run/router"])
+    legacy = Path(config.WORKING_DIR) / ".odoo" / "router"
+    if legacy.exists() and not run_router.exists():
+        shutil.copytree(legacy, run_router)
+    return run_router
 
 
 def _load_vhosts(install_dir):
@@ -241,8 +245,16 @@ def router(config):
     help="Skip 'docker-compose up -d' at the end (files only).",
 )
 @pass_config
-def setup_(config, is_global, install_dir, binding_80, binding_443, networks,
-           vhosts_file, no_start):
+def setup_(
+    config,
+    is_global,
+    install_dir,
+    binding_80,
+    binding_443,
+    networks,
+    vhosts_file,
+    no_start,
+):
     install_dir = _resolve_install_dir(config, is_global, install_dir)
     src_root = _router_files_dir(config)
     docker_files_src = src_root / "files"
@@ -262,7 +274,17 @@ def setup_(config, is_global, install_dir, binding_80, binding_443, networks,
     _render_and_sync_vhosts(config, install_dir, vhosts)
 
     if no_start:
-        click.secho(f"Files installed in {install_dir}. Skipping start.", fg="yellow")
+        click.secho(
+            f"Files installed in {install_dir}. Skipping start.", fg="yellow"
+        )
+        return
+
+    if not is_global and getattr(config, "run_router", False):
+        click.secho(
+            "Router files installed. RUN_ROUTER=1 detected — "
+            "managed by project compose. Run 'odoo up -d' to start.",
+            fg="green",
+        )
         return
 
     _dc(install_dir, "pull")
@@ -412,7 +434,9 @@ def vhost_remove(ctx, config, is_global, install_dir, server_name):
     ctx.invoke(apply_vhosts, is_global=is_global, install_dir=install_dir)
 
 
-@vhost.command(name="add", help="Add or replace a vhost from a YAML/JSON file.")
+@vhost.command(
+    name="add", help="Add or replace a vhost from a YAML/JSON file."
+)
 @click.option("--global", "is_global", is_flag=True)
 @click.option("--install-dir", default=None)
 @click.argument("vhost_file", type=click.Path(exists=True, dir_okay=False))
@@ -422,9 +446,13 @@ def vhost_add(ctx, config, is_global, install_dir, vhost_file):
     d = _install_dir_from_opts(config, is_global, install_dir)
     new_vhost = yaml.safe_load(Path(vhost_file).read_text())
     if not isinstance(new_vhost, dict) or "server_name" not in new_vhost:
-        abort("vhost file must be a single YAML dict with at least 'server_name'.")
+        abort(
+            "vhost file must be a single YAML dict with at least 'server_name'."
+        )
     vhosts = _load_vhosts(d)
-    vhosts = [v for v in vhosts if v["server_name"] != new_vhost["server_name"]]
+    vhosts = [
+        v for v in vhosts if v["server_name"] != new_vhost["server_name"]
+    ]
     vhosts.append(new_vhost)
     _save_vhosts(d, vhosts)
     ctx.invoke(apply_vhosts, is_global=is_global, install_dir=install_dir)
