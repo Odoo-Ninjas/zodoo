@@ -1,0 +1,3 @@
+type: fix
+description: "Auto-build prebuilt-Python hook now finds Dockerfile when config.odoo_version is a float (19.0) but the on-disk dir is named '19'; fixes silent no-op that allowed bake/builds to fail with the original `not found` error."
+breaking: false
