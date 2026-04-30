@@ -7,22 +7,12 @@ SETUP_PYENV=1 /bin/bash ${current_dir}/prepare.sh || exit -1
 CURRENT_FILE="${CURRENT_FILE#$(pwd)/}"
 echo "unit_test:$CURRENT_FILE" > debug
 echo Starting docker container for unitteset and waiting for remote debug on localhost:${ODOO_PYTHON_DEBUG_PORT}
-[[ -e .unittest.log ]] && rm .unittest.log
+rm .unittest.log || true
 
 if [[ "$CURRENT_FILE" == */tests/* ]]; then
     echo "Identified unittest so running unittest: ${CURRENT_FILE}"
     MODE=unittest
-
-    # Extract module name from test file path (e.g. addons/module_name/tests/test_foo.py -> module_name)
-    MODULE_NAME=$(python3 -c "from pathlib import Path; print(Path('${CURRENT_FILE}').parent.parent.name)")
-    if [[ -n "$MODULE_NAME" ]]; then
-        INSTALLED_MODULES=$(odoo odoo-module list-installed-modules 2>/dev/null)
-        if ! echo "$INSTALLED_MODULES" | grep -q "^${MODULE_NAME}:"; then
-            echo "ERROR: Module '${MODULE_NAME}' is not installed. Please install it first before running tests."
-            exit 1
-        fi
-    fi
-    odoo debug --command '["CAPTURE_UNITTEST_OUTPUT=1", "/odoolib/debug","--wait-for-remote", "--one-action", "unit_test:${CURRENT_FILE}"]' odoo --set-docker-command
+    odoo debug --command '["/odoolib/debug","--wait-for-remote", "--one-action", "unit_test:${CURRENT_FILE}"]' odoo --set-docker-command
 else
     echo "Starting web server in debug mode"
     MODE=web
@@ -59,3 +49,4 @@ if [[ "$MODE" == "unittest" ]]; then
 else
     echo Web container started
 fi
+exit 0
