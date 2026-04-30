@@ -454,7 +454,6 @@ def build(
         "ODOO_VERSION": config.odoo_version,
         "DOCKER_DEFAULT_PLATFORM": f"linux/{_arch}",
         "DOCKER_BUILDKIT": "1",
-        "COMPOSE_BAKE": "true",
     }
     _build_with_network_retry(config, options, machines, build_env)
 
