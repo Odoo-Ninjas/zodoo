@@ -586,9 +586,7 @@ def _trace_dbs(conn, label):
         )
         dbs = [r[0] for r in (rows or [])]
     except Exception as ex:  # noqa: BLE001
-        click.secho(
-            f"TRACE DBS [{label}] cannot list dbs: {ex}", fg="yellow"
-        )
+        click.secho(f"TRACE DBS [{label}] cannot list dbs: {ex}", fg="yellow")
         return
     click.secho(
         f"TRACE DBS [{label}] on host={conn.host}:{conn.port} → {dbs}",
@@ -610,9 +608,7 @@ def _trace_docker(label, project_name):
     except Exception as ex:  # noqa: BLE001
         click.secho(f"TRACE DOCKER [{label}] ps failed: {ex}", fg="yellow")
         return
-    click.secho(
-        f"TRACE DOCKER [{label}] project={project_name} →", fg="cyan"
-    )
+    click.secho(f"TRACE DOCKER [{label}] project={project_name} →", fg="cyan")
     for line in lines:
         click.secho(f"  {line}", fg="cyan")
     try:
@@ -622,7 +618,9 @@ def _trace_docker(label, project_name):
         )
         vols = [v for v in out.splitlines() if project_name in v]
     except Exception as ex:  # noqa: BLE001
-        click.secho(f"TRACE DOCKER [{label}] volume ls failed: {ex}", fg="yellow")
+        click.secho(
+            f"TRACE DOCKER [{label}] volume ls failed: {ex}", fg="yellow"
+        )
         return
     click.secho(f"TRACE DOCKER [{label}] volumes → {vols}", fg="cyan")
 
