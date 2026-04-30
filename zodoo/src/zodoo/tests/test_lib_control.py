@@ -756,6 +756,12 @@ class _FakeProc:
     def wait(self):
         return self.returncode
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        pass
+
 
 def _patch_build_helpers(monkeypatch, lcd):
     monkeypatch.setattr(
@@ -764,6 +770,7 @@ def _patch_build_helpers(monkeypatch, lcd):
     monkeypatch.setattr(lcd, "_set_default_envs", lambda env: env)
     monkeypatch.setattr(lcd, "_merge_env_dict", lambda env: env)
     monkeypatch.setattr(lcd, "ensure_project_name", lambda c: None)
+    monkeypatch.setattr(lcd, "_is_buildx_available", lambda: True)
 
 
 def test_build_with_network_retry_returns_on_first_success(monkeypatch):
@@ -893,9 +900,9 @@ def test_build_passes_targetarch_as_build_arg(
 
     assert len(seen_cmds) == 1
     cmd = seen_cmds[0]
-    assert "--build-arg" in cmd
-    idx = cmd.index("--build-arg")
-    assert cmd[idx + 1] == f"TARGETARCH={expected_arch}"
+    assert "--set" in cmd
+    idx = cmd.index("--set")
+    assert cmd[idx + 1] == f"*.args.TARGETARCH={expected_arch}"
 
 
 def test_locate_dockerfile_falls_back_to_float_named_dir(tmp_path):
