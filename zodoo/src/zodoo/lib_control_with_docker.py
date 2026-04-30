@@ -249,12 +249,17 @@ def up(
             if no_recreate:
                 # up --no-recreate can fail when Docker removed the network during orphan
                 # cleanup (CalledProcessError.stderr is None when using check_call, so we
-                # cannot inspect the message). Retry without --no-recreate so Docker
-                # recreates the network. Volumes are preserved — any restored DB dump is safe.
+                # cannot inspect the message). The partial up may have left zombie containers
+                # attached to the defunct network, so we must do a full down first, then
+                # up fresh. Volumes are NOT removed — any restored DB dump is safe.
                 click.secho(
-                    f"up --no-recreate failed, retrying without --no-recreate: {e}",
+                    f"up --no-recreate failed, doing down + up to recover: {e}",
                     fg="yellow",
                 )
+                try:
+                    __dc(config, dc_options2 + ["down", "--remove-orphans"])
+                except subprocess.CalledProcessError:
+                    pass  # ignore down failure, proceed with up anyway
                 options_without_no_recreate = [
                     o for o in options if o != "--no-recreate"
                 ]
