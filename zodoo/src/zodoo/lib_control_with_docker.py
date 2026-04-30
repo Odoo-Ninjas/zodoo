@@ -246,15 +246,13 @@ def up(
         try:
             __dc(config, dc_options2 + ["up"] + options + machines)
         except subprocess.CalledProcessError as e:
-            if (
-                no_recreate
-                and "network" in str(e).lower()
-                and "not found" in str(e).lower()
-            ):
-                # Stale network reference after orphan cleanup — recreate containers fresh.
-                # Volumes are preserved so any restored DB dump is not lost.
+            if no_recreate:
+                # up --no-recreate can fail when Docker removed the network during orphan
+                # cleanup (CalledProcessError.stderr is None when using check_call, so we
+                # cannot inspect the message). Retry without --no-recreate so Docker
+                # recreates the network. Volumes are preserved — any restored DB dump is safe.
                 click.secho(
-                    f"up --no-recreate failed with stale network, retrying without --no-recreate: {e}",
+                    f"up --no-recreate failed, retrying without --no-recreate: {e}",
                     fg="yellow",
                 )
                 options_without_no_recreate = [
@@ -266,12 +264,6 @@ def up(
                     + ["up"]
                     + options_without_no_recreate
                     + machines,
-                )
-            elif no_recreate:
-                # Other transient errors with --no-recreate: warn but continue
-                click.secho(
-                    f"up --no-recreate profile={profile} failed (ignored): {e}",
-                    fg="yellow",
                 )
             else:
                 raise
