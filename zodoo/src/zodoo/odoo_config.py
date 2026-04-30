@@ -118,20 +118,37 @@ class MANIFEST_CLASS:
                 pass
 
     def _get_data(self):
-        # Retry on empty/tiny reads — external tools (rsync, git checkout)
-        # truncate the file before rewriting, creating a brief window where
-        # the content is empty.
-        for attempt in range(5):
-            content = self.path.read_text()
-            if content and len(content) >= 10:
-                break
-            if attempt < 4:
+        # Retry on empty/tiny reads or missing 'addons_paths' — external tools
+        # (rsync, git checkout, gimera) can truncate/rewrite the file, creating
+        # a brief window where the content is empty or lacks critical keys.
+        res = None
+        content = "{}"
+        for attempt in range(10):
+            try:
+                content = self.path.read_text()
+            except Exception:
+                content = "{}"
+            if not content or len(content) < 10:
                 time.sleep(0.05)
-        content = content or "{}"
-        try:
-            res = OrderedDict(ast.literal_eval(content))
-        except Exception:
-            abort(f"Could not parse {content}")
+                continue
+            try:
+                parsed = OrderedDict(ast.literal_eval(content))
+            except Exception:
+                time.sleep(0.05)
+                continue
+            if "addons_paths" in parsed:
+                res = parsed
+                break
+            # addons_paths missing — concurrent rewrite in progress, retry
+            time.sleep(0.1)
+
+        if res is None:
+            # addons_paths still absent after retries — parse what we have
+            # (may legitimately raise KeyError downstream for invalid configs)
+            try:
+                res = OrderedDict(ast.literal_eval(content))
+            except Exception:
+                abort(f"Could not parse {content}")
 
         system_addons_paths = res.get("addons_paths_system", [])
         if system_addons_paths:
