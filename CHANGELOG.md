@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.1
+
+
+- **Fix**: odoo setup upgrade now always installs the latest gimera (pipx inject --force)
+
+
 ## 3.0.0
 
 
