@@ -112,7 +112,9 @@ def _compute_max_connections(settings):
     # superuser_reserved_connections: ~10 % of max_connections (min 3, capped at 20)
     # so admins / monitoring can still connect when the regular pool is exhausted.
     # Skipped if the user already set the key in POSTGRES_CONFIG.
-    if "superuser_reserved_connections" not in settings.get("POSTGRES_CONFIG", ""):
+    if "superuser_reserved_connections" not in settings.get(
+        "POSTGRES_CONFIG", ""
+    ):
         reserved = max(3, min(20, math.ceil(max_conn * 0.1)))
         current = settings["POSTGRES_CONFIG"]
         glue2 = "" if current.endswith(";") else ";"
