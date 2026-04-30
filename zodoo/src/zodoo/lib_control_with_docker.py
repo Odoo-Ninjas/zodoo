@@ -469,32 +469,71 @@ _BUILD_NETWORK_ERROR_PATTERN = (
 )
 
 
+def _is_buildx_available():
+    try:
+        subprocess.check_output(
+            ["docker", "buildx", "version"], stderr=subprocess.DEVNULL
+        )
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        return False
+
+
+def _compose_opts_to_bake_opts(options):
+    """Translate ``docker compose build`` flags to ``docker buildx bake`` flags."""
+    bake_opts = []
+    i = 0
+    while i < len(options):
+        opt = options[i]
+        if opt in ("--no-cache", "--pull"):
+            bake_opts.append(opt)
+        elif opt == "--build-arg" and i + 1 < len(options):
+            bake_opts += ["--set", f"*.args.{options[i + 1]}"]
+            i += 1
+        i += 1
+    return bake_opts
+
+
 def _build_with_network_retry(config, options, machines, env):
-    """Run ``docker compose build``; retry once with ``--no-cache`` when the
-    failure looks like a transient network/PPA glitch.
+    """Run the build; retry once with ``--no-cache`` when the failure looks like
+    a transient network/PPA glitch.
 
-    The cronjobshell/odoo Dockerfiles reach out to ``ppa.launchpadcontent.net``
-    via ``add-apt-repository ppa:deadsnakes/ppa``. When BuildKit's snapshot
-    of the apt state is cached but Launchpad / DNS is flaky, the layer
-    fails with ``ServerNotFoundError: api.launchpad.net``. ``--no-cache``
-    forces a fresh apt index fetch, which usually clears the issue.
-
-    Streams build output live to stdout while capturing it for the
-    post-mortem regex match.
+    Uses ``docker buildx bake`` when buildx is available (reads the compose
+    file natively), otherwise falls back to ``docker compose build``.
     """
     import re
 
     pattern = re.compile(_BUILD_NETWORK_ERROR_PATTERN)
     ensure_project_name(config)
     full_env = _merge_env_dict(_set_default_envs(env))
+    use_buildx = _is_buildx_available()
+    if use_buildx:
+        full_env["BUILDX_BAKE_ENTITLEMENTS_FS"] = "0"
 
     def _run(extra_options):
-        cmd = (
-            __get_cmd(config, profile="auto")
-            + ["build"]
-            + extra_options
-            + list(machines)
-        )
+        if use_buildx:
+            compose_cmd = __get_cmd(config, profile="auto")
+            bake_files = []
+            idx = 0
+            while idx < len(compose_cmd):
+                if compose_cmd[idx] == "-f" and idx + 1 < len(compose_cmd):
+                    bake_files += ["-f", compose_cmd[idx + 1]]
+                    idx += 2
+                else:
+                    idx += 1
+            cmd = (
+                ["docker", "buildx", "bake"]
+                + bake_files
+                + _compose_opts_to_bake_opts(extra_options)
+                + list(machines)
+            )
+        else:
+            cmd = (
+                __get_cmd(config, profile="auto")
+                + ["build"]
+                + extra_options
+                + list(machines)
+            )
         captured = []
 
         if sys.stdout.isatty():
