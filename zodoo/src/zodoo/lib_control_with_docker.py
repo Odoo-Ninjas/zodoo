@@ -246,8 +246,29 @@ def up(
         try:
             __dc(config, dc_options2 + ["up"] + options + machines)
         except subprocess.CalledProcessError as e:
-            if no_recreate:
-                # no_recreate means "ensure running" — transient Docker errors are acceptable
+            if (
+                no_recreate
+                and "network" in str(e).lower()
+                and "not found" in str(e).lower()
+            ):
+                # Stale network reference after orphan cleanup — recreate containers fresh.
+                # Volumes are preserved so any restored DB dump is not lost.
+                click.secho(
+                    f"up --no-recreate failed with stale network, retrying without --no-recreate: {e}",
+                    fg="yellow",
+                )
+                options_without_no_recreate = [
+                    o for o in options if o != "--no-recreate"
+                ]
+                __dc(
+                    config,
+                    dc_options2
+                    + ["up"]
+                    + options_without_no_recreate
+                    + machines,
+                )
+            elif no_recreate:
+                # Other transient errors with --no-recreate: warn but continue
                 click.secho(
                     f"up --no-recreate profile={profile} failed (ignored): {e}",
                     fg="yellow",
