@@ -1,3 +1,0 @@
-type: fix
-description: "odoo setup upgrade now always installs the latest gimera (pipx inject --force)"
-breaking: false
