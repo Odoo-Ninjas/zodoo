@@ -1,3 +1,0 @@
-type: fix
-description: "Isolate E2E tests from global DEVMODE=1 setting to prevent docker compose kill failures"
-breaking: false

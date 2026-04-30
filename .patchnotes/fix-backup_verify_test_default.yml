@@ -1,3 +1,0 @@
-type: fix
-description: "Default `_backup_pgdump(verify=False)` so the existing pytest suite still runs after the verify-option feature; add positive/negative tests for the --verify pass-through."
-breaking: false

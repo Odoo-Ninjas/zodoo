@@ -1,3 +1,0 @@
-type: fix
-description: "Stop setting COMPOSE_BAKE=true on regular odoo build (compose-bake mode is unrelated to the bakery feature and breaks multi-service builds)"
-breaking: false

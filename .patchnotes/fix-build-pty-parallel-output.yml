@@ -1,3 +1,0 @@
-type: fix
-description: "Restore parallel BuildKit progress output during odoo build by using a PTY when stdout is a terminal"
-breaking: false

@@ -1,3 +1,0 @@
-type: fix
-description: "MyConfigParser: add __contains__ and __iter__ so `key in settings` no longer crashes with `KeyError: 'Key N doesn't exist'`"
-breaking: false

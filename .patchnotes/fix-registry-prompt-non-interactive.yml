@@ -1,3 +1,0 @@
-type: fix
-description: "Skip zodoo-registry-setup prompt in non-interactive shells (CI, cron) instead of aborting the build"
-breaking: false

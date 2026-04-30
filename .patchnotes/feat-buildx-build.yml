@@ -1,3 +1,0 @@
-type: feature
-description: "Use docker buildx bake when buildx is available, fall back to docker compose build otherwise"
-breaking: false

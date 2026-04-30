@@ -1,5 +1,40 @@
 # Changelog
 
+## 3.0.0
+
+
+- **Internal**: Bump bake-test long_timeout from 30 to 60 min to survive cold-cache builds on busy machines (e.g. Python prebuilt compile when registry image hasn't been pushed yet).
+- **Feature**: debug: --one-action flag, frozen_modules fix, unit test logfile
+- **Feature**: Use docker buildx bake when buildx is available, fall back to docker compose build otherwise
+- **Feature**: Per-image registry tags: each image gets its own content-based tag instead of a global one, reducing unnecessary rebuilds
+- **Feature**: Pull compiled Python from the zodoo registry (multi-arch) instead of compiling from source in every Odoo build. Adds python_prebuilt/ builder image + build.sh script. Odoo v19 Dockerfile switches its python_builder stage to FROM ${ZODOO_REGISTRY_URL}/zodoo/python:${ODOO_PYTHON_VERSION}-${TARGETARCH}. Cross-arch builds via qemu no longer need to compile Python (which segfaults under qemu-aarch64). Also normalizes the --platform argument (was producing linux/linux/arm64).
+- **Feature**: tests: unit tests for sudo_odoo_cmd + bake-test regression guard for permission + double-sudo startup bugs
+- **Feature**: Add --verify/-v option to `odoo backup odoo-db` to validate the produced dump with `pg_restore -l`
+- **Feature**: Automatically compute superuser_reserved_connections (~10% of max_connections) for PostgreSQL
+- **Fix**: Default `_backup_pgdump(verify=False)` so the existing pytest suite still runs after the verify-option feature; add positive/negative tests for the --verify pass-through.
+- **Fix**: Restore parallel BuildKit progress output during odoo build by using a PTY when stdout is a terminal
+- **Fix**: Stop setting COMPOSE_BAKE=true on regular odoo build (compose-bake mode is unrelated to the bakery feature and breaks multi-service builds)
+- **Fix**: Make `test_e2e_cronjob_driven_backup` robust against session-fixture state from prior backup/restore tests: wait for postgres health, kill stale cronjobs container before reload, dump container logs on failure, raise poll deadline 3 → 5 min.
+- **Fix**: Prevent MANIFEST read failures caused by non-atomic writes from rsync/git checkout during CI
+- **Fix**: MyConfigParser: add __contains__ and __iter__ so `key in settings` no longer crashes with `KeyError: 'Key N doesn't exist'`
+- **Fix**: Fix postgres connection leaks in `get_conn` (odoo_config), `wait_postgres` (odoo/bin/tools.py) and `DBSizeOutputter` / `execute` (cronjobs/bin/postgres.py). Without `contextlib.closing` around `psycopg2.connect()` the `with` block only ends the transaction, leaking the connection — heavy reset_db / update flows hit `FATAL: sorry, too many clients already`. Also fix test_zodoo basetest defaults (disable queue_job server-wide so tests don't import a missing OCA module).
+- **Fix**: Raise computed postgres max_connections — old formula (1.2 conns/process + 10 buffer) yielded 22 for default 6+2+2 process counts and exhausted instantly during `odoo update`. New: 3 conns/process + 30 buffer + 100 floor.
+- **Fix**: Pass ZODOO_REGISTRY_URL via env to python_prebuilt/build.sh so it doesn't fail with `exit 2` when ~/.odoo/settings doesn't exist (CI runners). Script also reads from env first, falls back to settings file.
+- **Fix**: _ensure_prebuilt_python_image only attempts `--push` when ~/.docker/config.json has auth credentials for the target registry. Without this guard, CI runners (no creds) failed the hook with a 401 even though a local-only build would have been enough for the subsequent docker compose build.
+- **Fix**: Auto-build prebuilt-Python hook now finds Dockerfile when config.odoo_version is a float (19.0) but the on-disk dir is named '19'; fixes silent no-op that allowed bake/builds to fail with the original `not found` error.
+- **Fix**: `odoo psql` / `pg_dump` / `pg_restore` now route through the `pgtools` compose service whenever it is available, instead of always falling back to a `docker run --network=host postgres:17` container. The host-networked fallback cannot resolve compose-internal host names (e.g. `postgres`), so it broke on CI runners where the postgres container's port is not published on the host.
+- **Fix**: Fix odoo build hanging after Docker build completes on macOS (PTY empty-read loop)
+- **Fix**: Fix `_queue_job_installed` exception catch on psycopg2 builds where the `psycopg2.errors` submodule isn't auto-imported (CI runner). Replace specific subclasses with bare `except Exception` — the probe is fail-soft anyway.
+- **Fix**: Skip zodoo-registry-setup prompt in non-interactive shells (CI, cron) instead of aborting the build
+- **Fix**: Resolve `odoo reload` clash with `odoo router reload` (registration-order tiebreak in AliasedGroup)
+- **Fix**: dev-env remove-settings: skip gracefully when ir_config_parameter table does not exist yet
+- **Fix**: Fix 8 failing unit tests: _FakeProc context manager + buildx --set assertions
+- **Fix**: Isolate E2E tests from global DEVMODE=1 setting to prevent docker compose kill failures
+- **BREAKING**: Consolidate odoo / odoo_cronjobs / odoo_queuejobs / odoo_update into a single container managed by an internal supervisor. odoo_debug stays as a manual-profile service on the same image. — `odoo restart odoo` now restarts the entire odoo container (web + cronjobs + queuejobs). Use `odoo restart odoo_cronjobs` / `odoo restart odoo_queuejobs` (backwards-compat — they now drive the in-container supervisor) or `docker exec <proj>_odoo /opt/venv/bin/python /odoolib/supervisor.py restart <role>` for per-role restarts. `UPDATE_ON_STARTUP=1` is still honoured and now handled by supervisor.py before any role is spawned. Obsolete settings ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER / ODOO_CRON_IN_ONE_CONTAINER are ignored with a warning — toggle RUN_ODOO_CRONJOBS / RUN_ODOO_QUEUEJOBS / RUN_ODOO_WEB to disable individual roles instead.
+- **Feature**: add ncdu to robot, selenium_customized, vscode images
+- **Fix**: sudoers env_keep whitelist in common.docker so ENV vars set for root (k8s pod spec / docker -e) reach the odoo user under `sudo -u odoo`
+
+
 ## 2.0.8
 
 

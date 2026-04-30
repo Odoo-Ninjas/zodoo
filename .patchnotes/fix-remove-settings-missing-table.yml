@@ -1,3 +1,0 @@
-type: fix
-description: "dev-env remove-settings: skip gracefully when ir_config_parameter table does not exist yet"
-breaking: false
