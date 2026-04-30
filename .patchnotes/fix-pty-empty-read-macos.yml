@@ -1,0 +1,3 @@
+type: fix
+description: "Fix odoo build hanging after Docker build completes on macOS (PTY empty-read loop)"
+breaking: false

@@ -760,16 +760,33 @@ def __get_cmd(config, profile="auto"):
 
 def __cmd_interactive(config, *params):
     cmd = __get_cmd(config) + list(params)
-    tty = sys.stdin.isatty()
-    params = {}
-    if not tty:
-        cmd = [x for x in cmd if x not in ["-it", "--interactive", "--tty"]]
-        params["capture_output"] = True
-        params["text"] = True
-    res = subprocess.run(cmd, **params)
+    if not sys.stdin.isatty():
+        # No TTY: strip tty flags and disable TTY allocation explicitly.
+        # docker compose run allocates a TTY by default even without -t, so
+        # we need -T (--no-TTY) for piped stdin (e.g. odoo shell < script.py).
+        # docker exec only needs -i without -t.
+        is_run = "run" in cmd
+        cmd = [
+            x for x in cmd if x not in ["-it", "-t", "--tty", "--interactive"]
+        ]
+        if is_run:
+            # -T disables TTY allocation; compose run keeps stdin open by default
+            try:
+                run_idx = cmd.index("run")
+                cmd.insert(run_idx + 1, "-T")
+            except ValueError:
+                pass
+        else:
+            # docker exec: -i keeps stdin open without a TTY
+            try:
+                exec_idx = cmd.index("exec")
+                cmd.insert(exec_idx + 1, "-i")
+            except ValueError:
+                pass
+    res = subprocess.run(cmd)
     if res.returncode:
         click.secho(
-            f"Command failed with return code: {res.returncode}:\n{cmd}\n\n{res.stdout}\n{res.stderr}",
+            f"Command failed with return code: {res.returncode}:\n{cmd}",
             fg="red",
         )
     return res.returncode
