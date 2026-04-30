@@ -79,7 +79,7 @@ ENV WEBDRIVER_KILLSWITCH_BINDING=0.0.0.0:4445
 ADD http_kill_switch.py /usr/local/bin/http_kill_switch.py
 ADD test_killswitch.sh /usr/local/bin/test_killswitch.sh
 RUN #___SNIPPET_APT_INSTALL___ \
-  python3 python3-pip python3-setuptools python3-wheel
+  python3 python3-pip python3-setuptools python3-wheel ncdu
 RUN python3 -mpip install psutil
 
 #___SNIPPET_CLEANUP___

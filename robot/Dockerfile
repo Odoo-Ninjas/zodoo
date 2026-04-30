@@ -14,7 +14,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
 wget unzip python3 \
 python3-pip python3-magic libmagickwand-dev curl \
 sudo software-properties-common pipx build-essential python3-dev \
-gnupg-agent git gosu net-tools rsync ssh ca-certificates gnupg lsb-release
+gnupg-agent git gosu net-tools rsync ssh ca-certificates gnupg lsb-release ncdu
 
 COPY ./requirements.txt /tmp/requirements.txt
 RUN python3 -mpip install -U pip
