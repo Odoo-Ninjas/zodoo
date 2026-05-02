@@ -11,11 +11,11 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 #___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
 
 RUN #___SNIPPET_APT_INSTALL___ \
-python3-pip python3 curl rsync locales pv \
+python3-pip python3 python3.11 curl rsync locales pv \
 pigz telnet libpq-dev wget lsb-release \
 libxml2-dev libxslt-dev pipx gosu git sudo \
 ca-certificates curl gnupg lsb-release \
-unzip libpq-dev
+unzip libpq-dev python3.11-dev
 
 # install docker
 #___SNIPPET_DOCKER___
