@@ -1,3 +1,0 @@
-type: fix
-description: "Prevent MANIFEST read failures caused by non-atomic writes from rsync/git checkout during CI"
-breaking: false
