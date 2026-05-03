@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.0.2
+
+
+- **Fix**: Prevent MANIFEST read failures caused by non-atomic writes from rsync/git checkout during CI
+
+
 ## 3.0.1
 
 
