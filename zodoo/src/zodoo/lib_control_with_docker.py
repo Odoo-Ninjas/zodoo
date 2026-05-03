@@ -538,10 +538,15 @@ def _build_with_network_retry(config, options, machines, env):
                     idx += 2
                 else:
                     idx += 1
+            tags_opts = [
+                f"--set={m}.tags={config.project_name}-{m}"
+                for m in machines
+            ]
             cmd = (
-                ["docker", "buildx", "bake"]
+                ["docker", "buildx", "bake", "--load"]
                 + bake_files
                 + _compose_opts_to_bake_opts(extra_options)
+                + tags_opts
                 + list(machines)
             )
         else:
