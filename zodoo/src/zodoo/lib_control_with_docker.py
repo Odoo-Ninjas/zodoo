@@ -542,6 +542,9 @@ def _build_with_network_retry(config, options, machines, env):
             allow_opts = []
             if config.HOST_RUN_DIR:
                 allow_opts = [f"--allow=fs.read={config.HOST_RUN_DIR}"]
+            images_dir = str(Path(config.dirs["images"]).expanduser().resolve())
+            if images_dir and Path(images_dir).exists():
+                allow_opts.append(f"--allow=fs.read={images_dir}")
             cmd = (
                 ["docker", "buildx", "bake", "--load"]
                 + allow_opts
