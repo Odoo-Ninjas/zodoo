@@ -79,26 +79,41 @@ def _compute_max_connections(settings):
             if any("max_connections" in ln for ln in lines):
                 return
 
-    try:
-        web = int(settings.get("ODOO_WORKERS_WEB", 6))
-        cron = int(settings.get("ODOO_MAX_CRON_THREADS", 2))
-        channels_raw = settings.get("ODOO_QUEUEJOBS_CHANNELS", "root:1")
-        parts = [
-            x.strip().split(":") for x in channels_raw.split(",") if x.strip()
-        ]
+    def _parse_channels(raw):
+        parts = [x.strip().split(":") for x in raw.split(",") if x.strip()]
         parts = [(k.strip(), int(v)) for k, v in parts]
         non_root = [p for p in parts if p[0] != "root"]
         if non_root:
-            qj_sum = sum(v for _, v in non_root)
+            return sum(v for _, v in non_root)
         elif parts:
-            qj_sum = sum(v for _, v in parts)
-        else:
-            qj_sum = 1
+            return sum(v for _, v in parts)
+        return 1
+
+    try:
+        web = int(settings.get("ODOO_WORKERS_WEB", 6))
+        cron = int(settings.get("ODOO_MAX_CRON_THREADS", 2))
+
+        # Check both spelling variants; use the larger result.
+        # ODOO_QUEUEJOB_CHANNELS (singular) is the per-channel concurrency
+        # config written into config_queuejob; ODOO_QUEUEJOBS_CHANNELS
+        # (plural) is a legacy alias.  Prefer the singular form when set.
+        qj_singular = settings.get("ODOO_QUEUEJOB_CHANNELS", "")
+        qj_plural = settings.get("ODOO_QUEUEJOBS_CHANNELS", "root:1")
+        channels_raw = qj_singular if qj_singular else qj_plural
+        qj_sum = max(
+            _parse_channels(qj_singular) if qj_singular else 1,
+            _parse_channels(qj_plural),
+        )
         queuejob_workers = qj_sum * 2  # matches _get_queuejob_channels
 
         total = web + cron + queuejob_workers
         PER_PROCESS = 3.0
-        HEADROOM = 30
+        # HEADROOM covers: superuser/monitoring sessions, `odoo update`
+        # transient workers, AND the overhead of zodoo running web/cron/
+        # queuejobs as separate containers (each adds its own master process
+        # plus at least one extra cursor).  3 containers × ~5 extra = 15,
+        # plus the original 30 for maintenance → 50 total.
+        HEADROOM = 50
         MIN_FLOOR = 100
         max_conn = max(MIN_FLOOR, math.ceil(total * PER_PROCESS) + HEADROOM)
     except (ValueError, TypeError):
