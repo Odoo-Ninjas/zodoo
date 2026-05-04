@@ -27,7 +27,7 @@ import yaml
 
 from .cli import cli, pass_config
 from .lib_clickhelpers import AliasedGroup
-from .tools import abort
+from .tools import abort, update_setting
 
 DEFAULT_GLOBAL_INSTALL_DIR = Path("/opt/proxy")
 ROUTER_FILES_SUBDIR = "router_global"
@@ -265,6 +265,9 @@ def setup_(
     _sync_files(docker_files_src, install_dir)
     _write_env(install_dir, binding_80, binding_443)
     _patch_compose_networks(install_dir, list(networks))
+    if config.WORKING_DIR:
+        update_setting(config, "RUN_PROXY_PUBLISHED", "0")
+        click.secho("Set RUN_PROXY_PUBLISHED=0 (proxy ports not published; router handles public traffic).", fg="yellow")
 
     if vhosts_file:
         data = yaml.safe_load(Path(vhosts_file).read_text()) or []
@@ -276,6 +279,14 @@ def setup_(
     if no_start:
         click.secho(
             f"Files installed in {install_dir}. Skipping start.", fg="yellow"
+        )
+        return
+
+    if not is_global and getattr(config, "run_router", False):
+        click.secho(
+            "Router files installed. RUN_ROUTER=1 detected — "
+            "managed by project compose. Run 'odoo up -d' to start.",
+            fg="green",
         )
         return
 

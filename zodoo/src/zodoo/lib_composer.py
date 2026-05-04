@@ -1344,7 +1344,11 @@ def create_directories(config, content):
                 raise NotImplementedError(host_path)
             if not host_path.exists():
                 try:
-                    host_path.mkdir(parents=True, exist_ok=True)
+                    if host_path.suffix:
+                        host_path.parent.mkdir(parents=True, exist_ok=True)
+                        host_path.touch()
+                    else:
+                        host_path.mkdir(parents=True, exist_ok=True)
                 except PermissionError:
                     if "docker.sock" in str(host_path):
                         continue
