@@ -524,8 +524,6 @@ def _build_with_network_retry(config, options, machines, env):
     ensure_project_name(config)
     full_env = _merge_env_dict(_set_default_envs(env))
     use_buildx = _is_buildx_available()
-    if use_buildx:
-        full_env["BUILDX_BAKE_ENTITLEMENTS_FS"] = "0"
 
     def _run(extra_options):
         if use_buildx:
@@ -539,11 +537,14 @@ def _build_with_network_retry(config, options, machines, env):
                 else:
                     idx += 1
             tags_opts = [
-                f"--set={m}.tags={config.project_name}-{m}"
-                for m in machines
+                f"--set={m}.tags={config.project_name}-{m}" for m in machines
             ]
+            allow_opts = []
+            if config.HOST_RUN_DIR:
+                allow_opts = [f"--allow=fs.read={config.HOST_RUN_DIR}"]
             cmd = (
                 ["docker", "buildx", "bake", "--load"]
+                + allow_opts
                 + bake_files
                 + _compose_opts_to_bake_opts(extra_options)
                 + tags_opts
