@@ -115,9 +115,12 @@ def _compute_max_connections(settings):
         # plus the original 30 for maintenance → 50 total.
         HEADROOM = 50
         MIN_FLOOR = 100
-        max_conn = max(MIN_FLOOR, math.ceil(total * PER_PROCESS) + HEADROOM)
+        extra = int(settings.get("EXTRA_DB_CONN", 0))
+        max_conn = max(MIN_FLOOR, math.ceil(total * PER_PROCESS) + HEADROOM) + extra
     except (ValueError, TypeError):
         return
+
+    settings["DB_MAXCONN"] = str(max_conn)
 
     glue = "" if not existing_config or existing_config.endswith(";") else ";"
     settings["POSTGRES_CONFIG"] = (
