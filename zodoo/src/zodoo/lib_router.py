@@ -86,21 +86,8 @@ def _save_vhosts(install_dir, vhosts):
     )
 
 
-def _router_project_name(install_dir):
-    install_dir = Path(install_dir)
-    # Project-mode router lives at ~/.odoo/run/<project>/router/
-    if install_dir.name == "router" and install_dir.parent.parent.name == "run":
-        return f"{install_dir.parent.name}_router"
-    return install_dir.name
-
-
 def _dc(install_dir, *args, check=True, capture=False):
-    project_name = _router_project_name(install_dir)
-    user_override = Path.home() / ".odoo" / f"docker-compose.{project_name}.yml"
-    cmd = ["docker", "compose", "-p", project_name]
-    if user_override.exists():
-        cmd += ["-f", str(install_dir / "docker-compose.yml"), "-f", str(user_override)]
-    cmd += list(args)
+    cmd = ["docker", "compose", *args]
     return subprocess.run(
         cmd,
         cwd=install_dir,
