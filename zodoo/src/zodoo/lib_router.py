@@ -4,7 +4,7 @@ This is the host-wide nginx reverse proxy formerly set up by the
 `ansible-web_router` role. The router runs as its own docker-compose stack
 (separate from the per-project odoo stack) and is therefore intentionally
 NOT touched by `odoo restart` / `odoo down` / `odoo up`. Steer it
-explicitly via `odoo router restart|reload|status|...`.
+explicitly via `odoo router restart|reload|docker-status|...`.
 
 Two install modes:
 - `--global` (default install_dir `/opt/proxy`): host-wide router.
@@ -340,11 +340,11 @@ def reload_(config, is_global, install_dir):
     _dc(d, "exec", "-T", "router", "nginx", "-s", "reload")
 
 
-@router.command(help="Show router container status.")
+@router.command(name="docker-status", help="Show router container status.")
 @click.option("--global", "is_global", is_flag=True)
 @click.option("--install-dir", default=None)
 @pass_config
-def status(config, is_global, install_dir):
+def docker_status(config, is_global, install_dir):
     d = _install_dir_from_opts(config, is_global, install_dir)
     _dc(d, "ps")
 
