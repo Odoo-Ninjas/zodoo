@@ -42,7 +42,6 @@ PRESERVE_ON_SYNC = {
     "webapp_download",
     "vhosts.yml",
     ".env",
-    "docker-compose.override.yml",
 }
 
 
@@ -88,7 +87,12 @@ def _save_vhosts(install_dir, vhosts):
 
 
 def _dc(install_dir, *args, check=True, capture=False):
-    cmd = ["docker", "compose", *args]
+    project_name = Path(install_dir).name
+    user_override = Path.home() / ".odoo" / f"docker-compose.{project_name}.yml"
+    cmd = ["docker", "compose"]
+    if user_override.exists():
+        cmd += ["-f", str(install_dir / "docker-compose.yml"), "-f", str(user_override)]
+    cmd += list(args)
     return subprocess.run(
         cmd,
         cwd=install_dir,
