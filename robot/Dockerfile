@@ -11,9 +11,9 @@ ENV PATH="$PATH:/opt/robot/.local/bin"
 #___SNIPPET_APT_PROXY___
 
 RUN #___SNIPPET_APT_INSTALL___ \
-wget unzip python3 \
+wget unzip python3 python3.10 \
 python3-pip python3-magic libmagickwand-dev curl \
-sudo software-properties-common pipx build-essential python3-dev \
+sudo pipx build-essential python3-dev python3.10-dev \
 gnupg-agent git gosu net-tools rsync ssh ca-certificates gnupg lsb-release ncdu
 
 COPY ./requirements.txt /tmp/requirements.txt
