@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.0.3
+
+
+- **Fix**: Remove Deadsnakes PPA dependency by explicitly installing Python 3.10/3.11 from Ubuntu standard repos
+- **Fix**: Switch v11/v13 Dockerfile CMD from run.py to supervisor.py so odoo kill/up odoo_cronjobs works
+- **Fix**: Add missing dirs[images] to test fixtures after buildx allow-opts change
+- **Fix**: Add missing project_name and HOST_RUN_DIR attributes to test fixtures for _build_with_network_retry and test_build_passes_targetarch_as_build_arg
+
+
 ## 3.0.2
 
 

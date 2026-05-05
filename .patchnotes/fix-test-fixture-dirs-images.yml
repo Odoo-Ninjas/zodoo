@@ -1,3 +1,0 @@
-type: fix
-description: "Add missing dirs[images] to test fixtures after buildx allow-opts change"
-breaking: false

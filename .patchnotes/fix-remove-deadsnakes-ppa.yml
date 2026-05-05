@@ -1,3 +1,0 @@
-type: fix
-description: "Remove Deadsnakes PPA dependency by explicitly installing Python 3.10/3.11 from Ubuntu standard repos"
-breaking: false

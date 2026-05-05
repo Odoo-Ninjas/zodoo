@@ -1,3 +1,0 @@
-type: fix
-description: "Switch v11/v13 Dockerfile CMD from run.py to supervisor.py so odoo kill/up odoo_cronjobs works"
-breaking: false
