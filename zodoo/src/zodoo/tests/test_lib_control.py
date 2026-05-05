@@ -725,6 +725,8 @@ class _PrebuiltCfg:
         self.odoo_version = odoo_version
         self.ODOO_PYTHON_VERSION = py_version
         self.ZODOO_REGISTRY_URL = registry
+        self.project_name = "unit-test"
+        self.HOST_RUN_DIR = None
 
 
 def test_locate_dockerfile_matches_int_dir_for_float_version(tmp_path):
@@ -895,7 +897,12 @@ def test_build_passes_targetarch_as_build_arg(
 
     from types import SimpleNamespace
 
-    cfg = SimpleNamespace(verbose=False, odoo_version=19.0)
+    cfg = SimpleNamespace(
+        verbose=False,
+        odoo_version=19.0,
+        project_name="unit-test",
+        HOST_RUN_DIR=None,
+    )
     lcd.build(ctx=None, config=cfg, machines=["odoo"], platform=platform)
 
     assert len(seen_cmds) == 1
