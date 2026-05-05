@@ -1,0 +1,3 @@
+type: fix
+description: "Add missing project_name and HOST_RUN_DIR attributes to test fixtures for _build_with_network_retry and test_build_passes_targetarch_as_build_arg"
+breaking: false
