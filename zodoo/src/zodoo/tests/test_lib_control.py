@@ -17,6 +17,7 @@ spinning up a real docker stack.
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
@@ -719,7 +720,7 @@ class _PrebuiltCfg:
         registry="r.example",
         odoo_version=19.0,
     ):
-        self.dirs = {"images": images_dir}
+        self.dirs = {"images": images_dir or Path("/tmp")}
         # Mirrors real Config.odoo_version which is always a float parsed
         # from MANIFEST (e.g. 19.0), even though the on-disk dir is "19".
         self.odoo_version = odoo_version
@@ -902,6 +903,7 @@ def test_build_passes_targetarch_as_build_arg(
         odoo_version=19.0,
         project_name="unit-test",
         HOST_RUN_DIR=None,
+        dirs={"images": Path("/tmp")},
     )
     lcd.build(ctx=None, config=cfg, machines=["odoo"], platform=platform)
 
