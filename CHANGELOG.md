@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.2.0
+
+
+- **Feature**: Add generation field to registry_tag.yml to allow manual hash invalidation (force re-pull from zebroo registry)
+
+
 ## 3.1.0
 
 

@@ -1,3 +1,0 @@
-type: feature
-description: "Add generation field to registry_tag.yml to allow manual hash invalidation (force re-pull from zebroo registry)"
-breaking: false
