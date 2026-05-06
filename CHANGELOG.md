@@ -1,5 +1,11 @@
 # Changelog
 
+## 3.2.1
+
+
+- **Fix**: Always set DB_MAXCONN even when user overrides postgres max_connections. Previously, a user-defined max_connections in ~/.odoo/postgres.conf or POSTGRES_CONFIG made __after_settings.py return early without writing DB_MAXCONN, leaving the __DB_MAXCONN__ placeholder unsubstituted in the odoo config and crashing odoo at CLI parse time.
+
+
 ## 3.2.0
 
 
