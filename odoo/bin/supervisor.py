@@ -31,6 +31,13 @@ ZODOO_PYTHON = os.environ.get(
 )
 RUN_PY = "/odoolib/run.py"
 UPDATE_PY = "/odoolib/update_on_startup.py"
+# Runs prepare_run_shared (config-file rendering) once before roles spawn,
+# in an isolated subprocess so the heavy tools.py import doesn't get pulled
+# into PID 1.
+PREPARE_SHARED_CMD = (
+    "import sys; sys.path.insert(0, '/odoolib'); "
+    "from tools import prepare_run_shared; prepare_run_shared()"
+)
 GRACE_SECONDS = 30
 BACKOFF_INITIAL = 1.0
 BACKOFF_MAX = 30.0
@@ -345,6 +352,7 @@ class Supervisor:
                 return
 
         threading.Thread(target=self._socket_server, daemon=True).start()
+        _prepare_shared()
         self.start_enabled()
         try:
             self.supervise_loop()
@@ -375,6 +383,19 @@ def _serve_error_page():
     with HTTPServer(("", PORT), _ErrorPageHandler) as httpd:
         _log(f"construction-site on port {PORT}")
         httpd.serve_forever()
+
+
+def _prepare_shared():
+    _log("rendering shared odoo config (prepare_run_shared)")
+    try:
+        subprocess.run(
+            [ZODOO_PYTHON, "-c", PREPARE_SHARED_CMD],
+            check=True,
+            cwd="/opt/src",
+        )
+    except subprocess.CalledProcessError as ex:
+        _log(f"prepare_run_shared failed (rc={ex.returncode})")
+        raise
 
 
 # ---------------------------------------------------------------------

@@ -329,12 +329,13 @@ def get_config_file(confname):
     return str(Path(os.environ["ODOO_CONFIG_DIR"]) / confname)
 
 
-def prepare_run(local_config=None):
-    # chown all writable dirs first so the odoo user (when run via
-    # sudo_odoo_cmd) can write to them before any other code tries to.
-    # Recursive because _replace_variables_in_config_files below may
-    # re-run later as the odoo user and then needs to overwrite files
-    # that were originally created by a root-owned first invocation.
+def prepare_run_shared(local_config=None):
+    # Container-shared setup: chown writable dirs, render config files from
+    # templates, run autosetup, start libreoffice. Idempotent. Under the
+    # supervisor this runs once before role spawn — running it concurrently
+    # in each role races on ODOO_CONFIG_DIR (templates get copied back over
+    # already-substituted files, leaving placeholders like __DB_MAXCONN__
+    # in the live config and crashing odoo at CLI parse time).
     user_id = int(os.getenv("OWNER_UID", os.getuid()))
     for path in [
         os.environ["ODOO_CONFIG_DIR"],
@@ -372,6 +373,10 @@ def prepare_run(local_config=None):
 
     _run_libreoffice_in_background()
 
+
+def prepare_run_role():
+    # Role-specific setup that has to happen inside each role process,
+    # AFTER prepare_run_shared has populated ODOO_CONFIG_DIR.
     if os.getenv("IS_ODOO_QUEUEJOB", "") == "1":
         # https://www.odoo.com/apps/modules/10.0/queue_job/
         with get_conn_autoclose() as cr:
@@ -379,6 +384,13 @@ def prepare_run(local_config=None):
             if table_exists(cr, "queue_job"):
                 if column_exists(cr, "queue_job", "state"):
                     cr.execute(sql)
+
+
+def prepare_run(local_config=None):
+    # Full prep for one-off invocations (debug/shell/unit_test/update). The
+    # supervisor splits this — see prepare_run_shared / prepare_run_role.
+    prepare_run_shared(local_config)
+    prepare_run_role()
 
 
 def table_exists(cr, table):

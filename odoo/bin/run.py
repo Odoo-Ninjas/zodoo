@@ -2,7 +2,7 @@ import importlib.metadata
 import os
 import threading
 
-from tools import exec_odoo, is_odoo_cronjob, is_odoo_queuejob, prepare_run
+from tools import exec_odoo, is_odoo_cronjob, is_odoo_queuejob, prepare_run_role
 from tools import set_proxy_update_modules
 
 if is_odoo_cronjob:
@@ -42,7 +42,7 @@ try:
 except importlib.metadata.PackageNotFoundError:
     _zodoo_version = "unknown"
 print(f"Starting up odoo (zodoo {_zodoo_version})")
-prepare_run()
+prepare_run_role()
 
 TOUCH_URL = not is_odoo_cronjob and not is_odoo_queuejob
 if os.getenv("DEVMODE") == "1":
