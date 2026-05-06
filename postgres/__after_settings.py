@@ -53,31 +53,40 @@ def _compute_max_connections(settings):
     """
     import math
 
+    # Track whether the user already pinned postgres max_connections — affects
+    # only POSTGRES_CONFIG, not DB_MAXCONN. DB_MAXCONN is the odoo-side
+    # connection-pool ceiling and must always be set, otherwise the
+    # `__DB_MAXCONN__` placeholder in the odoo config templates is left
+    # unsubstituted and odoo crashes at CLI parse time.
+    user_override_max_conn = False
+
     existing_config = settings.get("POSTGRES_CONFIG", "")
     if "max_connections" in existing_config:
-        return  # user took over — don't second-guess
+        user_override_max_conn = True
 
     # Also respect override in ~/.odoo/postgres.conf or ~/.odoo/<project>/postgres.conf
     from pathlib import Path
 
-    for candi in [
-        Path("~/.odoo/postgres.conf").expanduser(),
-        Path(
-            f"~/.odoo/{settings.get('PROJECT_NAME', '')}/postgres.conf"
-        ).expanduser(),
-    ]:
-        if candi.is_file():
-            try:
-                content = candi.read_text()
-            except OSError:
-                continue
-            lines = [
-                ln.strip()
-                for ln in content.splitlines()
-                if ln.strip() and not ln.strip().startswith("#")
-            ]
-            if any("max_connections" in ln for ln in lines):
-                return
+    if not user_override_max_conn:
+        for candi in [
+            Path("~/.odoo/postgres.conf").expanduser(),
+            Path(
+                f"~/.odoo/{settings.get('PROJECT_NAME', '')}/postgres.conf"
+            ).expanduser(),
+        ]:
+            if candi.is_file():
+                try:
+                    content = candi.read_text()
+                except OSError:
+                    continue
+                lines = [
+                    ln.strip()
+                    for ln in content.splitlines()
+                    if ln.strip() and not ln.strip().startswith("#")
+                ]
+                if any("max_connections" in ln for ln in lines):
+                    user_override_max_conn = True
+                    break
 
     def _parse_channels(raw):
         parts = [x.strip().split(":") for x in raw.split(",") if x.strip()]
@@ -122,20 +131,23 @@ def _compute_max_connections(settings):
 
     settings["DB_MAXCONN"] = str(max_conn)
 
-    glue = "" if not existing_config or existing_config.endswith(";") else ";"
-    settings["POSTGRES_CONFIG"] = (
-        f"{existing_config}{glue}max_connections={max_conn}"
-    )
-
-    # superuser_reserved_connections: ~10 % of max_connections (min 3, capped at 20)
-    # so admins / monitoring can still connect when the regular pool is exhausted.
-    # Skipped if the user already set the key in POSTGRES_CONFIG.
-    if "superuser_reserved_connections" not in settings.get(
-        "POSTGRES_CONFIG", ""
-    ):
-        reserved = max(3, min(20, math.ceil(max_conn * 0.1)))
-        current = settings["POSTGRES_CONFIG"]
-        glue2 = "" if current.endswith(";") else ";"
-        settings["POSTGRES_CONFIG"] = (
-            f"{current}{glue2}superuser_reserved_connections={reserved}"
+    if not user_override_max_conn:
+        glue = (
+            "" if not existing_config or existing_config.endswith(";") else ";"
         )
+        settings["POSTGRES_CONFIG"] = (
+            f"{existing_config}{glue}max_connections={max_conn}"
+        )
+
+        # superuser_reserved_connections: ~10 % of max_connections (min 3, capped at 20)
+        # so admins / monitoring can still connect when the regular pool is exhausted.
+        # Skipped if the user already set the key in POSTGRES_CONFIG.
+        if "superuser_reserved_connections" not in settings.get(
+            "POSTGRES_CONFIG", ""
+        ):
+            reserved = max(3, min(20, math.ceil(max_conn * 0.1)))
+            current = settings["POSTGRES_CONFIG"]
+            glue2 = "" if current.endswith(";") else ";"
+            settings["POSTGRES_CONFIG"] = (
+                f"{current}{glue2}superuser_reserved_connections={reserved}"
+            )
