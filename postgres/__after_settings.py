@@ -11,7 +11,11 @@ def after_settings(settings, config):
         for k, v in values.items():
             settings[k] = v
 
-        _compute_max_connections(settings)
+    # DB_MAXCONN (odoo-side connection-pool ceiling) must always be
+    # computed — even when RUN_POSTGRES=0 (external DB) — otherwise
+    # the __DB_MAXCONN__ placeholder in odoo config templates stays
+    # unsubstituted and odoo crashes at CLI parse time.
+    _compute_max_connections(settings)
 
 
 def _compute_max_connections(settings):
