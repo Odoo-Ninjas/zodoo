@@ -510,6 +510,9 @@ def get_zodoo_image_tag_for_service(config, service_name):
                         )
     project_hash = "|".join(project_parts)
 
+    # Generation bump — increment in registry_tag.yml to force a re-pull
+    generation = str(tag_config.get("generation", 0))
+
     # 8. Combine everything
     combined_input = "|".join(
         setting_values
@@ -520,6 +523,7 @@ def get_zodoo_image_tag_for_service(config, service_name):
             zodoo_hash,
             req_hash,
             project_hash,
+            generation,
         ]
     )
     combined_hash = hashlib.sha256(combined_input.encode()).hexdigest()[:8]
