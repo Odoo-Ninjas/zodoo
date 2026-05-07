@@ -310,6 +310,7 @@ def rebuild(ctx, config, machines=[]):
 # `odoo restart odoo_cronjobs` etc. must still work — we forward the call
 # to the in-container supervisor instead of touching compose.
 _LEGACY_ROLE_MAP = {
+    "odoo": "web",
     "odoo_cronjobs": "cronjobs",
     "odoo_queuejobs": "queuejobs",
 }
