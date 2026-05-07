@@ -1816,20 +1816,6 @@ def list_robot_test_files(config):
     click.secho("!!!")
 
 
-@odoo_module.command()
-@click.argument(
-    "file", required=False, shell_complete=_get_available_unittests
-)
-@click.option("-w", "--wait-for-remote", is_flag=True)
-@click.option("-r", "--remote-debug", is_flag=True)
-@click.option("-n", "--non-interactive", is_flag=True)
-@click.option("-t", "--tags", is_flag=True)
-@click.option("--output-json", is_flag=True)
-@click.option("--log", is_flag=True)
-@click.option(
-    "--no-debug", is_flag=True, help="Disable interactive debugging (pudb)"
-)
-@pass_config
 def _resolve_unittest_files(config, file):
     from .odoo_config import customs_dir
     from .module_tools import Module
@@ -1911,6 +1897,20 @@ def _display_test_results(test_result, output_json):
         sys.exit(-1)
 
 
+@odoo_module.command()
+@click.argument(
+    "file", required=False, shell_complete=_get_available_unittests
+)
+@click.option("-w", "--wait-for-remote", is_flag=True)
+@click.option("-r", "--remote-debug", is_flag=True)
+@click.option("-n", "--non-interactive", is_flag=True)
+@click.option("-t", "--tags", is_flag=True)
+@click.option("--output-json", is_flag=True)
+@click.option("--log", is_flag=True)
+@click.option(
+    "--no-debug", is_flag=True, help="Disable interactive debugging (pudb)"
+)
+@pass_config
 def unittest(
     config,
     file,
