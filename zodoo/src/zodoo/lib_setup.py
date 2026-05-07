@@ -700,12 +700,14 @@ def _get_package_version(python, name):
 
 def _fix_permissions(config, dirs_to_fix):
     import pwd
+    import platform
 
     uid = config.owner_uid
     if not uid:
         return
 
-    gid = pwd.getpwuid(int(uid)).pw_gid
+    uid_int = int(uid)
+    gid = pwd.getpwuid(uid_int).pw_gid
     owner = f"{uid}:{gid}"
 
     for path in dirs_to_fix:
@@ -714,6 +716,31 @@ def _fix_permissions(config, dirs_to_fix):
             continue
 
         click.secho(f"Fixing {path} to {owner} ...", fg="yellow")
+
+        if platform.system() == "Darwin":
+            # Docker Desktop on macOS proxies filesystem ops through the macOS
+            # user, so container-root cannot chown host-mounted files. Use
+            # native find to check ownership; if already correct, skip.
+            check = subprocess.run(
+                [
+                    "find", path, "-not", "-type", "l",
+                    "(", "-not", "-user", str(uid_int),
+                    "-o", "-not", "-group", str(gid), ")",
+                    "-print", "-quit",
+                ],
+                capture_output=True,
+                text=True,
+            )
+            if not check.stdout.strip():
+                click.secho(f"  OK: {path}", fg="green")
+                continue
+            try:
+                subprocess.check_call(["sudo", "chown", "-R", owner, path])
+                click.secho(f"  OK: {path}", fg="green")
+            except subprocess.CalledProcessError as ex:
+                click.secho(f"  FAILED: {path}: {ex}", fg="red")
+            continue
+
         cmd = [
             "docker",
             "run",
