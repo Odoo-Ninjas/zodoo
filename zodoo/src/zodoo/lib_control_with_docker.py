@@ -241,10 +241,13 @@ def up(
     dc_options = []
     if not machines and config.run_postgres and daemon and config.USE_DOCKER:
         _start_postgres_before(config)
-    for profile in resolve_profiles(profile):
-        dc_options2 = dc_options + ["--profile", profile]
+    for resolved_profile in resolve_profiles(profile):
         try:
-            __dc(config, dc_options2 + ["up"] + options + machines)
+            __dc(
+                config,
+                dc_options + ["up"] + options + machines,
+                profile=resolved_profile,
+            )
         except subprocess.CalledProcessError as e:
             if no_recreate:
                 # up --no-recreate can fail when Docker removed the network during orphan
@@ -257,7 +260,11 @@ def up(
                     fg="yellow",
                 )
                 try:
-                    __dc(config, dc_options2 + ["down", "--remove-orphans"])
+                    __dc(
+                        config,
+                        dc_options + ["down", "--remove-orphans"],
+                        profile=resolved_profile,
+                    )
                 except subprocess.CalledProcessError:
                     pass  # ignore down failure, proceed with up anyway
                 options_without_no_recreate = [
@@ -265,10 +272,11 @@ def up(
                 ]
                 __dc(
                     config,
-                    dc_options2
+                    dc_options
                     + ["up"]
                     + options_without_no_recreate
                     + machines,
+                    profile=resolved_profile,
                 )
             else:
                 raise
@@ -543,7 +551,9 @@ def _build_with_network_retry(config, options, machines, env):
             allow_opts = []
             if config.HOST_RUN_DIR:
                 allow_opts = [f"--allow=fs.read={config.HOST_RUN_DIR}"]
-            images_dir = str(Path(config.dirs["images"]).expanduser().resolve())
+            images_dir = str(
+                Path(config.dirs["images"]).expanduser().resolve()
+            )
             if images_dir and Path(images_dir).exists():
                 allow_opts.append(f"--allow=fs.read={images_dir}")
             cmd = (
