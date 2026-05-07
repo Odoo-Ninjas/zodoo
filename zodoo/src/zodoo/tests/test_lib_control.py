@@ -278,6 +278,7 @@ def test_up_command_dispatches_and_runs_after_up(monkeypatch, tmp_path):
         force_recreate,
         no_recreate,
         allow_build,
+        profile="all",
     ):
         seen["machines"] = tuple(machines)
         seen["daemon"] = daemon
