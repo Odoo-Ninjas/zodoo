@@ -990,6 +990,20 @@ def try_pull_from_zodoo_registry(config, machines):
     (and thus don't need building).  Each service gets its own
     content-based tag via :func:`get_zodoo_image_tag_for_service`.
     """
+    # SRC_EXTRA=0 means customer source must be baked into the odoo image
+    # (see lib_composer.append_odoo_src). Pulling the shared cache image
+    # would replace the to-be-built image with one that has NO source, so
+    # the local build becomes a no-op and /opt/src/MANIFEST never lands in
+    # the image — regpush then aborts on the MANIFEST check. Symmetric to
+    # the SRC_EXTRA=0 guard in push_to_zodoo_registry.
+    if not config.SRC_EXTRA:
+        click.secho(
+            "Skipping zodoo registry pull: SRC_EXTRA=0 — customer source must "
+            "be baked locally, cached image would skip the bake.",
+            fg="yellow",
+        )
+        return []
+
     if _is_images_dirty():
         click.secho(
             "Skipping zodoo registry pull: ~/.odoo/images has uncommitted changes.",
