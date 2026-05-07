@@ -255,6 +255,7 @@ def recreate(ctx, config, machines):
 @click.option("-d", "--daemon", is_flag=True)
 @click.option("--force-recreate", is_flag=True)
 @click.option("--no-recreate", is_flag=True)
+@click.option("-p", "--profile", default="auto")
 @pass_config
 @click.pass_context
 def up(
@@ -264,6 +265,7 @@ def up(
     daemon,
     force_recreate,
     no_recreate,
+    profile,
     allow_build=False,
 ):
     ensure_project_name(config)
@@ -276,6 +278,7 @@ def up(
         machines,
         daemon,
         remove_orphans=True,
+        profile=profile,
         force_recreate=force_recreate,
         no_recreate=no_recreate,
         allow_build=allow_build,

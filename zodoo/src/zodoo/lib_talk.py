@@ -201,6 +201,35 @@ def recompute_parent_store(ctx, config):
 
 
 @talk.command()
+@click.option("-n", "--last", default=10, help="Show last N connection samples.")
+@pass_config
+def diagnose(config, last):
+    """
+    Show runtime diagnose values.
+
+    Currently delegates to the db connection sampler in the cronjobs
+    container. As more diagnose sources are added (memory, queue depths,
+    etc.), this command will aggregate them.
+    """
+    import subprocess
+    import sys
+
+    from .tools import ensure_project_name
+
+    ensure_project_name(config)
+    container = f"{config.project_name}_cronjobs"
+
+    click.secho("=== DB connection samples ===", fg="cyan", bold=True)
+    rc = subprocess.call([
+        "docker", "exec", container,
+        "python3", "/usr/local/bin/diag_maxconn_sampler.py", "show",
+        "-n", str(last),
+    ])
+    if rc:
+        sys.exit(rc)
+
+
+@talk.command()
 @pass_config
 def progress(config):
     """
