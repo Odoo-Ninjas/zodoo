@@ -129,7 +129,9 @@ def _compute_max_connections(settings):
         HEADROOM = 50
         MIN_FLOOR = 100
         extra = int(settings.get("EXTRA_DB_CONN", 0))
-        max_conn = max(MIN_FLOOR, math.ceil(total * PER_PROCESS) + HEADROOM) + extra
+        max_conn = (
+            max(MIN_FLOOR, math.ceil(total * PER_PROCESS) + HEADROOM) + extra
+        )
     except (ValueError, TypeError):
         return
 
