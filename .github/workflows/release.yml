@@ -41,8 +41,13 @@ jobs:
           ZODOO_PY="$(pipx environment --value PIPX_LOCAL_VENVS)/zodoo/bin/python"
           "$ZODOO_PY" -m pytest -m "not slow" -vv
 
+  bake:
+    uses: ./.github/workflows/bake-test.yml
+    with:
+      versions: "19.0"
+
   release:
-    needs: test
+    needs: [test, bake]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

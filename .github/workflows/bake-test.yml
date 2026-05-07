@@ -7,6 +7,13 @@ name: Bake test
 #   - weekly so we catch upstream Odoo / image breakage
 
 on:
+  workflow_call:
+    inputs:
+      versions:
+        description: "Comma-separated Odoo versions to bake (e.g. 17.0,19.0)"
+        required: false
+        default: "19.0"
+        type: string
   pull_request:
     branches: [main]
     paths:
@@ -29,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     env:
-      ZODOO_BAKE_TEST_VERSIONS: ${{ github.event.inputs.versions || '19.0' }}
+      ZODOO_BAKE_TEST_VERSIONS: ${{ inputs.versions || github.event.inputs.versions || '19.0' }}
     steps:
       - uses: actions/checkout@v4
 
