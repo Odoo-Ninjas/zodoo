@@ -50,7 +50,9 @@ RUN #___SNIPPET_APT_INSTALL___ \
     git \
     gcc \
     libcairo2-dev \
-    libcairo2
+    libcairo2 \
+    meson \
+    ninja-build
 
 #___SNIPPET_DEB_REQUIREMENTS___
 
@@ -62,6 +64,7 @@ RUN pip3 install pip -U
 RUN pip3 install $(cat /etc/pip_options) wheel && \
 #___SNIPPET_SETUPTOOLS_SAFEVERSION___
 
+RUN pip3 install meson-python ninja
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 RUN pip3 install $(cat /etc/pip_options) -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
