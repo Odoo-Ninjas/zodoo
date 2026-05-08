@@ -765,10 +765,11 @@ def _prepare_filesystem(config):
             path,
         )
     if platform.system() == "Linux":
-        pg_socket_dir = config.dirs["run"] / "postgres.socket"
-        if pg_socket_dir.exists() and not pg_socket_dir.is_dir():
-            pg_socket_dir.unlink()
-        pg_socket_dir.mkdir(parents=True, exist_ok=True)
+        for dirname in ["postgres.socket", "postgres.logs"]:
+            dir_path = config.dirs["run"] / dirname
+            if dir_path.exists() and not dir_path.is_dir():
+                dir_path.unlink()
+            dir_path.mkdir(parents=True, exist_ok=True)
 
 
 def get_db_name(db, project_name):
