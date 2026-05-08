@@ -1,5 +1,5 @@
 # Increment to force a re-pull from the zebroo registry (e.g. after major infra changes).
-generation: 2
+generation: 3
 settings:
   - ODOO_PYTHON_VERSION
 tag_prefix:
