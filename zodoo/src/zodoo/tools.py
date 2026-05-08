@@ -2530,8 +2530,6 @@ def fast_file_hash(
 
 
 def _is_in_container():
-    if os.environ.get("IS_ODOO_CONTAINER") == "1":
-        return True
     if Path("/.dockerenv").exists():
         return True
     try:

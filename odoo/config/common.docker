@@ -39,7 +39,6 @@ ENV ODOO_SERVER_TOOLS_MODULES=/opt/odoo_server_tools
 ENV ODOO_FRAMEWORK_KEEP_SQL_CONNECTION=1
 ENV PATH=/odoolib:/opt/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ENV DOCKER_HOST_RUN_DIR=/opt/run
-ENV IS_ODOO_CONTAINER=1
 
 # Forward zodoo settings through `sudo -u odoo` (see odoo/bin/tools.py).
 # Default sudoers policy is `env_reset`, which drops everything not in
@@ -163,7 +162,6 @@ ENV ODOO_SERVER_TOOLS_MODULES=/opt/odoo_server_tools
 ENV ODOO_FRAMEWORK_KEEP_SQL_CONNECTION=1
 ENV PATH=/odoolib:/opt/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ENV DOCKER_HOST_RUN_DIR=/opt/run
-ENV IS_ODOO_CONTAINER=1
 ENV ZSTDOPTIONS="-10 -T4"
 
 WORKDIR /opt/src

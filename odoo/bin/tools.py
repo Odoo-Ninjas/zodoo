@@ -470,68 +470,35 @@ def is_in_container():
 def kill_odoo():
     if pidfile.exists():
         click.secho("Killing Odoo")
-        pid = pidfile.read_text()
-        cmd = ["/bin/kill", "-9", pid]
-        if os.getenv("USE_DOCKER", "") == "1" and is_in_container():
-            cmd = [
-                "/usr/bin/sudo",
-            ] + cmd
+        pid = pidfile.read_text().strip()
+        base_cmd = ["/usr/bin/sudo"] if os.getenv("USE_DOCKER", "") == "1" and is_in_container() else []
+        # SIGTERM first: master signals workers to exit cleanly, freeing port 8069
         subprocess.run(
-            cmd,
+            base_cmd + ["/bin/kill", "-15", pid],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL,
         )
+        import time as _time
+        for _ in range(10):
+            _time.sleep(1)
+            try:
+                import os as _os
+                _os.kill(int(pid), 0)
+            except ProcessLookupError:
+                break
+        else:
+            subprocess.run(
+                base_cmd + ["/bin/kill", "-9", pid],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+            )
         try:
             pidfile.unlink()
         except FileNotFoundError:
             pass
-    elif os.getenv("IS_ODOO_CONTAINER") == "1":
-        # Inside the consolidated container the other roles (web / cronjobs
-        # / queuejobs) are sibling processes of the supervisor. A blanket
-        # `pkill -f odoo-bin` would kill them too. With no pidfile there is
-        # nothing *this* role could legitimately kill — the supervisor owns
-        # role lifecycle now.
-        sane_tty()
-        return
-    else:
-        if version <= 9.0:
-            subprocess.run(
-                [
-                    "/usr/bin/sudo",
-                    "/usr/bin/pkill",
-                    "-9",
-                    "-f",
-                    "openerp-server",
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                stdin=subprocess.DEVNULL,
-            )
-            subprocess.run(
-                [
-                    "/usr/bin/sudo",
-                    "/usr/bin/pkill",
-                    "-9",
-                    "-f",
-                    "openerp-gevent",
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                stdin=subprocess.DEVNULL,
-            )
-        else:
-            subprocess.run(
-                [
-                    "/usr/bin/sudo",
-                    "/usr/bin/pkill",
-                    "-9",
-                    "-f",
-                    "odoo-bin",
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+
     sane_tty()
 
 

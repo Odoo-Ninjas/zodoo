@@ -12,6 +12,7 @@ from .tools import _wait_postgres
 from .tools import __replace_in_file
 from .tools import _wait_for_port
 from .tools import __dcexec
+from .tools import _is_in_container
 from .tools import __dc
 from .tools import __dc_out
 from .tools import _get_host_ip
@@ -890,7 +891,7 @@ def logall(config, machines, follow, lines):
 
 
 def shell(config, command="", queuejobs=False):
-    if os.getenv("IS_ODOO_CONTAINER") == "1":
+    if _is_in_container():
         cmdline = ["/odoolib/entrypoint.sh", "/odoolib/shell.py"]
         if command:
             cmdline += [command]
