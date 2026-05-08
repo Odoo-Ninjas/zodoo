@@ -49,7 +49,8 @@ RUN #___SNIPPET_APT_INSTALL___ \
     cmake \
     git \
     gcc \
-    libcairo2-dev
+    libcairo2-dev \
+    libcairo2
 
 #___SNIPPET_DEB_REQUIREMENTS___
 
@@ -138,7 +139,8 @@ RUN #___SNIPPET_APT_INSTALL___ \
             xfonts-base \
             libgeos-c1v5 \
             vim \
-            fontconfig
+            fontconfig \
+            libcairo2
 
 COPY liberation-sans /usr/share/fonts/
 # rebuild font cache
