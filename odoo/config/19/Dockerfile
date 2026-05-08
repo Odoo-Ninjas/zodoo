@@ -48,7 +48,8 @@ RUN #___SNIPPET_APT_INSTALL___ \
     libkrb5-dev \
     cmake \
     git \
-    gcc
+    gcc \
+    libcairo2-dev
 
 #___SNIPPET_DEB_REQUIREMENTS___
 
