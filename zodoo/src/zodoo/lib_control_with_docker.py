@@ -327,6 +327,12 @@ _LEGACY_ROLE_MAP = {
 
 def _supervisor_action_role(config, action, role):
     container = f"{config.project_name}_odoo"
+    if action in ("stop", "restart") and not _is_container_running(config, "odoo"):
+        click.secho(
+            f"Container {container} is not running — skipping supervisor {action} {role}",
+            fg="yellow",
+        )
+        return
     click.secho(
         f"Legacy service name → supervisor: {action} {role} in {container}",
         fg="yellow",
