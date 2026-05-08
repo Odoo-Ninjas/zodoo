@@ -1,3 +1,0 @@
-type: fix
-description: "Add missing profile parameter to up mock in test_up_command_dispatches_and_runs_after_up"
-breaking: false

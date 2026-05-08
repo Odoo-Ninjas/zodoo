@@ -1,3 +1,0 @@
-type: fix
-description: "Create postgres.logs as directory on Linux before docker compose up to prevent bind-mount file conflict"
-breaking: false

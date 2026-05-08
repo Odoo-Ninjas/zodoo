@@ -1,3 +1,0 @@
-type: fix
-description: "Run slow (bake) tests before releasing — release job now waits for bake-test to pass"
-breaking: false

@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.2.3
+
+
+- **Fix**: Run slow (bake) tests before releasing — release job now waits for bake-test to pass
+- **Fix**: Fix duplicate --profile flag passed to docker compose up
+- **Fix**: Create postgres.logs as directory on Linux before docker compose up to prevent bind-mount file conflict
+- **Fix**: Create postgres.socket as directory on Linux before docker compose up
+- **Fix**: Add missing profile parameter to up mock in test_up_command_dispatches_and_runs_after_up
+
+
 ## 3.2.2
 
 

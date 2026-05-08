@@ -1,3 +1,0 @@
-type: fix
-description: "Fix duplicate --profile flag passed to docker compose up"
-breaking: false
