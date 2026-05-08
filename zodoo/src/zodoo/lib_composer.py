@@ -764,6 +764,11 @@ def _prepare_filesystem(config):
             int(fileconfig["OWNER_UID"]),
             path,
         )
+    if platform.system() == "Linux":
+        pg_socket_dir = config.dirs["run"] / "postgres.socket"
+        if pg_socket_dir.exists() and not pg_socket_dir.is_dir():
+            pg_socket_dir.unlink()
+        pg_socket_dir.mkdir(parents=True, exist_ok=True)
 
 
 def get_db_name(db, project_name):

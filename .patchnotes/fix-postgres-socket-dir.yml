@@ -1,0 +1,3 @@
+type: fix
+description: "Create postgres.socket as directory on Linux before docker compose up"
+breaking: false
