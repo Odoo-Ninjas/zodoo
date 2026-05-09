@@ -55,6 +55,7 @@ from . import lib_bisect  # NOQA
 from . import lib_cached_build  # NOQA
 from . import lib_router  # NOQA
 from . import lib_diag_maxconn_sampler  # NOQA
+from . import lib_jobqueue  # NOQA
 
 # import container specific commands
 from .tools import abort  # NOQA

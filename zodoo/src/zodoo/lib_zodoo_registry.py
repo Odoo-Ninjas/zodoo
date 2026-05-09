@@ -1059,6 +1059,110 @@ def try_pull_from_zodoo_registry(config, machines):
     return pulled
 
 
+def enqueue_registry_uploads(config, machines, suppress_other_platform=False):
+    """Queue the post-build registry pushes and return immediately.
+
+    Does the cheap, time-sensitive work synchronously:
+      - Validates SRC_EXTRA / images-dirty / registry config gates.
+      - For each service, computes the tag and **retags the local image**
+        under the final registry name(s) so that a subsequent build does
+        not clobber the artifact still waiting to be pushed.
+      - Triggers cross-architecture builds (already detached today).
+
+    Defers the slow ``docker push`` to a background worker, kicked off
+    detached. ``odoo run-crontab`` re-processes any unfinished jobs as a
+    safety net.
+    """
+    from .lib_jobqueue import enqueue, spawn_worker
+
+    if not config.SRC_EXTRA:
+        click.secho(
+            "Skipping zodoo registry push: SRC_EXTRA=0 — customer source is "
+            "baked into the image and must not be uploaded to the shared "
+            "zodoo registry.",
+            fg="yellow",
+        )
+        return
+
+    if _is_images_dirty():
+        click.secho(
+            "Skipping zodoo registry push: ~/.odoo/images has uncommitted changes.",
+            fg="yellow",
+        )
+        return
+
+    reg = _get_registry_config(config)
+    if not reg:
+        return
+
+    queued = 0
+    for service_name in machines:
+        tag = get_zodoo_image_tag_for_service(config, service_name)
+        if not tag:
+            click.secho(
+                f"Cannot compute tag for {service_name}, skipping push.",
+                fg="yellow",
+            )
+            continue
+
+        local_image = _local_image_name(config, service_name)
+        registry_image = _registry_image_name(reg["url"], service_name, tag)
+        arch_image = _registry_image_name(
+            reg["url"], service_name, _arch_tag(tag)
+        )
+
+        # Retag NOW so a later build can't replace the local image before
+        # the worker pushes it. The registry-named tag protects the bytes.
+        try:
+            subprocess.check_call(
+                ["docker", "tag", local_image, registry_image]
+            )
+            subprocess.check_call(["docker", "tag", local_image, arch_image])
+        except subprocess.CalledProcessError as e:
+            click.secho(
+                f"Could not retag {local_image} for {service_name}: {e}; "
+                "skipping queue entry.",
+                fg="red",
+            )
+            continue
+
+        enqueue(
+            config,
+            "registry_upload",
+            {
+                "service": service_name,
+                "tag": tag,
+                "images": [registry_image, arch_image],
+            },
+        )
+        queued += 1
+
+    # Cross-arch builds need fresh source on disk, so trigger them now
+    # (they are already started detached by _build_and_push_other_arch).
+    if not suppress_other_platform and _can_cross_build():
+        for service_name in machines:
+            tag = get_zodoo_image_tag_for_service(config, service_name)
+            if tag:
+                _build_and_push_other_arch(config, service_name, tag)
+
+    if queued:
+        spawn_worker(config)
+
+
+def process_registry_upload_job(config, payload):
+    """Worker handler for ``registry_upload`` jobs."""
+    zodoo_registry_login(config)
+    images = payload.get("images") or []
+    for image in images:
+        click.secho(f"Pushing {image}...", fg="cyan")
+        returncode, output = _docker_push_streaming(image)
+        if returncode != 0:
+            raise subprocess.CalledProcessError(
+                returncode, ["docker", "push", image], output=output
+            )
+        click.secho(f"Pushed {image}", fg="green")
+
+
 def push_to_zodoo_registry(config, machines, suppress_other_platform=False):
     """Push all build-services to registry after build.
 

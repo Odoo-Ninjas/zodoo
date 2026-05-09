@@ -492,7 +492,7 @@ def build(
 ):
     from .lib_cached_build import start_squid_proxy, start_proxpi
     from .lib_zodoo_registry import try_pull_from_zodoo_registry
-    from .lib_zodoo_registry import push_to_zodoo_registry
+    from .lib_zodoo_registry import enqueue_registry_uploads
     from .lib_docker_registry import disable_keychain_credential_store
 
     from .myconfigparser import MyConfigParser
@@ -539,9 +539,11 @@ def build(
             platform=platform,
         )
 
-        # Push built images to zodoo registry
+        # Queue registry pushes; the actual `docker push` happens in a
+        # detached worker so build returns as soon as the local image is
+        # ready. `odoo run-crontab` is the safety net for crashed workers.
         if not no_zodoo_push:
-            push_to_zodoo_registry(
+            enqueue_registry_uploads(
                 config,
                 machines_to_build,
                 suppress_other_platform=suppress_other_platform_build,
