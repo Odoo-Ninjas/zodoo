@@ -450,6 +450,8 @@ def build(
     push=False,
     include_source=False,
     platform=None,
+    no_zodoo_pull=False,
+    no_zodoo_push=False,
 ):
     """
     no parameter all machines, first parameter machine name and passes other params; e.g. ./odoo build asterisk --no-cache"
@@ -483,7 +485,12 @@ def build(
     # Build the per-version base image first when one is defined for this
     # Odoo version. The project's compose Dockerfile references the
     # resolved base tag via `FROM ${BASE_TAG}` (baked in by composer).
-    _ensure_base_image_for_build(config, machines)
+    _ensure_base_image_for_build(
+        config,
+        machines,
+        no_zodoo_pull=no_zodoo_pull,
+        no_zodoo_push=no_zodoo_push,
+    )
 
     # `docker buildx bake` (COMPOSE_BAKE=true) does not reliably auto-populate
     # global `ARG TARGETARCH` from DOCKER_DEFAULT_PLATFORM, so a Dockerfile
@@ -770,7 +777,9 @@ def _ensure_prebuilt_python_image(config, arch):
     )
 
 
-def _ensure_base_image_for_build(config, machines):
+def _ensure_base_image_for_build(
+    config, machines, no_zodoo_pull=False, no_zodoo_push=False
+):
     """Build/locate the per-version Odoo base image before composing.
 
     Only kicks in when ``odoo`` is among the machines being built (or when
@@ -778,7 +787,8 @@ def _ensure_base_image_for_build(config, machines):
     version has a ``Dockerfile.base``. Otherwise no-op.
 
     Prints the hash inputs and resolved tag so users can see what's
-    being reused vs. rebuilt.
+    being reused vs. rebuilt. ``no_zodoo_pull`` / ``no_zodoo_push``
+    mirror the matching flags on ``odoo build``.
     """
     if machines and "odoo" not in machines:
         return
@@ -803,7 +813,11 @@ def _ensure_base_image_for_build(config, machines):
     )
     click.secho("─" * 72, fg="cyan")
 
-    ensure_base_image(config)
+    ensure_base_image(
+        config,
+        try_pull=not no_zodoo_pull,
+        enqueue_push=not no_zodoo_push,
+    )
 
 
 def _has_registry_credentials(registry_url):

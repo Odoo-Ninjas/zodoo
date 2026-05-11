@@ -454,7 +454,8 @@ def attach(ctx, config, machine):
     help="Build for a specific platform",
 )
 @click.option(
-    "--no-zodoo-pull", "-ZPl",
+    "--no-zodoo-pull",
+    "-ZPl",
     is_flag=True,
     help="Skip pulling from zodoo registry (force local build)",
 )
@@ -464,7 +465,8 @@ def attach(ctx, config, machine):
     help="Only pull from zodoo registry, never build locally. Fails if image not found.",
 )
 @click.option(
-    "--no-zodoo-push", "-ZPs",
+    "--no-zodoo-push",
+    "-ZPs",
     is_flag=True,
     help="Skip pushing built images to zodoo registry after build",
 )
@@ -537,6 +539,8 @@ def build(
             push,
             include_source,
             platform=platform,
+            no_zodoo_pull=no_zodoo_pull,
+            no_zodoo_push=no_zodoo_push,
         )
 
         # Queue registry pushes; the actual `docker push` happens in a

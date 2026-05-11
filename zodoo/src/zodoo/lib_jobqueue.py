@@ -30,7 +30,6 @@ import click
 
 from .cli import cli, pass_config
 
-
 QUEUE_SUBDIR = "jobqueue"
 LOG_SUBDIR = "log"
 STALE_AFTER_SEC = 30 * 60
@@ -97,9 +96,7 @@ def spawn_worker(config):
                 stdin=subprocess.DEVNULL,
                 start_new_session=True,
             )
-        click.secho(
-            f"Spawned background worker (log: {log_file})", fg="cyan"
-        )
+        click.secho(f"Spawned background worker (log: {log_file})", fg="cyan")
     except OSError as e:
         click.secho(
             f"Could not spawn background worker ({e}); "
@@ -113,7 +110,9 @@ def _claim(job_path):
 
     Returns the new path on success, ``None`` if another worker won the race.
     """
-    target = job_path.with_suffix(job_path.suffix + f".processing.{os.getpid()}")
+    target = job_path.with_suffix(
+        job_path.suffix + f".processing.{os.getpid()}"
+    )
     try:
         os.rename(job_path, target)
         return target
@@ -177,10 +176,14 @@ def _reclaim_stale(qdir):
 
 def _get_handlers():
     """Lazy import to avoid circular imports at module load time."""
-    from .lib_zodoo_registry import process_registry_upload_job
+    from .lib_zodoo_registry import (
+        process_base_image_upload_job,
+        process_registry_upload_job,
+    )
 
     return {
         "registry_upload": process_registry_upload_job,
+        "base_image_upload": process_base_image_upload_job,
     }
 
 
@@ -199,9 +202,7 @@ def _run_one(config, processing_path):
     try:
         handler(config, payload)
     except Exception as e:
-        click.secho(
-            f"Job {body.get('id')} failed: {e}", fg="red"
-        )
+        click.secho(f"Job {body.get('id')} failed: {e}", fg="red")
         _release_failed(processing_path)
         return False
     processing_path.unlink()

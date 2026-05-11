@@ -316,12 +316,26 @@ def _resolve_build_context(config):
         return None
 
 
-def ensure_base_image(config, *, force_rebuild=False):
+def ensure_base_image(
+    config,
+    *,
+    force_rebuild=False,
+    try_pull=True,
+    enqueue_push=True,
+):
     """Make sure the base image exists locally; build it if not.
 
     Returns the local tag of the base image (``odoo_base_<v>_<hash>_<arch>``),
     or ``None`` if there is no ``Dockerfile.base`` for the project's Odoo
     version (= caller should fall back to the legacy monolithic build).
+
+    Resolution order when the image is missing locally:
+      1. If ``try_pull`` is true and a zodoo registry is configured, try
+         to pull a pre-built base from the registry.
+      2. Otherwise (or if pull failed) build it locally.
+      3. After a successful local build, enqueue an async push to the
+         zodoo registry when ``enqueue_push`` is true (skipped silently
+         when ~/.odoo/images is dirty or no registry is configured).
 
     The function is idempotent: when the image is already present locally
     and ``force_rebuild`` is false, it returns immediately without
@@ -338,6 +352,19 @@ def ensure_base_image(config, *, force_rebuild=False):
             fg="green",
         )
         return tag
+
+    if try_pull and not force_rebuild:
+        try:
+            from .lib_zodoo_registry import try_pull_base_image
+
+            if try_pull_base_image(config, inputs):
+                return tag
+        except Exception as e:
+            click.secho(
+                f"Base image pull attempt failed: {e}. "
+                "Falling back to local build.",
+                fg="yellow",
+            )
 
     context = _resolve_build_context(config)
     if context is None or not context.exists():
@@ -374,4 +401,15 @@ def ensure_base_image(config, *, force_rebuild=False):
         raise subprocess.CalledProcessError(proc.returncode, cmd)
 
     click.secho(f"Built base image {tag}", fg="green")
+
+    if enqueue_push:
+        try:
+            from .lib_zodoo_registry import enqueue_base_image_upload
+
+            enqueue_base_image_upload(config, inputs)
+        except Exception as e:
+            click.secho(
+                f"Could not enqueue base image upload: {e}", fg="yellow"
+            )
+
     return tag
