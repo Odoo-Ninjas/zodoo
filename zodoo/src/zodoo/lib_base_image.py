@@ -27,11 +27,15 @@ base survives commits that only touch the project-side Dockerfile or the
 CLI, which is the common case.
 """
 
+import base64
 import hashlib
+import os
 import platform
 import re
 import subprocess
 from pathlib import Path
+
+import click
 
 IMAGES_DIR = Path.home() / ".odoo" / "images"
 COMMON_SNIPPETS_DIR = IMAGES_DIR / "common_snippets"
@@ -257,3 +261,117 @@ def compute_base_inputs(config):
         "base_hash": base_hash,
         "tag": base_image_tag(odoo_version, base_hash),
     }
+
+
+def _filter_framework_requirements(reqs_text):
+    """Drop ``lxml`` from the framework requirements.
+
+    Mirrors :func:`odoo.__after_compose._filter_framework_requirements`.
+    lxml is special-cased by the project layer (older Odoo pins clash
+    with newer lxml/html-clean splits) and must not be pinned in the
+    base.
+    """
+    return "\n".join(
+        line for line in (reqs_text or "").splitlines() if "lxml" not in line
+    )
+
+
+def _docker_build_args(config, inputs):
+    """Compose the ``--build-arg`` list for the base image build."""
+    reqs_b64 = base64.b64encode(
+        _filter_framework_requirements(
+            inputs["framework_requirements"]
+        ).encode("utf-8")
+    ).decode("ascii")
+
+    args = {
+        "ODOO_PYTHON_VERSION": inputs["python_version"],
+        "ODOO_FRAMEWORK_REQUIREMENTS": reqs_b64,
+    }
+
+    base_image = getattr(config, "BASE_IMAGE", None) or "ubuntu:22.04"
+    args["BASE_IMAGE"] = base_image
+
+    apt_proxy = getattr(config, "APT_PROXY_IP", None)
+    if apt_proxy:
+        args["APT_PROXY_IP"] = apt_proxy
+
+    flat = []
+    for k, v in args.items():
+        flat += ["--build-arg", f"{k}={v}"]
+    return flat
+
+
+def _resolve_build_context(config):
+    """Return the build context dir for base-image builds.
+
+    Reuses the project's ``run.build.odoo`` directory which the composer
+    already populates with python tarballs, liberation-sans fonts and
+    ``buildsettings.env``. The base build is read-only against that
+    context.
+    """
+    try:
+        return Path(config.dirs["run.build.odoo"])
+    except (KeyError, TypeError, AttributeError):
+        return None
+
+
+def ensure_base_image(config, *, force_rebuild=False):
+    """Make sure the base image exists locally; build it if not.
+
+    Returns the local tag of the base image (``odoo_base_<v>_<hash>_<arch>``),
+    or ``None`` if there is no ``Dockerfile.base`` for the project's Odoo
+    version (= caller should fall back to the legacy monolithic build).
+
+    The function is idempotent: when the image is already present locally
+    and ``force_rebuild`` is false, it returns immediately without
+    invoking docker.
+    """
+    inputs = compute_base_inputs(config)
+    if inputs is None:
+        return None
+
+    tag = inputs["tag"]
+    if not force_rebuild and image_exists_locally(tag):
+        click.secho(
+            f"Base image {tag} already present — skipping base build.",
+            fg="green",
+        )
+        return tag
+
+    context = _resolve_build_context(config)
+    if context is None or not context.exists():
+        click.secho(
+            "Cannot build base image: run.build.odoo directory missing. "
+            "Run `odoo reload` first.",
+            fg="red",
+        )
+        raise RuntimeError("run.build.odoo missing — cannot build base image")
+
+    # Render the Dockerfile.base with all snippets inlined and write it
+    # next to the build context so docker can find it.
+    rendered = render_base_dockerfile(inputs["dockerfile_base_text"])
+    rendered_path = context / f"Dockerfile.base.{inputs['base_hash']}"
+    rendered_path.write_text(rendered)
+
+    click.secho(
+        f"Building base image {tag}\n"
+        f"  context:    {context}\n"
+        f"  dockerfile: {rendered_path}\n"
+        f"  hash:       {inputs['base_hash']}",
+        fg="cyan",
+    )
+
+    cmd = ["docker", "build", "-t", tag, "-f", str(rendered_path)]
+    cmd += _docker_build_args(config, inputs)
+    cmd += [str(context)]
+
+    env = dict(os.environ)
+    env.setdefault("DOCKER_BUILDKIT", "1")
+
+    proc = subprocess.run(cmd, env=env)
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(proc.returncode, cmd)
+
+    click.secho(f"Built base image {tag}", fg="green")
+    return tag
