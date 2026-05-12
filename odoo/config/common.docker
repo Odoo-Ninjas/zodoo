@@ -8,6 +8,12 @@ USER root
 
 #___SNIPPET_ZODOO___
 
+# When ZODOO_EMBED=1 (bakery/k8s self-contained images), the project layer
+# copies the zodoo source into the image. In standard mode this marker is
+# replaced with an empty string by the composer and the source is supplied
+# via the docker-compose bind-mount instead.
+#___SNIPPET_ZODOO_EMBED_SOURCE___
+
 USER root
 RUN echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
 

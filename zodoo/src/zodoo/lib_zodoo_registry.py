@@ -467,7 +467,15 @@ def get_zodoo_image_tag_for_service(config, service_name):
         includes_zodoo = tag_config.get("includes_zodoo")
         if includes_zodoo is None:
             includes_zodoo = "ZODOO" in snippets_used
-        if includes_zodoo:
+        # In standard mode the zodoo source is bind-mounted at runtime, so
+        # its content is irrelevant for the image. Only the dependency list
+        # (zodoo's requirements.txt) ends up baked, and that's covered by
+        # the snippet hash via SNIPPET_ZODOO. Only the bakery path
+        # (ZODOO_EMBED=1) actually copies the source into the image.
+        zodoo_embedded = str(
+            getattr(config, "ZODOO_EMBED", "") or ""
+        ).strip() in ("1", "true", "True")
+        if includes_zodoo and zodoo_embedded:
             full = _get_zodoo_src_hash() or ""
             if full:
                 zodoo_parts.append(full)

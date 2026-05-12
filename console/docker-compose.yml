@@ -16,6 +16,8 @@ services:
       - OWNER_UID=${OWNER_UID}
     volumes:
       - "$ODOO_IMAGES/cronjobs/bin/:/usr/local/bin/:ro"
+      # zodoo CLI source — bind-mounted so CLI updates don't require rebuilds.
+      - "$ODOO_IMAGES/zodoo/src:/opt/zodoo:rw"
       - "${HOST_RUN_DIR}/cronjobs:/opt/cronjobs"
       - "$DUMPS_PATH:/host/dumps"
       - "${HOST_RUN_DIR}:/home/odoo/.odoo/run/$PROJECT_NAME"

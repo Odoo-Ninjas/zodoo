@@ -472,6 +472,20 @@ def _base_split_active(config):
     return base_dockerfile_path(config.odoo_version) is not None
 
 
+def _zodoo_embed_active(config):
+    """True iff zodoo source should be baked into the project image.
+
+    Default is off — zodoo source is bind-mounted from the host at runtime
+    (so source-only CLI updates don't require rebuilds). Set ZODOO_EMBED=1
+    for self-contained k8s/AWS images (lib_bakery flips this automatically).
+    """
+    return str(getattr(config, "ZODOO_EMBED", "") or "").strip() in (
+        "1",
+        "true",
+        "True",
+    )
+
+
 def _canonical_pip_name(spec):
     """Best-effort canonical package name for a pip requirement spec."""
     try:

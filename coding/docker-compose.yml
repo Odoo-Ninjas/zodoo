@@ -31,5 +31,7 @@ services:
       - ${HOST_CUSTOMS_DIR}:/opt/src
       - ${ODOO_IMAGES}:/opt/images
       - ${HOST_RUN_DIR}:/opt/run
+      # zodoo CLI source — bind-mounted so CLI updates don't require rebuilds.
+      - ${ODOO_IMAGES}/zodoo/src:/opt/zodoo:rw
     depends_on:
       - coding_trigger
