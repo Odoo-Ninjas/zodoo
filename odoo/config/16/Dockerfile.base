@@ -1,0 +1,211 @@
+ARG TARGETARCH
+ARG BASE_IMAGE=ubuntu:22.04
+ARG ODOO_PYTHON_VERSION
+ARG ODOO_FRAMEWORK_REQUIREMENTS
+
+
+# --------------------------------------------------------------------
+# COMPILE PYTHON
+# --------------------------------------------------------------------
+FROM $BASE_IMAGE AS python_builder
+ARG ODOO_PYTHON_VERSION
+COPY python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
+WORKDIR /usr/local/src
+RUN tar xfz /usr/local/src/python
+WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
+
+#___SNIPPET_APT_PROXY___
+#___SNIPPET_UPDATE_CA_CERTIFICATES___
+#___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
+RUN #___SNIPPET_APT_INSTALL___ \
+    software-properties-common \
+    cmake \
+    exuberant-ctags \
+    build-essential \
+    zlib1g-dev \
+    make \
+    libssl-dev \
+    libffi-dev \
+    libsqlite3-dev  \
+    libjpeg-dev \
+    libcurl3-dev \
+    libxml2-dev \
+    libxslt1-dev \
+    libfreetype6-dev \
+    libpng-dev \
+    libpcre3-dev \
+    liblzma-dev \
+    freetds-dev  \
+    libbz2-dev \
+    ncurses-dev \
+    rsync \
+    pkg-config
+
+#___SNIPPET_BUILD_PYTHON___
+
+
+# --------------------------------------------------------------------
+# PYTHON VENV + ODOO FRAMEWORK PIP PACKAGES
+# Only the upstream Odoo `requirements.txt` is installed here. Module-
+# specific pip packages are installed by the project layer on top of
+# this image.
+# --------------------------------------------------------------------
+FROM $BASE_IMAGE AS build_pip
+ARG ODOO_FRAMEWORK_REQUIREMENTS
+
+ENV VIRTUAL_ENV=/opt/venv/env
+ENV PATH="/opt/venv/bin:$PATH"
+
+#___SNIPPET_APT_PROXY___
+#___SNIPPET_UPDATE_CA_CERTIFICATES___
+#___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
+RUN #___SNIPPET_APT_INSTALL___ \
+    build-essential \
+    libxml2-dev \
+    libxslt1-dev \
+    libcups2-dev \
+    libpq-dev \
+    libsasl2-dev \
+    python-dev-is-python3 \
+    libldap2-dev \
+    libssl-dev \
+    libpoppler-cpp-dev \
+    pkg-config \
+    libfreetype6-dev \
+    freetds-dev \
+    libffi-dev \
+    libkrb5-dev \
+    cmake \
+    git \
+    pkg-config
+
+#___SNIPPET_PYTHON_INSTALL___
+
+#___SNIPPET_SETUP_PYTHON_VENV___
+
+RUN pip3 install pip -U
+RUN pip3 install $(cat /etc/pip_options) wheel && \
+#___SNIPPET_SETUPTOOLS_SAFEVERSION___
+
+# Cython<3 needed for older Odoo greenlet on Python 3.11 (Odoo 16).
+RUN pip install "Cython<3"
+
+RUN echo "$ODOO_FRAMEWORK_REQUIREMENTS"  | base64 --decode > /root/framework_requirements.txt
+RUN pip3 install $(cat /etc/pip_options) -r /root/framework_requirements.txt
+
+RUN pip3 install $(cat /etc/pip_options) pudb ipython "debugpy>=1.8.12"
+
+#___SNIPPET_OPENUPGRADELIB___
+
+
+# --------------------------------------------------------------------
+# BASE RUNTIME IMAGE
+# Build-time toolchain is intentionally LEFT IN the runtime so the
+# project layer can install module-specific deb/pip packages on top.
+# Cleanup of these tools happens in the project layer.
+# --------------------------------------------------------------------
+FROM $BASE_IMAGE
+ARG TARGETARCH
+ARG ODOO_PYTHON_VERSION
+
+ENV LANG=C.UTF-8
+ENV PIP_NO_CACHE_DIR=no
+
+#___SNIPPET_APT_PROXY___
+#___SNIPPET_UPDATE_CA_CERTIFICATES___
+#___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
+RUN #___SNIPPET_APT_INSTALL___ \
+            man \
+            htop \
+            ca-certificates \
+            curl \
+            node-less \
+            node-clean-css \
+            tmux \
+            libfreetype6-dev \
+            libpng-dev \
+            libjpeg-dev \
+            automake \
+            pkg-config \
+            libpcre3-dev \
+            liblzma-dev \
+            make \
+            ssh \
+            mc \
+            libfontconfig \
+            rsync \
+            psmisc \
+            lsof \
+            git \
+            sudo \
+            less \
+            freetds-dev \
+            wget \
+            cifs-utils \
+            imagemagick \
+            cups \
+            locales \
+            libmagickwand-dev \
+            ffmpeg \
+            zip \
+            gpg-agent \
+            pdftk \
+            python3-gi \
+            python3-click \
+            python3-gi-cairo \
+            python3-cairo \
+            gir1.2-gtk-3.0 \
+            libmagickwand-dev \
+            libmagic-dev \
+            libcups2-dev \
+            locales-all \
+            libpoppler-cpp-dev \
+            locales \
+            postgresql-client \
+            sassc \
+            time \
+            xfonts-75dpi \
+            xfonts-base \
+            vim \
+            libgeos-dev \
+            build-essential \
+            libxml2-dev \
+            libxslt1-dev \
+            libpq-dev \
+            libsasl2-dev \
+            libldap2-dev \
+            libssl-dev \
+            libffi-dev \
+            libkrb5-dev \
+            cmake \
+            gcc
+
+COPY liberation-sans /usr/share/fonts/
+# rebuild font cache
+RUN fc-cache -f -v
+RUN locale-gen en_US.UTF-8 && dpkg-reconfigure locales
+
+#___SNIPPET_WKHTML2PDF___
+
+#___SNIPPET_NODEJS___
+
+RUN \
+chown odoo:odoo /home/odoo -R && \
+rm -Rf /usr/local/man && mkdir -p /usr/local/man/man1
+
+#___SNIPPET_PYTHON_INSTALL___
+
+#___SNIPPET_TRANSFER_VENV___
+
+WORKDIR /usr/local/bin
+RUN rm python3 && ln -s /opt/venv/bin/python3
+
+WORKDIR /opt/odoo
+
+# Baseline ENV so a FROM-derived project image inherits a working venv.
+# The full zodoo ENV set (ODOO_HOME, CUSTOMS_DIR, …) is applied by the
+# project layer.
+ENV VIRTUAL_ENV=/opt/venv/env
+ENV PATH=/opt/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ENV LANG=C.UTF-8
+ENV PIP_NO_CACHE_DIR=no

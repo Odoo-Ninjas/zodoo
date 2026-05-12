@@ -327,7 +327,9 @@ _LEGACY_ROLE_MAP = {
 
 def _supervisor_action_role(config, action, role):
     container = f"{config.project_name}_odoo"
-    if action in ("stop", "restart") and not _is_container_running(config, "odoo"):
+    if action in ("stop", "restart") and not _is_container_running(
+        config, "odoo"
+    ):
         click.secho(
             f"Container {container} is not running — skipping supervisor {action} {role}",
             fg="yellow",
@@ -448,6 +450,8 @@ def build(
     push=False,
     include_source=False,
     platform=None,
+    no_zodoo_pull=False,
+    no_zodoo_push=False,
 ):
     """
     no parameter all machines, first parameter machine name and passes other params; e.g. ./odoo build asterisk --no-cache"
@@ -477,6 +481,16 @@ def build(
     _arch = _arch_map.get(_arch, _arch)
 
     _ensure_prebuilt_python_image(config, _arch)
+
+    # Build the per-version base image first when one is defined for this
+    # Odoo version. The project's compose Dockerfile references the
+    # resolved base tag via `FROM ${BASE_TAG}` (baked in by composer).
+    _ensure_base_image_for_build(
+        config,
+        machines,
+        no_zodoo_pull=no_zodoo_pull,
+        no_zodoo_push=no_zodoo_push,
+    )
 
     # `docker buildx bake` (COMPOSE_BAKE=true) does not reliably auto-populate
     # global `ARG TARGETARCH` from DOCKER_DEFAULT_PLATFORM, so a Dockerfile
@@ -760,6 +774,49 @@ def _ensure_prebuilt_python_image(config, arch):
         f"Prebuilt Python image built{' and pushed' if pushable else ''}: "
         f"{image}",
         fg="green",
+    )
+
+
+def _ensure_base_image_for_build(
+    config, machines, no_zodoo_pull=False, no_zodoo_push=False
+):
+    """Build/locate the per-version Odoo base image before composing.
+
+    Only kicks in when ``odoo`` is among the machines being built (or when
+    ``machines`` is empty = build everything) AND the project's Odoo
+    version has a ``Dockerfile.base``. Otherwise no-op.
+
+    Prints the hash inputs and resolved tag so users can see what's
+    being reused vs. rebuilt. ``no_zodoo_pull`` / ``no_zodoo_push``
+    mirror the matching flags on ``odoo build``.
+    """
+    if machines and "odoo" not in machines:
+        return
+
+    from .lib_base_image import compute_base_inputs, ensure_base_image
+
+    inputs = compute_base_inputs(config)
+    if inputs is None:
+        return
+
+    click.secho("─" * 72, fg="cyan")
+    click.secho("Odoo base image", fg="cyan", bold=True)
+    click.secho(
+        f"  odoo_version:       {inputs['odoo_version']}\n"
+        f"  python_version:     {inputs['python_version']}\n"
+        f"  framework reqs:     "
+        f"{len(inputs['framework_requirements'].splitlines())} lines\n"
+        f"  Dockerfile.base:    {inputs['dockerfile_base_path']}\n"
+        f"  base_hash:          {inputs['base_hash']}\n"
+        f"  base_image_tag:     {inputs['tag']}",
+        fg="cyan",
+    )
+    click.secho("─" * 72, fg="cyan")
+
+    ensure_base_image(
+        config,
+        try_pull=not no_zodoo_pull,
+        enqueue_push=not no_zodoo_push,
     )
 
 

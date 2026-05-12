@@ -183,18 +183,35 @@ def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
         config.dirs["run"] / "requirements.odoo.hash",
     )
 
+    # When a per-version base image is in use, ODOO_REQUIREMENTS only
+    # contains the module-specific delta (Odoo's own requirements.txt is
+    # already installed in the base venv). Without a base, ODOO_REQUIREMENTS
+    # stays the legacy full set so the monolithic Dockerfile keeps working.
+    use_base_split = _base_split_active(config)
+
+    framework_reqs_path = config.dirs["odoo_home"] / "requirements.txt"
+    framework_reqs_text = (
+        framework_reqs_path.read_text() if framework_reqs_path.exists() else ""
+    )
+
+    if use_base_split:
+        module_py_deps = _subtract_framework_requirements(
+            external_dependencies["pip"], framework_reqs_text
+        )
+    else:
+        module_py_deps = external_dependencies["pip"]
+
     sha = _get_sha(config) if settings["SHA_IN_DOCKER"] == "1" else "n/a"
     for odoo_machine in odoo_machines:
         service = yml["services"][odoo_machine]
-        py_deps = external_dependencies["pip"]
         if "build" not in service:
             continue
         service["build"].setdefault("args", [])
         service["build"]["args"]["ODOO_REQUIREMENTS"] = base64.encodebytes(
-            "\n".join(py_deps).encode("utf-8")
+            "\n".join(module_py_deps).encode("utf-8")
         ).decode("utf-8")
         service["build"]["args"]["ODOO_REQUIREMENTS_CLEARTEXT"] = (
-            ";".join(py_deps).encode("utf-8")
+            ";".join(module_py_deps).encode("utf-8")
         ).decode("utf-8")
         service["build"]["args"]["ODOO_DEB_REQUIREMENTS_CLEARTEXT"] = (
             "\n".join(sorted(external_dependencies["deb"]))
@@ -202,15 +219,17 @@ def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
         service["build"]["args"]["ODOO_DEB_REQUIREMENTS"] = base64.encodebytes(
             "\n".join(sorted(external_dependencies["deb"])).encode("utf-8")
         ).decode("utf-8")
-        service["build"]["args"]["ODOO_FRAMEWORK_REQUIREMENTS"] = (
-            _filter_framework_requirements(
-                base64.encodebytes(
-                    (
-                        config.dirs["odoo_home"] / "requirements.txt"
-                    ).read_bytes()
-                ).decode("utf-8")
+        if not use_base_split:
+            # Legacy monolithic build still needs the framework
+            # requirements as a build-arg. With base-split they are baked
+            # into the base image's venv at base-build time.
+            service["build"]["args"]["ODOO_FRAMEWORK_REQUIREMENTS"] = (
+                _filter_framework_requirements(
+                    base64.encodebytes(
+                        framework_reqs_text.encode("utf-8")
+                    ).decode("utf-8")
+                )
             )
-        )
         service["build"]["args"]["CUSTOMS_SHA"] = sha
         service["build"]["args"]["ODOO_PYTHON_VERSION"] = settings[
             "ODOO_PYTHON_VERSION"
@@ -434,6 +453,58 @@ def _apply_fluentd_logging(config, yml, settings, globals):
         tag = service["logging"]["options"]["tag"]
         tag = tag.replace("__SERVICE__", odoo_machine)
         service["logging"]["options"]["tag"] = tag
+
+
+def _base_split_active(config):
+    """True iff this project's Odoo version has a ``Dockerfile.base``.
+
+    Imported lazily so that older zodoo CLI installs without
+    ``lib_base_image`` still work for project versions that don't have a
+    base recipe yet.
+    """
+    try:
+        from zodoo.lib_base_image import base_dockerfile_path
+    except ImportError:
+        return False
+    return base_dockerfile_path(config.odoo_version) is not None
+
+
+def _canonical_pip_name(spec):
+    """Best-effort canonical package name for a pip requirement spec."""
+    try:
+        from packaging.utils import canonicalize_name
+
+        return canonicalize_name(Requirement(spec).name)
+    except Exception:
+        # Strip extras + version specifier and lowercase.
+        name = re.split(r"[<>=!~;\[\s]", (spec or "").strip(), 1)[0]
+        return name.lower().replace("_", "-")
+
+
+def _subtract_framework_requirements(all_pip, framework_reqs_text):
+    """Return ``all_pip`` minus everything already covered by Odoo's
+    upstream ``requirements.txt``.
+
+    Comparison is on canonical package name only — a module that pins a
+    different version of a framework-installed package keeps its pin
+    (pip will reinstall it on top of the base venv).
+    """
+    framework_names = set()
+    for raw in (framework_reqs_text or "").splitlines():
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        framework_names.add(_canonical_pip_name(stripped))
+
+    result = []
+    for spec in all_pip:
+        stripped = (spec or "").strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if _canonical_pip_name(stripped) in framework_names:
+            continue
+        result.append(spec)
+    return result
 
 
 def _filter_framework_requirements(reqs):
