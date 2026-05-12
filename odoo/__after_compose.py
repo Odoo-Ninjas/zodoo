@@ -198,6 +198,7 @@ def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
         module_py_deps = _subtract_framework_requirements(
             external_dependencies["pip"],
             _filter_framework_requirements(framework_reqs_text),
+            python_version=PYTHON_VERSION,
         )
     else:
         module_py_deps = external_dependencies["pip"]
@@ -498,20 +499,49 @@ def _canonical_pip_name(spec):
         return name.lower().replace("_", "-")
 
 
-def _subtract_framework_requirements(all_pip, framework_reqs_text):
-    """Return ``all_pip`` minus everything already covered by Odoo's
-    upstream ``requirements.txt``.
+def _subtract_framework_requirements(
+    all_pip, framework_reqs_text, python_version=None
+):
+    """Return ``all_pip`` minus everything Odoo's upstream
+    ``requirements.txt`` actually installs for the given Python version.
+
+    Crucially, lines with PEP-508 markers are only considered part of the
+    framework set when the marker evaluates to True for ``python_version``.
+    Without that filter, packages whose pins are gated to a different
+    Python release (e.g. ``PyPDF==5.4.0 ; python_version >= '3.13'``)
+    would be subtracted from the module-delta even when the framework
+    does not install them at all, leaving the package missing from the
+    final image.
 
     Comparison is on canonical package name only — a module that pins a
     different version of a framework-installed package keeps its pin
     (pip will reinstall it on top of the base venv).
     """
+    # Normalize python_version to the "MAJOR.MINOR" string PEP-508 expects.
+    py_ver_str = None
+    if python_version:
+        if isinstance(python_version, (tuple, list)):
+            py_ver_str = ".".join(str(p) for p in python_version[:2])
+        else:
+            py_ver_str = ".".join(str(python_version).split(".")[:2])
+
     framework_names = set()
     for raw in (framework_reqs_text or "").splitlines():
         stripped = raw.strip()
         if not stripped or stripped.startswith("#"):
             continue
-        framework_names.add(_canonical_pip_name(stripped))
+        # Strip trailing inline comment — Odoo's requirements.txt routinely
+        # appends "# (Jammy)" etc. which trips up packaging.Requirement.
+        parseable = re.split(r"\s+#", stripped, 1)[0].strip()
+        try:
+            req = Requirement(parseable)
+            marker = req.marker
+            if marker is not None and py_ver_str:
+                if not marker.evaluate({"python_version": py_ver_str}):
+                    continue
+            framework_names.add(_canonical_pip_name(parseable))
+        except Exception:
+            framework_names.add(_canonical_pip_name(parseable))
 
     result = []
     for spec in all_pip:
