@@ -43,20 +43,6 @@ def _get_images_git_sha():
         return None
 
 
-def _is_images_dirty():
-    """Check if ~/.odoo/images has uncommitted changes."""
-    try:
-        result = subprocess.check_output(
-            ["git", "status", "--porcelain"],
-            cwd=IMAGES_DIR,
-            stderr=subprocess.DEVNULL,
-            encoding="utf-8",
-        ).strip()
-        return bool(result)
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return False
-
-
 def _read_user_setting(config, key):
     """Read a setting directly from ~/.odoo/settings without requiring reload."""
     from .myconfigparser import MyConfigParser
@@ -1004,13 +990,6 @@ def try_pull_from_zodoo_registry(config, machines):
         )
         return []
 
-    if _is_images_dirty():
-        click.secho(
-            "Skipping zodoo registry pull: ~/.odoo/images has uncommitted changes.",
-            fg="yellow",
-        )
-        return []
-
     reg = _get_registry_config(config)
     if not reg:
         return []
@@ -1080,13 +1059,6 @@ def enqueue_registry_uploads(config, machines, suppress_other_platform=False):
             "Skipping zodoo registry push: SRC_EXTRA=0 — customer source is "
             "baked into the image and must not be uploaded to the shared "
             "zodoo registry.",
-            fg="yellow",
-        )
-        return
-
-    if _is_images_dirty():
-        click.secho(
-            "Skipping zodoo registry push: ~/.odoo/images has uncommitted changes.",
             fg="yellow",
         )
         return
@@ -1232,13 +1204,6 @@ def enqueue_base_image_upload(config, base_inputs):
     from .lib_jobqueue import enqueue, spawn_worker
     from .lib_base_image import _arch
 
-    if _is_images_dirty():
-        click.secho(
-            "Skipping base-image registry push: ~/.odoo/images has "
-            "uncommitted changes.",
-            fg="yellow",
-        )
-        return
     reg = _get_registry_config(config)
     if not reg:
         return
@@ -1306,13 +1271,6 @@ def push_to_zodoo_registry(config, machines, suppress_other_platform=False):
             "Skipping zodoo registry push: SRC_EXTRA=0 — customer source is "
             "baked into the image and must not be uploaded to the shared "
             "zodoo registry.",
-            fg="yellow",
-        )
-        return
-
-    if _is_images_dirty():
-        click.secho(
-            "Skipping zodoo registry push: ~/.odoo/images has uncommitted changes.",
             fg="yellow",
         )
         return
