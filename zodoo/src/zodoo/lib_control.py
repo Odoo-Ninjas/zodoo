@@ -632,6 +632,161 @@ def build_odoo_base(ctx, config, no_zodoo_push, no_cross_build, force):
 
 
 @docker.command(
+    name="build-single-base-image",
+    help=(
+        "Force-build (and push) the per-version Odoo base image for the "
+        "current project, AND cross-build the other architecture via QEMU "
+        "(no prompt). Use this on a build host where you want both "
+        "amd64 and arm64 in the registry."
+    ),
+)
+@pass_config
+@click.pass_context
+def build_single_base_image(ctx, config):
+    from .lib_base_image import (
+        compute_base_inputs,
+        cross_build_base_image,
+        ensure_base_image,
+    )
+
+    ensure_project_name(config)
+
+    inputs = compute_base_inputs(config)
+    if inputs is None:
+        click.secho(
+            "No Dockerfile.base for this project's Odoo version "
+            f"({getattr(config, 'odoo_version', '?')}). Nothing to do.",
+            fg="yellow",
+        )
+        return
+
+    click.secho("─" * 72, fg="cyan")
+    click.secho(
+        "Odoo base image (force build + always cross-build)",
+        fg="cyan",
+        bold=True,
+    )
+    click.secho(
+        f"  odoo_version:       {inputs['odoo_version']}\n"
+        f"  python_version:     {inputs['python_version']}\n"
+        f"  base_hash:          {inputs['base_hash']}\n"
+        f"  base_image_tag:     {inputs['tag']}",
+        fg="cyan",
+    )
+    click.secho("─" * 72, fg="cyan")
+
+    ensure_base_image(
+        config, force_rebuild=True, try_pull=False, enqueue_push=True
+    )
+    # Always kick off the other-arch build — non-interactive, no prompt.
+    cross_build_base_image(config, inputs)
+
+
+@docker.command(
+    name="build-base-images",
+    help=(
+        "Pre-warm the zodoo registry with base images for multiple Odoo "
+        "versions. For each given version, scaffolds a temporary project, "
+        "runs reload, and builds + pushes the base for both architectures."
+    ),
+)
+@click.argument("versions", nargs=-1, required=True)
+@click.option(
+    "--workdir",
+    type=click.Path(file_okay=False, dir_okay=True),
+    default=None,
+    help=(
+        "Parent directory for the temporary scaffolds. Default: a fresh "
+        "directory under the system temp dir."
+    ),
+)
+@click.option(
+    "--keep",
+    is_flag=True,
+    help="Don't delete the scaffolded temp project after the build.",
+)
+@pass_config
+@click.pass_context
+def build_base_images(ctx, config, versions, workdir, keep):
+    """Iterate over the given Odoo VERSIONS (e.g. 17 18 19) and build base images."""
+    import shutil
+    import tempfile
+    from datetime import datetime
+
+    parent = (
+        Path(workdir).expanduser().absolute()
+        if workdir
+        else Path(tempfile.mkdtemp(prefix="zodoo_base_warm_"))
+    )
+    parent.mkdir(parents=True, exist_ok=True)
+
+    click.secho(
+        f"Pre-warming base images for versions: {', '.join(versions)}\n"
+        f"  workdir: {parent}\n"
+        f"  cleanup: {'no (--keep)' if keep else 'yes'}",
+        fg="cyan",
+        bold=True,
+    )
+
+    results = []  # (version, status, info)
+
+    for version in versions:
+        ts = datetime.now().strftime("%Y%m%dT%H%M%S")
+        project_dir = parent / f"base_{version}_{ts}"
+        click.secho(
+            f"\n=== Odoo {version} → {project_dir} ===", fg="cyan", bold=True
+        )
+        try:
+            _scaffold_and_build_base(project_dir, version)
+            results.append((version, "ok", str(project_dir)))
+        except subprocess.CalledProcessError as e:
+            results.append((version, "fail", f"exit {e.returncode}"))
+            click.secho(
+                f"  Build for {version} failed: exit {e.returncode}",
+                fg="red",
+            )
+        except Exception as e:
+            results.append((version, "fail", str(e)))
+            click.secho(f"  Build for {version} failed: {e}", fg="red")
+        finally:
+            if not keep and project_dir.exists():
+                shutil.rmtree(project_dir, ignore_errors=True)
+
+    click.secho("\n=== Summary ===", fg="cyan", bold=True)
+    for version, status, info in results:
+        color = "green" if status == "ok" else "red"
+        click.secho(f"  {version}: {status} ({info})", fg=color)
+    if any(s == "fail" for _, s, _ in results):
+        sys.exit(1)
+
+
+def _scaffold_and_build_base(project_dir, version):
+    """Scaffold a fresh Odoo project, then build + cross-push the base.
+
+    Used by ``odoo build-base-images``. The scaffold uses ``odoo src init``
+    so all standard zodoo bootstrap (gimera apply, settings init, …) runs
+    the same way as for a real project.
+    """
+    project_dir.mkdir(parents=True, exist_ok=True)
+
+    click.secho(f"  odoo src init {project_dir} {version}", fg="yellow")
+    subprocess.check_call(
+        ["odoo", "src", "init", str(project_dir), str(version)],
+    )
+
+    # `odoo src init` does `os.chdir(path)` internally; subprocess returns
+    # to the original cwd. For the remaining steps we need to be inside
+    # the scaffold so the project's settings get picked up.
+    click.secho("  odoo reload", fg="yellow")
+    subprocess.check_call(["odoo", "reload"], cwd=str(project_dir))
+
+    click.secho("  odoo build-single-base-image", fg="yellow")
+    subprocess.check_call(
+        ["odoo", "build-single-base-image"], cwd=str(project_dir)
+    )
+
+
+@docker.command(
     name="zodoo-push", help="Push locally built images to the zodoo registry."
 )
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_services)
