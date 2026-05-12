@@ -635,6 +635,161 @@ def build_odoo_base(ctx, config, no_zodoo_push, no_cross_build, force):
 
 
 @docker.command(
+    name="build-pythons",
+    help=(
+        "Build (and push) the prebuilt zodoo/python:<v>-<arch> images for "
+        "the given Python versions — always both architectures via QEMU. "
+        "A bare 'X.Y' (e.g. '3.13') auto-resolves to the latest patch "
+        "release from python.org."
+    ),
+)
+@click.argument("versions", nargs=-1, required=True)
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Rebuild even when the image is already in the registry.",
+)
+@pass_config
+@click.pass_context
+def build_pythons(ctx, config, versions, force):
+    """Pre-warm the registry with zodoo/python:<v>-<arch> for both arches."""
+    images_dir = Path(config.dirs["images"])
+    script = images_dir / "python_prebuilt" / "build.sh"
+    if not script.exists():
+        click.secho(
+            f"python_prebuilt/build.sh not found at {script}.",
+            fg="red",
+        )
+        sys.exit(1)
+
+    registry_url = (getattr(config, "ZODOO_REGISTRY_URL", "") or "").rstrip(
+        "/"
+    )
+    if not registry_url:
+        click.secho(
+            "ZODOO_REGISTRY_URL not set (~/.odoo/settings).",
+            fg="red",
+        )
+        sys.exit(1)
+
+    results = []  # (version, arch, status)
+    for raw_version in versions:
+        version = _resolve_python_version(raw_version)
+        click.secho(
+            f"\n=== Python {raw_version}"
+            + (f" → {version}" if raw_version != version else "")
+            + " ===",
+            fg="cyan",
+            bold=True,
+        )
+        for arch in ("amd64", "arm64"):
+            try:
+                status = _build_python_image_for_arch(
+                    images_dir, version, arch, registry_url, force=force
+                )
+                results.append((version, arch, status))
+            except subprocess.CalledProcessError as e:
+                results.append((version, arch, f"fail (exit {e.returncode})"))
+                click.secho(
+                    f"  Build of zodoo/python:{version}-{arch} failed: "
+                    f"exit {e.returncode}",
+                    fg="red",
+                )
+
+    click.secho("\n=== Summary ===", fg="cyan", bold=True)
+    for version, arch, status in results:
+        color = (
+            "green"
+            if status in ("ok", "skipped (already in registry)")
+            else "red"
+        )
+        click.secho(f"  {version}-{arch}: {status}", fg=color)
+    if any("fail" in s for _, _, s in results):
+        sys.exit(1)
+
+
+def _resolve_python_version(version):
+    """Resolve 'X.Y' to the latest 'X.Y.Z' from python.org's ftp index.
+
+    Already-full 'X.Y.Z' versions pass through unchanged. Returns the
+    string version (e.g. '3.13.13').
+    """
+    import re as _re
+    import urllib.request
+
+    if _re.match(r"^\d+\.\d+\.\d+$", version):
+        return version
+    if not _re.match(r"^\d+\.\d+$", version):
+        raise click.UsageError(
+            f"Invalid Python version spec: {version!r} "
+            "(expected 'X.Y' or 'X.Y.Z')"
+        )
+
+    url = "https://www.python.org/ftp/python/"
+    with urllib.request.urlopen(url, timeout=10) as resp:
+        html = resp.read().decode("utf-8", errors="replace")
+
+    pattern = rf'href="({_re.escape(version)}\.\d+)/"'
+    matches = sorted(
+        set(_re.findall(pattern, html)),
+        key=lambda v: tuple(int(p) for p in v.split(".")),
+    )
+    if not matches:
+        raise click.UsageError(
+            f"No Python releases found for {version} at {url}"
+        )
+    return matches[-1]
+
+
+def _build_python_image_for_arch(
+    images_dir, python_version, arch, registry_url, force=False
+):
+    """buildx --platform linux/<arch> --push zodoo/python:<v>-<arch>.
+
+    Skips when the image is already in the registry (unless `force`).
+    Always pushes — building a local-only multi-arch image is awkward
+    on macOS, and the purpose of this command is registry warmup anyway.
+    """
+    image = f"{registry_url}/zodoo/python:{python_version}-{arch}"
+
+    if not force:
+        try:
+            subprocess.check_output(
+                ["docker", "manifest", "inspect", image],
+                stderr=subprocess.STDOUT,
+            )
+            click.secho(
+                f"  {image} already in registry — skipping",
+                fg="green",
+            )
+            return "skipped (already in registry)"
+        except subprocess.CalledProcessError:
+            pass
+
+    click.secho(
+        f"  building zodoo/python:{python_version}-{arch} "
+        f"via buildx linux/{arch} (QEMU if non-native)…",
+        fg="yellow",
+    )
+    cmd = [
+        "docker",
+        "buildx",
+        "build",
+        "--platform",
+        f"linux/{arch}",
+        "--push",
+        "-t",
+        image,
+        "--build-arg",
+        f"ODOO_PYTHON_VERSION={python_version}",
+        str(images_dir / "python_prebuilt"),
+    ]
+    subprocess.check_call(cmd)
+    click.secho(f"  pushed {image}", fg="green")
+    return "ok"
+
+
+@docker.command(
     name="build-base-images",
     help=(
         "Pre-warm the zodoo registry with base images for multiple Odoo "

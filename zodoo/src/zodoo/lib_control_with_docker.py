@@ -720,12 +720,21 @@ def _ensure_prebuilt_python_image(config, arch):
     if not script.exists():
         return
 
-    odoo_dockerfile = _locate_odoo_config_dockerfile(
-        images_dir, config.odoo_version
-    )
-    if odoo_dockerfile is None or (
-        "zodoo/python:" not in odoo_dockerfile.read_text()
-    ):
+    # Check both the legacy monolithic Dockerfile and the new
+    # Dockerfile.base — either may reference the prebuilt python image.
+    # For Odoo 16/17/18 the prebuilt-python reference now lives in
+    # Dockerfile.base only; for 19 it sits in both. Bail out only when
+    # *neither* file mentions the prebuilt image.
+    from .lib_base_image import base_dockerfile_path
+
+    referencing_files = []
+    legacy_df = _locate_odoo_config_dockerfile(images_dir, config.odoo_version)
+    if legacy_df is not None:
+        referencing_files.append(legacy_df)
+    base_df = base_dockerfile_path(config.odoo_version)
+    if base_df is not None:
+        referencing_files.append(base_df)
+    if not any("zodoo/python:" in p.read_text() for p in referencing_files):
         return
 
     python_version = getattr(config, "ODOO_PYTHON_VERSION", None)

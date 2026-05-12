@@ -2,48 +2,13 @@ ARG TARGETARCH
 ARG BASE_IMAGE=ubuntu:22.04
 ARG ODOO_PYTHON_VERSION
 ARG ODOO_FRAMEWORK_REQUIREMENTS
+ARG ZODOO_REGISTRY_URL=registry.zebroo.de
 
 
 # --------------------------------------------------------------------
-# COMPILE PYTHON
+# PYTHON (prebuilt from zodoo registry — see python_prebuilt/build.sh)
 # --------------------------------------------------------------------
-FROM $BASE_IMAGE AS python_builder
-ARG ODOO_PYTHON_VERSION
-ARG APT_PROXY_IP
-
-COPY python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
-WORKDIR /usr/local/src
-RUN tar xfz /usr/local/src/python
-WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
-
-#___SNIPPET_APT_PROXY___
-#___SNIPPET_UPDATE_CA_CERTIFICATES___
-#___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
-RUN #___SNIPPET_APT_INSTALL___ \
-    software-properties-common \
-    cmake \
-    exuberant-ctags \
-    build-essential \
-    zlib1g-dev \
-    make \
-    libssl-dev \
-    libffi-dev \
-    libsqlite3-dev  \
-    libjpeg-dev \
-    libcurl3-dev \
-    libxml2-dev \
-    libxslt1-dev \
-    libfreetype6-dev \
-    libpng-dev \
-    libpcre3-dev \
-    liblzma-dev \
-    freetds-dev  \
-    libbz2-dev \
-    ncurses-dev \
-    rsync \
-    gcc
-
-#___SNIPPET_BUILD_PYTHON___
+FROM ${ZODOO_REGISTRY_URL}/zodoo/python:${ODOO_PYTHON_VERSION}-${TARGETARCH} AS python_builder
 
 
 # --------------------------------------------------------------------

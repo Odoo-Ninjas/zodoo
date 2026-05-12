@@ -375,6 +375,21 @@ def ensure_base_image(
         )
         raise RuntimeError("run.build.odoo missing — cannot build base image")
 
+    # If the Dockerfile.base references the prebuilt zodoo/python image,
+    # make sure it exists in the registry before we kick off `docker
+    # build` — otherwise BuildKit fails half-way with a cryptic
+    # "manifest not found".
+    if "zodoo/python:" in inputs["dockerfile_base_text"]:
+        try:
+            from .lib_control_with_docker import _ensure_prebuilt_python_image
+
+            _ensure_prebuilt_python_image(config, _arch())
+        except Exception as e:
+            click.secho(
+                f"Could not pre-build zodoo/python image: {e}",
+                fg="yellow",
+            )
+
     # Render the Dockerfile.base with all snippets inlined and write it
     # next to the build context so docker can find it.
     rendered = render_base_dockerfile(inputs["dockerfile_base_text"])
