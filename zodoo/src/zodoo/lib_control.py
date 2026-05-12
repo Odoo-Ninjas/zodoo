@@ -560,7 +560,11 @@ def build(
 
 @docker.command(
     name="build-odoo-base",
-    help="Build (and push) ONLY the per-version Odoo base image for the current project.",
+    help=(
+        "Build (and push) the per-version Odoo base image for the current "
+        "project. By default also cross-builds the other architecture via "
+        "QEMU (non-interactive). Use --no-cross-build to skip the other arch."
+    ),
 )
 @click.option(
     "--no-zodoo-push",
@@ -571,7 +575,7 @@ def build(
 @click.option(
     "--no-cross-build",
     is_flag=True,
-    help="Skip the prompt for cross-arch (QEMU) base image build",
+    help="Skip the cross-arch (QEMU) base image build",
 )
 @click.option(
     "--force",
@@ -581,17 +585,15 @@ def build(
 @pass_config
 @click.pass_context
 def build_odoo_base(ctx, config, no_zodoo_push, no_cross_build, force):
-    """Force-build (and push) the per-version Odoo base image only.
+    """Force-build (and push) the per-version Odoo base image.
 
-    Useful when you want to refresh / pre-warm the base for the current
-    project's Odoo version without touching the project image. Prompts
-    interactively for a cross-arch QEMU build of the other architecture
-    too unless ``--no-cross-build`` is given.
+    Both architectures by default — QEMU cross-build runs detached in the
+    background. Use ``--no-cross-build`` to only build the local arch.
     """
     from .lib_base_image import (
         compute_base_inputs,
+        cross_build_base_image,
         ensure_base_image,
-        prompt_and_cross_build_base,
     )
 
     ensure_project_name(config)
@@ -628,58 +630,8 @@ def build_odoo_base(ctx, config, no_zodoo_push, no_cross_build, force):
     )
 
     if not no_cross_build:
-        prompt_and_cross_build_base(config, inputs)
-
-
-@docker.command(
-    name="build-single-base-image",
-    help=(
-        "Force-build (and push) the per-version Odoo base image for the "
-        "current project, AND cross-build the other architecture via QEMU "
-        "(no prompt). Use this on a build host where you want both "
-        "amd64 and arm64 in the registry."
-    ),
-)
-@pass_config
-@click.pass_context
-def build_single_base_image(ctx, config):
-    from .lib_base_image import (
-        compute_base_inputs,
-        cross_build_base_image,
-        ensure_base_image,
-    )
-
-    ensure_project_name(config)
-
-    inputs = compute_base_inputs(config)
-    if inputs is None:
-        click.secho(
-            "No Dockerfile.base for this project's Odoo version "
-            f"({getattr(config, 'odoo_version', '?')}). Nothing to do.",
-            fg="yellow",
-        )
-        return
-
-    click.secho("─" * 72, fg="cyan")
-    click.secho(
-        "Odoo base image (force build + always cross-build)",
-        fg="cyan",
-        bold=True,
-    )
-    click.secho(
-        f"  odoo_version:       {inputs['odoo_version']}\n"
-        f"  python_version:     {inputs['python_version']}\n"
-        f"  base_hash:          {inputs['base_hash']}\n"
-        f"  base_image_tag:     {inputs['tag']}",
-        fg="cyan",
-    )
-    click.secho("─" * 72, fg="cyan")
-
-    ensure_base_image(
-        config, force_rebuild=True, try_pull=False, enqueue_push=True
-    )
-    # Always kick off the other-arch build — non-interactive, no prompt.
-    cross_build_base_image(config, inputs)
+        # Always kick off the other-arch build — non-interactive.
+        cross_build_base_image(config, inputs)
 
 
 @docker.command(
@@ -780,9 +732,9 @@ def _scaffold_and_build_base(project_dir, version):
     click.secho("  odoo reload", fg="yellow")
     subprocess.check_call(["odoo", "reload"], cwd=str(project_dir))
 
-    click.secho("  odoo build-single-base-image", fg="yellow")
+    click.secho("  odoo build-odoo-base --force", fg="yellow")
     subprocess.check_call(
-        ["odoo", "build-single-base-image"], cwd=str(project_dir)
+        ["odoo", "build-odoo-base", "--force"], cwd=str(project_dir)
     )
 
 
