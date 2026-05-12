@@ -413,3 +413,163 @@ def ensure_base_image(
             )
 
     return tag
+
+
+def cross_build_base_image(config, inputs):
+    """Build & push the base image for the *other* architecture via buildx.
+
+    Mirrors :func:`zodoo.lib_zodoo_registry._build_and_push_other_arch`
+    but adapted for base images: uses our rendered ``Dockerfile.base``,
+    pushes directly to ``zodoo-odoo-base:<v>-<hash>-<otherarch>``, runs
+    detached (Python compile via QEMU takes ages — don't block the
+    caller).
+
+    Returns the detached log file path on success, ``None`` if skipped
+    (no registry, no run.build.odoo).
+    """
+    from .lib_zodoo_registry import _get_registry_config, _is_arm
+
+    reg = _get_registry_config(config)
+    if not reg:
+        click.secho(
+            "Skipping base cross-build: no zodoo registry configured.",
+            fg="yellow",
+        )
+        return None
+
+    other_arch_name = "amd64" if _is_arm() else "arm64"
+    other_platform = f"linux/{other_arch_name}"
+
+    context = _resolve_build_context(config)
+    if context is None or not context.exists():
+        click.secho(
+            "Cannot cross-build base image: run.build.odoo missing. "
+            "Run `odoo reload` first.",
+            fg="red",
+        )
+        return None
+
+    rendered = render_base_dockerfile(inputs["dockerfile_base_text"])
+    rendered_path = (
+        context / f"Dockerfile.base.{inputs['base_hash']}.{other_arch_name}"
+    )
+    rendered_path.write_text(rendered)
+
+    try:
+        v = int(float(inputs["odoo_version"]))
+    except (TypeError, ValueError):
+        v = inputs["odoo_version"]
+    registry_image = (
+        f"{reg['url']}/zodoo-odoo-base:"
+        f"{v}-{inputs['base_hash']}-{other_arch_name}"
+    )
+
+    build_args = _docker_build_args(config, inputs)
+
+    cmd = (
+        [
+            "docker",
+            "buildx",
+            "build",
+            "--platform",
+            other_platform,
+            "--push",
+            "-t",
+            registry_image,
+            "-f",
+            str(rendered_path),
+        ]
+        + build_args
+        + [str(context)]
+    )
+
+    log_file = (
+        Path.home()
+        / ".odoo"
+        / "log"
+        / f"cross_build_base_{v}_{inputs['base_hash']}_{other_arch_name}.log"
+    )
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+
+    click.secho(
+        f"Background: building base image for {other_platform} (detached, "
+        f"slow via QEMU)\n"
+        f"  target: {registry_image}\n"
+        f"  log:    {log_file}",
+        fg="yellow",
+    )
+    with open(log_file, "w") as fh:
+        subprocess.Popen(
+            cmd,
+            stdout=fh,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+    return log_file
+
+
+def prompt_and_cross_build_base(config, inputs):
+    """Ask the user whether to cross-build the other-arch base, then do it.
+
+    Returns the detached log file path on success, ``None`` if skipped
+    (user declined, QEMU missing + decline, non-interactive context).
+    Honours the existing ``QEMU_INSTALL_SUGGESTED=0`` setting so users
+    that previously declined the QEMU install aren't re-prompted.
+    """
+    from .lib_zodoo_registry import (
+        _can_cross_build,
+        _other_arch,
+        _read_user_setting,
+    )
+
+    other_arch_name, other_platform = _other_arch()
+
+    if not sys.stdin.isatty():
+        click.secho(
+            f"Skipping {other_platform} base cross-build: "
+            "non-interactive context (no TTY for the prompt).",
+            fg="yellow",
+        )
+        return None
+
+    if not click.confirm(
+        f"Also build the {other_arch_name} ({other_platform}) base image "
+        "via QEMU and push it? (slow — Python compile under emulation can "
+        "take 30–60 min)",
+        default=False,
+    ):
+        click.secho(
+            f"Skipped {other_arch_name} cross-build.",
+            fg="yellow",
+        )
+        return None
+
+    if _can_cross_build():
+        return cross_build_base_image(config, inputs)
+
+    qemu_cmd = (
+        "docker run --rm --privileged "
+        "multiarch/qemu-user-static --reset -p yes"
+    )
+
+    if _read_user_setting(config, "QEMU_INSTALL_SUGGESTED") == "0":
+        click.secho(
+            f"Cross-build for {other_platform} not possible: QEMU not "
+            f"available.\nTo enable, run:  {qemu_cmd}",
+            fg="yellow",
+        )
+        return None
+
+    click.secho(
+        f"Cross-build for {other_platform} requires QEMU.\n  {qemu_cmd}",
+        fg="yellow",
+    )
+    if click.confirm("Install QEMU now?", default=True):
+        try:
+            subprocess.check_call(qemu_cmd.split())
+            click.secho("QEMU installed.", fg="green")
+            return cross_build_base_image(config, inputs)
+        except subprocess.CalledProcessError:
+            click.secho("Failed to install QEMU.", fg="red")
+            return None
+    return None
