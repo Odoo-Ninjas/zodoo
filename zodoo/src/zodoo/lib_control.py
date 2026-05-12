@@ -293,7 +293,7 @@ def up(
 
 
 @docker.command(
-    help="Stop and remove containers. Use -v to also remove volumes (destroys data!). Requires -f on production."
+    help="Stop and remove containers. Use -v to also remove volumes (destroys data!). -v requires -f, and on production also a hostname confirmation."
 )
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_services)
 @click.option("-v", "--volumes", is_flag=True)
@@ -317,19 +317,18 @@ def down(
     from .lib_control_with_docker import down as lib_down
     from .lib_db_snapshots_docker_zfs import NotZFS
 
-    if not config.devmode:
-        if not config.force:
-            abort("Please provide force option on production systems")
+    if (volumes or postgres_volume) and not config.force:
+        abort(
+            "--volumes / --postgres-volume removes data. "
+            "Pass --force to confirm."
+        )
 
     print_prod_env(config)
 
-    if not config.devmode and volumes and not config.force:
+    if (volumes or postgres_volume) and not config.devmode:
         force_input_hostname()
 
     if postgres_volume or volumes:
-        if postgres_volume:
-            if not config.force:
-                abort("Please use force when call with postgres volume")
         lib_down(ctx, config, machines, volumes=False, remove_orphans=False)
         try:
             Commands.invoke(ctx, "remove_postgres_volume")
