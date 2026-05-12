@@ -559,6 +559,79 @@ def build(
 
 
 @docker.command(
+    name="build-odoo-base",
+    help="Build (and push) ONLY the per-version Odoo base image for the current project.",
+)
+@click.option(
+    "--no-zodoo-push",
+    "-ZPs",
+    is_flag=True,
+    help="Skip pushing the freshly built base image to the zodoo registry",
+)
+@click.option(
+    "--no-cross-build",
+    is_flag=True,
+    help="Skip the prompt for cross-arch (QEMU) base image build",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Rebuild even if the base image already exists locally",
+)
+@pass_config
+@click.pass_context
+def build_odoo_base(ctx, config, no_zodoo_push, no_cross_build, force):
+    """Force-build (and push) the per-version Odoo base image only.
+
+    Useful when you want to refresh / pre-warm the base for the current
+    project's Odoo version without touching the project image. Prompts
+    interactively for a cross-arch QEMU build of the other architecture
+    too unless ``--no-cross-build`` is given.
+    """
+    from .lib_base_image import (
+        compute_base_inputs,
+        ensure_base_image,
+        prompt_and_cross_build_base,
+    )
+
+    ensure_project_name(config)
+
+    inputs = compute_base_inputs(config)
+    if inputs is None:
+        click.secho(
+            "No Dockerfile.base for this project's Odoo version "
+            f"({getattr(config, 'odoo_version', '?')}). "
+            "Nothing to do.",
+            fg="yellow",
+        )
+        return
+
+    click.secho("─" * 72, fg="cyan")
+    click.secho("Odoo base image (force build)", fg="cyan", bold=True)
+    click.secho(
+        f"  odoo_version:       {inputs['odoo_version']}\n"
+        f"  python_version:     {inputs['python_version']}\n"
+        f"  framework reqs:     "
+        f"{len(inputs['framework_requirements'].splitlines())} lines\n"
+        f"  Dockerfile.base:    {inputs['dockerfile_base_path']}\n"
+        f"  base_hash:          {inputs['base_hash']}\n"
+        f"  base_image_tag:     {inputs['tag']}",
+        fg="cyan",
+    )
+    click.secho("─" * 72, fg="cyan")
+
+    ensure_base_image(
+        config,
+        force_rebuild=force,
+        try_pull=False,
+        enqueue_push=not no_zodoo_push,
+    )
+
+    if not no_cross_build:
+        prompt_and_cross_build_base(config, inputs)
+
+
+@docker.command(
     name="zodoo-push", help="Push locally built images to the zodoo registry."
 )
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_services)
