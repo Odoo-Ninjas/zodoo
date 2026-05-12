@@ -683,8 +683,14 @@ def build_base_images(ctx, config, versions, workdir, keep):
     results = []  # (version, status, info)
 
     for version in versions:
-        ts = datetime.now().strftime("%Y%m%dT%H%M%S")
-        project_dir = parent / f"base_{version}_{ts}"
+        # docker compose project name (= dir basename) must match
+        # [a-z0-9][a-z0-9_-]*; the version string commonly contains '.'
+        # (e.g. "19.0") which is rejected, and ISO timestamps include
+        # an uppercase 'T' separator that compose also rejects. Both
+        # get sanitised here.
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_version = re.sub(r"[^a-z0-9_-]", "_", str(version).lower())
+        project_dir = parent / f"base_{safe_version}_{ts}"
         click.secho(
             f"\n=== Odoo {version} → {project_dir} ===", fg="cyan", bold=True
         )
