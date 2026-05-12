@@ -61,7 +61,7 @@ RUN pip3 install $(cat /etc/pip_options) wheel && \
 RUN echo "$ODOO_FRAMEWORK_REQUIREMENTS"  | base64 --decode > /root/framework_requirements.txt
 RUN pip3 install $(cat /etc/pip_options) -r /root/framework_requirements.txt
 
-RUN pip3 install $(cat /etc/pip_options) pudb ipython debugpy
+RUN pip3 install $(cat /etc/pip_options) -c /root/framework_requirements.txt pudb ipython debugpy
 
 #___SNIPPET_OPENUPGRADELIB___
 

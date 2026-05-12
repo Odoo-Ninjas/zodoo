@@ -189,14 +189,15 @@ def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
     # stays the legacy full set so the monolithic Dockerfile keeps working.
     use_base_split = _base_split_active(config)
 
-    framework_reqs_path = config.dirs["odoo_home"] / "requirements.txt"
+    framework_reqs_path = config.WORKING_DIR / odoo_dir / "requirements.txt"
     framework_reqs_text = (
         framework_reqs_path.read_text() if framework_reqs_path.exists() else ""
     )
 
     if use_base_split:
         module_py_deps = _subtract_framework_requirements(
-            external_dependencies["pip"], framework_reqs_text
+            external_dependencies["pip"],
+            _filter_framework_requirements(framework_reqs_text),
         )
     else:
         module_py_deps = external_dependencies["pip"]
@@ -219,17 +220,19 @@ def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
         service["build"]["args"]["ODOO_DEB_REQUIREMENTS"] = base64.encodebytes(
             "\n".join(sorted(external_dependencies["deb"])).encode("utf-8")
         ).decode("utf-8")
-        if not use_base_split:
-            # Legacy monolithic build still needs the framework
-            # requirements as a build-arg. With base-split they are baked
-            # into the base image's venv at base-build time.
-            service["build"]["args"]["ODOO_FRAMEWORK_REQUIREMENTS"] = (
-                _filter_framework_requirements(
-                    base64.encodebytes(
-                        framework_reqs_text.encode("utf-8")
-                    ).decode("utf-8")
+        # Framework requirements are passed as a *constraint* file to the
+        # project pip install so transitive deps from module-specific
+        # packages don't silently upgrade Odoo-pinned packages (requests,
+        # cryptography, urllib3 …). Filtering matches the base build so
+        # the project layer can install its own lxml pin from
+        # module-delta.
+        service["build"]["args"]["ODOO_FRAMEWORK_REQUIREMENTS"] = (
+            base64.encodebytes(
+                _filter_framework_requirements(framework_reqs_text).encode(
+                    "utf-8"
                 )
-            )
+            ).decode("utf-8")
+        )
         service["build"]["args"]["CUSTOMS_SHA"] = sha
         service["build"]["args"]["ODOO_PYTHON_VERSION"] = settings[
             "ODOO_PYTHON_VERSION"

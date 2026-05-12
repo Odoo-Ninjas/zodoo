@@ -764,12 +764,20 @@ def _prepare_filesystem(config):
             int(fileconfig["OWNER_UID"]),
             path,
         )
-    if platform.system() == "Linux":
-        for dirname in ["postgres.socket", "postgres.logs"]:
-            dir_path = config.dirs["run"] / dirname
-            if dir_path.exists() and not dir_path.is_dir():
-                dir_path.unlink()
-            dir_path.mkdir(parents=True, exist_ok=True)
+    # postgres.logs is bind-mounted on every platform (postgres/docker-compose.yml);
+    # postgres.socket only on Linux (postgres/docker-compose.platform_linux.yml).
+    # Docker Desktop will auto-create a missing bind-mount source as an empty
+    # *file* on macOS/Windows, which then fails the container with
+    # "not a directory" or breaks `mkdir -p /logs` in postgres/run.sh.
+    cross_platform_dirs = ["postgres.logs"]
+    linux_only_dirs = (
+        ["postgres.socket"] if platform.system() == "Linux" else []
+    )
+    for dirname in cross_platform_dirs + linux_only_dirs:
+        dir_path = config.dirs["run"] / dirname
+        if dir_path.exists() and not dir_path.is_dir():
+            dir_path.unlink()
+        dir_path.mkdir(parents=True, exist_ok=True)
 
 
 def get_db_name(db, project_name):
