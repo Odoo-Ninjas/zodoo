@@ -42,6 +42,8 @@ services:
     volumes:
       - ${HOST_CUSTOMS_DIR}:/opt/src
       - ${HOST_CUSTOMS_DIR}:${HOST_CUSTOMS_DIR}
+      # zodoo CLI source — bind-mounted so CLI updates don't require rebuilds.
+      - ${ODOO_IMAGES}/zodoo/src:/opt/zodoo:rw
       - ${ODOO_IMAGES}/vscode/bin/entrypoint.sh:/usr/local/bin/entrypoint.sh
       - ${ODOO_IMAGES}/vscode/bin/start.sh:/usr/local/bin/start.sh
       - /var/run/docker.sock:/var/run/docker.sock

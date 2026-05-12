@@ -1602,6 +1602,20 @@ def _use_file(config, path):
     return res
 
 
+def _zodoo_embed_active(config):
+    """True iff zodoo source should be baked into the project image.
+
+    Default off — zodoo source is bind-mounted at runtime so CLI-source-only
+    updates don't trigger image rebuilds. ``odoo bakery bake`` flips this to
+    ``1`` to produce self-contained k8s/AWS images.
+    """
+    return str(getattr(config, "ZODOO_EMBED", "") or "").strip() in (
+        "1",
+        "true",
+        "True",
+    )
+
+
 def _merge_odoo_dockerfile(config, yamlcompose):
     """
     If customs contains dockerfile, then append their execution
@@ -1712,6 +1726,16 @@ def _merge_odoo_dockerfile(config, yamlcompose):
                 )
             odoo_docker_file.write_text(
                 odoo_docker_file.read_text() + "\n" + common_text
+            )
+
+        # When zodoo source is mounted at runtime (default), strip the
+        # bakery-only ``#___SNIPPET_ZODOO_EMBED_SOURCE___`` marker so the
+        # snippet substitution does not bake zodoo into the image.
+        if not _zodoo_embed_active(config):
+            odoo_docker_file.write_text(
+                odoo_docker_file.read_text().replace(
+                    "#___SNIPPET_ZODOO_EMBED_SOURCE___", ""
+                )
             )
 
         # include source code

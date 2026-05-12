@@ -20,3 +20,9 @@ services:
       - ${ODOO_FILES}:/opt/files
       - ${HOST_RUN_DIR}/proxy_exchange:/var/run/proxy_exchange
       - ${HOST_RUN_DIR}/odoo-shell-ipython:/home/odoo/.ipython
+      # zodoo CLI source — bind-mounted at runtime so source-only changes
+      # don't require image rebuilds. Bakery images (ZODOO_EMBED=1) ignore
+      # this since they ship via k8s without docker-compose; locally a
+      # bakery rebuild can use ./.odoo/run/<project>/docker-compose.yml that
+      # the composer regenerates with this volume stripped.
+      - ${ODOO_IMAGES}/zodoo/src:/opt/zodoo:rw

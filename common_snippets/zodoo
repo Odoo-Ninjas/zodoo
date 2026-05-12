@@ -1,4 +1,12 @@
-# Check if build-time user is root
+# zodoo venv build. The zodoo *source* lives at /opt/zodoo at runtime and is
+# bind-mounted from the host in standard mode (`docker-compose volumes:
+# ${ODOO_IMAGES}/zodoo/src:/opt/zodoo`). For self-contained k8s images, the
+# bakery flow (ZODOO_EMBED=1) additionally COPYs the source into the image —
+# that is handled in the project-layer Dockerfile, not here.
+#
+# This snippet only installs zodoo's pip dependencies into the venv and
+# wires up a `.pth` file so /opt/zodoo is importable as the `zodoo` package
+# (works whether /opt/zodoo is mounted or baked).
 RUN if [ "$(id -u)" -ne 0 ]; then \
       echo "ERROR: This Dockerfile must be built as root!" >&2; \
       exit 1; \
@@ -7,32 +15,30 @@ ENV ZODOO_SRC=/opt/zodoo
 ENV ZODOO_PIPX_HOME=/opt/zodoo_pipx
 ENV ZODOO_ENV_DIR=/opt/zodoo_pipx/venvs/zodoo
 ENV ZODOO_PYTHON=$ZODOO_ENV_DIR/bin/python3
-COPY zodoo_src/ /opt/zodoo
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Pull in only the requirements file — full source is mounted/baked elsewhere.
+COPY zodoo_src/zodoo/requirements.txt /tmp/zodoo_requirements.txt
 
 #___SNIPPET_PYTHON311___
 
 RUN /usr/bin/python3.11 -m venv "$ZODOO_ENV_DIR" && \
-     $ZODOO_PYTHON -m pip install $(cat /etc/pip_options) --upgrade pip && \
-     $ZODOO_PYTHON -m pip install $(cat /etc/pip_options) pipx setuptools wheel --upgrade && \
-     $ZODOO_PYTHON -mpip install $(cat /etc/pip_options) lxml==4.9.3
+    $ZODOO_PYTHON -m pip install $(cat /etc/pip_options) --upgrade pip && \
+    $ZODOO_PYTHON -m pip install $(cat /etc/pip_options) setuptools wheel --upgrade && \
+    $ZODOO_PYTHON -m pip install $(cat /etc/pip_options) lxml==4.9.3 && \
+    $ZODOO_PYTHON -m pip install $(cat /etc/pip_options) -r /tmp/zodoo_requirements.txt && \
+    rm /tmp/zodoo_requirements.txt
 
-RUN \
-if [ "$ODOO_VERSION"  != '11' ]; then \
-     PIPX_HOME="${ZODOO_PIPX_HOME}" \
-     PIPX_BIN_DIR=/usr/local/bin \
-     PIP_VERBOSE=1 \
-     PIPX_DEFAULT_PYTHON=$ZODOO_PYTHON \
-     $ZODOO_PYTHON \
-     -mpipx \
-     install  \
-     --force \
-     --verbose \
-     -e \
-     "$ZODOO_SRC" \
-     || (echo "=== pipx install failed ===" && \
-          cat $ZODOO_PIPX_HOME/logs/*.log && \
-          exit 1) \
-fi
+# Make /opt/zodoo importable as `zodoo` (and pick up its gimera_src sibling).
+RUN SITE_PACKAGES="$(ls -d $ZODOO_ENV_DIR/lib/python*/site-packages)" && \
+    echo /opt/zodoo > "$SITE_PACKAGES/zodoo_src.pth"
+
+# Wrapper at $ZODOO_ENV_DIR/bin/odoo — invokes zodoo as a module so it works
+# both for mounted (standard) and baked (bakery) /opt/zodoo.
+RUN cat > "$ZODOO_ENV_DIR/bin/odoo" <<'WRAPPER' && chmod +x "$ZODOO_ENV_DIR/bin/odoo"
+#!/bin/bash
+exec "/opt/zodoo_pipx/venvs/zodoo/bin/python3" -m zodoo "$@"
+WRAPPER
 
 RUN \
 export HOME=/root && \
@@ -40,7 +46,7 @@ mkdir -p $HOME/.local/bin && \
 echo 'export PATH=$PATH:$HOME/.local/bin' >> $HOME/.bashrc && \
 echo "export ZODOO_PYTHON=$ZODOO_PYTHON" >> /etc/bash.bashrc && \
 echo "export ZODOO_PYTHON=$ZODOO_PYTHON" >> /etc/profile.d/zodoo_python.sh && \
-echo "alias odoo=\"$(dirname $ZODOO_PYTHON)/odoo\"" >> /etc/profile.d/zodoo_python.sh && \
-echo "alias odoo=\"$(dirname $ZODOO_PYTHON)/odoo\"" >> $HOME/.bashrc && \
+echo "alias odoo=\"$ZODOO_ENV_DIR/bin/odoo\"" >> /etc/profile.d/zodoo_python.sh && \
+echo "alias odoo=\"$ZODOO_ENV_DIR/bin/odoo\"" >> $HOME/.bashrc && \
 ln -sf "$ZODOO_ENV_DIR/bin/odoo" /usr/bin/odoo && \
 chmod +x /etc/profile.d/zodoo_python.sh

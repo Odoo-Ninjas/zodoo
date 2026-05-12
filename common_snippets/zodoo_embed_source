@@ -1,0 +1,4 @@
+# Embed zodoo source into the image (bakery / ZODOO_EMBED=1 path).
+# In standard mode the composer strips the SNIPPET_ZODOO_EMBED_SOURCE marker
+# before substitution so this content never lands in the Dockerfile.
+COPY zodoo_src/ /opt/zodoo
