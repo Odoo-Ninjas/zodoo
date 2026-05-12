@@ -232,6 +232,8 @@ def upgrade(ctx, config, no_install):
 
         if _zodoo_devmode(config):
             changed = _upgrade_track_main(images_dir)
+        elif _zodoo_alpha(config):
+            changed = _upgrade_track_alpha(images_dir)
         else:
             changed = _upgrade_checkout_latest_tag(images_dir)
 
@@ -275,6 +277,105 @@ def _zodoo_devmode(config):
     if not val:
         val = getattr(config, "ZODOO_DEVMODE", "0") or "0"
     return str(val).strip() in ("1", "true", "True", "yes", "on")
+
+
+def _zodoo_alpha(config):
+    """True when ZODOO_ALPHA=1 (env or user settings).
+
+    Used by `odoo setup upgrade` to track the `alpha` branch instead of
+    the latest release tag. Mirrors :func:`_zodoo_devmode` but stays
+    opt-in via a separate setting so devmode users still get whatever
+    branch they checked out manually.
+    """
+    val = os.environ.get("ZODOO_ALPHA")
+    if val is None:
+        try:
+            from .myconfigparser import MyConfigParser
+
+            user_settings_file = config.files.get("user_settings")
+            if user_settings_file and Path(user_settings_file).exists():
+                val = MyConfigParser(user_settings_file).get("ZODOO_ALPHA", "")
+        except Exception:
+            val = None
+    if not val:
+        val = getattr(config, "ZODOO_ALPHA", "0") or "0"
+    return str(val).strip() in ("1", "true", "True", "yes", "on")
+
+
+def _upgrade_track_alpha(images_dir):
+    """Alpha channel: switch to and fast-forward the `alpha` branch.
+
+    Returns True when HEAD actually moved.
+    """
+    click.secho(
+        "ZODOO_ALPHA=1 → tracking 'alpha' branch (git fetch + checkout + pull)...",
+        fg="yellow",
+    )
+    subprocess.run(
+        ["git", "fetch", "--prune", "--quiet", "origin", "alpha"],
+        cwd=images_dir,
+        check=True,
+    )
+
+    current_branch = subprocess.run(
+        ["git", "branch", "--show-current"],
+        cwd=images_dir,
+        capture_output=True,
+        encoding="utf-8",
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+    head_before = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=images_dir,
+        capture_output=True,
+        encoding="utf-8",
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+    if current_branch != "alpha":
+        click.secho("Checking out 'alpha'...", fg="yellow")
+        subprocess.run(
+            ["git", "checkout", "--quiet", "alpha"],
+            cwd=images_dir,
+            check=True,
+        )
+
+    result = subprocess.run(
+        [
+            "git",
+            "pull",
+            "--ff-only",
+            "--no-edit",
+            "--progress",
+            "--rebase=false",
+            "--autostash",
+            "--quiet",
+            "origin",
+            "alpha",
+        ],
+        cwd=images_dir,
+        capture_output=True,
+        encoding="utf-8",
+        text=True,
+    )
+    output = result.stdout.strip() + result.stderr.strip()
+
+    head_after = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=images_dir,
+        capture_output=True,
+        encoding="utf-8",
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+    if head_before == head_after and "Already up to date" in output:
+        click.secho("Already on latest 'alpha' — nothing to do.", fg="green")
+        return False
+    return True
 
 
 def _upgrade_track_main(images_dir):
@@ -723,10 +824,22 @@ def _fix_permissions(config, dirs_to_fix):
             # native find to check ownership; if already correct, skip.
             check = subprocess.run(
                 [
-                    "find", path, "-not", "-type", "l",
-                    "(", "-not", "-user", str(uid_int),
-                    "-o", "-not", "-group", str(gid), ")",
-                    "-print", "-quit",
+                    "find",
+                    path,
+                    "-not",
+                    "-type",
+                    "l",
+                    "(",
+                    "-not",
+                    "-user",
+                    str(uid_int),
+                    "-o",
+                    "-not",
+                    "-group",
+                    str(gid),
+                    ")",
+                    "-print",
+                    "-quit",
                 ],
                 capture_output=True,
                 text=True,
