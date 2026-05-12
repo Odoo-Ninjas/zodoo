@@ -104,21 +104,20 @@ def _referenced_snippets(dockerfile_text):
 def _odoo_framework_requirements_text(config):
     """Return the content of Odoo's upstream ``requirements.txt``.
 
-    Resolves via ``config.dirs["odoo_home"]`` (set by zodoo's compose
-    layer) and falls back to scanning the project's working dir for an
-    ``odoo`` submodule.
+    Prefers ``<working_dir>/odoo/requirements.txt`` (the project's Odoo
+    submodule). ``config.dirs["odoo_home"]`` is **not** Odoo's source — on
+    the host it resolves to the zodoo CLI package directory, whose own
+    requirements.txt has nothing to do with Odoo's framework deps.
     """
-    odoo_home = None
-    try:
-        odoo_home = Path(config.dirs["odoo_home"])
-    except (KeyError, TypeError):
-        pass
-    if odoo_home and (odoo_home / "requirements.txt").exists():
-        return (odoo_home / "requirements.txt").read_text()
-
     working = getattr(config, "WORKING_DIR", None)
     if working:
-        candidate = Path(working) / "odoo" / "requirements.txt"
+        from zodoo.odoo_config import MANIFEST
+
+        try:
+            odoo_dir = MANIFEST().get("odoo_dir", "odoo")
+        except Exception:
+            odoo_dir = "odoo"
+        candidate = Path(working) / odoo_dir / "requirements.txt"
         if candidate.exists():
             return candidate.read_text()
     return ""
@@ -279,9 +278,7 @@ def _filter_framework_requirements(reqs_text):
 def _docker_build_args(config, inputs):
     """Compose the ``--build-arg`` list for the base image build."""
     reqs_b64 = base64.b64encode(
-        _filter_framework_requirements(
-            inputs["framework_requirements"]
-        ).encode("utf-8")
+        inputs["framework_requirements"].encode("utf-8")
     ).decode("ascii")
 
     args = {
