@@ -2,7 +2,19 @@
 set -e
 
 # Fix ownership of socket and log dirs (runs as root before gosu drops to postgres)
-mkdir -p /var/run/postgresql /logs
+# /logs is bind-mounted from $HOST_RUN_DIR/postgres.logs; if Docker Desktop
+# auto-created the host path as a file the mount succeeds but /logs is a file
+# inside the container and `mkdir -p` then fails with a useless message.
+for d in /var/run/postgresql /logs; do
+    if [ -e "$d" ] && [ ! -d "$d" ]; then
+        echo "ERROR: $d exists inside the container but is not a directory." >&2
+        echo "       The host bind-mount source was created as a file." >&2
+        echo "       Fix on host: rm \$HOST_RUN_DIR/postgres.logs && mkdir \$HOST_RUN_DIR/postgres.logs" >&2
+        echo "       Then: docker rm -f <postgres container> && odoo up -d postgres" >&2
+        exit 1
+    fi
+    mkdir -p "$d"
+done
 rm -f /var/run/postgresql/.s.PGSQL.*.lock
 chown -R 999:999 /var/run/postgresql /logs
 
