@@ -794,7 +794,10 @@ def _build_python_image_for_arch(
     help=(
         "Pre-warm the zodoo registry with base images for multiple Odoo "
         "versions. For each given version, scaffolds a temporary project, "
-        "runs reload, and builds + pushes the base for both architectures."
+        "runs reload, and builds + pushes the base for both architectures. "
+        "With --history N{d,m,y}, iterates every unique odoo/requirements.txt "
+        "content from upstream odoo/odoo over the last N period (one base "
+        "per unique content)."
     ),
 )
 @click.argument("versions", nargs=-1, required=True)
@@ -812,9 +815,19 @@ def _build_python_image_for_arch(
     is_flag=True,
     help="Don't delete the scaffolded temp project after the build.",
 )
+@click.option(
+    "--history",
+    default=None,
+    metavar="DURATION",
+    help=(
+        "Walk back DURATION (e.g. 2y, 18m, 365d) of upstream Odoo "
+        "requirements.txt history and build a base for every unique "
+        "content. Without this flag, only the current branch HEAD is built."
+    ),
+)
 @pass_config
 @click.pass_context
-def build_base_images(ctx, config, versions, workdir, keep):
+def build_base_images(ctx, config, versions, workdir, keep, history):
     """Iterate over the given Odoo VERSIONS (e.g. 17 18 19) and build base images."""
     import shutil
     import tempfile
@@ -827,22 +840,22 @@ def build_base_images(ctx, config, versions, workdir, keep):
     )
     parent.mkdir(parents=True, exist_ok=True)
 
+    since_date = _parse_history_duration(history) if history else None
+
     click.secho(
         f"Pre-warming base images for versions: {', '.join(versions)}\n"
         f"  workdir: {parent}\n"
-        f"  cleanup: {'no (--keep)' if keep else 'yes'}",
+        f"  cleanup: {'no (--keep)' if keep else 'yes'}\n"
+        f"  history: {'HEAD only' if not history else f'since {since_date.date()} ({history})'}",
         fg="cyan",
         bold=True,
     )
 
-    results = []  # (version, status, info)
+    # (version, status, info, unique_reqs_built)
+    results = []
+    grand_total_unique = 0
 
     for version in versions:
-        # docker compose project name (= dir basename) must match
-        # [a-z0-9][a-z0-9_-]*; the version string commonly contains '.'
-        # (e.g. "19.0") which is rejected, and ISO timestamps include
-        # an uppercase 'T' separator that compose also rejects. Both
-        # get sanitised here.
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_version = re.sub(r"[^a-z0-9_-]", "_", str(version).lower())
         project_dir = parent / f"base_{safe_version}_{ts}"
@@ -850,35 +863,171 @@ def build_base_images(ctx, config, versions, workdir, keep):
             f"\n=== Odoo {version} → {project_dir} ===", fg="cyan", bold=True
         )
         try:
-            _scaffold_and_build_base(project_dir, version)
-            results.append((version, "ok", str(project_dir)))
+            built = _scaffold_and_build_base(
+                project_dir, version, since_date=since_date
+            )
+            grand_total_unique += built
+            results.append((version, "ok", str(project_dir), built))
         except subprocess.CalledProcessError as e:
-            results.append((version, "fail", f"exit {e.returncode}"))
+            results.append((version, "fail", f"exit {e.returncode}", 0))
             click.secho(
                 f"  Build for {version} failed: exit {e.returncode}",
                 fg="red",
             )
         except Exception as e:
-            results.append((version, "fail", str(e)))
+            results.append((version, "fail", str(e), 0))
             click.secho(f"  Build for {version} failed: {e}", fg="red")
         finally:
             if not keep and project_dir.exists():
                 shutil.rmtree(project_dir, ignore_errors=True)
 
     click.secho("\n=== Summary ===", fg="cyan", bold=True)
-    for version, status, info in results:
+    for version, status, info, built in results:
         color = "green" if status == "ok" else "red"
-        click.secho(f"  {version}: {status} ({info})", fg=color)
-    if any(s == "fail" for _, s, _ in results):
+        click.secho(
+            f"  {version}: {status} — {built} unique requirements.txt built "
+            f"({info})",
+            fg=color,
+        )
+    click.secho(
+        f"  TOTAL unique requirements.txt built across all versions: "
+        f"{grand_total_unique}",
+        fg="cyan",
+        bold=True,
+    )
+    if any(s == "fail" for _, s, _, _ in results):
         sys.exit(1)
 
 
-def _scaffold_and_build_base(project_dir, version):
+def _parse_history_duration(spec):
+    """Parse '2y' / '18m' / '365d' into a UTC datetime in the past."""
+    from datetime import datetime, timedelta, timezone
+
+    m = re.match(r"^(\d+)([dmy])$", spec.strip().lower())
+    if not m:
+        raise click.BadParameter(
+            f"--history must be like '2y', '18m' or '365d', got: {spec!r}"
+        )
+    n, unit = int(m.group(1)), m.group(2)
+    days = n * {"d": 1, "m": 30, "y": 365}[unit]
+    return datetime.now(timezone.utc) - timedelta(days=days)
+
+
+def _fetch_historical_requirements(version, since_date):
+    """Return a list of (commit_sha, requirements_text) — deduplicated by
+    content — for every unique odoo/requirements.txt on the upstream
+    ``odoo/odoo`` branch ``<version>`` (e.g. ``19.0``) since ``since_date``.
+
+    The current branch HEAD is included as the first entry even if no
+    commit touched the file inside the window. Iteration order is
+    oldest → newest so the first occurrence of each unique content wins
+    its commit SHA.
+    """
+    import hashlib
+    import json
+    from datetime import timezone
+
+    branch = str(version) if "." in str(version) else f"{version}.0"
+    since_iso = since_date.astimezone(timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+
+    click.secho(
+        f"  Fetching odoo/requirements.txt history on branch {branch} "
+        f"since {since_iso} …",
+        fg="yellow",
+    )
+
+    # gh api paginates with --paginate; gives a flat JSON array.
+    cmd = [
+        "gh",
+        "api",
+        "--paginate",
+        f"repos/odoo/odoo/commits?sha={branch}"
+        f"&path=requirements.txt&since={since_iso}&per_page=100",
+    ]
+    try:
+        raw = subprocess.check_output(cmd, text=True)
+    except FileNotFoundError:
+        raise click.ClickException(
+            "gh CLI not found — install it or run without --history."
+        )
+    except subprocess.CalledProcessError as e:
+        raise click.ClickException(f"gh api failed: {e}")
+
+    # `gh api --paginate` returns concatenated JSON arrays; normalise.
+    commits = []
+    for chunk in re.findall(r"\[.*?\](?=\s*\[|\s*$)", raw, flags=re.DOTALL):
+        try:
+            commits.extend(json.loads(chunk))
+        except json.JSONDecodeError:
+            continue
+    if not commits:
+        # fallback: full parse
+        try:
+            commits = json.loads(raw)
+        except json.JSONDecodeError:
+            commits = []
+
+    # Always include the branch HEAD as the latest reference, deduplicated
+    # below if a commit in the window already matches it.
+    head_entry = {"sha": branch, "commit": {"committer": {"date": since_iso}}}
+    all_commits = commits + [head_entry]
+
+    # Sort oldest → newest by committer date so first-seen content wins
+    # the earliest matching SHA (more stable cache keys over time).
+    def _ts(c):
+        return c.get("commit", {}).get("committer", {}).get("date", "")
+
+    all_commits.sort(key=_ts)
+
+    seen_hashes = set()
+    out = []  # (sha, content)
+    for c in all_commits:
+        sha = c.get("sha")
+        if not sha:
+            continue
+        content = _fetch_requirements_at(sha)
+        if content is None:
+            continue
+        h = hashlib.sha256(content.encode("utf-8", "replace")).hexdigest()
+        if h in seen_hashes:
+            continue
+        seen_hashes.add(h)
+        out.append((sha, content))
+
+    click.secho(
+        f"  {len(commits)} commits touched requirements.txt → "
+        f"{len(out)} unique contents (HEAD included).",
+        fg="cyan",
+    )
+    return out
+
+
+def _fetch_requirements_at(ref):
+    """Fetch raw odoo/requirements.txt content at the given ref. None on miss."""
+    try:
+        return subprocess.check_output(
+            [
+                "gh",
+                "api",
+                "-H",
+                "Accept: application/vnd.github.raw",
+                f"repos/odoo/odoo/contents/requirements.txt?ref={ref}",
+            ],
+            text=True,
+        )
+    except subprocess.CalledProcessError:
+        return None
+
+
+def _scaffold_and_build_base(project_dir, version, since_date=None):
     """Scaffold a fresh Odoo project, then build + cross-push the base.
 
-    Used by ``odoo build-base-images``. The scaffold uses ``odoo src init``
-    so all standard zodoo bootstrap (gimera apply, settings init, …) runs
-    the same way as for a real project.
+    Returns the number of unique requirements.txt processed (always ≥1).
+    With ``since_date`` set, iterates every unique upstream
+    requirements.txt over that window, swapping the scaffold's
+    ``odoo/requirements.txt`` between builds.
     """
     project_dir.mkdir(parents=True, exist_ok=True)
 
@@ -887,16 +1036,38 @@ def _scaffold_and_build_base(project_dir, version):
         ["odoo", "src", "init", str(project_dir), str(version)],
     )
 
-    # `odoo src init` does `os.chdir(path)` internally; subprocess returns
-    # to the original cwd. For the remaining steps we need to be inside
-    # the scaffold so the project's settings get picked up.
-    click.secho("  odoo reload", fg="yellow")
-    subprocess.check_call(["odoo", "reload"], cwd=str(project_dir))
+    reqs_path = project_dir / "odoo" / "requirements.txt"
 
-    click.secho("  odoo build-odoo-base --force", fg="yellow")
-    subprocess.check_call(
-        ["odoo", "build-odoo-base", "--force"], cwd=str(project_dir)
-    )
+    if since_date is None:
+        click.secho("  odoo reload", fg="yellow")
+        subprocess.check_call(["odoo", "reload"], cwd=str(project_dir))
+        click.secho("  odoo build-odoo-base --force", fg="yellow")
+        subprocess.check_call(
+            ["odoo", "build-odoo-base", "--force"], cwd=str(project_dir)
+        )
+        return 1
+
+    history = _fetch_historical_requirements(version, since_date)
+    if not history:
+        raise click.ClickException(
+            f"No requirements.txt content fetched for {version}."
+        )
+
+    for idx, (sha, content) in enumerate(history, start=1):
+        click.secho(
+            f"\n  --- [{idx}/{len(history)}] {version} @ {sha[:12]} ---",
+            fg="magenta",
+            bold=True,
+        )
+        reqs_path.write_text(content)
+        click.secho("  odoo reload", fg="yellow")
+        subprocess.check_call(["odoo", "reload"], cwd=str(project_dir))
+        click.secho("  odoo build-odoo-base --force", fg="yellow")
+        subprocess.check_call(
+            ["odoo", "build-odoo-base", "--force"], cwd=str(project_dir)
+        )
+
+    return len(history)
 
 
 @docker.command(
