@@ -306,10 +306,17 @@ def test_up_command_dispatches_and_runs_after_up(monkeypatch, tmp_path):
     assert "machines" in seen
 
 
-def test_down_aborts_without_force_on_production(monkeypatch):
+def test_down_on_production_works_without_force(monkeypatch):
+    seen = {}
+
+    def capture(ctx, cfg, machines, volumes=False, remove_orphans=False):
+        seen["called"] = True
+
+    _patch_lib_with_docker(monkeypatch, down=capture)
     cfg = FakeConfig(devmode=False, force=False)
     res = _invoke(mod.down, cfg)
-    assert res.exit_code != 0
+    assert res.exit_code == 0
+    assert seen.get("called") is True
 
 
 def test_down_postgres_volume_requires_force(monkeypatch):
