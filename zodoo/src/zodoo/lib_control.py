@@ -256,6 +256,13 @@ def recreate(ctx, config, machines):
 @click.option("--force-recreate", is_flag=True)
 @click.option("--no-recreate", is_flag=True)
 @click.option("-p", "--profile", default="auto")
+@click.option(
+    "--build",
+    "allow_build",
+    is_flag=True,
+    help="Allow `docker compose up` to build missing images locally "
+    "(default: --no-build is passed).",
+)
 @pass_config
 @click.pass_context
 def up(
