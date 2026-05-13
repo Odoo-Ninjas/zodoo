@@ -1998,17 +1998,21 @@ def _get_changed_files(git_sha):
     # check if there are submodules:
     filepaths2 = []
     cwd = Path(os.getcwd())
+    # cache once - get_submodules() spawns `git submodule status`, which is
+    # O(filepaths) expensive if called per iteration on big diffs.
+    submodules_cache = list(repo.get_submodules())
+
+    def get_submodule(filepath):
+        for submodule in submodules_cache:
+            try:
+                filepath.relative_to(submodule.path)
+                return submodule
+            except ValueError:
+                continue
+
     for filepath in filepaths:
         filepath = repo.path / filepath
         os.chdir(cwd)
-
-        def get_submodule(filepath):
-            for submodule in repo.get_submodules():
-                try:
-                    filepath.relative_to(submodule.path)
-                    return submodule
-                except ValueError:
-                    continue
 
         submodule = get_submodule(filepath)
 
