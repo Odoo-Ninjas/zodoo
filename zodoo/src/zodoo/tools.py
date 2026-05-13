@@ -546,7 +546,20 @@ def __dc(config, cmd, env={}, profile="auto"):
     ensure_project_name(config)
     c = __get_cmd(config, profile=profile) + cmd
     env = _set_default_envs(env)
-    return subprocess.check_call(c, env=_merge_env_dict(env))
+    # docker compose v2 (>=5.x) silently no-ops `down` when invoked with
+    # `-f <abs-path>` from outside that directory — it can't match the
+    # already-running containers. Strip the `-f` pair and run with cwd set
+    # to the compose-file dir so compose resolves the project from there.
+    cwd = None
+    if "down" in cmd:
+        try:
+            idx = c.index("-f")
+            compose_path = c[idx + 1]
+            cwd = os.path.dirname(compose_path) or None
+            c = c[:idx] + c[idx + 2:]
+        except (ValueError, IndexError):
+            pass
+    return subprocess.check_call(c, env=_merge_env_dict(env), cwd=cwd)
 
 
 def __dc_out(config, cmd, env={}, profile="auto"):
