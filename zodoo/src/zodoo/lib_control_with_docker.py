@@ -319,7 +319,10 @@ def rebuild(ctx, config, machines=[]):
 # `odoo restart odoo_cronjobs` etc. must still work — we forward the call
 # to the in-container supervisor instead of touching compose.
 _LEGACY_ROLE_MAP = {
-    "odoo": "web",
+    # "odoo" intentionally NOT here: `odoo kill odoo` must stop the whole
+    # container via docker compose, not just the web supervisor process.
+    # Use `odoo kill odoo_web` to stop only the in-container web service.
+    "odoo_web": "web",
     "odoo_cronjobs": "cronjobs",
     "odoo_queuejobs": "queuejobs",
 }
