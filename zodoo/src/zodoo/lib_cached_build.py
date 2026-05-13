@@ -125,6 +125,18 @@ def start_container(
             return result
         return None
 
+    def _clear_stale_endpoint(network, container_name):
+        # Dirty shutdowns of the docker daemon can leave a phantom endpoint
+        # entry in the network for a container that no longer exists. The
+        # next `docker run --network ...` then fails with
+        # "endpoint with name X already exists in network Y" — disconnect -f
+        # is the documented way to evict it.
+        subprocess.run(
+            ["docker", "network", "disconnect", "-f", network, container_name],
+            capture_output=True,
+            text=True,
+        )
+
     def _start_container(image_name, container_name):
         cmd = [
             "docker",
@@ -143,21 +155,58 @@ def start_container(
         cmd += [
             image_name,
         ]
-        click.secho(f"Starting container '{container_name}'...", fg="blue")
-        result = subprocess.run(cmd, capture_output=True, text=True)
+
+        def _run_once():
+            click.secho(f"Starting container '{container_name}'...", fg="blue")
+            return subprocess.run(cmd, capture_output=True, text=True)
+
+        result = _run_once()
         if result.returncode != 0:
+            err = result.stderr or ""
             # Race condition: another process created the container between
             # our check and docker run. Try starting the existing one.
-            if "is already in use" in (result.stderr or ""):
+            if "is already in use" in err:
                 click.secho(
                     f"Container '{container_name}' already exists, starting it...",
                     fg="yellow",
                 )
-                subprocess.run(
-                    ["docker", "start", container_name], check=False
+                start = subprocess.run(
+                    ["docker", "start", container_name],
+                    capture_output=True,
+                    text=True,
                 )
+                if start.returncode != 0:
+                    # `start` itself can fail with stale-endpoint after dirty
+                    # daemon exits. Disconnect + remove + fresh run.
+                    click.secho(
+                        f"`docker start {container_name}` failed: "
+                        f"{(start.stderr or '').strip()} — recovering.",
+                        fg="yellow",
+                    )
+                    _clear_stale_endpoint(network, container_name)
+                    subprocess.run(
+                        ["docker", "rm", "-f", container_name],
+                        capture_output=True,
+                        text=True,
+                    )
+                    result = _run_once()
+                    if result.returncode != 0:
+                        abort(result.stderr or str(result.returncode))
+            elif (
+                "endpoint with name" in err
+                and "already exists" in err
+            ) or "endpoint already exists" in err:
+                click.secho(
+                    f"Stale endpoint detected for '{container_name}' on "
+                    f"network '{network}', clearing it.",
+                    fg="yellow",
+                )
+                _clear_stale_endpoint(network, container_name)
+                result = _run_once()
+                if result.returncode != 0:
+                    abort(result.stderr or str(result.returncode))
             else:
-                abort(result.stderr or str(result.returncode))
+                abort(err or str(result.returncode))
         click.secho(
             f"Container '{container_name}' started on port {port_mapping}.",
             fg="green",
