@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.0
+
+
+- **BREAKING**: odoo down -v / --postgres-volume now requires --force; on production also a hostname confirmation. Plain odoo down (no volume removal) works without force everywhere. — Plain `odoo down` no longer requires --force on production. Volume-removing forms (`-v`, `--postgres-volume`) now uniformly require --force; before --force was only required on production for the non-volume case, and additionally for --postgres-volume.
+
+
 ## 3.2.3
 
 

@@ -300,8 +300,53 @@ def down(ctx, config, machines=[], volumes=False, remove_orphans=True):
     # keep a stale network reference that breaks the next `up --no-recreate`.
     __dc(config, ["down"] + options + machines, profile="all")
 
+    # `docker compose down` does NOT remove oneoff containers (those created
+    # via `docker compose run`, e.g. by `odoo shell`). Find and remove them
+    # explicitly so the project is fully shut down.
+    _remove_oneoff_containers(config, machines)
+
     if volumes:
         Commands.invoke(ctx, "remove-volumes")
+
+
+def _remove_oneoff_containers(config, machines=None):
+    filters = [
+        "--filter",
+        f"label=com.docker.compose.project={config.project_name}",
+        "--filter",
+        "label=com.docker.compose.oneoff=True",
+    ]
+    try:
+        out = subprocess.check_output(
+            ["docker", "ps", "-aq"] + filters, text=True
+        ).strip()
+    except subprocess.CalledProcessError:
+        return
+    ids = [x for x in out.split("\n") if x]
+    if not ids:
+        return
+    if machines:
+        kept = []
+        for cid in ids:
+            try:
+                service = subprocess.check_output(
+                    [
+                        "docker",
+                        "inspect",
+                        "--format",
+                        "{{ index .Config.Labels \"com.docker.compose.service\" }}",
+                        cid,
+                    ],
+                    text=True,
+                ).strip()
+            except subprocess.CalledProcessError:
+                continue
+            if service in machines:
+                kept.append(cid)
+        ids = kept
+        if not ids:
+            return
+    subprocess.call(["docker", "rm", "-f"] + ids)
 
 
 def stop(ctx, config, machines=[]):
@@ -319,7 +364,10 @@ def rebuild(ctx, config, machines=[]):
 # `odoo restart odoo_cronjobs` etc. must still work — we forward the call
 # to the in-container supervisor instead of touching compose.
 _LEGACY_ROLE_MAP = {
-    "odoo": "web",
+    # "odoo" intentionally NOT here: `odoo kill odoo` must stop the whole
+    # container via docker compose, not just the web supervisor process.
+    # Use `odoo kill odoo_web` to stop only the in-container web service.
+    "odoo_web": "web",
     "odoo_cronjobs": "cronjobs",
     "odoo_queuejobs": "queuejobs",
 }

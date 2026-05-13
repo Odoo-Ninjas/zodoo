@@ -415,7 +415,15 @@ def _tweak_config(ODOO_VERSION, config):
         "--no-cache-dir --no-build-isolation --retries 20 --timeout 120 "
     )
     PIP_OPTION_NO_BUILDISOL = "--no-cache-dir --no-build-isolation "
-    PIP_OPTION_INDEX_URL = f" --index-url http://{config.PIP_PROXY_IP}/index --trusted-host {config.PIP_PROXY_IP} "
+    # Use the local pip proxy as an `--extra-index-url` rather than the
+    # primary `--index-url`: pip still queries it (so cached packages
+    # come straight from the proxy when available) but pypi.org remains
+    # the default index. Builds keep working when the proxy is
+    # unreachable instead of stalling on 20-retry-by-120s timeouts.
+    PIP_OPTION_INDEX_URL = (
+        f" --extra-index-url http://{config.PIP_PROXY_IP}/index "
+        f"--trusted-host {config.PIP_PROXY_IP} "
+    )
     if settings.get("PIP_PROXY_IP") == "ignore" or not settings.get(
         "PIP_PROXY_IP"
     ):

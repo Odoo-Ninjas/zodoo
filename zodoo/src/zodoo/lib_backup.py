@@ -214,6 +214,25 @@ def backup_db(
     if len(filename.parts) == 1:
         filename = Path(config.dumps_path) / filename
 
+    if filename.exists():
+        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+        # Insert the timestamp before the known dump suffix chain so cleanup
+        # globs like `*.dump.gz` keep matching. Fall back to stem+suffix
+        # for unknown extensions.
+        name = filename.name
+        for ext in (".dump.gz", ".sql.gz", ".tar.gz", ".dump", ".sql", ".tar"):
+            if name.endswith(ext):
+                filename = filename.with_name(f"{name[:-len(ext)]}_{ts}{ext}")
+                break
+        else:
+            filename = filename.with_name(
+                f"{filename.stem}_{ts}{filename.suffix}"
+            )
+        click.secho(
+            f"Target file exists; using timestamped filename: {filename}",
+            fg="yellow",
+        )
+
     if dumptype in ("zodoobin", "wodoobin"):
         if verify:
             click.secho(
