@@ -22,7 +22,7 @@ import sys
 import shutil
 import click
 from .tools import __dc
-from .tools import search_env_path, __get_postgres_volume_name
+from .tools import search_env_path, __get_postgres_volume_name, root_cmd
 from pathlib import Path
 from .tools import abort
 from .tools import get_volume_fullpath
@@ -74,7 +74,7 @@ def _is_zfs_path(path):
         return False
     try:
         subprocess.check_output(
-            ["sudo", zfs, "list", str(path)],
+            root_cmd(zfs, "list", str(path)),
             encoding="utf8",
             stderr=subprocess.DEVNULL,  # ignore output of 'no datasets available'
         ).strip().splitlines()[1:]
@@ -93,7 +93,7 @@ CACHE_ZFS_PATH = None
 def _get_zfs_mountpoint(zfs_dataset):
     """Return the mountpoint of a ZFS dataset."""
     return subprocess.check_output(
-        ["sudo", zfs, "get", "-H", "-o", "value", "mountpoint", zfs_dataset],
+        root_cmd(zfs, "get", "-H", "-o", "value", "mountpoint", zfs_dataset),
         encoding="utf8",
     ).strip()
 
@@ -191,7 +191,7 @@ def _get_snapshots(config):
             snapshotname = unify(path.split(" "))[0]
             creation = unify(
                 subprocess.check_output(
-                    ["sudo", zfs, "get", "-p", "creation", snapshotname],
+                    root_cmd(zfs, "get", "-p", "creation", snapshotname),
                     encoding="utf8",
                 )
                 .strip()
@@ -245,14 +245,7 @@ def _turn_into_subvolume(config):
     shutil.move(fullpath, filename)
     try:
         subprocess.check_output(
-            [
-                "sudo",
-                zfs,
-                "create",
-                "-o",
-                f"mountpoint={fullpath}",
-                fullpath_zfs,
-            ]
+            root_cmd(zfs, "create", "-o", f"mountpoint={fullpath}", fullpath_zfs)
         )
         click.secho(
             "\n"
@@ -266,17 +259,16 @@ def _turn_into_subvolume(config):
             f"Writing back the files to original position: from {filename}/ to {fullpath}/"
         )
         subprocess.check_call(
-            [
-                "sudo",
+            root_cmd(
                 "rsync",
                 str(filename) + "/",
                 str(fullpath) + "/",
                 "-ar",
                 rsync_progress_param(),
-            ]
+            )
         )
     finally:
-        subprocess.check_call(["sudo", "rm", "-Rf", filename])
+        subprocess.check_call(root_cmd("rm", "-Rf", filename))
 
 
 def make_snapshot(ctx, config, name):
@@ -297,13 +289,11 @@ def make_snapshot(ctx, config, name):
             )
             if not answer["continue"]:
                 sys.exit(-1)
-        subprocess.check_call(
-            ["sudo", zfs, "destroy", snapshot[0]["fullpath"]]
-        )
+        subprocess.check_call(root_cmd(zfs, "destroy", snapshot[0]["fullpath"]))
 
     assert " " not in name
     fullpath = _get_zfs_path(config) + "@" + name
-    subprocess.check_call(["sudo", zfs, "snapshot", fullpath])
+    subprocess.check_call(root_cmd(zfs, "snapshot", fullpath))
     __dc(config, ["up", "-d"] + ["postgres"])
     return name
 
@@ -312,7 +302,7 @@ def remount(config):
     zfs_full_path = _get_zfs_path(config)
     zfs = search_env_path("zfs")
     subprocess.check_call(
-        ["sudo", zfs, "mount", zfs_full_path],
+        root_cmd(zfs, "mount", zfs_full_path),
     )
 
 
@@ -321,7 +311,7 @@ def _try_umount(config):
     umount = search_env_path("umount")
     try:
         subprocess.check_call(
-            ["sudo", umount, zfs_full_path],
+            root_cmd(umount, zfs_full_path),
         )
     except subprocess.CalledProcessError:
         click.secho(
@@ -359,25 +349,15 @@ def restore(ctx, config, name):
     disk_path = _get_path(config)
     _try_umount(config)
     if _is_zfs_path(zfs_full_path):
-        subprocess.check_call(
-            ["sudo", zfs, "rename", zfs_full_path, full_next_path]
-        )
+        subprocess.check_call(root_cmd(zfs, "rename", zfs_full_path, full_next_path))
         # prevent renamed dataset from claiming the same mountpoint
-        subprocess.check_call(
-            ["sudo", zfs, "set", "canmount=noauto", full_next_path]
-        )
+        subprocess.check_call(root_cmd(zfs, "set", "canmount=noauto", full_next_path))
     snap_name = snapshot["fullpath"].split("@")[-1]
     snapshot_path = _get_zfs_path_for_snap_name(config, snap_name)
     __dc(config, ["rm", "-f"] + ["postgres"])
-    cmd = [
-        "sudo",
-        zfs,
-        "clone",
-        "-o",
-        f"mountpoint={disk_path}",
-        snapshot_path,
-        zfs_full_path,
-    ]
+    cmd = root_cmd(
+        zfs, "clone", "-o", f"mountpoint={disk_path}", snapshot_path, zfs_full_path
+    )
     subprocess.check_call(cmd)
     click.secho(f"Restore command:")
     click.secho(" ".join(map(str, cmd)), fg="yellow")
@@ -402,9 +382,7 @@ def remove(config, snapshot):
         snapshot = snapshots[0]
     if snapshot["fullpath"] in map(itemgetter("fullpath"), snapshots):
         _try_umount(config)
-        subprocess.check_call(
-            ["sudo", zfs, "destroy", "-R", snapshot["fullpath"]]
-        )
+        subprocess.check_call(root_cmd(zfs, "destroy", "-R", snapshot["fullpath"]))
         remount(config)
 
 
@@ -413,16 +391,14 @@ def remove_volume(config):
     umount = search_env_path("umount")
     for path in _get_possible_snapshot_paths(config):
         try:
-            subprocess.check_call(
-                ["sudo", zfs, "set", "canmount=noauto", path]
-            )
+            subprocess.check_call(root_cmd(zfs, "set", "canmount=noauto", path))
         except subprocess.CalledProcessError:
             click.secho(
                 "Failed to execute canmount=noauto, but perhaps not a problem. Trying to continue.",
                 fg="yellow",
             )
         try:
-            subprocess.check_call(["sudo", umount, path])
+            subprocess.check_call(root_cmd(umount, path))
         except subprocess.CalledProcessError:
             pass
 
@@ -432,7 +408,7 @@ def remove_volume(config):
         if fullpath.exists() or "@" in str(fullpath):
             try:
                 subprocess.check_call(
-                    ["sudo", zfs, "destroy", "-R", path],
+                    root_cmd(zfs, "destroy", "-R", path),
                     encoding="utf8",
                     stderr=subprocess.PIPE,
                     stdout=subprocess.PIPE,
@@ -455,16 +431,7 @@ def translate_poolPath_to_fullPath(zfs_path):
         mountpoint = None
         try:
             mountpoint = subprocess.check_output(
-                [
-                    "sudo",
-                    zfs,
-                    "get",
-                    "mountpoint",
-                    "-H",
-                    "-o",
-                    "value",
-                    zfs_path,
-                ],
+                root_cmd(zfs, "get", "mountpoint", "-H", "-o", "value", zfs_path),
                 encoding="utf8",
             ).strip()
         except subprocess.CalledProcessError:
@@ -484,4 +451,4 @@ def clear_all(config):
     _try_umount(config)
     diskpath = translate_poolPath_to_fullPath(zfs_full_path)
     if diskpath and __is_zfs_fs(diskpath):
-        subprocess.check_call(["sudo", zfs, "destroy", "-r", zfs_full_path])
+        subprocess.check_call(root_cmd(zfs, "destroy", "-r", zfs_full_path))
