@@ -22,20 +22,11 @@ from .tools import __get_cmd
 from .tools import _set_default_envs
 from .tools import _merge_env_dict
 from .tools import ensure_project_name
+from .tools import root_cmd
 import subprocess
 from .cli import Commands
 import tempfile
 from pathlib import Path
-
-
-def _sudo_prefix():
-    """Only prefix with sudo on Linux (volume paths in /var/lib/docker
-    are root-owned there). On macOS the paths live inside the Docker VM
-    and are not accessed directly — plus an interactive sudo prompt
-    would hang non-interactive runs."""
-    import platform
-
-    return ["/usr/bin/sudo"] if platform.system() == "Linux" else []
 
 
 def _run_no_stdin(cmd):
@@ -46,14 +37,14 @@ def _run_no_stdin(cmd):
 def _get_volume_hostpath(volume):
     from pathlib import Path
 
-    cmd = _sudo_prefix() + [
+    cmd = root_cmd(
         "docker",
         "volume",
         "inspect",
         "--format",
         "{{ .Mountpoint }}",
         volume,
-    ]
+    )
     path = Path(_run_no_stdin(cmd).decode("utf-8").strip())
     if path.name == "_data":
         path = path.parent
@@ -62,7 +53,7 @@ def _get_volume_hostpath(volume):
 
 def _get_volume_size(volume):
     try:
-        cmd = _sudo_prefix() + ["du", "-sh", str(_get_volume_hostpath(volume))]
+        cmd = root_cmd("du", "-sh", str(_get_volume_hostpath(volume)))
         size = _run_no_stdin(cmd).decode("utf-8")
         size = size.split("\t")[0]
         return size
