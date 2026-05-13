@@ -43,6 +43,7 @@ import os
 import subprocess
 import time
 import sys
+
 import inspect
 from copy import deepcopy
 from passlib.context import CryptContext
@@ -51,6 +52,131 @@ try:
     import xmlrpclib
 except Exception:
     from xmlrpc import client as xmlrpclib
+
+
+_ROOT_CMD_DOCKER_AVAILABLE = None
+_ROOT_CMD_IS_REAL_DOCKER = None
+_SUDO_HINT_SHOWN = False
+
+
+def _sudo_cmd_with_reason(*cmd):
+    cmd = [str(part) for part in cmd]
+    prompt_cmd = " ".join(cmd).replace("%", "%%")
+    return ["sudo", "-p", f"[sudo: {prompt_cmd}] password for %p: ", *cmd]
+
+
+def _is_real_docker():
+    # The privileged-helper trick relies on `--privileged -v /:/host` actually
+    # giving us host-root. Podman (also via the docker-shim) does not, so we
+    # must not treat a podman binary as a docker substitute.
+    global _ROOT_CMD_IS_REAL_DOCKER
+    if _ROOT_CMD_IS_REAL_DOCKER is not None:
+        return _ROOT_CMD_IS_REAL_DOCKER
+    docker = shutil.which("docker")
+    if not docker:
+        _ROOT_CMD_IS_REAL_DOCKER = False
+        return False
+    try:
+        out = subprocess.run(
+            [docker, "--version"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        blob = (out.stdout + out.stderr).lower()
+    except Exception:
+        _ROOT_CMD_IS_REAL_DOCKER = False
+        return False
+    _ROOT_CMD_IS_REAL_DOCKER = "podman" not in blob and "docker version" in blob
+    return _ROOT_CMD_IS_REAL_DOCKER
+
+
+def _docker_root_helper_base():
+    docker = shutil.which("docker")
+    if not docker:
+        return None
+    image = os.environ.get("ZODOO_ROOT_HELPER_IMAGE", "odoo-console:latest")
+    return [
+        docker,
+        "run",
+        "--rm",
+        "--pull=never",
+        "--privileged",
+        "--pid=host",
+        "--net=host",
+        "-v",
+        "/:/host",
+        "--entrypoint",
+        "/usr/sbin/chroot",
+        image,
+        "/host",
+        "/usr/bin/nsenter",
+        "--target",
+        "1",
+        "--mount",
+        "--uts",
+        "--ipc",
+        "--net",
+        "--pid",
+        "--",
+    ]
+
+
+def _docker_root_helper_available():
+    global _ROOT_CMD_DOCKER_AVAILABLE
+    if platform.system() != "Linux":
+        return False
+    if os.environ.get("ZODOO_NO_DOCKER_ROOT") in ("1", "true", "yes"):
+        return False
+    if _ROOT_CMD_DOCKER_AVAILABLE is None:
+        if not _is_real_docker():
+            _ROOT_CMD_DOCKER_AVAILABLE = False
+        else:
+            base = _docker_root_helper_base()
+            if not base:
+                _ROOT_CMD_DOCKER_AVAILABLE = False
+            else:
+                result = subprocess.run(
+                    base + ["/usr/bin/true"],
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                _ROOT_CMD_DOCKER_AVAILABLE = result.returncode == 0
+    return _ROOT_CMD_DOCKER_AVAILABLE
+
+
+def _print_sudoers_hint_once():
+    global _SUDO_HINT_SHOWN
+    if _SUDO_HINT_SHOWN:
+        return
+    _SUDO_HINT_SHOWN = True
+    user = os.environ.get("SUDO_USER") or os.environ.get("USER") or os.environ.get("LOGNAME") or "youruser"
+    try:
+        click.secho(
+            "# Tip: to skip these sudo prompts, drop a file in /etc/sudoers.d/zodoo\n"
+            "#   (visudo -f /etc/sudoers.d/zodoo) containing:\n"
+            f"#   {user} ALL=(root) NOPASSWD: /usr/sbin/zfs, /sbin/zfs, /usr/bin/umount, /bin/umount, /usr/bin/rsync, /bin/rm",
+            fg="bright_black",
+            err=True,
+        )
+    except Exception:
+        pass
+
+
+def root_cmd(*cmd):
+    cmd = [str(part) for part in cmd]
+    if platform.system() != "Linux":
+        return cmd
+    # 1) already privileged → just run as-is, no wrapping needed
+    if os.geteuid() == 0:
+        return cmd
+    # 2) real Docker present → privileged host-namespace helper container
+    if _docker_root_helper_available():
+        return _docker_root_helper_base() + cmd
+    # 3) fall back to sudo; show a one-time dim hint about the sudoers entry
+    _print_sudoers_hint_once()
+    return _sudo_cmd_with_reason(*cmd)
 
 
 def get_calling_function_variables():
