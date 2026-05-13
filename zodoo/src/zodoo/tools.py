@@ -682,7 +682,7 @@ def __dc(config, cmd, env={}, profile="auto"):
             idx = c.index("-f")
             compose_path = c[idx + 1]
             cwd = os.path.dirname(compose_path) or None
-            c = c[:idx] + c[idx + 2:]
+            c = c[:idx] + c[idx + 2 :]
         except (ValueError, IndexError):
             pass
     return subprocess.check_call(c, env=_merge_env_dict(env), cwd=cwd)
@@ -2377,7 +2377,11 @@ def remove_comments_not_snippets(content):
         line.strip()
         for line in content
         if line.strip()
-        and (not line.startswith("#") or line.startswith("#___SNIPPET"))
+        and (
+            not line.startswith("#")
+            or line.startswith("#___SNIPPET")
+            or line.startswith("#!")
+        )
     ]
     return content
 
