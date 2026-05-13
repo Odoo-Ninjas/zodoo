@@ -427,17 +427,50 @@ def _supervisor_action_role(config, action, role):
         f"Legacy service name → supervisor: {action} {role} in {container}",
         fg="yellow",
     )
-    subprocess.check_call(
-        [
-            "docker",
-            "exec",
-            container,
-            "/opt/venv/bin/python",
-            "/odoolib/supervisor.py",
-            action,
-            role,
-        ]
-    )
+    try:
+        subprocess.check_call(
+            [
+                "docker",
+                "exec",
+                container,
+                "/opt/venv/bin/python",
+                "/odoolib/supervisor.py",
+                action,
+                role,
+            ]
+        )
+        return
+    except subprocess.CalledProcessError as e:
+        # Transition period: old containers may not ship supervisor.py yet,
+        # or may not know the requested role. Fall back to compose-level ops
+        # on the legacy service name so update/restart can still proceed.
+        legacy_name = next(
+            (k for k, v in _LEGACY_ROLE_MAP.items() if v == role),
+            None,
+        )
+        click.secho(
+            f"Supervisor {action} {role} failed in {container} ({e}). "
+            f"Falling back to compose-level {action} on legacy service "
+            f"{legacy_name or '<unknown>'}.",
+            fg="yellow",
+        )
+        if not legacy_name:
+            return
+    try:
+        if action == "stop":
+            __dc(config, ["stop", "-t", "2", legacy_name], profile="auto")
+        elif action == "start":
+            __dc(config, ["up", "-d", "--no-recreate", legacy_name], profile="auto")
+        elif action == "restart":
+            __dc(config, ["restart", legacy_name], profile="auto")
+    except subprocess.CalledProcessError as e2:
+        # Legacy service may not exist in the current compose either. Don't
+        # fail update over a best-effort op — caller recreates containers.
+        click.secho(
+            f"Compose-level fallback {action} {legacy_name} also failed "
+            f"({e2}). Continuing.",
+            fg="red",
+        )
 
 
 def _supervisor_restart_role(config, role):
