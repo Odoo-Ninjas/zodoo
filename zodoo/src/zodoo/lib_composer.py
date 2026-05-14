@@ -1366,7 +1366,7 @@ def create_directories(config, content):
                 raise NotImplementedError(host_path)
             if not host_path.exists():
                 try:
-                    if host_path.suffix:
+                    if host_path.suffix and host_path.suffix not in (".socket", ".logs"):
                         host_path.parent.mkdir(parents=True, exist_ok=True)
                         host_path.touch()
                     else:
