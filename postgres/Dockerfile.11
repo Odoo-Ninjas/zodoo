@@ -3,7 +3,9 @@ CMD ["postgres"]
 
 #___SNIPPET_APT_PROXY___
 RUN #___SNIPPET_APT_INSTALL___ \
-postgresql-server-dev-12 python-dev build-essential git python3-pip procps sockstat
+postgresql-server-dev-12 python-dev build-essential git python3-pip procps sockstat && \
+#___SNIPPET_APT_INSTALL___ \
+postgresql-11-pgvector
 
 
 COPY config* /

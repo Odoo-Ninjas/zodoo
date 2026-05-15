@@ -91,7 +91,7 @@ def suggest_postgres_conf(
 
     def read_file(path: str):
         try:
-            with open(path, "r") as f:
+            with open(path) as f:
                 return f.read()
         except Exception:
             return None

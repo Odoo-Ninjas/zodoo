@@ -29,7 +29,7 @@ def main():
     try:
         entry = pwd.getpwuid(old_uid)
     except KeyError:
-        print(f"Kein User mit UID {old_uid} gefunden.")
+        print(f"No user found for UID {old_uid} gefunden.")
         sys.exit(0)
 
     username = entry.pw_name

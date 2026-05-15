@@ -29,7 +29,7 @@ while True:
             printer_queue = file.parent.name
             id = str(uuid.uuid4()).replace("-", "")
             conn = cups.Connection()
-            logger.info("Printing {} to queue: {}".format(file, printer_queue))
+            logger.info(f"Printing {file} to queue: {printer_queue}")
             try:
                 conn.printFile(str(printer_queue), str(file), str(id), {})
                 file.rename(PRINTED / file.name)

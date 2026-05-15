@@ -1,0 +1,1116 @@
+import time
+import subprocess
+from pathlib import Path
+import sys
+import os
+import arrow
+import click
+from .tools import _is_db_initialized
+from .tools import abort
+from .tools import _wait_postgres
+from .tools import _dropdb
+from .tools import __dcrun, _remove_postgres_connections, _execute_sql
+from .tools import __get_cmd
+from .tools import exec_file_in_path
+from .cli import cli, pass_config, Commands
+from .lib_clickhelpers import AliasedGroup
+from .tools import _make_sure_module_is_installed
+from .tools import print_prod_env
+from .tools import _exists_db
+from .odoo_config import get_conn_autoclose
+from .tools import __dc
+from .tools import _get_available_modules
+from .tools import _search_path
+from .tools import am_i_inside_docker_container
+from tqdm import tqdm
+
+SEP = "------------------------------------------------------------"
+
+
+@cli.group(cls=AliasedGroup)
+@pass_config
+def db(config):
+    """
+    Database related actions.
+    """
+    click.echo(
+        f"database-name: {config.dbname}, "
+        f"in ram: {config.run_postgres_in_ram}"
+    )
+
+
+@db.command(help="Check that the database connection is working.")
+@pass_config
+def db_health_check(config):
+    conn = config.get_odoo_conn()
+    click.secho(f"Connecting to {conn.host}:{conn.port}/{config.dbname}")
+    try:
+        _execute_sql(
+            conn, "select * from pg_catalog.pg_tables;", fetchall=True
+        )
+    except Exception:  # pylint: disable=broad-except
+        abort(f"Listing tables failed for connection to {conn.host}")
+    else:
+        click.secho(("Success"), fg="green")
+
+
+@db.command(help="Drop a database. Requires DEVMODE or -f (force).")
+@click.argument("dbname", required=True)
+@pass_config
+def drop_db(config, dbname):
+    if not (config.devmode or config.force):
+        click.secho("Either DEVMODE or force required", fg="red")
+        sys.exit(-1)
+    from psycopg2 import sql
+
+    conn = config.get_odoo_conn().clone(dbname="postgres")
+    _remove_postgres_connections(
+        conn,
+        dbname,
+        sql_afterwards=sql.SQL("drop database {}").format(
+            sql.Identifier(dbname)
+        ),
+    )
+    click.echo(f"Database {dbname} dropped.")
+
+
+@db.command(help="Show live PostgreSQL activity (like htop for the database).")
+@pass_config
+def pgactivity(config):
+    from .tools import DBConnection
+
+    conn = DBConnection(
+        config.dbname,
+        config.db_host,
+        config.db_port,
+        config.db_user,
+        config.db_pwd,
+    )
+    __dcrun(
+        config,
+        [
+            "pgtools",
+            "pg_activity",
+            "-p",
+            str(conn.port),
+            "-U",
+            conn.user,
+            "-d",
+            conn.dbname,
+            "-h",
+            conn.host,
+        ],
+        env={
+            "PGPASSWORD": conn.pwd,
+        },
+        interactive=True,
+    )
+
+
+@db.command(
+    help="Open an enhanced interactive PostgreSQL CLI (pgcli) with autocomplete."
+)
+@click.argument("dbname", required=False)
+@click.argument("params", nargs=-1)
+@click.option("-h", "--host", required=False)
+@click.option("-p", "--port", required=False)
+@click.option("-u", "--user", required=False)
+@click.option("-P", "--password", required=False)
+@pass_config
+def pgcli(config, dbname, params, host, port, user, password):
+    pass
+
+    print_prod_env(config)
+    dbname = dbname or config.dbname
+    return _pgcli(
+        config,
+        params,
+        dbname=dbname,
+    )
+
+
+@db.command(
+    help="Open a standard psql CLI. Use --sql to run a query non-interactively."
+)
+@click.argument("dbname", required=False)
+@click.argument("params", nargs=-1)
+@click.option("--sql", required=False)
+@click.option("-ni", "--non-interactive", is_flag=True)
+@pass_config
+def psql(config, dbname, params, sql, non_interactive):
+    dbname = dbname or config.dbname
+    return _psql(
+        config,
+        params,
+        sql=sql,
+        interactive=not non_interactive,
+        dbname=dbname,
+    )
+
+
+def _has_compose_service(config, service):
+    """Check if a service is defined in the current docker-compose config.
+
+    Used to decide whether the pgtools compose service can be used.
+    Returns False whenever the compose config cannot be resolved (e.g. no
+    project_name, compose file not rendered yet), so the caller
+    transparently falls back.
+    """
+    if not getattr(config, "project_name", None):
+        return False
+    try:
+        cmd = __get_cmd(config) + ["config", "--services"]
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            return False
+        return service in result.stdout.split()
+    except Exception:
+        return False
+
+
+def _bin_runs_on_host(bin):
+    """Return True only if `bin` is on PATH AND actually executes.
+
+    Debian/Ubuntu's `postgresql-client-common` installs a wrapper at
+    /usr/bin/psql that errors with
+        "You must install at least one postgresql-client-<version> package"
+    when no versioned postgresql-client package is installed. That wrapper
+    passes a plain PATH check but is unusable, so we verify by invoking
+    `<bin> --version` and treat a non-zero exit as "not available".
+    """
+    path = _search_path(bin)
+    if not path:
+        return False
+    try:
+        result = subprocess.run(
+            [path, "--version"],
+            capture_output=True,
+            check=False,
+            timeout=5,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+def _docker_run_postgres_bin(
+    config, bin, cmd_args, env=None, interactive=True, socket_host=None
+):
+    """Run a postgres-client binary via the stock `postgres` docker image.
+
+    Fallback used when the binary is not installed on the host AND the
+    pgtools compose service is not available (e.g. wodoo project is not
+    set up, or pgtools image hasn't been built). Uses host networking so
+    127.0.0.1:HOST_DB_PORT is reachable, and bind-mounts the socket
+    directory when the connection is via unix socket.
+    """
+    version = (
+        getattr(config, "postgres_version", None)
+        or os.environ.get("POSTGRES_VERSION")
+        or "17"
+    )
+    image = f"postgres:{version}"
+
+    docker_cmd = ["docker", "run", "--rm"]
+    if interactive and sys.stdin.isatty():
+        docker_cmd += ["-it"]
+    else:
+        docker_cmd += ["-i"]
+    # Host networking so 127.0.0.1 + HOST_DB_PORT reaches the postgres
+    # container the same way a host-local psql invocation would.
+    docker_cmd += ["--network=host"]
+    # When connecting via unix socket, bind-mount the socket directory
+    # into the container at the same path. Also run as the invoking user
+    # so socket permissions match, and override the postgres image's
+    # default /var/lib/postgresql HOME (which the postgres uid owns)
+    # because we're running as a different uid.
+    if socket_host:
+        socket_dir = Path(socket_host)
+        if socket_dir.exists():
+            docker_cmd += ["-v", f"{socket_dir}:{socket_dir}"]
+            docker_cmd += ["--user", f"{os.getuid()}:{os.getgid()}"]
+            docker_cmd += ["-e", "HOME=/tmp"]
+    for key, value in (env or {}).items():
+        docker_cmd += ["-e", f"{key}={value}"]
+    docker_cmd += [image, bin] + list(cmd_args)
+    click.secho(
+        f"No host `{bin}` and no pgtools compose service — "
+        f"falling back to `{image}` via `docker run`.",
+        fg="yellow",
+    )
+    subprocess.call(docker_cmd)
+
+
+def _psql(
+    config,
+    params,
+    bin="psql",
+    sql=None,
+    use_docker_container=None,
+    interactive=True,
+    dbname=None,
+):
+    bin_on_host = False
+    if use_docker_container is None:
+        if not am_i_inside_docker_container():
+            if _bin_runs_on_host(bin):
+                bin_on_host = True
+
+    if not am_i_inside_docker_container() and bin_on_host:
+        use_docker_container = False
+    elif not config.use_docker:
+        use_docker_container = False
+    elif not bin_on_host:
+        use_docker_container = True
+
+    # When we have to go through docker, prefer the pgtools compose
+    # service whenever it is available — it joins the compose network
+    # (so the internal `postgres` host name resolves) and ships every
+    # client bin we care about (psql / pg_dump / pg_restore / pgcli /
+    # pg_activity).
+    #
+    # Only when pgtools is NOT available do we fall back to the stock
+    # `postgres` image via `docker run --network=host` for the standard
+    # bins. That fallback CANNOT resolve compose-internal host names
+    # (e.g. `postgres`), so it relies on an external endpoint
+    # (127.0.0.1:HOST_DB_PORT or a unix socket) being reachable — which
+    # is true for typical dev installs but breaks on CI where the
+    # postgres container's port may not be published. pgcli / pg_activity
+    # are only shipped by pgtools, so they have no usable fallback at
+    # all and just abort below.
+    use_pgtools = False
+    if use_docker_container:
+        use_pgtools = _has_compose_service(config, "pgtools")
+
+    conn = config.get_odoo_conn(
+        force_inside_container=use_docker_container and use_pgtools
+    )
+    if dbname:
+        conn = conn.clone(dbname)
+
+    dbname = conn.dbname
+    if not dbname and len(params) == 1:
+        if params[0] in ["postgres"]:
+            dbname = params[0]
+            params = []
+    params = " ".join(params)
+    psql_args = ["-h", str(conn.host), "-U", conn.user]
+    if conn.port:
+        psql_args += ["-p", str(conn.port)]
+    if bin == "psql":
+        psql_args += ["-v", "ON_ERROR_STOP=1"]
+    if sql:
+        psql_args += ["-c", sql]
+    if not interactive:
+        psql_args += ["-q"]
+    cmd = psql_args
+    cmd += [
+        dbname,
+    ]
+    click.secho(f"Connecting to {conn.host}:{conn.port}/{dbname}", fg="green")
+
+    if use_docker_container:
+        if use_pgtools:
+            __dcrun(
+                config,
+                ["pgtools", bin] + cmd,
+                interactive=interactive,
+                env={
+                    "PGPASSWORD": conn.pwd,
+                },
+            )
+        elif bin in ("psql", "pg_dump", "pg_restore"):
+            # No pgtools — fall back to the stock postgres image via
+            # `docker run --network=host`. Requires the postgres
+            # container's port to be reachable on 127.0.0.1 (or a unix
+            # socket on the host).
+            socket_host = None
+            if conn.host and str(conn.host).startswith("/"):
+                socket_host = str(conn.host)
+            _docker_run_postgres_bin(
+                config,
+                bin,
+                cmd,
+                env={"PGPASSWORD": conn.pwd},
+                interactive=interactive,
+                socket_host=socket_host,
+            )
+        else:
+            abort(
+                f"`{bin}` is not installed on the host and the pgtools "
+                f"compose service is not configured. The stock postgres "
+                f"image does not ship `{bin}` — install it on the host or "
+                f"configure pgtools."
+            )
+    else:
+        env2 = os.environ.copy()
+        env2["PGPASSWORD"] = conn.pwd
+        subprocess.call(
+            [
+                exec_file_in_path(bin),
+            ]
+            + cmd,
+            env=env2,
+        )
+
+
+def _pgcli(config, params, use_docker_container=None, dbname=None):
+    _psql(
+        config,
+        params,
+        bin="pgcli",
+        use_docker_container=use_docker_container,
+        dbname=dbname,
+    )
+
+
+def aggressive_drop_db(config, conn, dbname):
+    for i in range(3):
+        try:
+            _dropdb(config, conn, dbname)
+        except Exception as ex:
+            click.secho(
+                f"Error at dropping db at attempt {i + 1}: {ex}", fg="red"
+            )
+            if config.run_postgres:
+                click.secho(
+                    f"Restarting postgres to remove any connections.",
+                    fg="yellow",
+                )
+                __dc(config, ["kill", "postgres"])
+                __dc(config, ["up", "-d", "postgres"])
+                _wait_postgres(config)
+        if not _exists_db(conn, dbname):
+            break
+        click.secho(
+            f"Database {dbname} was not dropped at first attempt. Retrying."
+        )
+        time.sleep(3)
+
+
+@db.command(name="reset-odoo-db")
+@click.argument("dbname", required=False)
+@click.option("--do-not-install-base", is_flag=True)
+@click.option("-W", "--no-overwrite", is_flag=True)
+@click.option(
+    "-P",
+    "--no-progress",
+    is_flag=True,
+    help="No progress, but allows interactive debugging",
+)
+@click.option(
+    "-m",
+    "--modules",
+    multiple=True,
+    help="Install these modules",
+    shell_complete=_get_available_modules,
+)
+@pass_config
+@click.pass_context
+def reset_db(
+    ctx,
+    config,
+    dbname,
+    do_not_install_base,
+    no_overwrite,
+    no_progress,
+    modules,
+):
+    import psycopg2
+
+    collatec = True
+    dbname = dbname or config.dbname
+    if not dbname:
+        raise Exception("dbname required")
+    if config.run_postgres:
+        Commands.invoke(ctx, "up", machines=["postgres"], daemon=True)
+    _wait_postgres(config)
+
+    if no_overwrite:
+        try:
+            with get_conn_autoclose() as cr:
+                if _is_db_initialized(cr):
+                    click.secho(
+                        "Database already initialized. Skipping.", fg="yellow"
+                    )
+                    return
+        except Exception:
+            abort(
+                "Could not talk to postgres server - cannot decide if db is initialized or not. Aborting"
+            )
+
+    conn = config.get_odoo_conn().clone(dbname="postgres")
+    aggressive_drop_db(config, conn, dbname)
+
+    cmd2 = ""
+    if collatec:
+        cmd2 = "LC_CTYPE 'C' LC_COLLATE 'C' ENCODING 'utf8' TEMPLATE template0"
+    from psycopg2 import sql
+
+    cmd = sql.SQL("create database {} " + cmd2).format(sql.Identifier(dbname))
+    while True:
+        try:
+            _execute_sql(conn, cmd, notransaction=True)
+            break
+        except (
+            psycopg2.errors.UniqueViolation,
+            psycopg2.errors.DuplicateDatabase,
+        ):
+            aggressive_drop_db(config, conn, dbname)
+
+    # since odoo version 12 "-i base -d <name>" is required
+    if not do_not_install_base:
+        Commands.invoke(
+            ctx,
+            "update",
+            module=["base"],
+            since_git_sha=False,
+            no_extra_addons_paths=True,
+            no_restart=True,
+            no_dangling_check=True,
+            no_update_module_list=True,
+            non_interactive=True,
+            no_outdated_modules=True,
+            no_scripts=True,
+            no_progress=no_progress,
+        )
+        if modules:
+            Commands.invoke(
+                ctx,
+                "update",
+                module=modules,
+                since_git_sha=False,
+                no_restart=True,
+                no_dangling_check=True,
+                non_interactive=True,
+                no_outdated_modules=True,
+                no_progress=no_progress,
+            )
+
+
+@db.command()
+@pass_config
+@click.pass_context
+def anonymize(ctx, config):
+    if not (config.devmode or config.force):
+        click.secho("Either DEVMODE or force required", fg="red")
+        sys.exit(-1)
+
+    _make_sure_module_is_installed(
+        ctx,
+        config,
+        "anonymize",
+        "https://github.com/marcwimmer/odoo-anonymize.git",
+    )
+
+    Commands.invoke(
+        ctx,
+        "odoo-shell",
+        command=[
+            'env["frameworktools.anonymizer"]._run()',
+            "env.cr.commit()",
+        ],
+    )
+
+
+@db.command()
+@click.option("-V", "--no-vacuum-full", is_flag=True)
+@pass_config
+@click.pass_context
+def cleardb(ctx, config, no_vacuum_full):
+    if not (config.devmode or config.force):
+        click.secho("Either DEVMODE or force required", fg="red")
+        sys.exit(-1)
+
+    _make_sure_module_is_installed(
+        ctx,
+        config,
+        "cleardb",
+        "https://github.com/marcwimmer/odoo-cleardb.git",
+    )
+    str_no_vauum_full = "1" if no_vacuum_full else "0"
+
+    Commands.invoke(
+        ctx,
+        "odoo-shell",
+        command=[
+            f'env["frameworktools.cleardb"]._run(no_vacuum_full={str_no_vauum_full})',
+            "env.cr.commit()",
+        ],
+    )
+
+
+@db.command(name="setname")
+@click.argument("DBNAME", required=True)
+@click.pass_context
+def set_db_name(ctx, DBNAME):
+    Commands.invoke(ctx, "set_setting", key="DBNAME", value=DBNAME)
+
+
+@db.command()
+@pass_config
+@click.pass_context
+def db_size(ctx, config):
+    conn = config.get_odoo_conn()
+    rows = _execute_sql(
+        conn,
+        "select pg_database_size(%s)",
+        params=(config.dbname,),
+        fetchall=True,
+    )
+    if not rows:
+        size = 0
+    else:
+        size = rows[0][0]
+    click.secho("---")
+    click.secho(size)
+
+
+@db.command(name="show-table-sizes")
+@click.option("-t", "--top", default=20, type=int, help="Show top N tables")
+@pass_config
+@click.pass_context
+def show_table_sizes(ctx, config, top):
+    sql = """
+WITH RECURSIVE pg_inherit(inhrelid, inhparent) AS
+    (select inhrelid, inhparent
+    FROM pg_inherits
+    UNION
+    SELECT child.inhrelid, parent.inhparent
+    FROM pg_inherit child, pg_inherits parent
+    WHERE child.inhparent = parent.inhrelid),
+pg_inherit_short AS (SELECT * FROM pg_inherit WHERE inhparent NOT IN (SELECT inhrelid FROM pg_inherit))
+SELECT table_schema
+    , TABLE_NAME
+    , row_estimate
+    , pg_size_pretty(total_bytes) AS total
+    , pg_size_pretty(index_bytes) AS INDEX
+    , pg_size_pretty(toast_bytes) AS toast
+    , pg_size_pretty(table_bytes) AS TABLE
+    FROM (
+    SELECT *, total_bytes-index_bytes-COALESCE(toast_bytes,0) AS table_bytes
+    FROM (
+        SELECT c.oid
+            , nspname AS table_schema
+            , relname AS TABLE_NAME
+            , SUM(c.reltuples) OVER (partition BY parent) AS row_estimate
+            , SUM(pg_total_relation_size(c.oid)) OVER (partition BY parent) AS total_bytes
+            , SUM(pg_indexes_size(c.oid)) OVER (partition BY parent) AS index_bytes
+            , SUM(pg_total_relation_size(reltoastrelid)) OVER (partition BY parent) AS toast_bytes
+            , parent
+        FROM (
+                SELECT pg_class.oid
+                    , reltuples
+                    , relname
+                    , relnamespace
+                    , pg_class.reltoastrelid
+                    , COALESCE(inhparent, pg_class.oid) parent
+                FROM pg_class
+                    LEFT JOIN pg_inherit_short ON inhrelid = oid
+                WHERE relkind IN ('r', 'p')
+            ) c
+            LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
+    ) a
+    WHERE oid = parent
+) a
+ORDER BY total_bytes DESC;
+    """
+    conn = config.get_odoo_conn()
+    rows = _execute_sql(conn, sql, fetchall=True)
+    from tabulate import tabulate
+
+    if top:
+        rows = rows[:top]
+    click.echo(
+        tabulate(
+            rows,
+            [
+                "table_schema",
+                "TABLE_NAME",
+                "row_estimate",
+                "total",
+                "INDEX",
+                "toast",
+                "TABLE",
+            ],
+        )
+    )
+
+
+@db.command(help="Execute SQL and output result as JSON.")
+@click.argument("sql", required=True)
+@pass_config
+def json(config, sql):
+    import json as j
+
+    conn = config.get_odoo_conn()
+    columns, rows = _execute_sql(conn, sql, fetchall=True, return_columns=True)
+    data2 = []
+    for row in rows:
+        record = dict(zip(columns, row))
+        data2.append(record)
+    data = j.dumps(data2, indent=4)
+    print("------------------------\n")
+    print(data)
+
+
+@db.command(help="Export as excel")
+@click.argument("sql", required=True)
+@click.option("-f", "--file")
+@click.option("-b", "--base64", is_flag=True)
+@pass_config
+def excel(config, sql, file, base64):
+    import base64 as Base64
+
+    if base64:
+        if isinstance(sql, bytes):
+            sql = Base64.b64decode(sql)
+    import xlsxwriter
+
+    conn = config.get_odoo_conn()
+    columns, rows = _execute_sql(conn, sql, fetchall=True, return_columns=True)
+    click.secho(f"exporting {len(rows)} rows...")
+    if file:
+        filepath = Path(os.getcwd()) / file
+    else:
+        filepath = Path(os.getcwd()) / (
+            f"{conn.dbname}_"
+            f"{arrow.get().strftime('%Y-%m-%d%H-%M-%S')}.xlsx"
+        )
+
+    # Workbook() takes one, non-optional, argument
+    # which is the filename that we want to create.
+    workbook = xlsxwriter.Workbook(str(filepath))
+
+    # The workbook object is then used to add new
+    # worksheet via the add_worksheet() method.
+    worksheet = workbook.add_worksheet()
+
+    for icol, col in enumerate(columns):
+        worksheet.write(0, icol, col)
+
+    for irow, rec in enumerate(rows):
+        for icol, col in enumerate(rec):
+            worksheet.write(irow + 1, icol, col)
+        if not irow % 1000 and irow:
+            click.secho(f"Done {irow} rows...")
+
+    workbook.close()
+
+    click.secho(f"File created: {filepath}")
+    if config.owner_uid:
+        import pwd
+
+        uid = int(config.owner_uid)
+        gid = pwd.getpwuid(uid).pw_gid
+        subprocess.run(
+            ["chown", f"{uid}:{gid}", str(filepath)],
+            check=False,
+        )
+
+
+@db.command()
+@click.option("--no-scram", is_flag=True)
+@pass_config
+def pghba_conf_wide_open(config, no_scram):
+    conn = config.get_odoo_conn().clone(dbname="postgres")
+
+    def adapt_pghba_conf():
+        setting = _execute_sql(
+            conn,
+            "select setting from pg_settings where name like '%hba%';",
+            fetchone=True,
+        )
+
+        if not setting:
+            click.secho("No pghba.conf location found.")
+            return
+        pghba_conf = setting[0]
+
+        _execute_sql(conn, "drop table if exists hba;")
+        _execute_sql(conn, "create table hba ( lines text );")
+
+        _execute_sql(conn, f"copy hba from '{pghba_conf}';")
+        _execute_sql(
+            conn,
+            ("delete from hba " "where lines like 'host%all%all%all%md5'"),
+        )
+        for method in ["trust", "scram", "md5"]:
+            _execute_sql(
+                conn,
+                (
+                    "delete from hba "
+                    f"where lines like 'host%all%all%all%{method}'"
+                ),
+            )
+
+        def trustline():
+            if config.devmode:
+                trustline = "host all all all trust"
+            else:
+                if no_scram:
+                    trustline = "host all all all md5"
+                else:
+                    trustline = "host all all all scram-sha-256"
+            _execute_sql(
+                conn, (f"insert into hba(lines) values('{trustline}');")
+            )
+
+        trustline()
+
+        _execute_sql(conn, f"copy hba to '{pghba_conf}';")
+        _execute_sql(conn, "select pg_reload_conf();")
+        _execute_sql(conn, "drop table hba")
+        _execute_sql(conn, "create table hba ( lines text );")
+        _execute_sql(conn, f"copy hba from '{pghba_conf}';")
+
+        rows = _execute_sql(conn, ("select * from hba;"), fetchall=True)
+        for x in rows:
+            if x[0].startswith("#"):
+                continue
+            print(x[0])
+
+    def adapt_postgres_conf():
+        setting = _execute_sql(
+            conn,
+            "select setting from pg_settings where name = 'config_file';",
+            fetchone=True,
+        )
+
+        if not setting:
+            click.secho("No postgresql.conf location found.")
+            return
+        conf = setting[0]
+
+        _execute_sql(conn, "drop table if exists hba;")
+        _execute_sql(conn, "create table hba ( lines text );")
+
+        _execute_sql(conn, f"copy hba from '{conf}' with (delimiter E'~');")
+        _execute_sql(
+            conn,
+            ("delete from hba " "where lines like '%password_encryption%'"),
+        )
+        _execute_sql(
+            conn, ("update hba set lines = replace(lines, '\t', ' ')")
+        )
+        if no_scram:
+            _execute_sql(
+                conn,
+                (
+                    "insert into hba (lines) "
+                    "values ('"
+                    f"password_encryption=md5"
+                    "');"
+                ),
+            )
+        _execute_sql(conn, f"copy hba to '{conf}';")
+        _execute_sql(conn, "select pg_reload_conf();")
+        _execute_sql(conn, "drop table hba")
+        _execute_sql(conn, "create table hba ( lines text );")
+        _execute_sql(conn, f"copy hba from '{conf}';")
+
+        rows = _execute_sql(conn, ("select * from hba;"), fetchall=True)
+        for x in rows:
+            if x[0].startswith("#"):
+                continue
+            print(x[0])
+
+    adapt_pghba_conf()
+    adapt_postgres_conf()
+
+
+def shorten_string(s, max_length=30):
+    if len(s) <= max_length:
+        return s.ljust(30)
+    half = (max_length - 3) // 2
+    res = s[:half] + "..." + s[-half:]
+    res = res.ljust(max_length)
+    res = res[:max_length]
+    return res
+
+
+def compare(file1, file2, ignore_magic, skip_no_id_tables):
+    def parse(file):
+        records = {}
+        idx = 0
+        record = None
+        for line in file.splitlines() + [SEP]:
+            if line == SEP:
+                if record:
+                    if "id" in record:
+                        records[record["id"]] = record
+                    else:
+                        if skip_no_id_tables:
+                            return {}
+                        records[idx] = record
+                record = {}
+                continue
+            key, value = line.split(": ", 1)
+            key = key.strip()
+            value = value.strip()
+            record[key] = value
+            idx += 1
+        return records
+
+    data1 = parse(file1.read_text())
+    data2 = parse(file2.read_text())
+
+    result = {"count": 0, "missing_left": [], "missing_right": [], "diffs": []}
+    for id, r1 in data1.items():
+        r2 = data2.get(id, None)
+        if r2 is None:
+            result["missing_right"].append(r1)
+            result["count"] += 1
+            continue
+        inc_count = False
+        for key, value in r1.items():
+            if ignore_magic and key in ["create_date", "write_date"]:
+                continue
+            value2 = r2.get(key)
+            if value != value2:
+                if "<memory at" not in value:
+                    inc_count = True
+                    result["diffs"].append(
+                        {
+                            "id": id,
+                            "field": key,
+                            "value1": value,
+                            "value2": value2,
+                        }
+                    )
+        if inc_count:
+            result["count"] += 1
+    for id, r2 in data2.items():
+        r1 = data1.get(id)
+        if r1 is None:
+            result["missing_left"].append(r2)
+            result["count"] += 1
+    return result
+
+
+@db.command()
+@pass_config
+@click.argument("path1", required=True)
+@click.argument("path2", required=True)
+@click.option("-D", "--no_details", is_flag=True)
+@click.option("-i", "--include")
+@click.option("-s", "--skip")
+@click.option(
+    "-I",
+    "--ignore-magic",
+    is_flag=True,
+    help="Ignore magic columns like create_date, write_date",
+)
+@click.option(
+    "--include-no-id-tables",
+    is_flag=True,
+    help="Ignore rel tables without id column",
+)
+def dbcompare(
+    config,
+    path1,
+    path2,
+    ignore_magic,
+    include,
+    include_no_id_tables,
+    skip,
+    no_details,
+):
+    path1 = Path(path1)
+    path2 = Path(path2)
+    missing_files = []
+    diffs = {}
+    files2 = list(sorted(path2.glob("*.dat")))
+    include = list(
+        filter(bool, map(lambda x: x.strip(), (include or "").split(",")))
+    )
+    skip = list(
+        filter(bool, map(lambda x: x.strip(), (skip or "").split(",")))
+    )
+    progress = tqdm(
+        total=len(files2),
+        bar_format="\033[95m{l_bar}{bar}\033[0m {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
+        dynamic_ncols=True,
+    )
+
+    def includeme(file):
+        if skip:
+            if file.stem in skip:
+                return False
+        if not include:
+            return True
+        return file.stem in include
+
+    for i, file in enumerate(files2):
+        if not includeme(file):
+            continue
+        progress.n = i
+        progress.set_description(shorten_string(file.name, 30))
+        progress.refresh()
+        file = Path(file)
+        file1 = list(path1.glob(file.name))
+        if not file1:
+            missing_files.append(file)
+            continue
+        diffs[file] = compare(
+            file,
+            Path(file1[0]),
+            ignore_magic=ignore_magic,
+            skip_no_id_tables=not include_no_id_tables,
+        )
+    for file in path1.glob("*.dat"):
+        if not includeme(file):
+            continue
+        file2 = list(path2.glob(file.name))
+        if not file2:
+            missing_files.append(file)
+            continue
+
+    if not no_details:
+        for filename, value in diffs.items():
+            if not value["diffs"]:
+                continue
+            click.secho(f"Diff for same id: {filename.name}", fg="green")
+            for diff in value["diffs"]:
+                click.secho(
+                    f"{diff['field']}  {diff['value1']} <----> {diff['value2']}"
+                )
+    else:
+        for filename, value in diffs.items():
+            count = len(value["diffs"])
+            if count:
+                click.secho(f"Diffs in {filename}: {count}")
+
+    def print_missing(missings):
+        for missing in missings:
+            click.secho(f"{missing}")
+
+    for missing in missing_files:
+        click.secho(f"Missing: {missing}")
+    for key, value in diffs.items():
+        count_diffs = value["count"]
+        if not count_diffs:
+            continue
+        if value["missing_left"]:
+            click.secho(f"Only in {key}", fg="green")
+            print_missing(value["missing_left"])
+        if value["missing_right"]:
+            click.secho(f"Only in {key}", fg="green")
+            print_missing(value["missing_right"])
+
+
+@db.command()
+@pass_config
+@click.argument("output", required=True)
+@click.option("-f", "--table-filter")
+@click.option("-l", "--limit")
+@click.option("-s", "--skip", help="Provide table names (comma separated)")
+@click.option("-i", "--include", help="Actively filter on this")
+def filesnapshot(config, table_filter, output, limit, skip, include):
+    conn = config.get_odoo_conn()
+    skip = list(
+        filter(bool, map(lambda x: x.strip(), (skip or "").split(",")))
+    )
+    include = list(
+        filter(bool, map(lambda x: x.strip(), (include or "").split(",")))
+    )
+
+    if not skip:
+        skip = [
+            "queue_job",
+            "datapolice_increment",
+            "ir_attachment",
+            "mail_message",
+            "mail_followers",
+            "mail_tracking_value",
+        ]
+    all_names = [
+        x[0]
+        for x in _execute_sql(
+            conn,
+            f"select table_name from information_schema.tables where table_schema = 'public' and table_type='BASE TABLE';",
+            fetchall=True,
+        )
+    ]
+
+    if table_filter:
+        table_filter_splitted = list(
+            map(lambda x: x.strip(), table_filter.split(","))
+        )
+        all_names = list(
+            filter(
+                lambda name: any(x in name for x in table_filter_splitted),
+                all_names,
+            )
+        )
+
+    progress = tqdm(
+        total=len(all_names),
+        bar_format="\033[95m{l_bar}{bar}\033[0m {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
+        dynamic_ncols=True,
+    )
+
+    root_path = Path(output)
+    root_path.mkdir(exist_ok=True, parents=True)
+    count_records = 0
+    for i, item in enumerate(sorted(all_names)):
+        progress.n = i
+        progress.set_description(shorten_string(item, 30))
+        # progress.refresh()
+        if item in skip and not include:
+            continue
+        if include and item not in include:
+            continue
+        from psycopg2 import sql as psql
+
+        columns, rows = _execute_sql(
+            conn,
+            psql.SQL("select * from {} limit 0").format(psql.Identifier(item)),
+            fetchall=True,
+            return_columns=True,
+        )
+
+        query = psql.SQL("select * from {}").format(psql.Identifier(item))
+        if "id" in columns:
+            query = query + psql.SQL(" order by id desc")
+        if limit:
+            query = query + psql.SQL(" limit {}").format(psql.Literal(limit))
+        columns, rows = _execute_sql(
+            conn, query, fetchall=True, return_columns=True
+        )
+        columns_sorted = list(sorted(columns))
+        output_file = root_path / f"{item}.dat"
+        output_file.write_text("")
+
+        max_column_length = max(map(len, columns))
+
+        def iterate():
+            yield from rows
+            # if 'id' in columns:
+            #     idx = columns.index('id')
+            #     yield from sorted(rows, key=lambda x: x[idx], reverse=True)
+            # else:
+            #     yield from rows
+
+        with open(output_file, "w") as f:
+            for irow, row in enumerate(iterate()):
+                f.write(SEP + "\n")
+                for column in columns_sorted:
+                    icolumn = columns.index(column)
+                    collabel = columns[icolumn].ljust(max_column_length, " ")
+                    value = (
+                        str(row[icolumn]).replace("\n", " ").replace("\r", " ")
+                    )
+                    f.write(f"{collabel}: {value}\n")
+                count_records += 1
+    click.secho(f"Exported {count_records} records to {root_path}")
+
+
+Commands.register(reset_db, "reset-db")
+Commands.register(pghba_conf_wide_open, "pghba_conf_wide_open")

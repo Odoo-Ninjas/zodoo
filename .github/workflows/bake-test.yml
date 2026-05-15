@@ -1,0 +1,116 @@
+name: Bake test
+
+# End-to-end smoke test for the `odoo` CLI: init -> reload -> db reset -> bake.
+# Heavy (clones full Odoo + builds Docker images). Runs:
+#   - on PR when CLI source, templates or this workflow changes
+#   - on demand via workflow_dispatch (with a version input)
+#   - weekly so we catch upstream Odoo / image breakage
+
+on:
+  workflow_call:
+    inputs:
+      versions:
+        description: "Comma-separated Odoo versions to bake (e.g. 17.0,19.0)"
+        required: false
+        default: "19.0"
+        type: string
+  pull_request:
+    branches: [main]
+    paths:
+      - "zodoo/src/**"
+      - "odoo/**"
+      - "templates/customs_template/**"
+      - ".github/workflows/bake-test.yml"
+  workflow_dispatch:
+    inputs:
+      versions:
+        description: "Comma-separated Odoo versions to bake (e.g. 17.0,19.0)"
+        required: false
+        default: "19.0"
+  schedule:
+    # Mondays 04:00 UTC — pick up upstream breakage early in the week.
+    - cron: "0 4 * * 1"
+
+jobs:
+  bake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      ZODOO_BAKE_TEST_VERSIONS: ${{ inputs.versions || github.event.inputs.versions || '19.0' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pipx and gimera
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pipx
+          pipx install gimera
+
+      - name: Configure git identity (required for odoo src init)
+        run: |
+          git config --global user.email "ci@zodoo.test"
+          git config --global user.name "zodoo CI"
+          git config --global init.defaultBranch main
+
+      - name: Install zodoo (this checkout)
+        run: |
+          pipx install -e zodoo/src
+          # Make pipx-installed binaries reachable for subsequent steps.
+          # PIPX_BIN_DIR differs by platform (GitHub runner uses /opt/pipx_bin,
+          # local install uses $HOME/.local/bin) — resolve dynamically.
+          pipx environment --value PIPX_BIN_DIR >> "$GITHUB_PATH"
+          # zodoo CLI hardcodes config.dirs["images"] to ~/.odoo/images.
+          # Mirror the checkout there so templates/customs_template/<ver>/
+          # and odoo/config/<ver>/ are discoverable in the test. A symlink
+          # is NOT enough — zodoo uses `find` (no -L) to scan compose files,
+          # which skips symlinked trees entirely.
+          mkdir -p "$HOME/.odoo/images"
+          rsync -a --exclude='.git' "$GITHUB_WORKSPACE/" "$HOME/.odoo/images/"
+
+      - name: Show tool versions
+        run: |
+          odoo --version || true
+          docker --version
+          gimera --version || true
+          python --version
+
+      - name: Inject pytest into zodoo venv
+        # pytest must run inside the zodoo pipx venv so it can import
+        # zodoo + click + passlib + ... from the same environment. A
+        # top-level `pip install pytest` would put pytest into a
+        # different interpreter and fail with ModuleNotFoundError.
+        # cd /tmp: newer pipx treats `zodoo` as a path when a ./zodoo/
+        # directory exists in cwd, breaking the inject.
+        working-directory: /tmp
+        run: |
+          pipx inject zodoo pytest pytest-cov
+
+      - name: Run bake test
+        run: |
+          ZODOO_PY="$(pipx environment --value PIPX_LOCAL_VENVS)/zodoo/bin/python"
+          "$ZODOO_PY" -m pytest -vv -s -m slow zodoo/src/zodoo/tests/test_bake.py
+
+      - name: Collect docker logs on failure
+        if: failure()
+        run: |
+          mkdir -p /tmp/bake-logs
+          docker ps -a > /tmp/bake-logs/docker-ps.txt 2>&1 || true
+          docker images > /tmp/bake-logs/docker-images.txt 2>&1 || true
+          for c in $(docker ps -aq); do
+            docker logs "$c" > "/tmp/bake-logs/container-${c}.log" 2>&1 || true
+          done
+          ls -la "$HOME/.odoo/log" 2>/dev/null || true
+          cp -r "$HOME/.odoo/log" /tmp/bake-logs/odoo-log 2>/dev/null || true
+
+      - name: Upload diagnostic logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bake-test-logs
+          path: /tmp/bake-logs
+          if-no-files-found: ignore

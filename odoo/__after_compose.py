@@ -25,7 +25,7 @@ my_cache = {}
 
 def after_compose(config, settings, yml, globals):
     # store also in clear text the requirements
-    from wodoo.odoo_config import MANIFEST
+    from zodoo.odoo_config import MANIFEST
 
     shutil.copy(
         current_dir.parent / "common_snippets" / "set_docker_group.sh",
@@ -34,6 +34,14 @@ def after_compose(config, settings, yml, globals):
 
     yml["services"].pop("odoo_base")
     manifest = MANIFEST()
+
+    # odoo_debug inherits `profiles: [auto]` and `build:` from odoo_base via
+    # compose.merge. We want it manual-only and pointing at the same image
+    # tag as `odoo` (no separate build → truly one odoo image).
+    odoo_debug = yml["services"].get("odoo_debug")
+    if odoo_debug is not None:
+        odoo_debug["profiles"] = ["manual"]
+        odoo_debug.pop("build", None)
 
     # download python3.x version
     if float(settings["ODOO_VERSION"]) >= 13.0:
@@ -70,6 +78,8 @@ def after_compose(config, settings, yml, globals):
 
     if config.RUN_PROXY:
         setup_external_odoo_eg_kubernetes(config, yml, globals)
+
+    _eval_setting_common_filestore(config, settings, globals)
 
 
 def store_sha_of_external_deps(deps, PYTHON_VERSION, file):
@@ -123,7 +133,7 @@ def _remove_requirements_from_requirements(the_list, remove_this):
 
 
 def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
-    from wodoo.odoo_config import customs_dir, MANIFEST
+    from zodoo.odoo_config import customs_dir, MANIFEST
 
     manifest = MANIFEST()
 
@@ -217,10 +227,12 @@ def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
 
     # put the collected requirements into project root
     req_file_all = config.WORKING_DIR / "requirements.txt.all"
-    req_file_all.write_text("\n".join(external_dependencies["pip"]))
+    req_file_all.write_text("\n".join(external_dependencies["pip"]) + "\n")
 
     req_file = config.WORKING_DIR / "requirements.txt"
-    req_file.write_text("\n".join(external_dependencies_justaddons["pip"]))
+    req_file.write_text(
+        "\n".join(external_dependencies_justaddons["pip"]) + "\n"
+    )
 
     # put hash of requirements in root
 
@@ -231,7 +243,7 @@ def _hack_patch_requirements(external_dependencies):
 
 
 def _dir_dirty(globals):
-    from wodoo.odoo_config import customs_dir
+    from zodoo.odoo_config import customs_dir
 
     tools = globals["tools"]
     return not tools.is_git_clean(
@@ -251,7 +263,7 @@ def all_submodules_checked_out():
 
 
 def cache_dir(tools):
-    path = Path(os.path.expanduser("~/.cache/wodoo_image_odoo"))
+    path = Path(os.path.expanduser("~/.cache/zodoo_image_odoo"))
     path.mkdir(exist_ok=True, parents=True)
     tools.__try_to_set_owner(tools.whoami(), path)
     return path
@@ -349,7 +361,7 @@ def _get_dependencies(
 
 
 def append_odoo_requirements(config, external_dependencies, tools):
-    from wodoo.odoo_config import MANIFEST
+    from zodoo.odoo_config import MANIFEST
 
     manifest = MANIFEST()
     odoo_dir = manifest.get("odoo_dir", "odoo")
@@ -519,12 +531,49 @@ def _get_sha(config):
 
 
 def _setup_remote_debugging(config, yml):
-    if config.devmode:
-        key = "odoo"
-    else:
-        key = "odoo_debug"
-    yml["services"][key].setdefault("ports", [])
+    # In devmode, expose debugpy on the long-running `odoo` service.
+    # Otherwise map it on `odoo_debug` (profile-gated, only spun up by
+    # `odoo debug odoo_debug`) so the port is available the moment that
+    # on-demand container starts.
+    key = "odoo" if config.devmode else "odoo_debug"
+    service = yml["services"].get(key)
+    if service is None:
+        return
+    service.setdefault("ports", [])
     if config.ODOO_PYTHON_DEBUG_PORT and config.ODOO_PYTHON_DEBUG_PORT != "0":
-        yml["services"][key]["ports"].append(
+        service["ports"].append(
             f"0.0.0.0:{config.ODOO_PYTHON_DEBUG_PORT}:5678"
         )
+
+
+def _eval_setting_common_filestore(config, settings, globals):
+    """
+    Wenn ODOO_FILES_COMMON=1 gesetzt ist, wird ein gemeinsamer Filestore angelegt.
+
+    Ablauf:
+    - In ODOO_FILES wird ein Unterordner '_common' erstellt.
+    - Alle anderen Unterverzeichnisse in ODOO_FILES werden per rsync nach '_common' kopiert.
+    - Danach wird das jeweilige Verzeichnis gelöscht und durch einen Symlink auf '_common' ersetzt.
+
+    Damit teilen sich alle Instanzen/Branches einen gemeinsamen Filestore, was Speicherplatz spart.
+    Bereits vorhandene Symlinks werden übersprungen.
+    """
+    if settings.get("ODOO_FILES_COMMON") != "1":
+        return
+
+    rsync = globals["tools"].rsync
+    files_dir = Path(settings["ODOO_FILES"]) / "filestore"
+    common_dir = files_dir / "_common"
+    common_dir.mkdir(exist_ok=True, parents=True)
+
+    for entry in sorted(files_dir.iterdir()):
+        if entry.name == "_common":
+            continue
+        if not entry.is_dir() or entry.is_symlink():
+            continue
+
+        rsync(entry, common_dir)
+
+        # Verzeichnis entfernen und durch Symlink auf _common ersetzen
+        shutil.rmtree(entry)
+        entry.symlink_to("_common")

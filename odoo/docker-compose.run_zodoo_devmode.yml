@@ -1,0 +1,14 @@
+services:
+  odoo_base:
+    volumes:
+      - ${HOST_RUN_DIR}/odoo_outdir/robot_output:/robot_output
+      - ${ODOO_IMAGES}/odoo/bin/update_modules.py:/odoolib/update_modules.py
+      - ${ODOO_IMAGES}/odoo/bin/xtract_system_libs.sh:/odoolib/xtract_system_libs.sh
+      - ${ODOO_IMAGES}/odoo/bin/reuid.py:/odoolib/reuid.py
+      - ${ODOO_IMAGES}/odoo/bin/entrypoint.py:/odoolib/entrypoint.py
+      - ~/.config/pudb:/home/odoo/.config/pudb
+      - ${ODOO_IMAGES}/odoo/bin:/odoolib:ro
+      - ${ODOO_IMAGES}/odoo/config/${ODOO_VERSION_INT}/config:/etc/odoo/config.template:ro
+      - ${ODOO_IMAGES}/zodoo/src:/opt/zodoo:rw
+    environment:
+      - OPENUPGRADE_TARGET_VERSION=${ODOO_VERSION}

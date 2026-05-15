@@ -1,4 +1,4 @@
-# exclude: ^()
+exclude: ^(webssh/|novnc/|logsio_web/|browser/|static_file_browser/)
 repos:
   - repo: https://github.com/hadolint/hadolint
     rev: v2.14.0 # Use latest stable tag: https://github.com/hadolint/hadolint/releases
@@ -6,6 +6,8 @@ repos:
       - id: hadolint
         name: Lint Dockerfiles
         files: (^|/)Dockerfile([^/]*$)
+        exclude: odoo/config/(11|13)/Dockerfile
+        args: [--failure-threshold, error]
 
   - repo: https://github.com/myint/autoflake
     rev: v2.3.3
@@ -18,34 +20,39 @@ repos:
           - --remove-all-unused-imports
           - --remove-duplicate-keys
   - repo: https://github.com/psf/black
-    rev: "26.1.0"
+    rev: "26.3.0"
     hooks:
       - id: black
         args:
           - --line-length
           - "79"
         language_version: python3
+        exclude: (templates/module_template/|novnc/)
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
       - id: check-yaml
       - id: check-json
+        exclude: zodoo/src/zodoo/config/launch_template\.json
       - id: check-xml
       - id: trailing-whitespace
       - id: fix-byte-order-marker
       - id: check-merge-conflict
       - id: end-of-file-fixer
       - id: check-docstring-first
+        exclude: templates/module_template/
   - repo: https://github.com/asottile/pyupgrade
-    rev: v3.15.0 # oder aktuelle Version
+    rev: v3.21.2 # oder aktuelle Version
     hooks:
       - id: pyupgrade
         args: [--py39-plus] # an deine Python-Version anpassen
+        language_version: python3.13
   - repo: https://github.com/pre-commit/mirrors-prettier
     rev: v4.0.0-alpha.8
     hooks:
       - id: prettier
         files: \.(css|htm|html|js|json|jsx|less|md|scss|toml|ts|yaml|yml)$
+        exclude: zodoo/src/zodoo/config/launch_template\.json
   - repo: https://github.com/pre-commit/mirrors-prettier
     rev: v4.0.0-alpha.8
     hooks:
@@ -93,3 +100,11 @@ repos:
     hooks:
       - id: forbid-crlf
       - id: remove-crlf
+  - repo: local
+    hooks:
+      - id: check-patchnotes
+        name: Check patchnotes exist
+        entry: scripts/check-patchnotes.sh
+        language: script
+        always_run: true
+        pass_filenames: false

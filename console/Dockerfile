@@ -36,7 +36,7 @@ WORKDIR /root
 ENV PIP_NO_CACHE_DIR=no
 # Set custom PyPI index
 
-#___SNIPPET_WODOO___
+#___SNIPPET_ZODOO___
 
 RUN #___SNIPPET_APT_INSTALL___ \
 tmux silversearcher-ag
@@ -63,7 +63,7 @@ ln -s /bin/cat /home/odoo/bin/cat && \
 ln -s /usr/bin/tmux /home/odoo/bin/tmux && \
 ln -s /usr/bin/docker /home/odoo/bin/docker && \
 export ODOO_BIN=/home/odoo/bin/odoo && \
-ln -s $WODOO_ENV_DIR/bin/odoo $ODOO_BIN
+ln -s "$ZODOO_ENV_DIR/bin/odoo" "$ODOO_BIN"
 
 COPY welcome.txt /usr/share/welcome.txt
 RUN chmod -x /etc/update-motd.d/* && rm /etc/update-motd.d -Rf

@@ -35,7 +35,7 @@ def raise_oserror(*args, **kwargs):
     raise OSError("fake error")
 
 
-class FakeSocket(object):
+class FakeSocket:
     def __init__(self, data=b""):
         self._data = data
 
@@ -55,7 +55,7 @@ class FakeSocket(object):
 
 class WebSockifyRequestHandlerTestCase(unittest.TestCase):
     def setUp(self):
-        super(WebSockifyRequestHandlerTestCase, self).setUp()
+        super().setUp()
         self.tmpdir = tempfile.mkdtemp("-websockify-tests")
         # Mock this out cause it screws tests up
         patch("os.chdir").start()
@@ -64,7 +64,7 @@ class WebSockifyRequestHandlerTestCase(unittest.TestCase):
         """Called automatically after each test."""
         patch.stopall()
         os.rmdir(self.tmpdir)
-        super(WebSockifyRequestHandlerTestCase, self).tearDown()
+        super().tearDown()
 
     def _get_server(
         self, handler_class=websockifyserver.WebSockifyRequestHandler, **kwargs
@@ -107,7 +107,7 @@ class WebSockifyRequestHandlerTestCase(unittest.TestCase):
 
 class WebSockifyServerTestCase(unittest.TestCase):
     def setUp(self):
-        super(WebSockifyServerTestCase, self).setUp()
+        super().setUp()
         self.tmpdir = tempfile.mkdtemp("-websockify-tests")
         # Mock this out cause it screws tests up
         patch("os.chdir").start()
@@ -116,7 +116,7 @@ class WebSockifyServerTestCase(unittest.TestCase):
         """Called automatically after each test."""
         patch.stopall()
         os.rmdir(self.tmpdir)
-        super(WebSockifyServerTestCase, self).tearDown()
+        super().tearDown()
 
     def _get_server(
         self, handler_class=websockifyserver.WebSockifyRequestHandler, **kwargs
@@ -202,7 +202,7 @@ class WebSockifyServerTestCase(unittest.TestCase):
         )
 
     def test_do_handshake_no_ssl(self):
-        class FakeHandler(object):
+        class FakeHandler:
             CALLED = False
 
             def __init__(self, *args, **kwargs):
@@ -294,7 +294,7 @@ class WebSockifyServerTestCase(unittest.TestCase):
     def test_do_handshake_ssl_sets_ciphers(self):
         test_ciphers = "TEST-CIPHERS-1:TEST-CIPHER-2"
 
-        class FakeHandler(object):
+        class FakeHandler:
             def __init__(self, *args, **kwargs):
                 pass
 
@@ -341,7 +341,7 @@ class WebSockifyServerTestCase(unittest.TestCase):
     def test_do_handshake_ssl_sets_opions(self):
         test_options = 0xCAFEBEEF
 
-        class FakeHandler(object):
+        class FakeHandler:
             def __init__(self, *args, **kwargs):
                 pass
 
@@ -356,7 +356,7 @@ class WebSockifyServerTestCase(unittest.TestCase):
         def fake_select(rlist, wlist, xlist, timeout=None):
             return ([sock], [], [])
 
-        class fake_create_default_context(object):
+        class fake_create_default_context:
             OPTIONS = 0
 
             def __init__(self, purpose):

@@ -6,25 +6,27 @@ import tempfile
 import arrow
 import shutil
 import requests
-import time
-import threading
-import sys
 import click
-from consts import ODOO_USER
+from sudo_odoo import sudo_odoo_cmd  # noqa: F401  (re-export)
 import subprocess
+
+
 import configparser
 import os
-from wodoo import odoo_config
-from wodoo.odoo_config import customs_dir
-from wodoo.odoo_config import get_conn_autoclose
-from wodoo.odoo_config import current_version
+from zodoo import odoo_config
+from zodoo.odoo_config import customs_dir
+from zodoo.odoo_config import get_conn_autoclose
+from zodoo.odoo_config import current_version
 from pathlib import Path
-import sys
-import time
-import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-pidfile = Path("/tmp/odoo.pid")
+# Per-role pidfile: inside the single consolidated odoo container, web /
+# cronjobs / queuejobs all run as sibling children of the supervisor, so
+# one shared pidfile (or a blanket `pkill -f odoo-bin`) would have each
+# role tearing down the others at startup. The role name is injected by
+# supervisor.py via ZODOO_ROLE.
+_role = os.getenv("ZODOO_ROLE", "web")
+pidfile = Path(f"/tmp/odoo.{_role}.pid")
 config = odoo_config.get_settings()
 version = odoo_config.current_version()
 
@@ -44,6 +46,10 @@ def _get_queuejob_channels():
     else:
         channels = os.getenv("ODOO_QUEUEJOBS_CHANNELS")
 
+    if not channels:
+        raise Exception(
+            "Please define ODOO_QUEUEJOBS_CHANNELS or QUEUEJOB_CHANNELS_FILE."
+        )
         # replace any env variable
     channels = [
         (x, int(y))
@@ -80,8 +86,9 @@ def _get_queuejob_channels():
 def _replace_params_in_config(
     ADDONS_PATHS, content, server_wide_modules=None, upgrade_path=None
 ):
-    if not config.get("DB_HOST", "") or not config.get("DB_USER", ""):
-        raise Exception("Please define all DB Env Variables!")
+    for key in ["DB_HOST", "DB_USER"]:
+        if not config.get(key, ""):
+            raise Exception(f"Please define {key} Env Variables!")
     content = content.replace("__ADDONS_PATH__", ADDONS_PATHS)
     content = content.replace(
         "__ENABLE_DB_MANAGER__",
@@ -192,10 +199,20 @@ def _replace_variables_in_config_files(local_config):
     config_dir = Path(os.environ["ODOO_CONFIG_DIR"])
     config_dir_template = Path(os.environ["ODOO_CONFIG_TEMPLATE_DIR"])
     config_dir.mkdir(exist_ok=True, parents=True)
+    user_id = int(os.getenv("OWNER_UID", os.getuid()))
     for file in config_dir_template.glob("*"):
         path = str(config_dir / file.name)
         shutil.copy(str(file), path)
         subprocess.call(["chmod", "a+r", path])
+        # chown to the odoo user so a later re-invocation as that user
+        # (via sudo_odoo_cmd) can overwrite these files.  Silently
+        # ignored when we're already running as non-root (chown of a
+        # file we own is a no-op; chown of a foreign file fails — that
+        # path means the first invocation already did the right thing).
+        try:
+            shutil.chown(path, user=user_id, group=user_id)
+        except (PermissionError, LookupError):
+            pass
         del path
 
     no_extra_addons_paths = False
@@ -312,17 +329,16 @@ def get_config_file(confname):
     return str(Path(os.environ["ODOO_CONFIG_DIR"]) / confname)
 
 
-def prepare_run(local_config=None):
-    _replace_variables_in_config_files(local_config)
-
-    if config["RUN_AUTOSETUP"] == "1":
-        _run_autosetup()
-
-    _run_libreoffice_in_background()
-
-    # make sure out dir is owned by odoo user to be writable
+def prepare_run_shared(local_config=None):
+    # Container-shared setup: chown writable dirs, render config files from
+    # templates, run autosetup, start libreoffice. Idempotent. Under the
+    # supervisor this runs once before role spawn — running it concurrently
+    # in each role races on ODOO_CONFIG_DIR (templates get copied back over
+    # already-substituted files, leaving placeholders like __DB_MAXCONN__
+    # in the live config and crashing odoo at CLI parse time).
     user_id = int(os.getenv("OWNER_UID", os.getuid()))
     for path in [
+        os.environ["ODOO_CONFIG_DIR"],
         os.environ["OUT_DIR"],
         os.environ["RUN_DIR"],
         os.environ["ODOO_DATA_DIR"],
@@ -339,20 +355,42 @@ def prepare_run(local_config=None):
             out_dir.mkdir(parents=True, exist_ok=True)
         if out_dir.exists():
             if out_dir.stat().st_uid == 0:
-                shutil.chown(str(out_dir), user=user_id, group=user_id)
+                subprocess.call(
+                    [
+                        "chown",
+                        "-R",
+                        f"{user_id}:{user_id}",
+                        str(out_dir),
+                    ]
+                )
         del path
         del out_dir
 
-    if (
-        os.getenv("IS_ODOO_QUEUEJOB", "") == "1"
-        or os.getenv("ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER", "") == "1"
-    ):
+    _replace_variables_in_config_files(local_config)
+
+    if config["RUN_AUTOSETUP"] == "1":
+        _run_autosetup()
+
+    _run_libreoffice_in_background()
+
+
+def prepare_run_role():
+    # Role-specific setup that has to happen inside each role process,
+    # AFTER prepare_run_shared has populated ODOO_CONFIG_DIR.
+    if os.getenv("IS_ODOO_QUEUEJOB", "") == "1":
         # https://www.odoo.com/apps/modules/10.0/queue_job/
         with get_conn_autoclose() as cr:
             sql = "update queue_job set state='pending' where state in ('started', 'enqueued');"
             if table_exists(cr, "queue_job"):
                 if column_exists(cr, "queue_job", "state"):
                     cr.execute(sql)
+
+
+def prepare_run(local_config=None):
+    # Full prep for one-off invocations (debug/shell/unit_test/update). The
+    # supervisor splits this — see prepare_run_shared / prepare_run_role.
+    prepare_run_shared(local_config)
+    prepare_run_role()
 
 
 def table_exists(cr, table):
@@ -377,12 +415,24 @@ def column_exists(cr, table, column):
 
 
 def get_odoo_bin(for_shell=False):
+    # Belt-and-suspenders: the supervisor already refuses to spawn a role
+    # when the matching RUN_ODOO_* flag is 0. If something else still invokes
+    # this code path with IS_ODOO_CRONJOB/QUEUEJOB set while the toggle is
+    # off, exit cleanly so the process can't run half-enabled.
     if is_odoo_cronjob and not config.get("RUN_ODOO_CRONJOBS") == "1":
         click.secho("Cronjobs shall not run. Good-bye!")
         sys.exit(0)
 
-    if is_odoo_queuejob and not config.get("RUN_ODOO_QUEUEJOBS") == "1":
-        click.secho("Queue-Jobs shall not run. Good-bye!")
+    # Queuejob role is gated by `_queue_job_installed()` in the
+    # supervisor (no longer a manual RUN_ODOO_QUEUEJOBS env toggle). If
+    # something invokes this code path with IS_ODOO_QUEUEJOB=1 while the
+    # module is no longer installed, exit cleanly.
+    if is_odoo_queuejob and not odoo_config._queue_job_installed():
+        click.secho(
+            "Queue-Jobs shall not run — `queue_job` is not installed in "
+            "the project DB. Good-bye!",
+            fg="yellow",
+        )
         sys.exit(0)
 
     EXEC = "odoo-bin"
@@ -399,21 +449,10 @@ def get_odoo_bin(for_shell=False):
     else:
         CONFIG = "config_webserver"
         if version <= 9.0:
-            if for_shell:
-                EXEC = "openerp-server"
-            else:
-                EXEC = "openerp-server"
+            EXEC = "openerp-server"
         else:
-            try:
-                if config.get("ODOO_GEVENT_MODE", "") == "1":
-                    raise Exception("Dont use GEVENT MODE anymore")
-            except KeyError:
-                pass
-            if os.getenv("ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER", "") == "1":
-                CONFIG = "config_allinone"
-
-            if os.getenv("ODOO_CRON_IN_ONE_CONTAINER", "") == "1":
-                CONFIG = "config_web_and_cron"
+            if config.get("ODOO_GEVENT_MODE", "") == "1":
+                raise Exception("Dont use GEVENT MODE anymore")
 
     EXEC = "/".join([os.environ["SERVER_DIR"], EXEC])
     if not Path(EXEC).exists() and Path(EXEC).parent.exists():
@@ -422,66 +461,44 @@ def get_odoo_bin(for_shell=False):
     return EXEC, CONFIG
 
 
+def is_in_container():
+    from zodoo.tools import _is_in_container
+
+    return _is_in_container()
+
+
 def kill_odoo():
     if pidfile.exists():
         click.secho("Killing Odoo")
-        pid = pidfile.read_text()
-        cmd = ["/bin/kill", "-9", pid]
-        if (
-            os.getenv("USE_DOCKER", "") == "1"
-            and os.getenv("DOCKER_MACHINE", "") == "1"
-        ):
-            cmd = [
-                "/usr/bin/sudo",
-            ] + cmd
+        pid = pidfile.read_text().strip()
+        base_cmd = ["/usr/bin/sudo"] if os.getenv("USE_DOCKER", "") == "1" and is_in_container() else []
+        # SIGTERM first: master signals workers to exit cleanly, freeing port 8069
         subprocess.run(
-            cmd,
+            base_cmd + ["/bin/kill", "-15", pid],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL,
         )
+        import time as _time
+        for _ in range(10):
+            _time.sleep(1)
+            try:
+                import os as _os
+                _os.kill(int(pid), 0)
+            except ProcessLookupError:
+                break
+        else:
+            subprocess.run(
+                base_cmd + ["/bin/kill", "-9", pid],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+            )
         try:
             pidfile.unlink()
         except FileNotFoundError:
             pass
-    else:
-        if version <= 9.0:
-            subprocess.run(
-                [
-                    "/usr/bin/sudo",
-                    "/usr/bin/pkill",
-                    "-9",
-                    "-f",
-                    "openerp-server",
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                stdin=subprocess.DEVNULL,
-            )
-            subprocess.run(
-                [
-                    "/usr/bin/sudo",
-                    "/usr/bin/pkill",
-                    "-9",
-                    "-f",
-                    "openerp-gevent",
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                stdin=subprocess.DEVNULL,
-            )
-        else:
-            subprocess.run(
-                [
-                    "/usr/bin/sudo",
-                    "/usr/bin/pkill",
-                    "-9",
-                    "-f",
-                    "odoo-bin",
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
+
     sane_tty()
 
 
@@ -496,7 +513,7 @@ def __python_exe(remote_debug=False, wait_for_remote=False):
         cmd = ["/usr/bin/python"]
     else:
         # return "/usr/bin/python3"
-        cmd = ["/opt/venv/bin/python3"]
+        cmd = ["/opt/venv/bin/python3", "-Xfrozen_modules=off"]
 
     if remote_debug or wait_for_remote:
         cmd += [
@@ -514,15 +531,25 @@ def __python_exe(remote_debug=False, wait_for_remote=False):
 
 def wait_postgres(timeout=10):
     import psycopg2
+    from contextlib import closing
 
     def connect():
-        psycopg2.connect(
-            dbname="postgres",
-            host=os.environ["DB_HOST"],
-            user=os.environ["DB_USER"],
-            password=os.environ["DB_PWD"],
-            port=int(os.environ["DB_PORT"]),
-        )
+        # Probe connection only — close immediately so we don't leak
+        # one connection per retry (the loop below can fire many
+        # `connect()` calls during a slow startup).
+        # NOTE: `with psycopg2.connect()` only ends the transaction,
+        # NOT the connection — wrap in `contextlib.closing` to actually
+        # close it.
+        with closing(
+            psycopg2.connect(
+                dbname="postgres",
+                host=os.environ["DB_HOST"],
+                user=os.environ["DB_USER"],
+                password=os.environ["DB_PWD"],
+                port=int(os.environ["DB_PORT"]),
+            )
+        ):
+            pass
 
     deadline = arrow.get().shift(seconds=timeout)
     count = 0
@@ -552,6 +579,7 @@ def exec_odoo(
     remote_debug=False,
     wait_for_remote=False,
     enable_queuejobs=False,
+    capture_output=None,
     **kwargs,
 ):  # NOQA
     assert not [
@@ -571,20 +599,12 @@ def exec_odoo(
 
     EXEC, _CONFIG = get_odoo_bin(for_shell=odoo_shell)
     CONFIG = get_config_file(CONFIG or _CONFIG)
-    cmd = []
-    if os.getenv("ODOO_SUDO_CMD") == "1":
-        cmd = [
-            "/usr/bin/sudo",
-            "-E",
-            "-H",
-            "-u",
-            ODOO_USER,
-        ]
-    cmd += __python_exe(
-        remote_debug=remote_debug, wait_for_remote=wait_for_remote
-    ) + [
-        EXEC,
-    ]
+    cmd = sudo_odoo_cmd(
+        __python_exe(
+            remote_debug=remote_debug, wait_for_remote=wait_for_remote
+        )
+        + [EXEC]
+    )
     if odoo_shell:
         cmd += ["shell"]
     try:
@@ -613,12 +633,53 @@ def exec_odoo(
     filename = Path(tempfile.mktemp(suffix=".exitcode"))
     cmd += f" || echo $? > {filename}"
 
+    def _tee(proc):
+        lines = []
+        for line in proc.stdout:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+            lines.append(line)
+        proc.wait()
+        return "".join(lines)
+
+    params_capture = {
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.STDOUT,
+        "text": True,
+    }
+    if not capture_output:
+        params_capture = {}
+        output = ""
+
     if stdin:
-        if isinstance(stdin, str):
-            stdin = stdin.encode("utf-8")
-        subprocess.run(cmd, input=stdin, shell=True)
+        if not isinstance(stdin, str):
+            stdin = (
+                stdin.decode("utf-8")
+                if isinstance(stdin, bytes)
+                else str(stdin)
+            )
+        proc = subprocess.Popen(
+            cmd,
+            shell=True,
+            stdin=subprocess.PIPE,
+            **params_capture,
+        )
+        proc.stdin.write(
+            stdin if params_capture.get("text") else stdin.encode("utf-8")
+        )
+        proc.stdin.close()
+        if capture_output:
+            output = _tee(proc)
     else:
-        subprocess.run(cmd, shell=True)
+        proc = subprocess.Popen(
+            cmd,
+            shell=True,
+            **params_capture,
+        )
+        if capture_output:
+            output = _tee(proc)
+    if not capture_output:
+        proc.wait()
     if pidfile.exists():
         pidfile.unlink()
     if on_done:
@@ -632,7 +693,7 @@ def exec_odoo(
             rc = -1  # undefined return code
         finally:
             filename.unlink()
-    return rc
+    return rc, output
 
 
 def _run_shell_cmd(code, do_raise=False):
@@ -642,7 +703,7 @@ def _run_shell_cmd(code, do_raise=False):
     if current_version() >= 11.0:
         cmd += ["--shell-interface=ipython"]
 
-    rc = exec_odoo(
+    rc, output = exec_odoo(
         "config_shell",
         *cmd,
         odoo_shell=True,
@@ -656,35 +717,52 @@ def _run_shell_cmd(code, do_raise=False):
 
 
 def _get_server_wide_modules(server_wide_modules=None):
+    """Return the list of server-wide modules for this odoo container.
+
+    `queue_job` is added iff the module is installed in the project DB
+    (probed via `ir_module_module`). The legacy env-var-based logic
+    (RUN_ODOO_QUEUEJOBS, IS_ODOO_QUEUEJOB, ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER,
+    ODOO_CRON_IN_WEB_CONTAINER, ENABLE_QUEUEJOBS) is gone — after the
+    single-container refactor `RUN_ODOO_*` toggles only steer the
+    supervisor's role spawning, and `queue_job` server-wide-loading must
+    follow the actual installed-module state instead so that:
+      - fresh / empty DBs don't try to import a module that isn't there,
+      - DBs that DO have queue_job installed get it loaded for every
+        sibling role (web / cronjobs / queuejobs), so `@job` decorators
+        and `delay()` work consistently across processes.
+
+    When queue_job ends up in the server-wide list, the queue_job channel
+    config is mandatory; fail loudly if neither
+    `ODOO_QUEUEJOBS_CHANNELS` nor `QUEUEJOB_CHANNELS_FILE` is set —
+    silently loading the module without a channel definition means jobs
+    accumulate in `pending` forever.
+    """
     if not server_wide_modules:
         server_wide_modules = (
             os.getenv("SERVER_WIDE_MODULES", "") or ""
         ).split(",")
+    server_wide_modules = [m for m in server_wide_modules if m and m.strip()]
 
-    if (
-        os.getenv("IS_ODOO_QUEUEJOB", "") == "1"
-        or os.getenv("ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER", "") == "1"
-    ):
+    needs_queue_job = odoo_config._queue_job_installed()
+    if needs_queue_job:
         if "queue_job" not in server_wide_modules:
             server_wide_modules.append("queue_job")
+        if not (
+            os.getenv("ODOO_QUEUEJOBS_CHANNELS")
+            or os.getenv("QUEUEJOB_CHANNELS_FILE")
+        ):
+            click.secho(
+                "queue_job is installed in the database but no channel "
+                "configuration is set. Define ODOO_QUEUEJOBS_CHANNELS "
+                "(e.g. 'root:1') or QUEUEJOB_CHANNELS_FILE in your "
+                "settings — otherwise queued jobs will never be picked "
+                "up.",
+                fg="red",
+                bold=True,
+            )
+    elif "queue_job" in server_wide_modules:
+        server_wide_modules.remove("queue_job")
 
-    if (
-        os.getenv("IS_ODOO_QUEUEJOB", "") != "1"
-        and os.getenv("ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER", "") != "1"
-    ):
-        if "queue_job" in server_wide_modules:
-            server_wide_modules.remove("queue_job")
-
-    if (
-        os.getenv("ODOO_CRON_IN_WEB_CONTAINER", "") == "1"
-        and os.getenv("ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER", "") != "1"
-    ):
-        if "queue_job" in server_wide_modules:
-            server_wide_modules.remove("queue_job")
-
-    if os.getenv("ENABLE_QUEUEJOBS") == "1":
-        if "queue_job" not in server_wide_modules:
-            server_wide_modules.append("queue_job")
     return server_wide_modules
 
 
@@ -819,6 +897,7 @@ def _touch():
 
 
 def set_proxy_update_modules(enabled):
-    Path("/var/run/proxy_exchange/update_odoo").write_text(
-        "1" if enabled else "0"
-    )
+    p = Path("/var/run/proxy_exchange/odoo_update")
+    if p.parent.exists():
+        p.write_text("1" if enabled else "0")
+        p.chmod(0o666)

@@ -1,0 +1,4 @@
+settings:
+  - POSTGRES_VERSION
+tag_prefix:
+  - POSTGRES_VERSION

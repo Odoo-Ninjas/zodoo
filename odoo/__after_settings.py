@@ -1,26 +1,30 @@
-import sys
 import click
 from pathlib import Path
 
 
 def after_settings(settings, config):
-    from wodoo import odoo_config
+    from zodoo import odoo_config
 
-    if settings.get("ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER") == "1":
-        settings["RUN_ODOO_QUEUEJOBS"] = "0"
-        settings["RUN_ODOO_CRONJOBS"] = "0"
-
-    if settings.get("ODOO_CRON_IN_ONE_CONTAINER") == "1":
-        if settings.get("ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER") == "1":
+    # ODOO_*_IN_ONE_CONTAINER is obsolete: web, cronjobs and queuejobs now
+    # always share a single container, managed by supervisor.py. Warn on
+    # legacy usage so stale settings files can be cleaned up. Same goes
+    # for RUN_ODOO_QUEUEJOBS — the queuejobs role is now spawned iff the
+    # queue_job module is installed in the project DB.
+    for obsolete in (
+        "ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER",
+        "ODOO_CRON_IN_ONE_CONTAINER",
+        "RUN_ODOO_QUEUEJOBS",
+    ):
+        if obsolete in settings:
             click.secho(
-                (
-                    "Conflicting settings: "
-                    "ODOO_CRON_IN_WEB_CONTAINER and "
-                    "ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER"
-                ),
-                fg="red",
+                f"Setting {obsolete} is obsolete and ignored — web, "
+                "cronjobs and queuejobs now always run in a single odoo "
+                "container. Toggle RUN_ODOO_CRONJOBS / RUN_ODOO_WEB to "
+                "disable web/cron roles. The queuejobs role is gated by "
+                "the `queue_job` module's install state in the project "
+                "DB.",
+                fg="yellow",
             )
-            sys.exit(-1)
 
     m = odoo_config.MANIFEST()
     settings["SERVER_WIDE_MODULES"] = ",".join(

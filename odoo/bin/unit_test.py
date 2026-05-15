@@ -1,11 +1,11 @@
-#!/usr/bin/env wodoo_python
+#!/usr/bin/env zodoo_python
 from datetime import datetime
 import json
 import os
 import sys
 import click
-from wodoo.module_tools import Module
-from wodoo.odoo_config import current_version
+from zodoo.module_tools import Module
+from zodoo.odoo_config import current_version
 from pathlib import Path
 from tools import exec_odoo
 from tools import prepare_run
@@ -20,6 +20,7 @@ parser.add_argument("--resultsfile")
 parser.add_argument("test_file")
 parser.set_defaults(log_level="error")
 args = parser.parse_args()
+logfile = Path("/opt/src/.unittest.log")
 
 os.environ["TEST_QUEUE_JOB_NO_DELAY"] = "1"
 
@@ -31,7 +32,9 @@ else:
 prepare_run()
 
 runs = []
+capture_output = os.getenv("CAPTURE_UNITTEST_OUTPUT") == "1"
 
+ran_files = []
 for filepath in args.test_file.split(","):
     started = datetime.now()
     cmd = [
@@ -44,6 +47,7 @@ for filepath in args.test_file.split(","):
     if not filepath.exists():
         click.secho(f"File not found: {filepath}", fg="red")
         sys.exit(-1)
+    ran_files.append(filepath)
     os.chdir("/opt/src")
     module = Module(filepath)
     cmd += [
@@ -53,16 +57,18 @@ for filepath in args.test_file.split(","):
         cmd += [
             "--test-report-directory=/tmp",
         ]
-    rc = exec_odoo(
+    rc, output = exec_odoo(
         "config_unittest",
         remote_debug="--remote-debug" in sys.argv,
         wait_for_remote="--wait-for-remote" in sys.argv,
+        capture_output=capture_output,
         *cmd,
     )
     runs.append(
         {
             "path": str(filepath.relative_to("/opt/src")),
             "duration": (datetime.now() - started).total_seconds(),
+            "output": output,
             "rc": rc,
         }
     )
@@ -74,8 +80,8 @@ if args.resultsfile:
 if any(x["rc"] for x in runs):
     rc = -1
 
-if not rc:
-    text = """
+ran_files = "\n".join(map(str, ran_files))
+good = r"""
      _    _ _   _            _                                      _
     / \  | | | | |_ ___  ___| |_ ___   _ __   __ _ ___ ___  ___  __| |
    / _ \ | | | | __/ _ \/ __| __/ __| | '_ \ / _` / __/ __|/ _ \/ _` |
@@ -83,6 +89,25 @@ if not rc:
  /_/   \_\_|_|  \__\___||___/\__|___/ | .__/ \__,_|___/___/\___|\__,_|
                                       |_|
 """
+if not rc:
+    text = good
 
     click.secho(text, fg="green", bold=True)
+    logfile.write_text(f"{good}\n{ran_files}")
+else:
+    text = []
+    for entry in runs:
+        text.append(
+            "------------------------------------------------------------------"
+        )
+        text.append(
+            f"File: {entry['path']} failed in {entry['duration']} seconds"
+        )
+        text.append(
+            "------------------------------------------------------------------"
+        )
+        text.append(f"{entry['output']}")
+        text.append("\n\n")
+
+    logfile.write_text("\n".join(text))
 sys.exit(rc)

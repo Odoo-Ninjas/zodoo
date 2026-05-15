@@ -1,7 +1,7 @@
-#!/opt/wodoo_pipx/venvs/wodoo/bin/python3
+#!/opt/zodoo_pipx/venvs/zodoo/bin/python3
 import os
 import sys
-from wodoo.odoo_config import current_version
+from zodoo.odoo_config import current_version
 from tools import exec_odoo
 from tools import prepare_run
 
@@ -29,10 +29,26 @@ else:
 os.environ["ODOO_SHELL_CMD"] = odoo_cmd
 stdin = odoo_cmd if odoo_cmd else None  # 'echo "$ODOO_SHELL_CMD"'
 
-exec_odoo(
+if stdin:
+    # Wrap command so exceptions produce a non-zero exit code.
+    # IPython/Odoo shell swallow exceptions (including SystemExit),
+    # so we use os._exit() which cannot be intercepted.
+    stdin = (
+        "import os as _os, traceback as _tb\n"
+        "try:\n"
+        f"    exec(compile({repr(stdin)}, '<shell>', 'exec'))\n"
+        "except SystemExit as _e:\n"
+        "    _os._exit(_e.code if isinstance(_e.code, int) else 1)\n"
+        "except Exception:\n"
+        "    _tb.print_exc()\n"
+        "    _os._exit(1)\n"
+    )
+
+rc, _ = exec_odoo(
     "config_shell",
     *cmd,
     odoo_shell=True,
     stdin=stdin,
     dokill=False,
 )
+sys.exit(rc)

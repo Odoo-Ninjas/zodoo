@@ -6,49 +6,13 @@ ARG ODOO_DEB_REQUIREMENTS
 ARG ODOO_PYTHON_VERSION
 ARG ODOO_CONFIG_DIR
 ARG CUSTOMS_SHA
+ARG ZODOO_REGISTRY_URL=registry.zebroo.de
 
 
 # --------------------------------------------------------------------
-# COMPILE PYTHON
+# PYTHON (prebuilt from zodoo registry — build via ~/.odoo/images/python_prebuilt/build.sh)
 # --------------------------------------------------------------------
-FROM $BASE_IMAGE AS python_builder
-ARG ODOO_PYTHON_VERSION
-ARG APT_PROXY_IP
-
-COPY python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
-WORKDIR /usr/local/src
-RUN tar xfz /usr/local/src/python
-WORKDIR /usr/local/src/Python-${ODOO_PYTHON_VERSION}
-
-
-#___SNIPPET_APT_PROXY___
-#___SNIPPET_UPDATE_CA_CERTIFICATES___
-#___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
-RUN #___SNIPPET_APT_INSTALL___ \
-    software-properties-common \
-    cmake \
-    exuberant-ctags \
-    build-essential \
-    zlib1g-dev \
-    make \
-    libssl-dev \
-    libffi-dev \
-    libsqlite3-dev  \
-    libjpeg-dev \
-    libcurl3-dev \
-    libxml2-dev \
-    libxslt1-dev \
-    libfreetype6-dev \
-    libpng-dev \
-    libpcre3-dev \
-    liblzma-dev \
-    freetds-dev  \
-    libbz2-dev \
-    ncurses-dev \
-    rsync \
-    gcc
-
-#___SNIPPET_BUILD_PYTHON___
+FROM ${ZODOO_REGISTRY_URL}/zodoo/python:${ODOO_PYTHON_VERSION}-${TARGETARCH} AS python_builder
 
 
 # --------------------------------------------------------------------
@@ -84,7 +48,11 @@ RUN #___SNIPPET_APT_INSTALL___ \
     libkrb5-dev \
     cmake \
     git \
-    gcc
+    gcc \
+    libcairo2-dev \
+    libcairo2 \
+    meson \
+    ninja-build
 
 #___SNIPPET_DEB_REQUIREMENTS___
 
@@ -96,6 +64,7 @@ RUN pip3 install pip -U
 RUN pip3 install $(cat /etc/pip_options) wheel && \
 #___SNIPPET_SETUPTOOLS_SAFEVERSION___
 
+RUN pip3 install meson-python ninja
 
 RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
 RUN pip3 install $(cat /etc/pip_options) -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
@@ -136,14 +105,9 @@ RUN #___SNIPPET_APT_INSTALL___ \
             node-less \
             node-clean-css \
             tmux \
-            libfreetype6-dev \
-            libpng-dev \
-            libjpeg-dev \
-            automake \
-            pkg-config \
-            libpcre3-dev \
-            liblzma-dev \
-            make \
+            libfreetype6 \
+            libpng16-16 \
+            libjpeg-turbo8 \
             ssh \
             mc \
             libfontconfig \
@@ -153,14 +117,13 @@ RUN #___SNIPPET_APT_INSTALL___ \
             git \
             sudo \
             less \
-            freetds-dev \
+            libct4 \
+            make \
             wget \
             cifs-utils \
             imagemagick \
             cups \
             locales \
-            libmagickwand-dev \
-            ffmpeg \
             zip \
             gpg-agent \
             pdftk \
@@ -169,20 +132,18 @@ RUN #___SNIPPET_APT_INSTALL___ \
             python3-gi-cairo \
             python3-cairo \
             gir1.2-gtk-3.0 \
-            libmagickwand-dev \
-            libmagic-dev \
-            libcups2-dev \
-            locales-all \
-            libpoppler-cpp-dev \
+            libmagic1 \
+            libcups2 \
+            libpoppler-cpp0v5 \
             postgresql-client \
             sassc \
             time \
             xfonts-75dpi \
             xfonts-base \
-            libgeos-dev\
+            libgeos-c1v5 \
             vim \
             fontconfig \
-            gcc
+            libcairo2
 
 COPY liberation-sans /usr/share/fonts/
 # rebuild font cache

@@ -1,59 +1,43 @@
 # manage-order 1001
-version: '3'
 services:
   odoo:
     labels:
-      odoo.web_container: '1'
-      compose.merge: 'odoo_base'
+      odoo.web_container: "1"
+      compose.merge: "odoo_base"
       proxy_config: ${ODOO_IMAGES}/odoo/proxy/odoo.conf
       proxy_config_chat: ${ODOO_IMAGES}/odoo/proxy/odoo_chat.conf
     environment:
       IS_ODOO_WEBSERVER: 1
-    environment:
       DEBUGGER_WATCH: /opt/src/.debug
       DEBUGGER_ODOO_PID: /tmp/odoo.debug.pid
-
-  odoo_debug:
-    restart: 'no'
-    labels:
-      compose.merge: 'odoo_base'
-    environment:
-      ENDLESS_LOOP: 1
-      DEBUGGER_WATCH: /opt/src/.debug
-      DEBUGGER_ODOO_PID: /tmp/odoo.debug.pid
-      IS_ODOO_DEBUG: 1
-
-  odoo_cronjobs:
-    labels:
-      compose.merge: 'odoo_base'
-      odoo.queuejob_container: '1'
-    environment:
-      IS_ODOO_CRONJOB: 1
-
-  odoo_queuejobs:
-    labels:
-      compose.merge: 'odoo_base'
-      odoo.queuejob_container: '1'
-    environment:
-      IS_ODOO_QUEUEJOB: 1
-    restart: 'on-failure'
     healthcheck:
       test:
         - CMD-SHELL
         - |
+          /opt/venv/bin/python /odoolib/healthcheck_cronjobs.py || exit 1
           ver="${ODOO_VERSION:-0}"
           if awk "BEGIN{exit !($ver>13.0)}"; then
-              /opt/venv/bin/python /odoolib/healthcheck_queuejobs.py
-          else
-              exit 0        # skip check → still reported HEALTHY
+              /opt/venv/bin/python /odoolib/healthcheck_queuejobs.py || exit 1
           fi
-      interval: 5s
-      timeout: 10s
+          exit 0
+      interval: 30s
+      timeout: 15s
       retries: 1
-      start_period: 10s
+      start_period: 60s
 
-  odoo_update:
+  # odoo_debug reuses the `odoo` image directly (no separate build) — the
+  # explicit `image:` short-circuits compose's default `<proj>-<service>`
+  # tag and keeps "only one odoo image" true. Lives behind the `manual`
+  # profile so `odoo up` does not start it; spun up on demand by
+  # `odoo debug odoo_debug` (see zodoo.lib_control_with_docker.debug).
+  odoo_debug:
+    profiles:
+      - manual
+    image: ${COMPOSE_PROJECT_NAME}-odoo:latest
+    restart: "no"
     labels:
-      compose.merge: 'odoo_base'
-    restart: 'no'
-    command: echo 'good bye - it is ok!'
+      compose.merge: "odoo_base"
+    environment:
+      ENDLESS_LOOP: 1
+      DEBUGGER_WATCH: /opt/src/.debug
+      DEBUGGER_ODOO_PID: /tmp/odoo.debug.pid

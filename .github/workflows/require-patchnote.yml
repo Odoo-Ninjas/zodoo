@@ -1,0 +1,63 @@
+name: Require patchnote
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+jobs:
+  patchnote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip if labeled
+        if: contains(github.event.pull_request.labels.*.name, 'skip-changelog')
+        run: echo "skip-changelog label found, skipping check."
+
+      - uses: actions/checkout@v4
+        if: "!contains(github.event.pull_request.labels.*.name, 'skip-changelog')"
+        with:
+          fetch-depth: 0
+
+      - name: Check for patchnote fragment
+        if: "!contains(github.event.pull_request.labels.*.name, 'skip-changelog')"
+        run: |
+          CHANGED=$(git diff --name-only origin/main...HEAD -- '.patchnotes/*.yml' | grep -v '.template' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "::error::No patchnote fragment found."
+            echo ""
+            echo "Please add a .patchnotes/<name>.yml file describing your change."
+            echo "Copy .patchnotes/example.yml.template as a starting point."
+            exit 1
+          fi
+          echo "Found patchnote(s): $CHANGED"
+
+  version-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check version files are in sync
+        run: |
+          ROOT_VERSION=$(cat VERSION)
+          SETUP_VERSION=$(grep '^version = ' zodoo/src/setup.cfg | sed 's/version = //')
+          ZODOO_VERSION=$(cat zodoo/src/zodoo/version.txt | tr -d '[:space:]')
+
+          echo "VERSION:                  $ROOT_VERSION"
+          echo "zodoo/src/setup.cfg:      $SETUP_VERSION"
+          echo "zodoo/src/zodoo/version.txt: $ZODOO_VERSION"
+
+          ERRORS=""
+          if [ "$ROOT_VERSION" != "$SETUP_VERSION" ]; then
+            ERRORS="${ERRORS}VERSION ($ROOT_VERSION) != zodoo/src/setup.cfg ($SETUP_VERSION)\n"
+          fi
+          if [ "$ROOT_VERSION" != "$ZODOO_VERSION" ]; then
+            ERRORS="${ERRORS}VERSION ($ROOT_VERSION) != zodoo/src/zodoo/version.txt ($ZODOO_VERSION)\n"
+          fi
+
+          if [ -n "$ERRORS" ]; then
+            echo ""
+            echo -e "::error::Version mismatch:\n$ERRORS"
+            echo "All version files must match VERSION. Update them or let the release workflow handle it."
+            exit 1
+          fi
+          echo "All versions in sync: $ROOT_VERSION"

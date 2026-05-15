@@ -1,0 +1,1024 @@
+from .tools import try_ignore_exceptions
+import psycopg2
+import arrow
+import uuid
+from .tools import abort
+import json
+import importlib.util
+import subprocess
+import shutil
+from datetime import datetime
+import inquirer
+import os
+import click
+from pathlib import Path
+from .tools import put_appendix_into_file
+from .tools import _dropdb
+from .tools import remove_webassets
+from .tools import __dc
+from .tools import docker_kill_container
+from .tools import _execute_sql
+from .tools import __rename_db_drop_target
+from .tools import _remove_postgres_connections
+from .tools import _get_dump_files
+from .tools import _binary_zip
+from .tools import autocleanpaper
+from .tools import _shell_complete_file
+from .tools import print_prod_env
+from .cli import cli, pass_config, Commands
+from .lib_clickhelpers import AliasedGroup
+from .tools import ensure_project_name
+from .tools import _get_filestore_folder
+from .tools import __try_to_set_owner
+from .tools import docker_list_containers
+from .tools import __get_postgres_volume_name
+from .tools import force_input_hostname
+
+import inspect
+import os
+from pathlib import Path
+
+current_dir = Path(
+    os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+)
+
+try:
+    import tabulate
+except ImportError:
+    click.echo("Failed to import python package: tabulate")
+
+
+@cli.group(
+    cls=AliasedGroup, help="Create backups of the database and filestore."
+)
+@pass_config
+def backup(config):
+    pass
+
+
+@cli.group(
+    cls=AliasedGroup, help="Restore database and filestore from backup files."
+)
+@pass_config
+def restore(config):
+    pass
+
+
+from .tools import get_directory_size
+
+
+@backup.command(help="Show disk space used by the Odoo filestore.")
+@pass_config
+@click.pass_context
+def used_space_files(ctx, config):
+    filestore_folder = _get_filestore_folder(config)
+
+    size = int(get_directory_size(filestore_folder))
+    print("----")
+    print(size)
+
+
+@backup.command(
+    name="show-dumps", help="List dump files in DUMPS_PATH with size and age."
+)
+@click.option(
+    "-n",
+    "--limit",
+    default=5,
+    show_default=True,
+    help="Number of dumps to show (0 for all).",
+)
+@pass_config
+def show_dumps(config, limit):
+    rows = _get_dump_files(Path(config.dumps_path))
+    if limit > 0:
+        rows = rows[:limit]
+    if not rows:
+        click.secho("No dump files found.", fg="yellow")
+        return
+    click.echo(tabulate.tabulate(rows, ["Nr", "Filename", "Age", "Size"]))
+
+
+@backup.command(name="all")
+@click.argument("filename", required=False)
+@pass_config
+@click.pass_context
+def backup_all(ctx, config, filename):
+    """
+    Runs backup-db and backup-files in odoo-sh format.
+    """
+    ensure_project_name(config)
+    config.force = True
+    filename = Path(
+        filename
+        or (config.dbname + arrow.get().strftime("%Y%m%d %H%M") + ".zip")
+    )
+    if len(filename.parts) == 1:
+        filename = Path(config.dumps_path) / filename
+    with autocleanpaper(Path(filename.parent) / str(uuid.uuid4())) as tmppath:
+        tmppath.mkdir(exist_ok=True, parents=True)
+        if config.owner_uid:
+            __try_to_set_owner(int(config.owner_uid), tmppath)
+        filepath_db = ctx.invoke(
+            backup_db, filename=tmppath / "dump.sql", dumptype="plain"
+        )
+        with autocleanpaper(
+            tmppath / (filename.name + ".zip"), strict=True
+        ) as tmpfile:
+            folder = _get_filestore_folder(config)
+            with autocleanpaper() as fake_filestore:
+                symlink_file = fake_filestore / "filestore"
+                symlink_file.parent.mkdir(exist_ok=True, parents=True)
+                os.symlink(folder, symlink_file)
+
+                with autocleanpaper(
+                    folder / "zipped.zip", strict=True
+                ) as folderzip:
+                    subprocess.check_call(
+                        ["zip", "-r", folderzip, "filestore"],
+                        cwd=fake_filestore,
+                    )
+                    shutil.move(folderzip, tmpfile)
+            subprocess.check_call(
+                [
+                    "zip",
+                    "-u",
+                    tmpfile,
+                    filepath_db.relative_to(tmppath),
+                ],
+                cwd=tmppath,
+            )
+            shutil.move(tmpfile, filename)
+    if config.owner_uid:
+        __try_to_set_owner(
+            int(config.owner_uid),
+            filename,
+            verbose=True,
+        )
+    click.secho(f"Created dump-file {filename}", fg="green")
+
+
+@backup.command(
+    name="odoo-db",
+    help="Backup the Odoo database. Uses a default filename if no path is given.",
+)
+@pass_config
+@click.pass_context
+@click.argument("filename", required=False, default="")
+@click.option("--dbname", required=False)
+@click.option("-T", "--exclude", multiple=True)
+@click.option(
+    "--column-inserts",
+    is_flag=True,
+    help="Makes restore slow but compatible with other databases",
+)
+@click.option(
+    "--dumptype",
+    type=click.Choice(
+        ["custom", "plain", "directory", "zodoobin", "wodoobin"]
+    ),
+    default="custom",
+)
+@click.option(
+    "--pigz",
+    is_flag=True,
+)
+@click.option(
+    "-Z",
+    "--compression",
+    default=5,
+)
+@click.option("-j", "--worker", default=1)
+@click.option(
+    "-v",
+    "--verify",
+    is_flag=True,
+    help="Verify the produced dump with `pg_restore -l` (TOC listing).",
+)
+def backup_db(
+    ctx,
+    config,
+    filename,
+    dbname,
+    dumptype,
+    column_inserts,
+    exclude,
+    pigz,
+    compression,
+    worker,
+    verify,
+):
+    filename = Path(
+        filename or f"{config.project_name}.{config.dbname}.odoo" + ".dump.gz"
+    )
+    if len(filename.parts) == 1:
+        filename = Path(config.dumps_path) / filename
+
+    if filename.exists():
+        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+        # Insert the timestamp before the known dump suffix chain so cleanup
+        # globs like `*.dump.gz` keep matching. Fall back to stem+suffix
+        # for unknown extensions.
+        name = filename.name
+        for ext in (".dump.gz", ".sql.gz", ".tar.gz", ".dump", ".sql", ".tar"):
+            if name.endswith(ext):
+                filename = filename.with_name(f"{name[:-len(ext)]}_{ts}{ext}")
+                break
+        else:
+            filename = filename.with_name(
+                f"{filename.stem}_{ts}{filename.suffix}"
+            )
+        click.secho(
+            f"Target file exists; using timestamped filename: {filename}",
+            fg="yellow",
+        )
+
+    if dumptype in ("zodoobin", "wodoobin"):
+        if verify:
+            click.secho(
+                f"--verify is not supported for dumptype {dumptype}; "
+                "skipping pg_restore -l verification.",
+                fg="yellow",
+            )
+        _backup_zodoobin(ctx, config, filename)
+    else:
+        _backup_pgdump(
+            config,
+            filename,
+            dbname or config.DBNAME,
+            config.DB_HOST,
+            config.DB_PORT,
+            config.DB_USER,
+            config.DB_PWD,
+            dumptype,
+            compression,
+            worker,
+            column_inserts,
+            pigz,
+            exclude,
+            verify,
+        )
+    return filename
+
+
+@backup.command(
+    name="files", help="Backup the Odoo filestore (attachments, images, etc.)."
+)
+@click.argument("filename", required=False, default="")
+@pass_config
+def backup_files(config, filename):
+    filepath = Path(filename or f"{config.project_name}.files")
+    if len(filepath.parts) == 1:
+        filepath = Path(config.dumps_path) / filepath
+
+    if filepath.is_file() and filepath.suffixes[-2:] == [".tar", ".gz"]:
+        filepath.unlink()
+    legacy = filepath.with_name(filepath.name + ".tar.gz")
+    if legacy.is_file():
+        legacy.unlink()
+
+    files_dir = _get_filestore_folder(config)
+    if not files_dir.exists():
+        raise Exception(f"Files directory not found: {files_dir}")
+    filepath.mkdir(parents=True, exist_ok=True)
+    subprocess.check_call(
+        [
+            "rsync",
+            "-a",
+            "--info=stats2",
+            f"{files_dir}/",
+            f"{filepath}/",
+        ]
+    )
+    __apply_dump_permissions(filepath)
+    click.secho(f"Backup files done to {filepath}", fg="green")
+    return filepath
+
+
+def __get_default_backup_filename(config):
+    return datetime.now().strftime(
+        f"{config.project_name}.odoo.%Y%m%d%H%M%S.dump.gz"
+    )
+
+
+@restore.command(
+    "show-dump-type",
+    help="Detect the dump type of a backup file (custom, plain, zodoobin/wodoobin, etc.).",
+)
+@click.argument("filename")
+@pass_config
+def get_dump_type(config, filename):
+    dump_type = _add_cronjob_scripts(config)["postgres"].__get_dump_type(
+        filename
+    )
+    click.echo(dump_type)
+
+
+@restore.command(
+    name="list", help="List available backup files with age and size."
+)
+@pass_config
+def list_dumps(config):
+    rows = _get_dump_files(Path(config.dumps_path))
+    click.echo(tabulate(rows, ["Nr", "Filename", "Age", "Size"]))
+
+
+@restore.command(
+    name="files", help="Restore the Odoo filestore from a backup archive."
+)
+@click.argument("filename", required=True)
+@pass_config
+def restore_files(config, filename):
+    __do_restore_files(config, filename)
+
+
+def _get_postgres_version(conn):
+    version = _execute_sql(conn, "select version()", fetchone=True)[0]
+    version = version.split("(")[0].split(" ")[1]
+    version = version.strip()
+    click.secho(f"Identified version {version}", fg="green")
+    return version
+
+
+def _restore_zodoo_bin(ctx, config, filepath, verify):
+    if not config.run_postgres:
+        abort("ZODOO-BIN files may only be restored if RUN_POSTGRES=1")
+    click.secho(f"Unzipping {filepath}...", fg="yellow")
+    with open(filepath, "rb") as file:
+        content = file.read(1024)
+        count_lineendings = 0
+        cutoff = 0
+        for i in range(len(content)):
+            cutoff += 1
+            if content[i] == 10:  # ord(b"\n"):
+                count_lineendings += 1
+            if count_lineendings == 2:
+                break
+    if verify:
+        click.secho(f"Verifying version postgres", fg="yellow")
+        Commands.invoke(
+            ctx, "up", daemon=True, machines=["postgres"], allow_build=True
+        )
+        postgres_version = (
+            content.decode("utf-8", errors="ignore").split("\n")[1].strip()
+        )
+        conn = config.get_odoo_conn()
+        version = _get_postgres_version(conn)
+        if version != postgres_version:
+            abort(f"Version mismatch: {version} != {postgres_version}")
+        click.secho(f"Versions match", fg="green")
+
+    assert config.run_postgres
+    Commands.invoke(ctx, "down")
+    volume = json.loads(
+        subprocess.check_output(
+            [
+                "docker",
+                "volume",
+                "inspect",
+                __get_postgres_volume_name(config),
+            ],
+            encoding="utf-8",
+        )
+    )
+    mountpoint = volume[0]["Mountpoint"]
+    click.secho(f"Identified mountpoint {mountpoint}", fg="yellow")
+    with autocleanpaper() as scriptfile:
+        scriptfile.write_text(
+            "#!/bin/bash\n"
+            "set -e\n"
+            f"rm -Rf '{mountpoint}'\n"
+            f"mkdir '{mountpoint}'\n"
+            f"cd '{mountpoint}'\n"
+            f"tail '{filepath}' -c +{cutoff + 1} | "
+            f"pigz -dc | tar x\n"
+        )
+        for mode in ["", "sudo"]:
+            try:
+                subprocess.check_call(
+                    list(filter(bool, [mode, "/bin/bash", scriptfile]))
+                )
+            except Exception:
+                if mode:
+                    raise
+                click.secho(
+                    "Retrying to restore the files in sudo mode - ignore previous errors please",
+                    fg="yellow",
+                )
+            else:
+                break
+    Commands.invoke(
+        ctx, "up", machines=["postgres"], daemon=True, allow_build=True
+    )
+
+
+def _odoo_sh(ctx, config, filename, params):
+    with autocleanpaper() as tempfolder:
+        filename = Path(filename).absolute()
+        tempfolder.mkdir(exist_ok=True, parents=True)
+        was_dir = os.getcwd()
+        try:
+            os.chdir(tempfolder)
+            if not filename.exists():
+                abort(f"File does not exist: {tempfolder}")
+            subprocess.check_call(["unzip", filename])
+            sqlfile = tempfolder / "dump.sql"
+            filestore = tempfolder / "filestore"
+
+            if filestore.exists():
+                filestore_dest = _get_filestore_destination(config)
+                click.secho(f"Transferring files to {filestore_dest}")
+                subprocess.check_call(
+                    [
+                        "rsync",
+                        str(filestore) + "/",
+                        str(filestore_dest) + "/",
+                        "-ar",
+                    ]
+                )
+                # change owner to OWNER_UID
+                if config.owner_uid:
+                    __try_to_set_owner(int(config.owner_uid), filestore_dest)
+            if sqlfile.exists():
+                click.secho(f"Restoring db {sqlfile}")
+                os.chdir(was_dir)
+                params["no_remove_webassets"] = True
+                Commands.invoke(ctx, "restore_db", filename=sqlfile, **params)
+        finally:
+            os.chdir(was_dir)
+
+
+def _after_restore(ctx, conn, config, no_dev_scripts, no_remove_webassets):
+    from .lib_turnintodev import __turn_into_devdb
+
+    if config.devmode and not no_dev_scripts:
+        __turn_into_devdb(ctx, config, conn)
+        if not no_remove_webassets:
+            remove_webassets(conn)
+
+
+@restore.command(
+    name="odoo-db",
+    help="Restore the Odoo database. Shows interactive file picker if no filename given. In DEVMODE resets passwords and disables mail/cronjobs.",
+)
+@click.argument(
+    "filename", required=False, default="", shell_complete=_shell_complete_file
+)
+@click.option("--no-dev-scripts", default=False, is_flag=True)
+@click.option("--no-remove-webassets", default=False, is_flag=True)
+@click.option("-j", "--workers", default=5)
+@click.option(
+    "--verify",
+    default=False,
+    is_flag=True,
+    help="Zodoo-bin: checks postgres version",
+)
+@click.option(
+    "-X",
+    "--exclude-tables",
+    multiple=True,
+    help="Exclude tables from restore like --exclude=mail_message",
+)
+@click.option("-v", "--verbose", is_flag=True)
+@click.option(
+    "--ignore-errors",
+    is_flag=True,
+    help="Example if some extensions are missing (replication)",
+)
+@click.option("-d", "--dbname", help="Restore as dbname")
+@click.option("-f", "--dbfilter", help="Filter db names")
+@pass_config
+@click.pass_context
+def restore_db(
+    ctx,
+    config,
+    filename,
+    no_dev_scripts,
+    no_remove_webassets,
+    verify,
+    workers,
+    exclude_tables,
+    verbose,
+    ignore_errors,
+    dbfilter,
+    dbname,
+):
+    if config.NO_REMOVE_WEB_ASSETS_AFTER_RESTORE:
+        no_remove_webassets = True
+    started = datetime.now()
+    if not filename:
+        filename = _inquirer_dump_file(
+            config, "Choose filename to restore", dbfilter
+        )
+    if not filename:
+        return
+    if not (dbname or config.dbname):
+        raise Exception("somehow dbname is missing")
+
+    print_prod_env(config)
+
+    dumps_path = config.dumps_path
+    BACKUPDIR = Path(dumps_path)
+    filename_absolute = (BACKUPDIR / filename).absolute()
+    del filename
+
+    if not config.force:
+        __restore_check(filename_absolute, config)
+
+    if config.force and not config.devmode:
+        force_input_hostname()
+
+    params = {
+        "no_dev_scripts": no_dev_scripts,
+        "no_remove_webassets": no_remove_webassets,
+        "verify": verify,
+        "workers": workers,
+        "exclude_tables": exclude_tables,
+        "verbose": verbose,
+        "ignore_errors": ignore_errors,
+        "dbname": (dbname or config.dbname),
+    }
+
+    dump_type = _add_cronjob_scripts(config)["postgres"].__get_dump_type(
+        filename_absolute
+    )
+    if dump_type == "odoosh":
+        _odoo_sh(ctx, config, filename=filename_absolute, params=params)
+        return
+
+    if len(Path(filename_absolute).parts) > 1:
+        dumps_path = Path(filename_absolute).parent
+        filename = Path(filename_absolute).name
+
+    if dump_type.startswith("dump_all"):
+        with autocleanpaper() as tmpdir:
+            params["no_remove_webassets"] = True
+            with _add_cronjob_scripts(config)["postgres"].extract_dumps_all(
+                tmpdir, filename_absolute
+            ) as (dbfile, files_file):
+                ctx.invoke(restore_files, filename=files_file)
+                ctx.invoke(
+                    restore_db,
+                    filename=dbfile,
+                    **params,
+                )
+                return
+
+    if dump_type.startswith("zodoo_bin"):
+        if not config.run_postgres:
+            abort("Requires RUN_POSTGRES=1")
+
+        _restore_zodoo_bin(ctx, config, filename_absolute, verify)
+        conn = config.get_odoo_conn()
+        _after_restore(ctx, conn, config, no_dev_scripts, no_remove_webassets)
+
+    else:
+        _restore_dump(
+            ctx,
+            config,
+            filename,
+            dumps_path,
+            **params,
+        )
+
+    if config.run_postgres:
+        click.secho(
+            "TRACE RESTORE bringing up main postgres after helper teardown",
+            fg="cyan",
+        )
+        _trace_docker("before-up-main-pg", config.project_name)
+        __dc(config, ["up", "-d", "postgres"])
+        Commands.invoke(ctx, "wait_for_container_postgres")
+        _trace_docker("after-up-main-pg", config.project_name)
+        try:
+            _trace_dbs(config.get_odoo_conn(), "main-pg-up")
+        except Exception as ex:  # noqa: BLE001
+            click.secho(
+                f"TRACE RESTORE cannot list dbs on main-pg: {ex}",
+                fg="yellow",
+            )
+        if config.devmode:
+            Commands.invoke(ctx, "pghba_conf_wide_open")
+
+    seconds = round((datetime.now() - started).total_seconds(), 0)
+    click.secho(
+        f"---------------------------------\nSuccessfully restored {filename} after {seconds} seconds.\n\n",
+        fg="green",
+    )
+
+
+def _trace_dbs(conn, label):
+    try:
+        rows = _execute_sql(
+            conn.clone(dbname="postgres"),
+            "SELECT datname FROM pg_database ORDER BY datname",
+            fetchall=True,
+        )
+        dbs = [r[0] for r in (rows or [])]
+    except Exception as ex:  # noqa: BLE001
+        click.secho(f"TRACE DBS [{label}] cannot list dbs: {ex}", fg="yellow")
+        return
+    click.secho(
+        f"TRACE DBS [{label}] on host={conn.host}:{conn.port} → {dbs}",
+        fg="cyan",
+    )
+
+
+def _trace_docker(label, project_name):
+    try:
+        out = subprocess.check_output(
+            ["docker", "ps", "-a", "--format", "{{.Names}}\t{{.Status}}"],
+            text=True,
+        )
+        lines = [
+            line
+            for line in out.splitlines()
+            if project_name in line or line.startswith("postgres_")
+        ]
+    except Exception as ex:  # noqa: BLE001
+        click.secho(f"TRACE DOCKER [{label}] ps failed: {ex}", fg="yellow")
+        return
+    click.secho(f"TRACE DOCKER [{label}] project={project_name} →", fg="cyan")
+    for line in lines:
+        click.secho(f"  {line}", fg="cyan")
+    try:
+        out = subprocess.check_output(
+            ["docker", "volume", "ls", "--format", "{{.Name}}"],
+            text=True,
+        )
+        vols = [v for v in out.splitlines() if project_name in v]
+    except Exception as ex:  # noqa: BLE001
+        click.secho(
+            f"TRACE DOCKER [{label}] volume ls failed: {ex}", fg="yellow"
+        )
+        return
+    click.secho(f"TRACE DOCKER [{label}] volumes → {vols}", fg="cyan")
+
+
+def _restore_dump(
+    ctx,
+    config,
+    filename,
+    dumps_path,
+    no_dev_scripts,
+    no_remove_webassets,
+    workers,
+    exclude_tables,
+    verbose,
+    verify,
+    ignore_errors,
+    dbname,
+):
+    DBNAME_RESTORING = (dbname or config.dbname) + "_restoring"
+    click.secho(
+        f"TRACE RESTORE dbname={dbname or config.dbname} "
+        f"DBNAME_RESTORING={DBNAME_RESTORING} "
+        f"run_postgres={config.run_postgres} use_docker={config.use_docker}",
+        fg="cyan",
+    )
+    _trace_docker("restore-start", config.project_name)
+    if config.run_postgres and config.use_docker:
+        for container_id in docker_list_containers(
+            config.project_name, "postgres", "running"
+        ):
+            docker_kill_container(container_id, remove=True)
+            del container_id
+
+        Commands.invoke(ctx, "remove-volumes")
+        _trace_docker("after-remove-volumes", config.project_name)
+        Commands.invoke(
+            ctx, "up", machines=["postgres"], daemon=True, allow_build=True
+        )
+        _trace_docker("after-up-postgres", config.project_name)
+    Commands.invoke(ctx, "wait_for_container_postgres", missing_ok=True)
+    conn = config.get_odoo_conn()
+    dest_db = conn.dbname
+
+    conn = conn.clone(dbname=DBNAME_RESTORING)
+
+    def dropdb(config):
+        with config.forced() as config:
+            _dropdb(config, conn)
+        try_ignore_exceptions(
+            lambda: dropdb(config),
+            (psycopg2.errors.AdminShutdown, psycopg2.InterfaceError),
+            timeout=30,
+        )
+
+    def create_db():
+        while True:
+            try:
+                _execute_sql(
+                    conn.clone(dbname="postgres"),
+                    (
+                        f"create database {DBNAME_RESTORING} "
+                        "ENCODING 'unicode' "
+                        "LC_COLLATE 'C' "
+                        "TEMPLATE template0 "
+                        ";"
+                    ),
+                    notransaction=True,
+                )
+                break
+            except psycopg2.errors.DuplicateDatabase:
+                _execute_sql(
+                    conn.clone(dbname="postgres"),
+                    (f"drop database {DBNAME_RESTORING} " ";"),
+                    notransaction=True,
+                )
+
+    # seems not to be needed
+    version = _get_postgres_version(conn.clone(dbname="template1"))
+    if float(version) < 16:
+        try_ignore_exceptions(
+            create_db,
+            (psycopg2.errors.AdminShutdown, psycopg2.InterfaceError),
+            timeout=30,
+        )
+
+    effective_host_name = config.DB_HOST
+
+    if config.devmode and not no_dev_scripts:
+        click.echo(
+            "Option devmode is set, so cleanup-scripts are run afterwards"
+        )
+    try:
+        if config.use_docker:
+            # if postgres docker is used, then make a temporary config to restart docker container
+            # with external directory mapped; after that remove config
+            if config.run_postgres:
+                click.secho(
+                    "TRACE RESTORE killing main postgres before helper run",
+                    fg="cyan",
+                )
+                __dc(config, ["kill", "postgres"])
+                _trace_docker("after-kill-main-pg", config.project_name)
+                postgres_name = f"postgres_{uuid.uuid4()}"
+                click.secho(
+                    f"TRACE RESTORE starting helper postgres name={postgres_name}",
+                    fg="cyan",
+                )
+                __dc(
+                    config,
+                    [
+                        "run",
+                        "-d",
+                        "--name",
+                        f"{postgres_name}",
+                        "--rm",
+                        "--service-ports",
+                        "-v",
+                        f"{dumps_path}:/host/dumps2",
+                        "postgres",
+                    ],
+                )
+                Commands.invoke(
+                    ctx, "wait_for_container_postgres", missing_ok=True
+                )
+                _trace_docker("after-helper-pg-started", config.project_name)
+                effective_host_name = postgres_name
+
+            cmd = [
+                "run",
+                "--rm",
+                "--entrypoint",
+                "python3 /usr/local/bin/postgres.py",
+            ]
+
+            parent_path_in_container = "/host/dumps2"
+            cmd += [
+                "-v",
+                f"{dumps_path}:{parent_path_in_container}",
+            ]
+            cmd += [
+                "cronjobshell",
+                "restore",
+                DBNAME_RESTORING,
+                effective_host_name,
+                config.DB_PORT,
+                config.DB_USER,
+                config.DB_PWD,
+                f"{parent_path_in_container}/{filename}",
+                "-j",
+                str(workers),
+            ]
+            if ignore_errors:
+                cmd += ["--ignore-errors"]
+            if exclude_tables:
+                cmd += [
+                    "--exclude-tables",
+                    ",".join(exclude_tables),
+                ]
+            if verbose:
+                cmd += ["--verbose"]
+            __dc(config, cmd)
+        else:
+            _add_cronjob_scripts(config)["postgres"]._restore(
+                DBNAME_RESTORING,
+                effective_host_name,
+                config.DB_PORT,
+                config.DB_USER,
+                config.DB_PWD,
+                Path(config.dumps_path) / filename,
+            )
+
+        _trace_dbs(conn, "after-pg_restore")
+        _after_restore(ctx, conn, config, no_dev_scripts, no_remove_webassets)
+        _trace_dbs(conn, "after-dev-scripts before-rename")
+        click.secho(
+            f"TRACE RESTORE renaming {DBNAME_RESTORING} → "
+            f"{dbname or config.dbname} on host={conn.host}:{conn.port}",
+            fg="cyan",
+        )
+        __rename_db_drop_target(
+            conn.clone(dbname="postgres"),
+            DBNAME_RESTORING,
+            dbname or config.dbname,
+        )
+        _trace_dbs(conn, "after-rename")
+        _remove_postgres_connections(conn, dest_db)
+        _trace_dbs(conn, "after-remove-connections")
+        click.secho(
+            f"=== ZODOO_RESTORE_FINALIZED "
+            f"dbname={dbname or config.dbname} "
+            f"time={datetime.now().isoformat()} ===",
+            fg="green",
+        )
+
+    finally:
+        if config.run_postgres and config.use_docker:
+            click.secho(
+                f"TRACE RESTORE finally: stopping/removing helper "
+                f"postgres {postgres_name}",
+                fg="cyan",
+            )
+            _trace_docker("finally-before-stop-helper", config.project_name)
+            # stop the run started postgres container; softly
+            subprocess.check_output(["docker", "stop", postgres_name])
+            try:
+                subprocess.check_output(["docker", "kill", postgres_name])
+            except subprocess.CalledProcessError:
+                # ignore - stopped before
+                pass
+            try:
+                subprocess.check_output(["docker", "rm", "-f", postgres_name])
+            except Exception:
+                pass
+            _trace_docker("finally-after-remove-helper", config.project_name)
+
+
+def _add_cronjob_scripts(config):
+    """
+    Adds scripts from images/cronjobs/bin to sys path to be executed.
+    """
+    spec = importlib.util.spec_from_file_location(
+        "bin", config.dirs["images"] / "cronjobs" / "bin" / "postgres.py"
+    )
+    postgres = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(postgres)
+    return {
+        "postgres": postgres,
+    }
+
+
+def _inquirer_dump_file(config, message, _filter):
+    BACKUPDIR = Path(config.dumps_path)
+    __files = _get_dump_files(BACKUPDIR)
+    if _filter:
+        __files = list(
+            filter(lambda x: _filter.lower() in x[1].lower(), __files)
+        )
+    filename = inquirer.prompt(
+        [inquirer.List("filename", message, choices=__files)]
+    )
+    if filename:
+        filename = filename["filename"][1]
+        return filename
+
+
+def _get_filestore_destination(config):
+    files_dir = config.dirs["odoo_data_dir"] / "filestore" / config.dbname
+    files_dir.mkdir(exist_ok=True, parents=True)
+    return files_dir
+
+
+def __do_restore_files(config, filepath):
+    # https://askubuntu.com/questions/128492/is-there-a-way-to-tar-extract-without-clobbering
+    # remove the postgres volume and reinit
+    filepath = Path(filepath)
+    if len(filepath.parts) == 1:
+        filepath = Path(config.dumps_path) / filepath
+    files_dir = _get_filestore_destination(config)
+    subprocess.check_call(
+        [
+            "tar",
+            "xzf",
+            filepath,
+        ],
+        cwd=files_dir,
+    )
+    click.secho(f"Files restored from {filepath} to {files_dir}", fg="green")
+
+
+def __restore_check(filepath, config):
+    pass
+
+
+def __apply_dump_permissions(filepath):
+    def change(cmd, id):
+        subprocess.check_call(["sudo", cmd, "-R", id, filepath])
+
+    for x in [("DUMP_UID", "chown"), ("DUMP_GID", "chgrp")]:
+        id = os.getenv(x[0])
+        if id:
+            change(x[1], id)
+
+
+def _backup_zodoobin(ctx, config, filename):
+    if not config.run_postgres:
+        abort(
+            "Binary ZIP requires own postgres container. DB is also "
+            "stopped for that."
+        )
+    conn = config.get_odoo_conn()
+    version = None
+    version = _get_postgres_version(conn)
+    Commands.invoke(ctx, "stop", machines=["postgres"])
+    path = json.loads(
+        subprocess.check_output(
+            [
+                "docker",
+                "volume",
+                "inspect",
+                __get_postgres_volume_name(config),
+            ]
+        )
+    )[0]["Mountpoint"]
+
+    with autocleanpaper() as tempfile_zip:
+        _binary_zip(path, tempfile_zip)
+
+        put_appendix_into_file(
+            f"ZODOO_BIN\n{version}\n", tempfile_zip, filename
+        )
+
+    Commands.invoke(
+        ctx, "up", daemon=True, machines=["postgres"], allow_build=True
+    )
+
+
+def _backup_pgdump(
+    config,
+    filename,
+    dbname,
+    db_host,
+    db_port,
+    db_user,
+    db_pwd,
+    dumptype,
+    compression,
+    worker,
+    column_inserts,
+    pigz,
+    exclude,
+    verify=False,
+):
+    click.secho(f"Backup file will be stored there: {filename.parent}")
+    cmd = [
+        "run",
+        "--rm",
+        "--entrypoint",
+        "python3 /usr/local/bin/postgres.py",
+        "-v",
+        f"{filename.parent}:/host/dumps2",
+        "cronjobshell",
+        "backup",
+        dbname,
+        db_host,
+        db_port,
+        db_user,
+        db_pwd,
+        "/host/dumps2/" + filename.name,
+        "--dumptype",
+        dumptype,
+        "--compression",
+        str(compression),
+        "-j",
+        str(worker),
+    ]
+    for exclude in exclude:
+        cmd += ["--exclude", exclude]
+    if column_inserts:
+        cmd += ["--column-inserts"]
+    if pigz:
+        cmd += ["--pigz"]
+    if verify:
+        cmd += ["--verify"]
+
+    res = __dc(config, cmd)
+    if res:
+        raise Exception("Backup failed!")
+
+
+Commands.register(backup_db)
+Commands.register(restore_db)

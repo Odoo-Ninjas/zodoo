@@ -10,10 +10,10 @@ import tools
 from tools import prepare_run
 from tools import sane_tty
 from tools import get_config_file  # NOQA
-from wodoo.odoo_config import current_version  # NOQA
-from wodoo.odoo_config import get_settings  # NOQA
-from wodoo.module_tools import update_view_in_db  # NOQA
-from wodoo.module_tools import Modules  # NOQA
+from zodoo.odoo_config import current_version  # NOQA
+from zodoo.odoo_config import get_settings  # NOQA
+from zodoo.module_tools import update_view_in_db  # NOQA
+from zodoo.module_tools import Modules  # NOQA
 from tools import kill_odoo
 
 config = get_settings()
@@ -42,7 +42,7 @@ def watch_file_and_kill():
                 os.system(f"watch -n0.1 pkill -3 -f python3")
 
 
-class Debugger(object):
+class Debugger:
     def __init__(
         self,
         sync_common_modules,
@@ -50,6 +50,7 @@ class Debugger(object):
         remote_debugging,
         loglevel,
         enable_queuejobs,
+        one_action,
     ):
         self.odoolib_path = Path(os.environ["ODOOLIB"])
         self.sync_common_modules = sync_common_modules
@@ -61,6 +62,7 @@ class Debugger(object):
             remote_debugging = True
         self.remote_debugging = remote_debugging
         self.loglevel = loglevel
+        self.one_action = one_action
 
     def execpy(self, cmd):
         os.chdir(self.odoolib_path)
@@ -68,6 +70,9 @@ class Debugger(object):
             cmd = ["python3"] + cmd
         env2 = os.environ.copy()
         env2["ODOO_DEBUGGING"] = "1"
+        # Don't set GEVENT_SUPPORT=True - it breaks breakpoints.
+        # Instead suppress the pydevd warning message that spams the log.
+        env2["GEVENT_SUPPORT_NOT_SET_MSG"] = ""
         proc = subprocess.run(cmd, cwd=self.odoolib_path, env=env2)  # exitcode
         res = proc.returncode == 0
         sane_tty()
@@ -87,7 +92,7 @@ class Debugger(object):
             f"remote debugg: {self.remote_debugging}, waiting for debugger: {self.wait_for_remote}"
         )
 
-        cmd = [os.environ["WODOO_PYTHON"], "run_debug.py"]
+        cmd = [os.environ["ZODOO_PYTHON"], "run_debug.py"]
         if self.remote_debugging:
             cmd += ["--remote-debug"]
         if self.wait_for_remote:
@@ -110,7 +115,7 @@ class Debugger(object):
             PARAMS_CONST += ["--no-tests"]
         res = self.execpy(
             [
-                os.environ["WODOO_PYTHON"],
+                os.environ["ZODOO_PYTHON"],
                 "/odoolib/update_modules.py",
                 module,
             ]
@@ -141,20 +146,28 @@ class Debugger(object):
             print(
                 f"Please connect your external debugger to: {os.environ['ODOO_PYTHON_DEBUG_PORT']}"
             )
-        self.execpy(
+        res = self.execpy(
             [
-                os.environ["WODOO_PYTHON"],
+                os.environ["ZODOO_PYTHON"],
                 "unit_test.py",
                 self.last_unit_test,
             ]
             + args
         )
+        if res:
+            click.secho(
+                "UNITTEST: PASSED (exit code 0)", fg="green", bold=True
+            )
+        else:
+            click.secho(
+                "UNITTEST: FAILED (exit code != 0)", fg="red", bold=True
+            )
 
     def action_export_lang(self, lang, module):
         kill_odoo()
         subprocess.call(["/usr/bin/reset"])
         self.execpy(
-            [os.environ["WODOO_PYTHON"], "export_i18n.py", lang, module]
+            [os.environ["ZODOO_PYTHON"], "export_i18n.py", lang, module]
         )
         self.trigger_restart()
 
@@ -162,7 +175,7 @@ class Debugger(object):
         kill_odoo()
         self.execpy(["/usr/bin/reset"])
         if self.execpy(
-            [os.environ["WODOO_PYTHON"], "import_i18n.py", lang, filepath]
+            [os.environ["ZODOO_PYTHON"], "import_i18n.py", lang, filepath]
         ):
             self.trigger_restart()
 
@@ -175,20 +188,34 @@ class Debugger(object):
         t.start()
 
         action = None
+        if self.one_action:
+            self.first_run = False
+            action = self.one_action.split(":")
+            print(f"One time action is: {action}")
 
         while True:
             try:
-                if not self.first_run and not DEBUGGER_WATCH.exists():
+                if (
+                    not self.first_run
+                    and not DEBUGGER_WATCH.exists()
+                    and action is None
+                ):
                     time.sleep(0.2)
                     continue
                 os.chdir("/opt/src")
 
-                if not self.first_run:
+                if (
+                    not self.first_run
+                    and DEBUGGER_WATCH.exists()
+                    and not self.one_action
+                ):
                     content = DEBUGGER_WATCH.read_text()
                     DEBUGGER_WATCH.unlink()
                     action = content.split(":")
 
-                if self.first_run or action[0] in ["debug", "quick_restart"]:
+                if self.first_run or (
+                    action and action[0] in ["debug", "quick_restart"]
+                ):
                     kill_odoo()
                     thread1 = threading.Thread(target=self.action_debug)
                     thread1.daemon = True
@@ -196,6 +223,8 @@ class Debugger(object):
 
                 if not action:
                     pass
+                elif action[0] in ["debug_active?"]:
+                    pass  # just consumed and .debug file deleted - signals "alive"
                 elif action[0] in ["restart"]:
                     kill_odoo()
                     self.execpy(["/usr/bin/reset"])
@@ -255,12 +284,16 @@ class Debugger(object):
                     thread1.daemon = True
                     thread1.start()
 
+                action = None
                 self.first_run = False
 
             except Exception:
+                if self.one_action:
+                    raise
                 msg = traceback.format_exc()
                 print(msg)
                 time.sleep(1)
+        print("exited debugging endless loop")
 
 
 @click.command(name="debug")
@@ -274,9 +307,10 @@ class Debugger(object):
 @click.option("-qe", "--enable-queuejobs", is_flag=True)
 @click.option("-w", "--wait-for-remote", is_flag=True)
 @click.option("-r", "--remote-debugging", is_flag=True)
-@click.option("-W", "--web-workers", default=2)
+@click.option("-W", "--web-workers", default=0)
 @click.option("-p", "--profile", is_flag=True)
 @click.option("-l", "--loglevel", default="info")
+@click.option("--one-action")
 def command_debug(
     sync_common_modules,
     debug_queuejobs,
@@ -286,6 +320,7 @@ def command_debug(
     profile,
     loglevel,
     enable_queuejobs,
+    one_action,
 ):
     global profiling
     if debug_queuejobs:
@@ -306,7 +341,7 @@ def command_debug(
         )
     prepare_run()
 
-    os.environ["WODOO_LOGLEVEL"] = loglevel
+    os.environ["ZODOO_LOGLEVEL"] = loglevel
 
     Debugger(
         sync_common_modules=sync_common_modules,
@@ -314,6 +349,7 @@ def command_debug(
         remote_debugging=remote_debugging,
         loglevel=loglevel,
         enable_queuejobs=enable_queuejobs,
+        one_action=one_action,
     ).endless_loop()
 
 

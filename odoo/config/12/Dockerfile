@@ -84,7 +84,7 @@ RUN pip3 install $(cat /etc/pip_options) -r /root/framework_requirements.txt
 
 RUN pip3 install $(cat /etc/pip_options)  \
 pudb ipython marabunta \
-wodoo debugpy psycopg2-binary \
+zodoo debugpy psycopg2-binary \
 pyinotify python-magic wand \
 pycups pudb ipython
 
@@ -206,16 +206,16 @@ RUN python3 -mpip install $(cat /etc/pip_options) -r requirements.txt
 RUN python3 -mpip install $(cat /etc/pip_options) babel ics pdf2image zxcvbn reportlab==3.6.12 odoorpc
 RUN pip3 install $(cat /etc/pip_options) lxml[html_clean]==4.8.0
 
-# install wodoo
+# install zodoo
 RUN \
 python3 -mpip install pipx && \
 python3 -mpipx ensurepath && \
 mkdir /usr/local/bin/pipxbin && \
 
 PIPX_DEFAULT_PYTHON=/opt/venv/bin/python3 \
-PIPX_HOME=/opt/wodoo_env \
+PIPX_HOME=/opt/zodoo_env \
 PIPX_BIN_DIR=/usr/local/bin/pipxbin \
-pipx install wodoo && \
+pipx install zodoo && \
 echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
 
 RUN pip install $(cat /etc/pip_options) pillow==6.1.0

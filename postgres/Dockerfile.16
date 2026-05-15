@@ -2,11 +2,6 @@ FROM postgres:16-bullseye
 CMD ["postgres"]
 
 #___SNIPPET_APT_PROXY___
-RUN #___SNIPPET_APT_INSTALL___ \
-postgresql-server-dev-16 python-dev build-essential git python3-pip procps sockstat && \
-#___SNIPPET_APT_INSTALL___ \
-postgresql-16-postgis-3
-
 
 COPY config* /
 COPY run.sh /run.sh
@@ -14,19 +9,35 @@ COPY init/* /docker-entrypoint-initdb.d/
 RUN chown -R postgres:postgres /docker-entrypoint-initdb.d && \
     chmod a+x /docker-entrypoint-initdb.d/*.sh /run.sh
 
-# CLEANUP
-
-RUN apt-get purge -y git git-core gnupg gnupg2 binutils
-RUN apt-get purge -y libgdal* libarmadillo* libogdi* libasan* libtsan* libubsan* || true
-
-#___SNIPPET_CLEANUP___
-RUN rm -Rf \
-/usr/share/perl \
-/usr/lib/gcc \
-/usr/lib/llvm-* \
-/usr/lib/aarch*/perl \
-/usr/lib/python2.7 \
-/var/lib/apt/lists/* \
-/usr/lib/dpkg \
-/usr/lib/bfd-plugins \
-/usr/lib/git-core
+# Install + Cleanup in einem Layer um dead layers zu vermeiden
+RUN #___SNIPPET_APT_INSTALL___ \
+    postgresql-server-dev-16 python-dev build-essential git python3-pip procps sockstat && \
+    #___SNIPPET_APT_INSTALL___ \
+    postgresql-16-postgis-3 postgresql-16-pgvector && \
+    apt-get purge -y git git-core gnupg gnupg2 binutils && \
+    (apt-get purge -y libgdal* libarmadillo* libogdi* libasan* libtsan* libubsan* || true) && \
+    apt-get purge -y build-essential gcc g++ libpq-dev postgresql-server-dev-16 python-dev && \
+    apt-get autoremove -y && \
+    apt-get clean -y && \
+    find /usr -name '*.a' -delete && \
+    find / -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; \
+    rm -rf \
+      /usr/share/perl \
+      /usr/share/doc \
+      /usr/share/man \
+      /usr/share/icons \
+      /usr/share/vim \
+      /usr/share/poppler \
+      /usr/lib/gcc \
+      /usr/lib/llvm-* \
+      /usr/lib/aarch*/perl \
+      /usr/lib/python2.7 \
+      /usr/lib/dpkg \
+      /usr/lib/bfd-plugins \
+      /usr/lib/git-core \
+      /usr/include \
+      /var/lib/apt/lists/* \
+      /var/cache \
+      /var/log/* \
+      /tmp/* \
+      /var/tmp/*

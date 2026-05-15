@@ -17,9 +17,19 @@ def after_compose(config, settings, yml, globals):
         current_dir.parent / "common_snippets" / "set_docker_group.sh",
         current_dir / "set_docker_group.sh",
     )
-    src = current_dir.parent / "wodoo" / "src"
-    dest = current_dir / "wodoo_src"
-    globals["tools"].sync_folder(src, dest, excludes=[".git"])
+    src = current_dir.parent / "zodoo" / "src"
+    dest = current_dir / "zodoo_src"
+    import time
+    import random
+
+    for attempt in range(5):
+        try:
+            globals["tools"].sync_folder(src, dest, excludes=[".git"])
+            break
+        except Exception:
+            if attempt == 4:
+                raise
+            time.sleep(random.uniform(0.5, 3.0))
 
     # store also in clear text the requirements
     if not yml.get("services", {}).get("robot"):

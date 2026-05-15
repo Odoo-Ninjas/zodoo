@@ -44,7 +44,8 @@ RUN #___SNIPPET_APT_INSTALL___ \
     silversearcher-ag \
     ssh \
     vim \
-    jq
+    jq \
+    ncdu
 
 
 # --- COPY newer Python version ---
@@ -125,7 +126,7 @@ WORKDIR /home
 
 COPY --chown=$USERNAME:$USERNAME settings.json /opt/settings.json.template
 
-#___SNIPPET_WODOO___
+#___SNIPPET_ZODOO___
 
 # --- Entrypoint ---
 ENTRYPOINT ["/bin/bash", "/usr/local/bin/entrypoint.sh"]

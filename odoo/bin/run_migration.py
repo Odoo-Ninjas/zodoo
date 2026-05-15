@@ -1,4 +1,4 @@
-#!/usr/bin/env wodoo_python
+#!/usr/bin/env zodoo_python
 # Runs a migration script either SQL or PY
 import re
 import os
@@ -43,7 +43,7 @@ try:
         for statement in sql.split(";"):
             if not statement.strip():
                 continue
-            print("Executing {}".format(statement))
+            print(f"Executing {statement}")
             cr.execute(statement)
 
     if os.path.exists(pyfile):

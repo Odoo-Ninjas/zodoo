@@ -32,7 +32,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Odoo-Ninjas/zodoo/refs/heads
 
 ```bash
 cat << 'EOF' > /etc/sudoers.d/odoo
-Cmnd_Alias ODOO_COMMANDS_ODOO = /usr/bin/find *, /var/lib/wodoo_env/bin/odoo *, /usr/bin/btrfs subvolume *, /usr/bin/mkdir *, /usr/bin/mv *, /usr/bin/rsync *, /usr/bin/rm *,  /usr/bin/du *, /usr/local/bin/odoo *, /usr/bin/btrfs subvol show *, /usr/sbin/gosu *
+Cmnd_Alias ODOO_COMMANDS_ODOO = /usr/bin/find *, /var/lib/zodoo_env/bin/odoo *, /usr/bin/btrfs subvolume *, /usr/bin/mkdir *, /usr/bin/mv *, /usr/bin/rsync *, /usr/bin/rm *,  /usr/bin/du *, /usr/local/bin/odoo *, /usr/bin/btrfs subvol show *, /usr/sbin/gosu *
 odoo ALL=NOPASSWD:SETENV: ODOO_COMMANDS_ODOO
 
 EOF
@@ -144,13 +144,13 @@ odoo pgactivity
 | POSTGRES_VERSION=13                                       | Choose from 11, 12, 13, 14                                                                                                                                                      |
 | ODOO_ENABLE_DB_MANAGER                                    | Enables the odoo db manager                                                                                                                                                     |
 | DEVMODE=1                                                 | At restore runs safety scripts to disable cronjobs and mailserver and resets passwords                                                                                          |
+| DEBUG_BROWSER=chrome\|firefox\|safari                     | Sets the browser used when launching a debug session (macOS only). If empty, auto-detects: prefers Chrome, then Firefox, then Safari.                                           |
 | RUN_PROXY=1                                               | If the built-in nodejs proxy is enabled                                                                                                                                         |
 | RUN_PROXY_PUBLISHED=0/1                                   | If the proxy is reachable from outside the docker network example from 127.0.0.1:8069                                                                                           |
 | PROXY_PORT                                                | The port on which you can access with plain http the odoo                                                                                                                       |
 | ODOO_IMAGES_BRANCH                                        | The branch used for ~/.odoo/images                                                                                                                                              |
 | ODOO_INSTALL_LIBPOSTAL=1                                  | If set, then the libpostal lib is installed                                                                                                                                     |
-| ODOO_QUEUEJOBS_CRON_IN_ONE_CONTAINER=1                    | Runs queuejobs and cronjob in the odoo container where also the web application resides                                                                                         |
-| ODOO_QUEUEJOBS_CHANNELS=root:40,magento2:1                | Configures queues for queuejob module                                                                                                                                           |
+| ODOO_QUEUEJOBS_CHANNELS=root:40,magento2:1                | Configures queues for queuejob module (mandatory iff queue_job is installed in the project DB)                                                                                  |
 | NAMED_ODOO_POSTGRES_VOLUME                                | Use a specific external volume; not dropped with down -v command                                                                                                                |
 | CRONJOB*DADDY_CLEANUP=0 */1 \_ \* \* ${JOB_DADDY_CLEANUP} | Turn on grandfather-principle based backup                                                                                                                                      |
 | RESTART_CONTAINERS=1                                      | Sets "restart unless-stopped" policy                                                                                                                                            |
@@ -257,8 +257,8 @@ time sudo -E pytest
 # Performance Check
 
 ```python
-pipx runpip wodoo install line_profiler
-$WODOO_PYTHON -mkernprof -l -v odoo reload
+pipx runpip zodoo install line_profiler
+$ZODOO_PYTHON -mkernprof -l -v odoo reload
 ```
 
 # Odoo warmup parameters

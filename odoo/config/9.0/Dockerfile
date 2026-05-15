@@ -157,7 +157,7 @@ python3.10 -mpipx ensurepath
 
 RUN \
 PIPX_DEFAULT_PYTHON=python3.10 \
-PIPX_HOME=/opt/wodoo_env \
+PIPX_HOME=/opt/zodoo_env \
 PIPX_BIN_DIR=/usr/local/bin/pipxbin \
-python3.10 -mpipx install wodoo && \
+python3.10 -mpipx install zodoo && \
 echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc

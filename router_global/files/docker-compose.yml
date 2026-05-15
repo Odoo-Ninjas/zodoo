@@ -1,0 +1,18 @@
+version: '3.7'
+services:
+  router:
+    build: .
+    restart: unless-stopped
+    networks:
+      - default
+    ports:
+      - "${BINDING_80}:80"
+      - "${BINDING_443}:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./sites-enabled:/etc/nginx/sites-enabled
+      - ./sites-available:/etc/nginx/sites-available
+      - ./www:/var/www:ro
+      - ./letsencrypt:/etc/letsencrypt
+      - ./htpasswd:/htpasswd
+      - ./custom_ssl:/etc/ssl/custom_ssl

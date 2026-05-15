@@ -323,7 +323,7 @@ class TokenRedis(BasePlugin):
             else:
                 logger.error("Unable to parse token: %s" % responseStr)
                 return None
-            logger.debug("host: %s, port: %s" % (host, port))
+            logger.debug("host: {}, port: {}".format(host, port))
             return [host, port]
 
 

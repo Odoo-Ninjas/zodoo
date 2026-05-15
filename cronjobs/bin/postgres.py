@@ -13,7 +13,7 @@ import click
 from pathlib import Path
 from datetime import datetime
 import logging
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 
 FORMAT = "[%(levelname)s] %(name) -12s %(asctime)s %(message)s"
 logging.basicConfig(format=FORMAT)
@@ -35,12 +35,18 @@ class DBSizeOutputter(Thread):
     def run(self):
         while not self._stop:
             try:
-                with psycopg2.connect(
-                    host=self.host,
-                    database=self.dbname,
-                    port=self.port,
-                    user=self.user,
-                    password=self.password,
+                # `with psycopg2.connect()` only ends the transaction,
+                # NOT the connection — without `closing()` this loop
+                # would leak one open connection per iteration and
+                # exhaust the postgres `max_connections` pool.
+                with closing(
+                    psycopg2.connect(
+                        host=self.host,
+                        database=self.dbname,
+                        port=self.port,
+                        user=self.user,
+                        password=self.password,
+                    )
                 ) as conn:
                     with conn.cursor() as cr:
                         cr.execute(
@@ -76,12 +82,14 @@ def postgres():
 @click.argument("password", required=True)
 @click.argument("sql", required=True)
 def execute(dbname, host, port, user, password, sql):
-    with psycopg2.connect(
-        host=host,
-        database=dbname,
-        port=port,
-        user=user,
-        password=password,
+    with closing(
+        psycopg2.connect(
+            host=host,
+            database=dbname,
+            port=port,
+            user=user,
+            password=password,
+        )
     ) as conn:
         conn.autocommit = True
         with conn.cursor() as cr:
@@ -114,6 +122,12 @@ def execute(dbname, host, port, user, password, sql):
     "-T", "--exclude", multiple=True, help="Exclude Tables comma separated"
 )
 @click.option("-j", "--worker", default=1)
+@click.option(
+    "-v",
+    "--verify",
+    is_flag=True,
+    help="Verify the produced dump with `pg_restore -l` (TOC listing).",
+)
 def backup(
     dbname,
     host,
@@ -127,6 +141,7 @@ def backup(
     pigz,
     compression,
     worker,
+    verify,
 ):
     port = int(port)
     filepath = Path(filepath)
@@ -166,6 +181,9 @@ def backup(
         for exclude in exclude:
             excludes += ["-T", exclude]
 
+        # pg_dump's -j (parallel) is only valid with directory format; with
+        # custom/plain pg_dump aborts ("parallel backup only supported by the
+        # directory format"). Guard against silently passing -j in those cases.
         cmd = (
             f"pg_dump {column_inserts} "
             f"--clean "
@@ -177,26 +195,67 @@ def backup(
             f"-F{dumptype[0].lower()} "
         )
         if dumptype != "plain":
-            cmd += f"-Z{compression} " f"-j {worker} "
+            cmd += f"-Z{compression} "
+        if dumptype == "directory":
+            cmd += f"-j {worker} "
         cmd += f" {dbname} " f"2>{err_dump} " f"| pv -s {bytes} "
         if pigz:
-            cmd += "| pigz --rsyncable 2>{err_pigz}"
+            cmd += f"| pigz --rsyncable 2>{err_pigz} "
         cmd += f"> {temp_filepath} "
-        try:
-            os.system(cmd)
-        finally:
-            for file in [err_dump, err_pigz]:
-                if file.exists() and file.read_text().strip():
-                    raise Exception(file.read_text().strip())
+        # pipefail so pg_dump failures (exit != 0) are not masked by pv/pigz;
+        # run under bash to guarantee pipefail is honored across distros.
+        rc = subprocess.call(["bash", "-o", "pipefail", "-c", cmd])
+        for file in [err_dump, err_pigz]:
+            if file.exists() and file.read_text().strip():
+                raise Exception(file.read_text().strip())
+        if rc != 0:
+            raise Exception(
+                f"pg_dump pipeline failed with exit code {rc}. "
+                f"Command: {cmd}"
+            )
 
         subprocess.check_call(["mv", temp_filepath, filepath])
         subprocess.check_call(["chown", os.environ["OWNER_UID"], filepath])
+
+        if verify:
+            _verify_dump(filepath, dumptype, pigz)
     finally:
         if temp_filepath and temp_filepath.exists():
             temp_filepath.unlink()
         conn.close()
         if stderr.exists():
             stderr.unlink()
+
+
+def _verify_dump(filepath, dumptype, pigz):
+    """Run `pg_restore -l` on the freshly produced dump to validate its TOC.
+
+    Plain SQL dumps cannot be inspected by pg_restore, so they are skipped
+    with a warning. For pigz-wrapped dumps we stream through gunzip first.
+    """
+    filepath = Path(filepath)
+    if dumptype == "plain":
+        click.secho(
+            f"Skipping pg_restore -l verification for plain dump: {filepath}",
+            fg="yellow",
+        )
+        return
+
+    click.echo(f"Verifying dump with pg_restore -l: {filepath}")
+    quoted = shlex.quote(str(filepath))
+    if pigz:
+        cmd = f"gunzip -c {quoted} | pg_restore -l"
+    else:
+        cmd = f"pg_restore -l {quoted}"
+    rc = subprocess.call(
+        ["bash", "-o", "pipefail", "-c", f"{cmd} > /dev/null"]
+    )
+    if rc != 0:
+        raise Exception(
+            f"pg_restore -l verification failed for {filepath} "
+            f"(exit code {rc})."
+        )
+    click.secho(f"Dump verified successfully: {filepath}", fg="green")
 
 
 @postgres.command()
@@ -267,7 +326,7 @@ def _restore(
 
     started = datetime.now()
     click.echo("Restoring DB...")
-    PV_CMD = " ".join(shlex.quote(s) for s in ["pv", str(filepath)])
+    PV_CMD = shlex.join(["pv", str(filepath)])
     if workers > 1 and needs_unzip:
         workers = 1
         click.secho(
@@ -283,13 +342,12 @@ def _restore(
         CMD += " | "
     else:
         CMD = ""
-    CMD += " ".join(shlex.quote(s) for s in method)
+    CMD += shlex.join(method)
     CMD += " "
     if method == PGRESTORE and verbose:
         CMD += " --verbose "
-    CMD += " ".join(
-        shlex.quote(s)
-        for s in [
+    CMD += shlex.join(
+        [
             "--dbname",
             dbname,
         ]
@@ -414,9 +472,11 @@ def __get_dump_type(filepath):
     if first_line.startswith("dump_all\n"):
         return "dump_all"
 
-    if first_line.startswith("WODOO_BIN\n"):
+    if first_line.startswith("ZODOO_BIN\n") or first_line.startswith(
+        "WODOO_BIN\n"
+    ):
         version = first_line.split("\n")[1]
-        return f"wodoo_bin {version}"
+        return f"zodoo_bin {version}"
 
     if first_line and zipped:
         if MARKER in first_line or first_line.strip() == "--":
@@ -464,15 +524,13 @@ def extract_dumps_all(tmppath, filepath):
     with autocleanpaper() as scriptfile:
         lendumpall = len("dump_all") + 2
         scriptfile.write_text(
-            (
-                "#!/bin/bash\n"
-                "set -e\n"
-                f"rm -Rf '{tmppath}'\n"
-                f"mkdir -p '{tmppath}'\n"
-                f"cd '{tmppath}'\n"
-                f"tail '{filepath}' -c +{lendumpall} | "
-                f"tar xz\n"
-            )
+            "#!/bin/bash\n"
+            "set -e\n"
+            f"rm -Rf '{tmppath}'\n"
+            f"mkdir -p '{tmppath}'\n"
+            f"cd '{tmppath}'\n"
+            f"tail '{filepath}' -c +{lendumpall} | "
+            f"tar xz\n"
         )
         subprocess.check_call(["/bin/bash", scriptfile])
         yield tmppath / "db", tmppath / "files"

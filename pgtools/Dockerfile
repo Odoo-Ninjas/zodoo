@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM ubuntu:22.04 AS builder
 
 
 #___SNIPPET_APT_PROXY___
@@ -27,20 +27,28 @@ RUN chown postgres:postgres /var/lib/postgresql/.local/share/python_keyring/keyr
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod a+x /entrypoint.sh
+
+# cleanup in builder so the final COPY gets clean files
+RUN apt-get purge -y build-essential gcc g++ python3-dev && \
+apt-get autoremove -y && \
+apt-get clean -y && \
+rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /var/log/* \
+/usr/share/doc /usr/share/man /usr/share/icons /usr/share/vim \
+/usr/share/perl /usr/share/poppler /usr/share/i18n \
+/usr/lib/gcc /usr/lib/git-core /usr/include /var/cache \
+/usr/lib/aarch*/libLLVM* /usr/lib/aarch*/perl /usr/lib/aarch*/gconv \
+/usr/lib/llvm-14 /usr/lib/systemd \
+/usr/bin/perl /usr/bin/perl5* \
+/usr/lib/aarch*/perl-base /usr/lib/aarch*/libperl* \
+/root/.cache && \
+find /usr -name '*.a' -delete && \
+find / -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true && \
+ln -sf /usr/lib/postgresql/*/bin/psql /usr/local/bin/psql && \
+ln -sf /usr/lib/postgresql/*/bin/pg_dump /usr/local/bin/pg_dump && \
+ln -sf /usr/lib/postgresql/*/bin/pg_restore /usr/local/bin/pg_restore
+
+# --- Final stage: single layer copy ---
+FROM scratch
+ENV PGCLIRC=/var/lib/postgresql/.pgcli.config
+COPY --from=builder / /
 ENTRYPOINT ["/entrypoint.sh"]
-
-
-RUN rm -Rf \
-/usr/lib/gcc \
-/usr/lib/aarch*/libLLVM* \
-/usr/bin/containerd \
-/usr/bin/ctr \
-/usr/bin/runc \
-/usr/lib/aarch*/perl \
-/usr/include/llvm-14 \
-/usr/lib/llvm-14
-
-RUN apt-get purge -y build-essential gcc
-
-RUN find / -name __pycache__ -exec rm -Rf {} \; || true
-#___SNIPPET_CLEANUP___

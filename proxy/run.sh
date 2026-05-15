@@ -12,7 +12,10 @@ python3 /usr/local/bin/setup_config_files.py || exit 1
 python3 /usr/local/bin/static_webserver.py $CONSTRUCTION_SITE_PORT /opt/construction_site/index.html &
 
 # fix rights;-
-chmod a+r -R "$CONF_DIR" "$LUA_DIR" /usr/local/openresty/nginx/static
-chown nobody:nobody -R "$CONF_DIR" "$LUA_DIR" /usr/local/openresty/nginx/static
+chmod a+r -R "$CONF_DIR" "$LUA_DIR"
+chown nobody:nobody -R "$CONF_DIR" "$LUA_DIR"
+chmod 777 "$PROXY_EXCHANGE" 2>/dev/null || true
+# static is mounted read-only from the host; do not chown/chmod it
+# to avoid changing ownership of host files
 
 /usr/local/openresty/bin/openresty -g 'daemon off;'

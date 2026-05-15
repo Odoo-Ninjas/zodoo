@@ -1,0 +1,68 @@
+{
+  "tasks": [
+    {
+      "label": "launch:docker:odoo:debugpy",
+      "type": "shell",
+      "command": "CURRENT_FILE=${file} ODOO_PYTHON_DEBUG_PORT={ODOO_PYTHON_DEBUG_PORT} /bin/bash ~/.odoo/images/zodoo/src/zodoo/bin/launch_docker_debugpy.sh",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "never",
+        "panel": "shared",
+        "close": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "launch:pyenv",
+      "type": "shell",
+      "command": "/bin/bash ~/.odoo/images/zodoo/src/zodoo/bin/launch_pyenv.sh",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "never",
+        "panel": "shared",
+        "close": true
+      },
+      "problemMatcher": []
+    },
+        {
+            "label": "show:docker:result:logs",
+            "type": "shell",
+            "command": "CURRENT_FILE=${file} VSCODE_IPC_HOOK_CLI=${env:VSCODE_IPC_HOOK_CLI} /bin/bash ~/.odoo/images/zodoo/src/zodoo/bin/launch_docker_debugpy_finish.sh",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "presentation": {
+                "reveal": "never",
+                "panel": "shared",
+                "clear": true,
+                "close": true
+            },
+            "problemMatcher": []
+        }
+  ],
+  "configurations": [
+
+    {
+      "name": "zodoo-docker",
+      "type": "python",
+      "request": "attach",
+      "connect": {
+        "host": "127.0.0.1",
+        "port": {ODOO_PYTHON_DEBUG_PORT}
+      },
+      "preLaunchTask": "launch:docker:odoo:debugpy",
+      "postDebugTask": "show:docker:result:logs",
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}",
+          "remoteRoot": "/opt/src"
+        }
+      ],
+      "justMyCode": false
+    }
+  ]
+}

@@ -1,52 +1,54 @@
+import importlib.metadata
 import os
-from tools import prepare_run
-from tools import exec_odoo
+import threading
+
+from tools import exec_odoo, is_odoo_cronjob, is_odoo_queuejob, prepare_run_role
 from tools import set_proxy_update_modules
-from tools import is_odoo_cronjob
-from tools import is_odoo_queuejob
-from http.server import HTTPServer, SimpleHTTPRequestHandler
 
-import subprocess
-import sys
+if is_odoo_cronjob:
+    _CRASH_PATTERN = b"Exception in thread odoo.service.cron.cron"
+    _CRASH_SENTINEL = "/dev/shm/cron_crashed"
 
-print("Starting up odoo")
-prepare_run()
+    # Under the supervisor the container outlives a cron crash — if we did
+    # not clear the sentinel on (re-)spawn, healthcheck_cronjobs.py would
+    # keep reporting unhealthy forever. With separate containers docker
+    # used to recycle /dev/shm for us; now we do it ourselves.
+    try:
+        os.unlink(_CRASH_SENTINEL)
+    except FileNotFoundError:
+        pass
+
+    _r_fd, _w_fd = os.pipe()
+    _orig_stdout_fd = os.dup(1)
+    os.dup2(_w_fd, 1)
+    os.dup2(_w_fd, 2)
+    os.close(_w_fd)
+
+    def _monitor_output():
+        r = os.fdopen(_r_fd, "rb")
+        while True:
+            line = r.readline()
+            if not line:
+                break
+            os.write(_orig_stdout_fd, line)
+            if _CRASH_PATTERN in line:
+                open(_CRASH_SENTINEL, "w").close()
+
+    threading.Thread(target=_monitor_output, daemon=True).start()
+
+
+try:
+    _zodoo_version = importlib.metadata.version("zodoo")
+except importlib.metadata.PackageNotFoundError:
+    _zodoo_version = "unknown"
+print(f"Starting up odoo (zodoo {_zodoo_version})")
+prepare_run_role()
 
 TOUCH_URL = not is_odoo_cronjob and not is_odoo_queuejob
-
-if os.getenv("IS_ODOO_DEBUG") == "1":
-    print("Exiting - just here for debugging")
-    sys.exit(0)
+if os.getenv("DEVMODE") == "1":
+    TOUCH_URL = False
 
 LEVEL = os.getenv("ODOO_LOG_LEVEL", "debug")
-WODOO_PYTHON = os.getenv("WODOO_PYTHON")
-
-
-class OnlyIndexHandler(SimpleHTTPRequestHandler):
-    def list_directory(self, path):
-        # Disable directory listing
-        self.send_error(403, "Directory listing not allowed")
-        return None
-
-    def do_GET(self):
-        if self.path in ("/", "/index.html"):
-            self.path = "/index.html"
-        return super().do_GET()
-
-
-if os.getenv("UPDATE_ON_STARTUP") == "1":
-    try:
-        subprocess.run(
-            [WODOO_PYTHON, "/odoolib/update_on_startup.py"],
-            check=True,
-            cwd="/opt/src",
-        )
-    except subprocess.CalledProcessError as e:
-        PORT = 8069
-        os.chdir("/var/www/html")  # folder containing index.html
-        with HTTPServer(("", PORT), OnlyIndexHandler) as httpd:
-            print(f"Serving construction-site port {PORT}")
-            httpd.serve_forever()
 
 set_proxy_update_modules(False)
 
