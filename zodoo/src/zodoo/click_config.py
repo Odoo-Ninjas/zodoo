@@ -5,6 +5,61 @@ import sys
 from pathlib import Path
 import importlib
 
+_NO_PROJECT_HINT = (
+    "No MANIFEST found and no project name specified.\n"
+    "\n"
+    "To run this command zodoo needs to know which project to operate "
+    "on. Choose one of:\n"
+    "  - cd into a project directory (one that contains a MANIFEST file), or\n"
+    "  - pass -p <project-name>, or\n"
+    "  - set PROJECT_NAME in ~/.odoo/settings"
+)
+
+_NO_WORKING_DIR_HINT = (
+    "No project working directory.\n"
+    "\n"
+    "This command needs to run inside a project tree (a directory "
+    "containing a MANIFEST file). cd into your project or pass "
+    "--chdir <path>."
+)
+
+
+class _ProjectAwareDict(dict):
+    """Dict for ``config.files`` / ``config.dirs`` that explains *why*
+    a key is missing.
+
+    When the CLI runs without a project name (no ``-p``, no
+    ``PROJECT_NAME`` env, no ``MANIFEST`` in or above ``cwd``), entries
+    whose paths contain unresolved ``${project_name}`` / ``${run}`` /
+    ``${working_dir}`` placeholders get dropped during
+    ``_setup_files_and_folders``. Looking those up later used to raise a
+    bare ``KeyError`` with a Python traceback. Now we remember the
+    reason and ``abort`` with a friendly hint instead.
+
+    ``in`` checks and ``.get(...)`` still behave as on a normal dict —
+    only ``d[key]`` triggers the explanation. That keeps existing
+    ``if "project_settings" in config.files`` guards working unchanged.
+    """
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self._missing_reason = {}
+
+    def clear(self):
+        super().clear()
+        self._missing_reason.clear()
+
+    def record_missing(self, key, reason):
+        self._missing_reason[key] = reason
+
+    def __missing__(self, key):
+        reason = self._missing_reason.get(key)
+        if reason:
+            from .tools import abort
+
+            abort(reason)
+        raise KeyError(key)
+
 
 class Config:
     class Forced:
@@ -44,8 +99,8 @@ class Config:
         self.compose_version = YAML_VERSION
         self.quiet = quiet
         self.restrict = {}
-        self.dirs = {}
-        self.files = {}
+        self.dirs = _ProjectAwareDict()
+        self.files = _ProjectAwareDict()
         self.commands = {}
 
         if project_name:
@@ -250,15 +305,17 @@ class Config:
                 skip = False
                 v = replace_keys(v, key_values)
 
-                for value, name in [
-                    (self.HOST_RUN_DIR, "${run}"),
-                    (self.WORKING_DIR, "${working_dir}"),
-                    (self.project_name, "${project_name}"),
+                for value, name, missing_reason in [
+                    (self.HOST_RUN_DIR, "${run}", _NO_PROJECT_HINT),
+                    (self.WORKING_DIR, "${working_dir}", _NO_WORKING_DIR_HINT),
+                    (self.project_name, "${project_name}", _NO_PROJECT_HINT),
                 ]:
                     if name in str(v):
                         if value:
                             v = str(v).replace(name, str(value))
                         else:
+                            if isinstance(d, _ProjectAwareDict):
+                                d.record_missing(k, missing_reason)
                             del d[k]
                             skip = True
                             break
