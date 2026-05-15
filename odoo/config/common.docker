@@ -112,14 +112,35 @@ RUN apt-get purge -y \
         /usr/local/bin/wkhtmltoimage \
         /usr/local/lib/python*/config-* \
         /usr/lib/aarch64-linux-gnu/libLLVM* \
+        /usr/lib/aarch64-linux-gnu/libasan.so* \
+        /usr/lib/aarch64-linux-gnu/libtsan.so* \
+        /usr/lib/aarch64-linux-gnu/liblsan.so* \
+        /usr/lib/aarch64-linux-gnu/libubsan.so* \
+        /usr/lib/aarch64-linux-gnu/libhwasan.so* \
         /usr/lib/aarch64*/perl \
         /usr/bin/aarch64*dump \
+        /usr/bin/aarch64-linux-gnu-ld* \
+        /usr/bin/aarch64-linux-gnu-as \
+        /usr/bin/aarch64-linux-gnu-ar \
+        /usr/bin/aarch64-linux-gnu-ranlib \
+        /usr/bin/aarch64-linux-gnu-dwp \
+        /usr/bin/aarch64-linux-gnu-c++filt \
+        /usr/bin/aarch64-linux-gnu-nm \
+        /usr/bin/aarch64-linux-gnu-size \
+        /usr/bin/aarch64-linux-gnu-cpp* \
+        /usr/bin/aarch64-linux-gnu-gprof \
+        /usr/bin/cmake /usr/bin/cpack /usr/bin/ctest \
+        /usr/bin/meson /usr/bin/ninja \
         /usr/lib/python3 \
         /usr/lib/postgresql \
         /etc/ssh \
         /tmp/* /var/tmp/* /var/log/* \
         /usr/share/doc /usr/share/man /usr/share/icons /usr/share/vim \
         /usr/share/perl /usr/share/poppler \
+        /usr/share/cmake-3.22 /usr/share/cmake \
+        /usr/share/emacs /usr/share/emacsen-common \
+        /usr/share/java /usr/share/X11 \
+        /usr/share/python-wheels /usr/share/iso-codes /usr/share/javascript \
         /usr/lib/gcc /var/cache /usr/lib/git-core \
         /var/lib/dpkg /var/lib/apt/lists/* /usr/include && \
     rm -f /usr/bin/aarch64-linux-gnu-lto-dump-11
