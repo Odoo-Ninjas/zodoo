@@ -1,36 +1,34 @@
-# Statische Libraries löschen
-RUN find /usr -name '*.a' -delete
-
 RUN if [ -e /usr/bin/apt-get ]; then \
-apt-get purge -y build-essential gcc g++ libpq-dev && \
-apt-get autoremove -y && \
-apt-get clean -y && \
-rm -rf /var/lib/apt/lists/*; \
-fi
-
-RUN rm -rf /var/lib/apt/lists/* \
-/tmp/* \
-/var/tmp/* \
-/var/log/* \
-/usr/share/doc \
-/usr/share/man
-
-RUN rm -Rf \
-/tmp/* \
-/var/tmp/* \
-/var/log/* \
-/usr/share/doc \
-/usr/share/man \
-/usr/share/icons \
-/usr/share/vim \
-/usr/share/man \
-/usr/share/perl \
-/usr/share/poppler \
-/usr/lib/gcc \
-/var/cache \
-/usr/lib/git-core \
-/var/lib/dpkg \
-/usr/include
-
-RUN find / -type d -name __pycache__  -exec rm -Rf {} + 2> /dev/null || true
-RUN rm /usr/bin/aarch64-linux-gnu-lto-dump-11 || true
+        apt-get purge -y build-essential gcc g++ libpq-dev || true; \
+        apt-get autoremove -y || true; \
+        apt-get clean -y || true; \
+    fi && \
+    find /usr -name '*.a' -delete && \
+    find / -type d -name __pycache__ -exec rm -Rf {} + 2> /dev/null || true && \
+    rm -Rf \
+        /tmp/* /var/tmp/* /var/log/* \
+        /usr/share/doc /usr/share/man /usr/share/icons /usr/share/vim \
+        /usr/share/perl /usr/share/poppler \
+        /usr/share/cmake /usr/share/cmake-3.22 \
+        /usr/share/python-wheels \
+        /usr/share/i18n \
+        /usr/lib/gcc /usr/lib/git-core \
+        /usr/lib/aarch64-linux-gnu/libasan.so* \
+        /usr/lib/aarch64-linux-gnu/libtsan.so* \
+        /usr/lib/aarch64-linux-gnu/liblsan.so* \
+        /usr/lib/aarch64-linux-gnu/libubsan.so* \
+        /usr/lib/aarch64-linux-gnu/libhwasan.so* \
+        /usr/bin/cmake /usr/bin/cpack /usr/bin/ctest \
+        /usr/bin/meson /usr/bin/ninja \
+        /usr/bin/aarch64-linux-gnu-ld* \
+        /usr/bin/aarch64-linux-gnu-as \
+        /usr/bin/aarch64-linux-gnu-ar \
+        /usr/bin/aarch64-linux-gnu-ranlib \
+        /usr/bin/aarch64-linux-gnu-dwp \
+        /usr/bin/aarch64-linux-gnu-c++filt \
+        /usr/bin/aarch64-linux-gnu-nm \
+        /usr/bin/aarch64-linux-gnu-size \
+        /usr/bin/aarch64-linux-gnu-cpp* \
+        /usr/bin/aarch64-linux-gnu-gprof \
+        /var/cache /var/lib/dpkg /var/lib/apt/lists/* /usr/include && \
+    rm -f /usr/bin/aarch64-linux-gnu-lto-dump-11

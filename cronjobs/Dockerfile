@@ -48,20 +48,38 @@ RUN #___SNIPPET_APT_INSTALL___ \
 ncdu
 
 # cleanup in builder so the final COPY --from=builder gets clean files
-RUN apt-get purge -y build-essential gcc g++ libpq-dev python3-dev && \
-apt-get autoremove -y && \
-apt-get clean -y && \
-rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /var/log/* \
+RUN apt-get purge -y build-essential gcc g++ libpq-dev python3-dev || true && \
+apt-get autoremove -y || true && \
+apt-get clean -y || true && \
+rm -rf /var/lib/apt/lists/* /var/lib/dpkg /tmp/* /var/tmp/* /var/log/* \
 /usr/share/doc /usr/share/man /usr/share/icons /usr/share/vim \
 /usr/share/perl /usr/share/poppler /usr/share/i18n \
+/usr/share/cmake /usr/share/cmake-3.22 /usr/share/python-wheels \
+/usr/share/emacs /usr/share/emacsen-common /usr/share/java \
+/usr/share/iso-codes /usr/share/javascript \
 /usr/lib/gcc /usr/lib/git-core /usr/include /var/cache \
 /usr/lib/aarch*/libLLVM* /usr/lib/aarch*/perl /usr/lib/aarch*/gconv \
+/usr/lib/aarch64-linux-gnu/libasan.so* \
+/usr/lib/aarch64-linux-gnu/libtsan.so* \
+/usr/lib/aarch64-linux-gnu/liblsan.so* \
+/usr/lib/aarch64-linux-gnu/libubsan.so* \
+/usr/lib/aarch64-linux-gnu/libhwasan.so* \
 /usr/lib/systemd /usr/libexec/docker/docker-init \
 /usr/bin/containerd /usr/bin/ctr /usr/bin/runc \
 /usr/bin/containerd-shim-runc-v2 \
+/usr/bin/cmake /usr/bin/cpack /usr/bin/ctest \
+/usr/bin/meson /usr/bin/ninja \
 /usr/bin/aarch64-linux-gnu-lto-dump-11 \
-/usr/bin/aarch64-linux-gnu-ld.gold \
+/usr/bin/aarch64-linux-gnu-ld* \
+/usr/bin/aarch64-linux-gnu-as \
+/usr/bin/aarch64-linux-gnu-ar \
+/usr/bin/aarch64-linux-gnu-ranlib \
 /usr/bin/aarch64-linux-gnu-dwp \
+/usr/bin/aarch64-linux-gnu-c++filt \
+/usr/bin/aarch64-linux-gnu-nm \
+/usr/bin/aarch64-linux-gnu-size \
+/usr/bin/aarch64-linux-gnu-cpp* \
+/usr/bin/aarch64-linux-gnu-gprof \
 /usr/bin/perl /usr/bin/perl5* \
 /root/.cache && \
 find /usr -name '*.a' -delete && \
