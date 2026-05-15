@@ -7,6 +7,7 @@ import shutil
 import click
 from .tools import __dc
 from .tools import search_env_path, __get_postgres_volume_name
+from .tools import run_root_cmd
 from pathlib import Path
 from .tools import get_volume_fullpath, get_docker_volumes
 from .tools import rsync_progress_param
@@ -19,7 +20,12 @@ def _get_path(config):
 
 
 def _get_cmd_butter_volume():
-    return ["sudo", search_env_path("btrfs"), "subvolume"]
+    """Return the un-escalated btrfs subvolume base command.
+
+    Callers wrap this via :func:`run_root_cmd` which handles the
+    direct → docker → sudo escalation chain itself.
+    """
+    return [search_env_path("btrfs"), "subvolume"]
 
 
 def __assert_btrfs(config):
@@ -30,26 +36,17 @@ def __assert_btrfs(config):
 def _get_subvolume_dir(config):
     subvolume_dir = SNAPSHOT_DIR / __get_postgres_volume_name(config)
     if not subvolume_dir.exists():
-        subprocess.check_call(
-            [
-                "sudo",
-                "mkdir",
-                "-p",
-                subvolume_dir,
-            ]
-        )
+        run_root_cmd(["mkdir", "-p", subvolume_dir])
     return subvolume_dir
 
 
 def _get_btrfs_infos(path):
     info = {}
-    for line in (
-        subprocess.check_output(
-            ["sudo", search_env_path("btrfs"), "subvol", "show", str(path)]
-        )
-        .decode("utf-8")
-        .split("\n")
-    ):
+    out = run_root_cmd(
+        [search_env_path("btrfs"), "subvol", "show", str(path)],
+        capture=True,
+    )
+    for line in out.decode("utf-8").split("\n"):
         if "Creation time:" in line:
             line = line.split(":", 1)[1].strip()
             line = " ".join(line.split(" ")[:2])
@@ -78,46 +75,41 @@ def _turn_into_subvolume(path):
     """
     Makes a subvolume out of a path. Docker restart required?
     """
-    process = subprocess.Popen(
-        ["sudo", search_env_path("btrfs"), "subvolume", "show", path],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    std_out, std_err = process.communicate()
-    if process.returncode != 0:
-        err_msg = std_err.decode("utf-8").lower()
-        if any(
+    btrfs = search_env_path("btrfs")
+    try:
+        run_root_cmd(
+            [btrfs, "subvolume", "show", path],
+            capture=True,
+        )
+        return
+    except subprocess.CalledProcessError as ex:
+        err_msg = (ex.stderr or b"").decode("utf-8", errors="replace").lower()
+        if not any(
             x.lower() in err_msg
             for x in ["Not a Btrfs subvolume", "not a subvolume"]
         ):
-            click.secho(f"Turning {path} into a subvolume.")
-            filename = path.parent / f".tmp_{uuid.uuid4().hex}"
-            if filename.exists():
-                raise Exception(f"Path {filename} should not exist.")
-            shutil.move(path, filename)
-            try:
-                subprocess.check_output(
-                    ["sudo", "btrfs", "subvolume", "create", path]
-                )
-                click.secho(
-                    f"Writing back the files to original position: from {filename}/ to {path}/"
-                )
-                subprocess.check_call(
-                    [
-                        "sudo",
-                        "rsync",
-                        str(filename) + "/",
-                        str(path) + "/",
-                        "-ar",
-                        rsync_progress_param(),
-                    ]
-                )
-            finally:
-                subprocess.check_call(["sudo", "rm", "-Rf", filename])
-        else:
             raise Exception("Unexpected error at turning into subvolume")
-    else:
-        return
+    click.secho(f"Turning {path} into a subvolume.")
+    filename = path.parent / f".tmp_{uuid.uuid4().hex}"
+    if filename.exists():
+        raise Exception(f"Path {filename} should not exist.")
+    shutil.move(path, filename)
+    try:
+        run_root_cmd([btrfs, "subvolume", "create", path])
+        click.secho(
+            f"Writing back the files to original position: from {filename}/ to {path}/"
+        )
+        run_root_cmd(
+            [
+                "rsync",
+                str(filename) + "/",
+                str(path) + "/",
+                "-ar",
+                rsync_progress_param(),
+            ]
+        )
+    finally:
+        run_root_cmd(["rm", "-Rf", filename])
 
 
 def make_snapshot(ctx, config, name):
@@ -134,15 +126,16 @@ def make_snapshot(ctx, config, name):
             click.secho(f"Path {dest_path} already exists.", fg="red")
             sys.exit(-1)
 
-    subprocess.check_output(
+    run_root_cmd(
         _get_cmd_butter_volume()
         + [
             "snapshot",
             "-r",  # readonly
             str(_get_path(config)),
             str(dest_path),
-        ]
-    ).decode("utf-8").strip()
+        ],
+        capture=True,
+    )
     __dc(config, ["up", "-d"] + ["postgres"])
     return name
 
@@ -162,14 +155,8 @@ def restore(ctx, config, name):
     __dc(config, ["stop", "-t", "1"] + ["postgres"])
     volume_path = _get_path(config)
     if volume_path.exists():
-        subprocess.check_call(
-            _get_cmd_butter_volume()
-            + [
-                "delete",
-                volume_path,
-            ]
-        )
-    subprocess.check_call(
+        run_root_cmd(_get_cmd_butter_volume() + ["delete", volume_path])
+    run_root_cmd(
         _get_cmd_butter_volume() + ["snapshot", name, str(volume_path)]
     )
 
@@ -186,12 +173,8 @@ def remove(config, snapshot):
             sys.exit(-1)
         snapshot = snapshots[0]
     if snapshot["path"] in map(itemgetter("path"), snapshots):
-        subprocess.check_call(
-            _get_cmd_butter_volume()
-            + [
-                "delete",
-                str(snapshot["path"]),
-            ]
+        run_root_cmd(
+            _get_cmd_butter_volume() + ["delete", str(snapshot["path"])]
         )
 
 
@@ -204,8 +187,6 @@ def purge_inactive(config):
         except StopIteration:
             for snapshot in vol.glob("*"):
                 click.secho(f"Deleting snapshot {snapshot}", fg="red")
-                subprocess.check_call(
-                    ["sudo", "btrfs", "subvolume", "delete", str(snapshot)]
-                )
+                run_root_cmd(["btrfs", "subvolume", "delete", str(snapshot)])
             click.secho(f"Deleting {vol}", fg="red")
             shutil.rmtree(vol)

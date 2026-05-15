@@ -17,6 +17,7 @@ from .tools import split_external_domains
 from .tools import update_setting
 from .tools import vscode_setting
 from .tools import __assure_gitignore
+from .tools import run_root_cmd
 
 ALL_PORTS = [
     "PROXY_PORT",
@@ -848,7 +849,7 @@ def _fix_permissions(config, dirs_to_fix):
                 click.secho(f"  OK: {path}", fg="green")
                 continue
             try:
-                subprocess.check_call(["sudo", "chown", "-R", owner, path])
+                run_root_cmd(["chown", "-R", owner, path])
                 click.secho(f"  OK: {path}", fg="green")
             except subprocess.CalledProcessError as ex:
                 click.secho(f"  FAILED: {path}: {ex}", fg="red")

@@ -87,7 +87,9 @@ def _is_real_docker():
     except Exception:
         _ROOT_CMD_IS_REAL_DOCKER = False
         return False
-    _ROOT_CMD_IS_REAL_DOCKER = "podman" not in blob and "docker version" in blob
+    _ROOT_CMD_IS_REAL_DOCKER = (
+        "podman" not in blob and "docker version" in blob
+    )
     return _ROOT_CMD_IS_REAL_DOCKER
 
 
@@ -151,7 +153,12 @@ def _print_sudoers_hint_once():
     if _SUDO_HINT_SHOWN:
         return
     _SUDO_HINT_SHOWN = True
-    user = os.environ.get("SUDO_USER") or os.environ.get("USER") or os.environ.get("LOGNAME") or "youruser"
+    user = (
+        os.environ.get("SUDO_USER")
+        or os.environ.get("USER")
+        or os.environ.get("LOGNAME")
+        or "youruser"
+    )
     try:
         click.secho(
             "# Tip: to skip these sudo prompts, drop a file in /etc/sudoers.d/zodoo\n"
@@ -177,6 +184,76 @@ def root_cmd(*cmd):
     # 3) fall back to sudo; show a one-time dim hint about the sudoers entry
     _print_sudoers_hint_once()
     return _sudo_cmd_with_reason(*cmd)
+
+
+def run_root_cmd(
+    cmd,
+    *,
+    capture=False,
+    check=True,
+    cwd=None,
+    env=None,
+    input=None,
+    verbose=False,
+):
+    """Run a command that needs root, escalating in three tiers:
+
+    1. Try the command as-is (works if we already are root, or the operation
+       happens to be possible for the current user — e.g. chown on a file
+       that's already owned by us).
+    2. On Linux with real Docker (not podman) available: run via the
+       privileged host-namespace helper container. Avoids password prompts.
+    3. Fall back to ``sudo`` with a one-time hint about sudoers config.
+
+    Any non-zero exit (or FileNotFoundError) escalates to the next tier. If
+    every tier fails, the last :class:`subprocess.CalledProcessError` is
+    re-raised when ``check`` is True. With ``capture=True``, the stdout of the
+    successful tier is returned as ``bytes``; otherwise the
+    :class:`subprocess.CompletedProcess` is returned.
+    """
+    cmd = [str(part) for part in cmd]
+
+    tiers = [("direct", cmd, None)]
+    # Already root → no escalation needed (and sudo would fail or loop).
+    if os.geteuid() != 0:
+        # Tier 2 (privileged Docker helper) is Linux-only — Docker Desktop
+        # on macOS/Windows does not give the helper container access to the
+        # host root namespace, so it cannot do `chown` on host files.
+        if platform.system() == "Linux" and _docker_root_helper_available():
+            tiers.append(
+                ("docker", _docker_root_helper_base() + cmd, "devnull")
+            )
+        tiers.append(("sudo", None, "sudo"))
+
+    last_exc = None
+    for label, wrapped, stdin_mode in tiers:
+        if label == "sudo":
+            _print_sudoers_hint_once()
+            wrapped = _sudo_cmd_with_reason(*cmd)
+        if verbose:
+            try:
+                click.secho(
+                    f"[root_cmd:{label}] {' '.join(wrapped)}",
+                    fg="bright_black",
+                    err=True,
+                )
+            except Exception:
+                pass
+        kw = {"cwd": cwd, "env": env, "check": check}
+        if stdin_mode == "devnull":
+            kw["stdin"] = subprocess.DEVNULL
+        if input is not None:
+            kw["input"] = input
+        try:
+            if capture:
+                proc = subprocess.run(wrapped, capture_output=True, **kw)
+                return proc.stdout
+            return subprocess.run(wrapped, **kw)
+        except (subprocess.CalledProcessError, FileNotFoundError) as ex:
+            last_exc = ex
+            continue
+    if last_exc is not None:
+        raise last_exc
 
 
 def get_calling_function_variables():
@@ -1115,33 +1192,19 @@ def __try_to_set_owner(UID, path, abort_if_failed=True, verbose=False):
         try:
             try:
                 if Path(line).exists():
-                    subprocess.check_output(["chown", str(UID), line])
-            except Exception:
-                try:
-                    if Path(line).exists():
-                        subprocess.check_output(
-                            ["sudo", "chown", str(UID), line]
-                        )
-                except Exception as ex:
-                    if abort_if_failed:
-                        abort(
-                            f"Could not set owner {UID} "
-                            f"on path {line}; \n\n{ex}"
-                        )
+                    run_root_cmd(["chown", str(UID), line])
+            except Exception as ex:
+                if abort_if_failed:
+                    abort(
+                        f"Could not set owner {UID} "
+                        f"on path {line}; \n\n{ex}"
+                    )
 
             try:
-                if Path.exists(line):
-                    subprocess.check_output(
-                        ["chgrp", str(primary_group), line]
-                    )
+                if Path(line).exists():
+                    run_root_cmd(["chgrp", str(primary_group), line])
             except Exception:
-                try:
-                    if Path.exists(line):
-                        subprocess.check_output(
-                            ["sudo", "chgrp", str(primary_group), line]
-                        )
-                except Exception:
-                    pass
+                pass
 
         except FileNotFoundError:
             continue

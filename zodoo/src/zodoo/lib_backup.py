@@ -33,6 +33,7 @@ from .tools import __try_to_set_owner
 from .tools import docker_list_containers
 from .tools import __get_postgres_volume_name
 from .tools import force_input_hostname
+from .tools import run_root_cmd
 
 import inspect
 import os
@@ -915,7 +916,7 @@ def __restore_check(filepath, config):
 
 def __apply_dump_permissions(filepath):
     def change(cmd, id):
-        subprocess.check_call(["sudo", cmd, id, filepath])
+        run_root_cmd([cmd, id, filepath])
 
     for x in [("DUMP_UID", "chown"), ("DUMP_GID", "chgrp")]:
         id = os.getenv(x[0])
