@@ -141,6 +141,7 @@ RUN apt-get purge -y \
         /usr/share/emacs /usr/share/emacsen-common \
         /usr/share/java /usr/share/X11 \
         /usr/share/python-wheels /usr/share/iso-codes /usr/share/javascript \
+        /usr/share/i18n \
         /usr/lib/gcc /var/cache /usr/lib/git-core \
         /var/lib/dpkg /var/lib/apt/lists/* /usr/include && \
     rm -f /usr/bin/aarch64-linux-gnu-lto-dump-11
