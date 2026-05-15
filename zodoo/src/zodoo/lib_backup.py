@@ -267,18 +267,29 @@ def backup_db(
 @click.argument("filename", required=False, default="")
 @pass_config
 def backup_files(config, filename):
-    filepath = Path(filename or f"{config.project_name}.files.tar.gz")
+    filepath = Path(filename or f"{config.project_name}.files")
     if len(filepath.parts) == 1:
         filepath = Path(config.dumps_path) / filepath
 
-    if filepath.exists():
-        # dont loose files
-        __do_restore_files(config, filepath)
+    if filepath.is_file() and filepath.suffixes[-2:] == [".tar", ".gz"]:
+        filepath.unlink()
+    legacy = filepath.with_name(filepath.name + ".tar.gz")
+    if legacy.is_file():
+        legacy.unlink()
 
     files_dir = _get_filestore_folder(config)
     if not files_dir.exists():
         raise Exception(f"Files directory not found: {files_dir}")
-    subprocess.check_call(["tar", "cfz", filepath, "."], cwd=files_dir)
+    filepath.mkdir(parents=True, exist_ok=True)
+    subprocess.check_call(
+        [
+            "rsync",
+            "-a",
+            "--info=stats2",
+            f"{files_dir}/",
+            f"{filepath}/",
+        ]
+    )
     __apply_dump_permissions(filepath)
     click.secho(f"Backup files done to {filepath}", fg="green")
     return filepath
@@ -915,7 +926,7 @@ def __restore_check(filepath, config):
 
 def __apply_dump_permissions(filepath):
     def change(cmd, id):
-        subprocess.check_call(["sudo", cmd, id, filepath])
+        subprocess.check_call(["sudo", cmd, "-R", id, filepath])
 
     for x in [("DUMP_UID", "chown"), ("DUMP_GID", "chgrp")]:
         id = os.getenv(x[0])
