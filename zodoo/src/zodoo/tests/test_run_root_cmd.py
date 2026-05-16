@@ -129,6 +129,10 @@ def test_run_root_cmd_capture_returns_stdout(monkeypatch):
         return SimpleNamespace(returncode=0, stdout=b"hello\n", stderr=b"")
 
     monkeypatch.setattr(mod.subprocess, "run", fake_run)
+    # Without this, on Linux CI the tier-2 probe (_is_real_docker) calls the
+    # patched subprocess.run, which returns bytes — the str/bytes mix inside
+    # _is_real_docker would then explode before tier-1 even runs.
+    monkeypatch.setattr(mod, "_docker_root_helper_available", lambda: False)
 
     out = mod.run_root_cmd(["echo", "hello"], capture=True)
     assert out == b"hello\n"
