@@ -183,18 +183,37 @@ def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
         config.dirs["run"] / "requirements.odoo.hash",
     )
 
+    # When a per-version base image is in use, ODOO_REQUIREMENTS only
+    # contains the module-specific delta (Odoo's own requirements.txt is
+    # already installed in the base venv). Without a base, ODOO_REQUIREMENTS
+    # stays the legacy full set so the monolithic Dockerfile keeps working.
+    use_base_split = _base_split_active(config)
+
+    framework_reqs_path = config.WORKING_DIR / odoo_dir / "requirements.txt"
+    framework_reqs_text = (
+        framework_reqs_path.read_text() if framework_reqs_path.exists() else ""
+    )
+
+    if use_base_split:
+        module_py_deps = _subtract_framework_requirements(
+            external_dependencies["pip"],
+            _filter_framework_requirements(framework_reqs_text),
+            python_version=PYTHON_VERSION,
+        )
+    else:
+        module_py_deps = external_dependencies["pip"]
+
     sha = _get_sha(config) if settings["SHA_IN_DOCKER"] == "1" else "n/a"
     for odoo_machine in odoo_machines:
         service = yml["services"][odoo_machine]
-        py_deps = external_dependencies["pip"]
         if "build" not in service:
             continue
         service["build"].setdefault("args", [])
         service["build"]["args"]["ODOO_REQUIREMENTS"] = base64.encodebytes(
-            "\n".join(py_deps).encode("utf-8")
+            "\n".join(module_py_deps).encode("utf-8")
         ).decode("utf-8")
         service["build"]["args"]["ODOO_REQUIREMENTS_CLEARTEXT"] = (
-            ";".join(py_deps).encode("utf-8")
+            ";".join(module_py_deps).encode("utf-8")
         ).decode("utf-8")
         service["build"]["args"]["ODOO_DEB_REQUIREMENTS_CLEARTEXT"] = (
             "\n".join(sorted(external_dependencies["deb"]))
@@ -202,14 +221,18 @@ def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
         service["build"]["args"]["ODOO_DEB_REQUIREMENTS"] = base64.encodebytes(
             "\n".join(sorted(external_dependencies["deb"])).encode("utf-8")
         ).decode("utf-8")
+        # Framework requirements are passed as a *constraint* file to the
+        # project pip install so transitive deps from module-specific
+        # packages don't silently upgrade Odoo-pinned packages (requests,
+        # cryptography, urllib3 …). Filtering matches the base build so
+        # the project layer can install its own lxml pin from
+        # module-delta.
         service["build"]["args"]["ODOO_FRAMEWORK_REQUIREMENTS"] = (
-            _filter_framework_requirements(
-                base64.encodebytes(
-                    (
-                        config.dirs["odoo_home"] / "requirements.txt"
-                    ).read_bytes()
-                ).decode("utf-8")
-            )
+            base64.encodebytes(
+                _filter_framework_requirements(framework_reqs_text).encode(
+                    "utf-8"
+                )
+            ).decode("utf-8")
         )
         service["build"]["args"]["CUSTOMS_SHA"] = sha
         service["build"]["args"]["ODOO_PYTHON_VERSION"] = settings[
@@ -434,6 +457,101 @@ def _apply_fluentd_logging(config, yml, settings, globals):
         tag = service["logging"]["options"]["tag"]
         tag = tag.replace("__SERVICE__", odoo_machine)
         service["logging"]["options"]["tag"] = tag
+
+
+def _base_split_active(config):
+    """True iff this project's Odoo version has a ``Dockerfile.base``.
+
+    Imported lazily so that older zodoo CLI installs without
+    ``lib_base_image`` still work for project versions that don't have a
+    base recipe yet.
+    """
+    try:
+        from zodoo.lib_base_image import base_dockerfile_path
+    except ImportError:
+        return False
+    return base_dockerfile_path(config.odoo_version) is not None
+
+
+def _zodoo_embed_active(config):
+    """True iff zodoo source should be baked into the project image.
+
+    Default is off — zodoo source is bind-mounted from the host at runtime
+    (so source-only CLI updates don't require rebuilds). Set ZODOO_EMBED=1
+    for self-contained k8s/AWS images (lib_bakery flips this automatically).
+    """
+    return str(getattr(config, "ZODOO_EMBED", "") or "").strip() in (
+        "1",
+        "true",
+        "True",
+    )
+
+
+def _canonical_pip_name(spec):
+    """Best-effort canonical package name for a pip requirement spec."""
+    try:
+        from packaging.utils import canonicalize_name
+
+        return canonicalize_name(Requirement(spec).name)
+    except Exception:
+        # Strip extras + version specifier and lowercase.
+        name = re.split(r"[<>=!~;\[\s]", (spec or "").strip(), 1)[0]
+        return name.lower().replace("_", "-")
+
+
+def _subtract_framework_requirements(
+    all_pip, framework_reqs_text, python_version=None
+):
+    """Return ``all_pip`` minus everything Odoo's upstream
+    ``requirements.txt`` actually installs for the given Python version.
+
+    Crucially, lines with PEP-508 markers are only considered part of the
+    framework set when the marker evaluates to True for ``python_version``.
+    Without that filter, packages whose pins are gated to a different
+    Python release (e.g. ``PyPDF==5.4.0 ; python_version >= '3.13'``)
+    would be subtracted from the module-delta even when the framework
+    does not install them at all, leaving the package missing from the
+    final image.
+
+    Comparison is on canonical package name only — a module that pins a
+    different version of a framework-installed package keeps its pin
+    (pip will reinstall it on top of the base venv).
+    """
+    # Normalize python_version to the "MAJOR.MINOR" string PEP-508 expects.
+    py_ver_str = None
+    if python_version:
+        if isinstance(python_version, (tuple, list)):
+            py_ver_str = ".".join(str(p) for p in python_version[:2])
+        else:
+            py_ver_str = ".".join(str(python_version).split(".")[:2])
+
+    framework_names = set()
+    for raw in (framework_reqs_text or "").splitlines():
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        # Strip trailing inline comment — Odoo's requirements.txt routinely
+        # appends "# (Jammy)" etc. which trips up packaging.Requirement.
+        parseable = re.split(r"\s+#", stripped, 1)[0].strip()
+        try:
+            req = Requirement(parseable)
+            marker = req.marker
+            if marker is not None and py_ver_str:
+                if not marker.evaluate({"python_version": py_ver_str}):
+                    continue
+            framework_names.add(_canonical_pip_name(parseable))
+        except Exception:
+            framework_names.add(_canonical_pip_name(parseable))
+
+    result = []
+    for spec in all_pip:
+        stripped = (spec or "").strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if _canonical_pip_name(stripped) in framework_names:
+            continue
+        result.append(spec)
+    return result
 
 
 def _filter_framework_requirements(reqs):

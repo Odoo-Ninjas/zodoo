@@ -47,3 +47,10 @@ LIMIT_MEMORY_SOFT_MIGRATION=100710886400
 
 
 SRC_EXTRA=1
+
+# When 1, the zodoo CLI source is baked into the project image at build time
+# instead of being bind-mounted at runtime. Needed for self-contained k8s/AWS
+# deploys (set automatically by `odoo bakery bake`). Default 0 → zodoo source
+# is mounted from the host's ~/.odoo/images/zodoo/src and zodoo-CLI updates
+# don't require image rebuilds.
+ZODOO_EMBED=0

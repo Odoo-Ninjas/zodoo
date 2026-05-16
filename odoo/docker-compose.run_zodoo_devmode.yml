@@ -9,6 +9,8 @@ services:
       - ~/.config/pudb:/home/odoo/.config/pudb
       - ${ODOO_IMAGES}/odoo/bin:/odoolib:ro
       - ${ODOO_IMAGES}/odoo/config/${ODOO_VERSION_INT}/config:/etc/odoo/config.template:ro
-      - ${ODOO_IMAGES}/zodoo/src:/opt/zodoo:rw
+      # /opt/zodoo source mount has moved to the always-on
+      # odoo/docker-compose.yml (deduplicated). Devmode now only adds the
+      # /odoolib hot-reload overrides.
     environment:
       - OPENUPGRADE_TARGET_VERSION=${ODOO_VERSION}

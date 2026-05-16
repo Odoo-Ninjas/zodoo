@@ -65,6 +65,8 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ${HOST_RUN_DIR}/odoo_outdir/robot_output:/opt/output
+      # zodoo CLI source — bind-mounted so CLI updates don't require rebuilds.
+      - ${ODOO_IMAGES}/zodoo/src:/opt/zodoo:rw
       - ${ODOO_IMAGES}/robot/robotest.py:/opt/robot/robotest.py
       - ${ODOO_IMAGES}/robot/keywords:/opt/robot/keywords
       - ${ODOO_IMAGES}/robot/library:/opt/robot/library

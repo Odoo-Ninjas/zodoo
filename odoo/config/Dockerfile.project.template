@@ -1,0 +1,46 @@
+# Template for the project-layer Odoo image. Composer renders this on top
+# of a pre-built base image (`odoo_base_<v>_<hash>_<arch>`). Only module-
+# specific extras are installed here; the heavy Python+framework+deb work
+# is already in the base.
+
+ARG BASE_TAG
+ARG TARGETARCH
+ARG ODOO_VERSION
+ARG ODOO_REQUIREMENTS
+ARG ODOO_FRAMEWORK_REQUIREMENTS
+ARG ODOO_DEB_REQUIREMENTS
+ARG ODOO_PYTHON_VERSION
+ARG CUSTOMS_SHA
+
+FROM ${BASE_TAG} AS project
+ARG TARGETARCH
+ARG ODOO_VERSION
+ARG ODOO_REQUIREMENTS
+ARG ODOO_FRAMEWORK_REQUIREMENTS
+ARG ODOO_DEB_REQUIREMENTS
+ARG ODOO_PYTHON_VERSION
+ARG CUSTOMS_SHA
+
+#___SNIPPET_CHECK_SHA___
+
+ENV PIP_NO_CACHE_DIR=no
+ENV LANG=C.UTF-8
+
+# Module-specific Debian packages (collected from manifests' deb deps).
+# build-essential, gcc, etc. are still present from the base image so
+# native pip builds will work here.
+#___SNIPPET_DEB_REQUIREMENTS___
+
+# Module-specific pip packages (delta over Odoo's requirements.txt, which
+# was already installed in the base image's venv). Framework requirements
+# are written as a *constraints* file so transitive deps cannot silently
+# upgrade Odoo-pinned packages.
+RUN echo "$ODOO_REQUIREMENTS" | base64 --decode > /root/module_requirements.txt
+RUN echo "$ODOO_FRAMEWORK_REQUIREMENTS" | base64 --decode > /root/framework_constraints.txt
+RUN if [ -s /root/module_requirements.txt ]; then \
+        pip3 install $(cat /etc/pip_options) -c /root/framework_constraints.txt -r /root/module_requirements.txt; \
+    else \
+        echo "No module-specific pip requirements to install."; \
+    fi
+
+WORKDIR /opt/odoo

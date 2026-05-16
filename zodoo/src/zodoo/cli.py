@@ -54,6 +54,7 @@ def cli(
     from .tools import _is_in_container
     from .tools import abort
 
+    explicit_project_name = bool(project_name)
     if not project_name:
         try:
             project_name = _get_default_project_name(restrict_setting)
@@ -72,7 +73,12 @@ def cli(
     #     (advanced wrapper mode — e.g. project-specific control planes
     #     that bind a fixed project_name to a differently-named source
     #     tree)
-    skip_dir_check = _is_in_container() or bool(restrict_setting)
+    #   - the caller passed -p explicitly (the user knows the source
+    #     tree's name differs from the project_name — typical for CI
+    #     workflows that use a hashed project_name on a checkout dir)
+    skip_dir_check = (
+        _is_in_container() or bool(restrict_setting) or explicit_project_name
+    )
     if project_name and not skip_dir_check:
         try:
             cwd_root = _get_customs_root(Path(os.getcwd()))

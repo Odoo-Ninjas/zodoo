@@ -43,20 +43,6 @@ def _get_images_git_sha():
         return None
 
 
-def _is_images_dirty():
-    """Check if ~/.odoo/images has uncommitted changes."""
-    try:
-        result = subprocess.check_output(
-            ["git", "status", "--porcelain"],
-            cwd=IMAGES_DIR,
-            stderr=subprocess.DEVNULL,
-            encoding="utf-8",
-        ).strip()
-        return bool(result)
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return False
-
-
 def _read_user_setting(config, key):
     """Read a setting directly from ~/.odoo/settings without requiring reload."""
     from .myconfigparser import MyConfigParser
@@ -481,7 +467,15 @@ def get_zodoo_image_tag_for_service(config, service_name):
         includes_zodoo = tag_config.get("includes_zodoo")
         if includes_zodoo is None:
             includes_zodoo = "ZODOO" in snippets_used
-        if includes_zodoo:
+        # In standard mode the zodoo source is bind-mounted at runtime, so
+        # its content is irrelevant for the image. Only the dependency list
+        # (zodoo's requirements.txt) ends up baked, and that's covered by
+        # the snippet hash via SNIPPET_ZODOO. Only the bakery path
+        # (ZODOO_EMBED=1) actually copies the source into the image.
+        zodoo_embedded = str(
+            getattr(config, "ZODOO_EMBED", "") or ""
+        ).strip() in ("1", "true", "True")
+        if includes_zodoo and zodoo_embedded:
             full = _get_zodoo_src_hash() or ""
             if full:
                 zodoo_parts.append(full)
@@ -1004,13 +998,6 @@ def try_pull_from_zodoo_registry(config, machines):
         )
         return []
 
-    if _is_images_dirty():
-        click.secho(
-            "Skipping zodoo registry pull: ~/.odoo/images has uncommitted changes.",
-            fg="yellow",
-        )
-        return []
-
     reg = _get_registry_config(config)
     if not reg:
         return []
@@ -1080,13 +1067,6 @@ def enqueue_registry_uploads(config, machines, suppress_other_platform=False):
             "Skipping zodoo registry push: SRC_EXTRA=0 — customer source is "
             "baked into the image and must not be uploaded to the shared "
             "zodoo registry.",
-            fg="yellow",
-        )
-        return
-
-    if _is_images_dirty():
-        click.secho(
-            "Skipping zodoo registry push: ~/.odoo/images has uncommitted changes.",
             fg="yellow",
         )
         return
@@ -1163,6 +1143,128 @@ def process_registry_upload_job(config, payload):
         click.secho(f"Pushed {image}", fg="green")
 
 
+# ---------------------------------------------------------------------------
+# Base-image (odoo_base_<v>_<hash>_<arch>) registry support.
+# Base images live under a dedicated registry path
+# (`{url}/zodoo-odoo-base:<v>-<hash>-<arch>`) so they can be pulled by any
+# project of that Odoo version. Pulls happen synchronously from
+# ``ensure_base_image()``; pushes are enqueued on the same job queue
+# already used for project images.
+# ---------------------------------------------------------------------------
+
+
+def _base_registry_image_name(registry_url, odoo_version_int, base_hash, arch):
+    return (
+        f"{registry_url}/zodoo-odoo-base:"
+        f"{odoo_version_int}-{base_hash}-{arch}"
+    )
+
+
+def try_pull_base_image(config, base_inputs):
+    """Attempt to pull a pre-built base image from the zodoo registry.
+
+    Returns True on success (image is now present locally under its
+    canonical ``odoo_base_<v>_<hash>_<arch>`` tag), False otherwise.
+    Silently no-ops when the registry is not configured.
+    """
+    reg = _get_registry_config(config)
+    if not reg:
+        return False
+    from .lib_base_image import _arch
+
+    arch = _arch()
+    try:
+        v = int(float(base_inputs["odoo_version"]))
+    except (TypeError, ValueError):
+        v = base_inputs["odoo_version"]
+    registry_image = _base_registry_image_name(
+        reg["url"], v, base_inputs["base_hash"], arch
+    )
+    local_tag = base_inputs["tag"]
+
+    if not _manifest_exists(registry_image):
+        click.secho(
+            f"Base image not in zodoo registry: {registry_image}",
+            fg="yellow",
+        )
+        return False
+
+    click.secho(f"Pulling base image {registry_image}...", fg="cyan")
+    zodoo_registry_login(config)
+    try:
+        subprocess.check_call(["docker", "pull", registry_image])
+        subprocess.check_call(["docker", "tag", registry_image, local_tag])
+        click.secho(f"Tagged base image {local_tag} from registry", fg="green")
+        return True
+    except subprocess.CalledProcessError:
+        click.secho(f"Failed to pull {registry_image}", fg="red")
+        return False
+
+
+def enqueue_base_image_upload(config, base_inputs):
+    """Queue an async docker push of the base image to the zodoo registry.
+
+    Same job-queue mechanism as :func:`enqueue_registry_uploads`: the
+    local tag is duplicated under the registry image name immediately
+    (so a subsequent build can't replace the bytes), then the slow
+    ``docker push`` runs in a detached worker.
+    """
+    from .lib_jobqueue import enqueue, spawn_worker
+    from .lib_base_image import _arch
+
+    reg = _get_registry_config(config)
+    if not reg:
+        return
+
+    arch = _arch()
+    try:
+        v = int(float(base_inputs["odoo_version"]))
+    except (TypeError, ValueError):
+        v = base_inputs["odoo_version"]
+    registry_image = _base_registry_image_name(
+        reg["url"], v, base_inputs["base_hash"], arch
+    )
+    local_tag = base_inputs["tag"]
+    try:
+        subprocess.check_call(["docker", "tag", local_tag, registry_image])
+    except subprocess.CalledProcessError as e:
+        click.secho(
+            f"Could not retag base image {local_tag} → {registry_image}: "
+            f"{e}; skipping push.",
+            fg="red",
+        )
+        return
+
+    enqueue(
+        config,
+        "base_image_upload",
+        {
+            "tag": local_tag,
+            "registry_image": registry_image,
+            "odoo_version": v,
+            "base_hash": base_inputs["base_hash"],
+            "arch": arch,
+        },
+    )
+    spawn_worker(config)
+    click.secho(f"Queued base image upload: {registry_image}", fg="cyan")
+
+
+def process_base_image_upload_job(config, payload):
+    """Worker handler for ``base_image_upload`` jobs."""
+    zodoo_registry_login(config)
+    image = payload.get("registry_image")
+    if not image:
+        return
+    click.secho(f"Pushing base image {image}...", fg="cyan")
+    returncode, output = _docker_push_streaming(image)
+    if returncode != 0:
+        raise subprocess.CalledProcessError(
+            returncode, ["docker", "push", image], output=output
+        )
+    click.secho(f"Pushed {image}", fg="green")
+
+
 def push_to_zodoo_registry(config, machines, suppress_other_platform=False):
     """Push all build-services to registry after build.
 
@@ -1177,13 +1279,6 @@ def push_to_zodoo_registry(config, machines, suppress_other_platform=False):
             "Skipping zodoo registry push: SRC_EXTRA=0 — customer source is "
             "baked into the image and must not be uploaded to the shared "
             "zodoo registry.",
-            fg="yellow",
-        )
-        return
-
-    if _is_images_dirty():
-        click.secho(
-            "Skipping zodoo registry push: ~/.odoo/images has uncommitted changes.",
             fg="yellow",
         )
         return

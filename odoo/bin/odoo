@@ -1,2 +1,7 @@
 #!/bin/bash
-exec "$ZODOO_PYTHON" /opt/zodoo_pipx/venvs/zodoo/bin/odoo "$@"
+# zodoo CLI entrypoint. The pre-built venv at $ZODOO_PYTHON has zodoo's pip
+# deps installed. The zodoo package itself is added to sys.path via a .pth
+# file in the venv's site-packages, pointing to /opt/zodoo — which is either
+# bind-mounted from the host (standard mode) or baked into the image
+# (bakery mode, ZODOO_EMBED=1). Invoking via `-m zodoo` works in both cases.
+exec "$ZODOO_PYTHON" -m zodoo "$@"

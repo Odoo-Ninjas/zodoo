@@ -48,6 +48,9 @@ def bake(ctx, config, params):
     metadata = _get_metadata(ctx, config)
     metadata["SHA_IN_DOCKER"] = "1"
     metadata["SRC_EXTRA"] = "0"
+    # Self-contained k8s/AWS images must bake the zodoo CLI source into the
+    # image — at runtime the pod has no host filesystem to mount from.
+    metadata["ZODOO_EMBED"] = "1"
 
     for param in params:
         if "=" not in param:
@@ -143,8 +146,7 @@ def bake(ctx, config, params):
           * UPDATE_ON_STARTUP=1
           * UPDATE_PARAMS=--i18n  --> parameter for update command; e.g. in this case for force update translations
           * PERSIST_UPDATE_LOG=/path/to/persist/   <!-- update log will be put here
-        """
-        "",
+        """ "",
     ]
     for tip in tips:
         click.secho(tip, fg="green")

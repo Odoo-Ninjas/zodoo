@@ -772,12 +772,20 @@ def _prepare_filesystem(config):
             int(fileconfig["OWNER_UID"]),
             path,
         )
-    if platform.system() == "Linux":
-        for dirname in ["postgres.socket", "postgres.logs"]:
-            dir_path = config.dirs["run"] / dirname
-            if dir_path.exists() and not dir_path.is_dir():
-                dir_path.unlink()
-            dir_path.mkdir(parents=True, exist_ok=True)
+    # postgres.logs is bind-mounted on every platform (postgres/docker-compose.yml);
+    # postgres.socket only on Linux (postgres/docker-compose.platform_linux.yml).
+    # Docker Desktop will auto-create a missing bind-mount source as an empty
+    # *file* on macOS/Windows, which then fails the container with
+    # "not a directory" or breaks `mkdir -p /logs` in postgres/run.sh.
+    cross_platform_dirs = ["postgres.logs"]
+    linux_only_dirs = (
+        ["postgres.socket"] if platform.system() == "Linux" else []
+    )
+    for dirname in cross_platform_dirs + linux_only_dirs:
+        dir_path = config.dirs["run"] / dirname
+        if dir_path.exists() and not dir_path.is_dir():
+            dir_path.unlink()
+        dir_path.mkdir(parents=True, exist_ok=True)
 
 
 def get_db_name(db, project_name):
@@ -1358,7 +1366,7 @@ def create_directories(config, content):
                 raise NotImplementedError(host_path)
             if not host_path.exists():
                 try:
-                    if host_path.suffix:
+                    if host_path.suffix and host_path.suffix not in (".socket", ".logs"):
                         host_path.parent.mkdir(parents=True, exist_ok=True)
                         host_path.touch()
                     else:
@@ -1602,16 +1610,41 @@ def _use_file(config, path):
     return res
 
 
+def _zodoo_embed_active(config):
+    """True iff zodoo source should be baked into the project image.
+
+    Default off — zodoo source is bind-mounted at runtime so CLI-source-only
+    updates don't trigger image rebuilds. ``odoo bakery bake`` flips this to
+    ``1`` to produce self-contained k8s/AWS images.
+    """
+    return str(getattr(config, "ZODOO_EMBED", "") or "").strip() in (
+        "1",
+        "true",
+        "True",
+    )
+
+
 def _merge_odoo_dockerfile(config, yamlcompose):
     """
     If customs contains dockerfile, then append their execution
     in the main dockerfile of odoo
+
+    When ``odoo/config/<v>/Dockerfile.base`` exists for the current
+    version, the project Dockerfile is generated from
+    ``odoo/config/Dockerfile.project.template`` with ``ARG BASE_TAG``
+    set to the resolved base image tag (the base itself is built later,
+    in :func:`zodoo.lib_control_with_docker.do_build`). Otherwise the
+    legacy monolithic per-version Dockerfile is used.
     """
+    from .lib_base_image import compute_base_inputs
 
     sync_folder(
         config.dirs["images"] / "odoo",
         config.dirs["run.build.odoo"],
     )
+
+    base_inputs = compute_base_inputs(config)
+    use_base_split = base_inputs is not None
 
     dockerfile1 = None
     for service in yamlcompose["services"]:
@@ -1632,10 +1665,33 @@ def _merge_odoo_dockerfile(config, yamlcompose):
 
     # copy dockerfile to new location
     if dockerfile1:
-        click.secho(
-            f"Copying {dockerfile1} to {config.files['odoo_docker_file']}"
-        )
-        dockerfilecontent = Path(dockerfile1).read_text()
+        if use_base_split:
+            project_template = (
+                config.dirs["images"]
+                / "odoo"
+                / "config"
+                / "Dockerfile.project.template"
+            )
+            click.secho(
+                f"Using base-split Dockerfile template "
+                f"({project_template}) on top of base tag "
+                f"{base_inputs['tag']}",
+                fg="cyan",
+            )
+            template_text = project_template.read_text()
+            # Bake the resolved base tag into the ARG default so the
+            # compose build does not need to know about it.
+            dockerfilecontent = template_text.replace(
+                "ARG BASE_TAG\n",
+                f"ARG BASE_TAG={base_inputs['tag']}\n",
+                1,
+            )
+        else:
+            click.secho(
+                f"Copying {dockerfile1} to "
+                f"{config.files['odoo_docker_file']}"
+            )
+            dockerfilecontent = Path(dockerfile1).read_text()
         config.files["odoo_docker_file"].write_text(dockerfilecontent)
         appendix_dir_root = (
             config.dirs["run.build.odoo"] / "Dockerfile.appendix.dir"
@@ -1667,8 +1723,27 @@ def _merge_odoo_dockerfile(config, yamlcompose):
         common = config.dirs["images"] / "odoo" / "config" / "common.docker"
         ODOO_VERSION = str(MANIFEST()["version"]).split(".")[0]
         if float(ODOO_VERSION) >= 14.0:
+            common_text = common.read_text()
+            if use_base_split:
+                # The base-split project Dockerfile has only one named
+                # stage (`project`) before common.docker is appended. The
+                # legacy flatten copies from stage index 2; rewrite that
+                # reference to the named project stage.
+                common_text = common_text.replace(
+                    "COPY --from=2 / /", "COPY --from=project / /"
+                )
             odoo_docker_file.write_text(
-                odoo_docker_file.read_text() + "\n" + common.read_text()
+                odoo_docker_file.read_text() + "\n" + common_text
+            )
+
+        # When zodoo source is mounted at runtime (default), strip the
+        # bakery-only ``#___SNIPPET_ZODOO_EMBED_SOURCE___`` marker so the
+        # snippet substitution does not bake zodoo into the image.
+        if not _zodoo_embed_active(config):
+            odoo_docker_file.write_text(
+                odoo_docker_file.read_text().replace(
+                    "#___SNIPPET_ZODOO_EMBED_SOURCE___", ""
+                )
             )
 
         # include source code

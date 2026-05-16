@@ -239,13 +239,30 @@ def test_do_restore_files_joins_relative_with_dumps_path(
 # ---------------------------------------------------------------------------
 
 
+def _patch_run_root_cmd_capture(monkeypatch):
+    """Capture run_root_cmd calls and make them no-op succeed.
+
+    __apply_dump_permissions now delegates to run_root_cmd which does its
+    own three-tier escalation; the unit test only verifies the *intent*
+    (which command + args), not the wrapping.
+    """
+    from zodoo import tools
+
+    calls = []
+
+    def fake(cmd, **kw):
+        calls.append([str(p) for p in cmd])
+
+    monkeypatch.setattr(tools, "run_root_cmd", fake)
+    # __apply_dump_permissions imports it by name, patch there too
+    monkeypatch.setattr(mod, "run_root_cmd", fake)
+    return calls
+
+
 def test_apply_dump_permissions_noop_when_env_unset(tmp_path, monkeypatch):
     monkeypatch.delenv("DUMP_UID", raising=False)
     monkeypatch.delenv("DUMP_GID", raising=False)
-    calls = []
-    monkeypatch.setattr(
-        subprocess, "check_call", lambda *a, **kw: calls.append(a)
-    )
+    calls = _patch_run_root_cmd_capture(monkeypatch)
     fn = next(a for a in dir(mod) if a.endswith("__apply_dump_permissions"))
     getattr(mod, fn)(tmp_path / "f")
     assert calls == []
@@ -254,29 +271,23 @@ def test_apply_dump_permissions_noop_when_env_unset(tmp_path, monkeypatch):
 def test_apply_dump_permissions_chown_when_uid_set(tmp_path, monkeypatch):
     monkeypatch.setenv("DUMP_UID", "1234")
     monkeypatch.delenv("DUMP_GID", raising=False)
-    calls = []
-    monkeypatch.setattr(
-        subprocess, "check_call", lambda cmd: calls.append(cmd)
-    )
+    calls = _patch_run_root_cmd_capture(monkeypatch)
     fn = next(a for a in dir(mod) if a.endswith("__apply_dump_permissions"))
     fake_path = tmp_path / "dump"
     getattr(mod, fn)(fake_path)
     # backup_files now produces a *directory* (rsync), so chown/chgrp must
     # descend with -R.
-    assert calls == [["sudo", "chown", "-R", "1234", fake_path]]
+    assert calls == [["chown", "-R", "1234", str(fake_path)]]
 
 
 def test_apply_dump_permissions_chgrp_when_gid_set(tmp_path, monkeypatch):
     monkeypatch.delenv("DUMP_UID", raising=False)
     monkeypatch.setenv("DUMP_GID", "4321")
-    calls = []
-    monkeypatch.setattr(
-        subprocess, "check_call", lambda cmd: calls.append(cmd)
-    )
+    calls = _patch_run_root_cmd_capture(monkeypatch)
     fn = next(a for a in dir(mod) if a.endswith("__apply_dump_permissions"))
     fake_path = tmp_path / "dump"
     getattr(mod, fn)(fake_path)
-    assert calls == [["sudo", "chgrp", "-R", "4321", fake_path]]
+    assert calls == [["chgrp", "-R", "4321", str(fake_path)]]
 
 
 # ---------------------------------------------------------------------------

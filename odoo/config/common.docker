@@ -8,6 +8,12 @@ USER root
 
 #___SNIPPET_ZODOO___
 
+# When ZODOO_EMBED=1 (bakery/k8s self-contained images), the project layer
+# copies the zodoo source into the image. In standard mode this marker is
+# replaced with an empty string by the composer and the source is supplied
+# via the docker-compose bind-mount instead.
+#___SNIPPET_ZODOO_EMBED_SOURCE___
+
 USER root
 RUN echo 'export PATH=$PATH:/usr/local/bin/pipxbin' >> /root/.bashrc
 
@@ -74,59 +80,80 @@ zstd
 
 ENV ZSTDOPTIONS="-10 -T4"
 
+WORKDIR /opt/src
+
+
+# ============================================================
+# CLEANUP — single consolidated RUN, executed BEFORE the venv
+# tar so that /opt/venv.tar.zst doesn't carry __pycache__,
+# static archives, and other build leftovers from the pip
+# installs. Combines the old SNIPPET_CLEANUP body with the
+# inline cleanups that used to follow it. After this step no
+# apt operations are possible — /var/lib/dpkg is removed.
+# ============================================================
+RUN apt-get purge -y \
+        imagemagick-dev libmagickcore-dev libmagickwand-dev \
+        perl perl-base \
+        libgl1-mesa-dri libcodec2-1.0 ffmpeg libavcodec58 \
+        librsvg2-2 libgtk-3-0 libasan* libtsan* \
+        build-essential gcc g++ libpq-dev || true && \
+    apt-get autoremove -y || true && \
+    apt-get clean -y || true && \
+    find /usr -name '*.a' -delete && \
+    find / -type d -name __pycache__ -exec rm -Rf {} + 2> /dev/null || true && \
+    find /usr/lib/locale -mindepth 1 -maxdepth 1 -type d \
+        ! -name '*en_US*' -exec rm -rf {} + || true && \
+    rm -Rf \
+        /usr/lib/*/ImageMagick*/modules-*/*/*.la \
+        /usr/lib/*/ImageMagick*/modules-*/*/*.a \
+        /opt/python \
+        /usr/local/lib/python*/test \
+        /usr/lib/jvm \
+        /usr/local/bin/wkhtmltoimage \
+        /usr/local/lib/python*/config-* \
+        /usr/lib/aarch64-linux-gnu/libLLVM* \
+        /usr/lib/aarch64-linux-gnu/libasan.so* \
+        /usr/lib/aarch64-linux-gnu/libtsan.so* \
+        /usr/lib/aarch64-linux-gnu/liblsan.so* \
+        /usr/lib/aarch64-linux-gnu/libubsan.so* \
+        /usr/lib/aarch64-linux-gnu/libhwasan.so* \
+        /usr/lib/aarch64*/perl \
+        /usr/bin/aarch64*dump \
+        /usr/bin/aarch64-linux-gnu-ld* \
+        /usr/bin/aarch64-linux-gnu-as \
+        /usr/bin/aarch64-linux-gnu-ar \
+        /usr/bin/aarch64-linux-gnu-ranlib \
+        /usr/bin/aarch64-linux-gnu-dwp \
+        /usr/bin/aarch64-linux-gnu-c++filt \
+        /usr/bin/aarch64-linux-gnu-nm \
+        /usr/bin/aarch64-linux-gnu-size \
+        /usr/bin/aarch64-linux-gnu-cpp* \
+        /usr/bin/aarch64-linux-gnu-gprof \
+        /usr/bin/cmake /usr/bin/cpack /usr/bin/ctest \
+        /usr/bin/meson /usr/bin/ninja \
+        /usr/lib/python3 \
+        /usr/lib/postgresql \
+        /etc/ssh \
+        /tmp/* /var/tmp/* /var/log/* \
+        /usr/share/doc /usr/share/man /usr/share/icons /usr/share/vim \
+        /usr/share/perl /usr/share/poppler \
+        /usr/share/cmake-3.22 /usr/share/cmake \
+        /usr/share/emacs /usr/share/emacsen-common \
+        /usr/share/java /usr/share/X11 \
+        /usr/share/python-wheels /usr/share/iso-codes /usr/share/javascript \
+        /usr/share/i18n \
+        /usr/lib/gcc /var/cache /usr/lib/git-core \
+        /var/lib/dpkg /var/lib/apt/lists/* /usr/include && \
+    rm -f /usr/bin/aarch64-linux-gnu-lto-dump-11
+
+
+# Tar venv + zodoo_pipx — now without __pycache__/.a leftovers
 RUN cd /opt && \
     #___SNIPPET_TAR___
     venv zodoo_pipx | zstd $ZSTDOPTIONS > venv.tar.zst && rm -Rf venv zodoo_pipx '
 
 
-
-WORKDIR /opt/src
-
-
-# CLEANUP
-
-RUN apt-get purge -y \
-imagemagick-dev \
-libmagickcore-dev \
-libmagickwand-dev \
-perl \
-perl-base \
-libgl1-mesa-dri \
-libcodec2-1.0  \
-ffmpeg \
-libavcodec58 \
-librsvg2-2 \
-libgtk-3-0 \
-libasan* \
-libtsan* || true
-
-
-#___SNIPPET_CLEANUP___
-
-
-
-RUN rm -Rf \
-/usr/lib/*/ImageMagick*/modules-*/*/*.la \
-/usr/lib/*/ImageMagick*/modules-*/*/*.a \
-/opt/python
-
-RUN find /usr/lib/locale -mindepth 1 -maxdepth 1 -type d \
-! -name '*en_US*' -exec rm -rf {} + || true
-
-RUN rm -Rf \
-/usr/local/lib/python*/test \
-/usr/lib/jvm \
-/usr/local/bin/wkhtmltoimage \
-/usr/local/lib/python*/config-* \
-/usr/lib/aarch64-linux-gnu/libLLVM* \
-/usr/lib/aarch64*/perl \
-/usr/bin/aarch64*dump \
-/usr/lib/python3 \
-/usr/lib/postgresql \
-/etc/ssh
-
-
-
+# Tar /usr/share
 RUN cd /usr && \
     #___SNIPPET_TAR___
     share | zstd $ZSTDOPTIONS > share.tar.zst && rm -Rf share && cd - '
