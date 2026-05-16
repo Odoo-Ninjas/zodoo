@@ -1,3 +1,0 @@
-type: fix
-description: "Sync test_lib_backup with main: backup_files now rsyncs to a directory and __apply_dump_permissions uses chown -R. Restores CI green on main."
-breaking: false

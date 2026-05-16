@@ -1,3 +1,0 @@
-type: feature
-description: "Split monolithic Odoo image into a shared per-version base image + thin project layer. Etappe 1: hash/tag library and Dockerfile.base for Odoo 18 (no composer wiring yet)."
-breaking: false

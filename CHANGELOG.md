@@ -1,5 +1,17 @@
 # Changelog
 
+## 5.0.0
+
+
+- **Feature**: Introduce ZODOO_ALPHA=1 setting + `alpha` branch as the staging channel for unstable features. `odoo setup upgrade` now tracks the alpha branch when the flag is set.
+- **BREAKING**: Decouple zodoo CLI source from container images — source bind-mounted at runtime, only zodoo deps remain in image. Source-only zodoo updates no longer require image rebuilds. Bakery mode (self-contained k8s deploys) opt-in via ZODOO_EMBED=1.
+- **Feature**: Split monolithic Odoo image into a shared per-version base image + thin project layer. Etappe 1: hash/tag library and Dockerfile.base for Odoo 18 (no composer wiring yet).
+- **Internal**: Unify privilege escalation: every helper that needed sudo (btrfs snapshots, chown/chgrp on dumps + filestore + fix-permissions) now goes through `run_root_cmd` with a three-tier chain — direct → privileged Docker helper → sudo.
+- **Fix**: Stabilize test_run_root_cmd_capture_returns_stdout on Linux CI: stub _docker_root_helper_available so the patched subprocess.run doesn't reach _is_real_docker (str/bytes mismatch)
+- **Fix**: Sync test_lib_backup with main: backup_files now rsyncs to a directory and __apply_dump_permissions uses chown -R. Restores CI green on main.
+- **Internal**: Reorder odoo image cleanup to run BEFORE the venv/share tars and consolidate the 5 cleanup RUNs into one — strips __pycache__ from /opt/venv + /opt/zodoo_pipx before they are tarred, shrinking venv.tar.zst and the final flattened image.
+
+
 ## 4.0.0
 
 

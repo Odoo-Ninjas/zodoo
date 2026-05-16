@@ -1,3 +1,0 @@
-type: fix
-description: "Stabilize test_run_root_cmd_capture_returns_stdout on Linux CI: stub _docker_root_helper_available so the patched subprocess.run doesn't reach _is_real_docker (str/bytes mismatch)"
-breaking: false
