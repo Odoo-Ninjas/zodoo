@@ -52,14 +52,18 @@ if ! command -v pipx >/dev/null 2>&1; then
     exit 1
 fi
 
-# Old pipx (e.g. 0.12 from Ubuntu 20.04) has a broken editable + --force
-# combo that creates the venv inside the source path, wiping setup.py.
-# Force-upgrade pipx to a sane version (>=1.0) and make sure subsequent
-# `pipx` calls hit the upgraded copy in ~/.local/bin (apt's pipx in
-# /usr/bin would otherwise still shadow it via PATH).
-PIPX_MAJOR="$(pipx --version 2>/dev/null | cut -d. -f1)"
-if [ "${PIPX_MAJOR:-0}" -lt 1 ]; then
-    echo "⚙️  Old pipx detected ($(pipx --version)) — upgrading to current."
+# pipx 0.x (Ubuntu 20.04) and 1.0.x–1.3.x (Ubuntu 22.04) have broken
+# editable installs: 0.x wipes setup.py with the venv path, and 1.0–1.3
+# misclassify absolute paths as URL requirements under packaging >=22,
+# silently dropping --editable. pipx 1.4+ uses urllib.urlsplit and works.
+# Force-upgrade and make sure subsequent `pipx` calls hit the upgraded
+# copy in ~/.local/bin (apt's pipx in /usr/bin would otherwise shadow it).
+PIPX_VER="$(pipx --version 2>/dev/null)"
+PIPX_MAJOR="$(echo "$PIPX_VER" | cut -d. -f1)"
+PIPX_MINOR="$(echo "$PIPX_VER" | cut -d. -f2)"
+if [ "${PIPX_MAJOR:-0}" -lt 1 ] || \
+   { [ "${PIPX_MAJOR:-0}" -eq 1 ] && [ "${PIPX_MINOR:-0}" -lt 4 ]; }; then
+    echo "⚙️  Old pipx detected ($PIPX_VER) — upgrading to current."
     python3 -m pip install --user --upgrade pipx
     export PATH="$HOME/.local/bin:$PATH"
     hash -r
