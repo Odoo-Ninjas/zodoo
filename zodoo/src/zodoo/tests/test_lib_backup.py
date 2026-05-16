@@ -261,7 +261,9 @@ def test_apply_dump_permissions_chown_when_uid_set(tmp_path, monkeypatch):
     fn = next(a for a in dir(mod) if a.endswith("__apply_dump_permissions"))
     fake_path = tmp_path / "dump"
     getattr(mod, fn)(fake_path)
-    assert calls == [["sudo", "chown", "1234", fake_path]]
+    # backup_files now produces a *directory* (rsync), so chown/chgrp must
+    # descend with -R.
+    assert calls == [["sudo", "chown", "-R", "1234", fake_path]]
 
 
 def test_apply_dump_permissions_chgrp_when_gid_set(tmp_path, monkeypatch):
@@ -274,7 +276,7 @@ def test_apply_dump_permissions_chgrp_when_gid_set(tmp_path, monkeypatch):
     fn = next(a for a in dir(mod) if a.endswith("__apply_dump_permissions"))
     fake_path = tmp_path / "dump"
     getattr(mod, fn)(fake_path)
-    assert calls == [["sudo", "chgrp", "4321", fake_path]]
+    assert calls == [["sudo", "chgrp", "-R", "4321", fake_path]]
 
 
 # ---------------------------------------------------------------------------
@@ -369,7 +371,7 @@ def test_inquirer_dump_file_applies_filter(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_backup_files_tars_filestore(tmp_path, monkeypatch):
+def test_backup_files_rsyncs_filestore(tmp_path, monkeypatch):
     filestore = tmp_path / "fs"
     filestore.mkdir()
     (filestore / "f").write_bytes(b"x")
@@ -382,7 +384,6 @@ def test_backup_files_tars_filestore(tmp_path, monkeypatch):
         lambda cmd, cwd=None: calls.append((cmd, cwd)),
     )
     # disable permission chown side-effects
-    monkeypatch.setattr(mod, "__dict__") if False else None
     for attr in dir(mod):
         if attr.endswith("__apply_dump_permissions"):
             monkeypatch.setattr(mod, attr, lambda *a, **kw: None)
@@ -392,12 +393,19 @@ def test_backup_files_tars_filestore(tmp_path, monkeypatch):
         project_name="myproj",
     )
     cfg._project_name = "myproj"
-    out_file = tmp_path / "myproj.files.tar.gz"
+    out_dir = tmp_path / "myproj.files"
     res = CliRunner().invoke(
-        mod.backup_files, [str(out_file)], obj=cfg, catch_exceptions=False
+        mod.backup_files, [str(out_dir)], obj=cfg, catch_exceptions=False
     )
     assert res.exit_code == 0
-    assert any(cmd[0] == "tar" for cmd, _ in calls)
+    # backup_files now uses rsync into a directory, not tar.gz
+    rsync_calls = [cmd for cmd, _ in calls if cmd and cmd[0] == "rsync"]
+    assert rsync_calls, f"expected an rsync call, got: {calls}"
+    rsync_cmd = rsync_calls[0]
+    assert rsync_cmd[-2] == f"{filestore}/"
+    assert rsync_cmd[-1] == f"{out_dir}/"
+    # target directory must have been created up-front
+    assert out_dir.is_dir()
 
 
 def test_backup_files_aborts_when_dir_missing(tmp_path, monkeypatch):
