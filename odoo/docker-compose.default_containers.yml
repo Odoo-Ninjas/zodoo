@@ -10,20 +10,12 @@ services:
       IS_ODOO_WEBSERVER: 1
       DEBUGGER_WATCH: /opt/src/.debug
       DEBUGGER_ODOO_PID: /tmp/odoo.debug.pid
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - |
-          /opt/venv/bin/python /odoolib/healthcheck_cronjobs.py || exit 1
-          ver="${ODOO_VERSION:-0}"
-          if awk "BEGIN{exit !($ver>13.0)}"; then
-              /opt/venv/bin/python /odoolib/healthcheck_queuejobs.py || exit 1
-          fi
-          exit 0
-      interval: 30s
-      timeout: 15s
-      retries: 1
-      start_period: 60s
+    # No healthcheck — the in-container supervisor watches the cronjobs and
+    # queuejobs roles itself and respawns just those subprocesses when they
+    # get stuck (DB connection loss, cron thread crash, …). A full
+    # `docker restart` would also take the web role down with it, so we
+    # keep it role-local. See `_WATCHDOG_PATTERNS` in
+    # [supervisor.py](../bin/supervisor.py).
 
   # odoo_debug reuses the `odoo` image directly (no separate build) — the
   # explicit `image:` short-circuits compose's default `<proj>-<service>`
