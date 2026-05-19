@@ -42,6 +42,23 @@ GRACE_SECONDS = 30
 BACKOFF_INITIAL = 1.0
 BACKOFF_MAX = 30.0
 
+# Watchdog: stdout patterns from a worker role that indicate it has stopped
+# making progress (cron thread crashed, DB connection lost and the loop is
+# stuck retrying a poisoned pool, …). When matched on a watched role we
+# respawn only that role — the web role is intentionally left untouched so
+# a cron hiccup never takes the UI down. A user-initiated stop
+# (`odoo kill odoo_cronjobs` → want_running=False) wins over the watchdog.
+_WATCHDOG_PATTERNS = (
+    "Exception in thread odoo.service.cron.cron",
+    "server closed the connection unexpectedly",
+    "could not connect to server",
+    "connection already closed",
+    "terminating connection due to administrator command",
+    "SSL connection has been closed unexpectedly",
+    "psycopg2.InterfaceError",
+)
+_WATCHDOG_ROLES = {"cronjobs", "queuejobs"}
+
 # Role definitions. The run.py entrypoint reads IS_ODOO_CRONJOB /
 # IS_ODOO_QUEUEJOB to pick the right odoo config file; for the web role
 # neither is set and run.py falls through to config_webserver.
@@ -109,6 +126,7 @@ class Role:
         self.want_running = _is_role_enabled(spec)
         self.backoff = BACKOFF_INITIAL
         self.last_spawn = 0.0
+        self.respawn_requested = False
         self._log_thread = None
         self._lock = threading.Lock()
 
@@ -121,6 +139,7 @@ class Role:
             env["ZODOO_ROLE"] = self.name
             _log(f"[{self.name}] spawn")
             self.last_spawn = time.time()
+            self.respawn_requested = False
             self.proc = subprocess.Popen(
                 [ZODOO_PYTHON, RUN_PY],
                 env=env,
@@ -141,10 +160,24 @@ class Role:
         if proc is None or proc.stdout is None:
             return
         prefix = f"[{self.name}] "
+        watched = self.name in _WATCHDOG_ROLES
         try:
             for line in proc.stdout:
                 sys.stdout.write(prefix + line)
                 sys.stdout.flush()
+                # Guard against the old proc's pump thread setting the flag
+                # after a fresh spawn — only the current generation may arm.
+                if (
+                    watched
+                    and proc is self.proc
+                    and not self.respawn_requested
+                    and any(p in line for p in _WATCHDOG_PATTERNS)
+                ):
+                    _log(
+                        f"[{self.name}] watchdog: stuck-pattern match "
+                        f"→ requesting respawn"
+                    )
+                    self.respawn_requested = True
         except Exception as ex:
             _log(f"[{self.name}] log pump error: {ex}")
 
@@ -266,9 +299,29 @@ class Supervisor:
         _log(f"warmup gate timed out after {timeout_s:.0f}s — releasing background roles")
 
     def supervise_loop(self):
-        """Reap children and respawn per policy (restart: on-failure)."""
+        """Reap children and respawn per policy (restart: on-failure).
+
+        Also services watchdog respawn requests posted by `_pump_logs` for
+        watched worker roles (cronjobs/queuejobs). A respawn request that
+        coincides with `want_running=False` (user did `odoo kill
+        odoo_cronjobs`) is dropped — the user's stop intent wins.
+        """
         while not self._shutdown.is_set():
             for role in self.roles.values():
+                if role.respawn_requested:
+                    role.respawn_requested = False
+                    if not role.want_running:
+                        _log(
+                            f"[{role.name}] watchdog: ignored "
+                            f"(want_running=False — user stopped it)"
+                        )
+                    else:
+                        _log(f"[{role.name}] watchdog: respawning")
+                        role.stop()
+                        role.backoff = BACKOFF_INITIAL
+                        if not self._shutdown.is_set():
+                            role.spawn()
+                    continue
                 if role.reap_if_dead() and role.want_running:
                     # Exponential backoff on tight crash loops.
                     since = time.time() - role.last_spawn

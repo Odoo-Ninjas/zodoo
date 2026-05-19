@@ -1,5 +1,4 @@
 import os
-import threading
 
 from tools import (
     exec_odoo,
@@ -9,38 +8,6 @@ from tools import (
 )
 from tools import set_proxy_update_modules
 from tools import pregenerate_assets_if_web
-
-if is_odoo_cronjob:
-    _CRASH_PATTERN = b"Exception in thread odoo.service.cron.cron"
-    _CRASH_SENTINEL = "/dev/shm/cron_crashed"
-
-    # Under the supervisor the container outlives a cron crash — if we did
-    # not clear the sentinel on (re-)spawn, healthcheck_cronjobs.py would
-    # keep reporting unhealthy forever. With separate containers docker
-    # used to recycle /dev/shm for us; now we do it ourselves.
-    try:
-        os.unlink(_CRASH_SENTINEL)
-    except FileNotFoundError:
-        pass
-
-    _r_fd, _w_fd = os.pipe()
-    _orig_stdout_fd = os.dup(1)
-    os.dup2(_w_fd, 1)
-    os.dup2(_w_fd, 2)
-    os.close(_w_fd)
-
-    def _monitor_output():
-        r = os.fdopen(_r_fd, "rb")
-        while True:
-            line = r.readline()
-            if not line:
-                break
-            os.write(_orig_stdout_fd, line)
-            if _CRASH_PATTERN in line:
-                open(_CRASH_SENTINEL, "w").close()
-
-    threading.Thread(target=_monitor_output, daemon=True).start()
-
 
 try:
     import importlib.metadata as _md  # py >= 3.8
