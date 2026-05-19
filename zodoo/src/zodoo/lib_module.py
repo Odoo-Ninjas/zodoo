@@ -278,8 +278,14 @@ def _perform_install(
     # Default: incremental update via stored SHA in DB
     # --manifest: skip incremental, update all MANIFEST install modules
     # --since-git-sha: deprecated, kept for backwards compat
+    # --installed-modules (-i): always update installed modules, skip SHA shortcut
     effective_sha = since_git_sha
-    if not manifest_mode and not module and not effective_sha:
+    if (
+        not manifest_mode
+        and not module
+        and not effective_sha
+        and not installed_modules
+    ):
         conn = config.get_odoo_conn()
         effective_sha = _get_setting(conn, KEY_SHA_REVISION)
 
