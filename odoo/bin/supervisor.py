@@ -209,9 +209,61 @@ class Supervisor:
     # ------------------------------------------------------------------
 
     def start_enabled(self):
-        for role in self.roles.values():
+        """Spawn enabled roles, holding cronjobs/queuejobs until web warmup.
+
+        Background roles (cronjobs/queuejobs) share the database with web
+        workers; if they spawn while web is mid-warmup they hit a registry
+        that is still settling (asset attachments being generated, queue.job
+        model loading, etc) and can dirty per-worker caches with stale
+        lookups. Wait for the warmup sentinel written by _touch() in
+        tools.py before bringing them up.
+
+        Set ODOO_GATE_BG_ON_WARMUP=0 to disable gating (legacy behaviour).
+        """
+        gating = os.environ.get("ODOO_GATE_BG_ON_WARMUP", "1") == "1"
+        bg_roles = {"cronjobs", "queuejobs"}
+
+        # Spawn non-background roles first (web).
+        for name, role in self.roles.items():
+            if name in bg_roles:
+                continue
             if role.want_running:
                 role.spawn()
+
+        if gating:
+            # Best-effort wait for warmup. We don't fail-close because the
+            # warmup may legitimately fail (degraded web) — background work
+            # should still run.
+            timeout_s = float(os.environ.get("ODOO_WARMUP_GATE_TIMEOUT_S", "600"))
+            self._wait_for_warmup(timeout_s)
+
+        for name, role in self.roles.items():
+            if name not in bg_roles:
+                continue
+            if role.want_running:
+                role.spawn()
+
+    def _wait_for_warmup(self, timeout_s):
+        done = Path("/var/run/zodoo-warmup.done")
+        failed = Path("/var/run/zodoo-warmup.failed")
+        # Stale sentinels from a previous run would let us proceed
+        # immediately; remove them so the gate reflects this boot.
+        for p in (done, failed):
+            try:
+                p.unlink()
+            except FileNotFoundError:
+                pass
+        deadline = time.time() + timeout_s
+        _log(f"waiting for web warmup (up to {timeout_s:.0f}s) before spawning cronjobs/queuejobs")
+        while time.time() < deadline and not self._shutdown.is_set():
+            if done.exists():
+                _log("warmup sentinel found — releasing background roles")
+                return
+            if failed.exists():
+                _log("warmup failed sentinel found — releasing background roles anyway")
+                return
+            time.sleep(0.5)
+        _log(f"warmup gate timed out after {timeout_s:.0f}s — releasing background roles")
 
     def supervise_loop(self):
         """Reap children and respawn per policy (restart: on-failure)."""
