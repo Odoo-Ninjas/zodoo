@@ -1,3 +1,0 @@
-type: fix
-description: "Supervisor now watches the cronjobs and queuejobs roles for DB-connection-loss patterns (server closed connection, psycopg2.InterfaceError, ...) and respawns just that role instead of recycling the whole container. Drops the docker-level healthcheck and the healthcheck_cronjobs/healthcheck_queuejobs scripts — a stuck cron no longer takes the web UI down with it. A user-initiated `odoo kill odoo_cronjobs` is honoured (want_running=False overrides the watchdog)."
-breaking: false

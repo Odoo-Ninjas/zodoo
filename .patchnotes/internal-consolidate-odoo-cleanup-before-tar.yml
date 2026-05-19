@@ -1,3 +1,0 @@
-type: internal
-description: "Reorder odoo image cleanup to run BEFORE the venv/share tars and consolidate the 5 cleanup RUNs into one — strips __pycache__ from /opt/venv + /opt/zodoo_pipx before they are tarred, shrinking venv.tar.zst and the final flattened image."
-breaking: false

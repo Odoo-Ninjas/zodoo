@@ -1,5 +1,17 @@
 # Changelog
 
+## 6.0.0
+
+
+- **Feature**: Introduce ZODOO_ALPHA=1 setting + `alpha` branch as the staging channel for unstable features. `odoo setup upgrade` now tracks the alpha branch when the flag is set.
+- **Fix**: Supervisor now watches the cronjobs and queuejobs roles for DB-connection-loss patterns (server closed connection, psycopg2.InterfaceError, ...) and respawns just that role instead of recycling the whole container. Drops the docker-level healthcheck and the healthcheck_cronjobs/healthcheck_queuejobs scripts — a stuck cron no longer takes the web UI down with it. A user-initiated `odoo kill odoo_cronjobs` is honoured (want_running=False overrides the watchdog).
+- **BREAKING**: Decouple zodoo CLI source from container images — source bind-mounted at runtime, only zodoo deps remain in image. Source-only zodoo updates no longer require image rebuilds. Bakery mode (self-contained k8s deploys) opt-in via ZODOO_EMBED=1.
+- **Feature**: Split monolithic Odoo image into a shared per-version base image + thin project layer. Etappe 1: hash/tag library and Dockerfile.base for Odoo 18 (no composer wiring yet).
+- **Internal**: Unify privilege escalation: every helper that needed sudo (btrfs snapshots, chown/chgrp on dumps + filestore + fix-permissions) now goes through `run_root_cmd` with a three-tier chain — direct → privileged Docker helper → sudo.
+- **Fix**: `odoo update -i` (--installed-modules) was short-circuited by the stored SHA-revision: when the DB sha matched HEAD, _perform_install returned with 'No module update required' before the -i path could run. The SHA shortcut is now skipped when -i is set, so installed modules are always updated.
+- **Internal**: Reorder odoo image cleanup to run BEFORE the venv/share tars and consolidate the 5 cleanup RUNs into one — strips __pycache__ from /opt/venv + /opt/zodoo_pipx before they are tarred, shrinking venv.tar.zst and the final flattened image.
+
+
 ## 5.1.1
 
 

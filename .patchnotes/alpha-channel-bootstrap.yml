@@ -1,3 +1,0 @@
-type: feature
-description: "Introduce ZODOO_ALPHA=1 setting + `alpha` branch as the staging channel for unstable features. `odoo setup upgrade` now tracks the alpha branch when the flag is set."
-breaking: false
