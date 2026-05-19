@@ -578,14 +578,16 @@ def _export_container_buildsettings(ctx, config, yamlcompose):
                 path = Path(yamlcompose["services"][service]["build"])
                 if path.is_file():
                     path = path.parent
-            elif context := (
-                yamlcompose["services"][service]["build"] or {}
-            ).get("context"):
-                path = Path(context)
             else:
-                raise NotImplementedError(
-                    f"Could not determine build path for service {service}"
-                )
+                context = (
+                    yamlcompose["services"][service]["build"] or {}
+                ).get("context")
+                if context:
+                    path = Path(context)
+                else:
+                    raise NotImplementedError(
+                        f"Could not determine build path for service {service}"
+                    )
             filepath = path / "buildsettings.env"
             filepath.write_text(content)
             __assure_gitignore(path / ".gitignore", filepath.name)
@@ -1366,7 +1368,10 @@ def create_directories(config, content):
                 raise NotImplementedError(host_path)
             if not host_path.exists():
                 try:
-                    if host_path.suffix and host_path.suffix not in (".socket", ".logs"):
+                    if host_path.suffix and host_path.suffix not in (
+                        ".socket",
+                        ".logs",
+                    ):
                         host_path.parent.mkdir(parents=True, exist_ok=True)
                         host_path.touch()
                     else:
