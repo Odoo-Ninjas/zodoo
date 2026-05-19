@@ -798,6 +798,87 @@ def wait_for_tcp(
     )
 
 
+ASSET_BUNDLES_DEFAULT = (
+    "web.assets_common,web.assets_frontend,web.assets_backend,"
+    "web.assets_common_lazy,web.assets_frontend_lazy,"
+    "web.assets_common_minimal,web.assets_frontend_minimal,"
+    "web.assets_backend_prod_only"
+)
+
+
+def pregenerate_assets_if_web():
+    """Public wrapper: only run pre-generation in the web role.
+
+    Cron/queuejob workers don't render HTML, so they have no asset bundles
+    to pre-warm. is_odoo_cronjob / is_odoo_queuejob are set by run.py via
+    role-specific env vars.
+    """
+    if is_odoo_cronjob or is_odoo_queuejob:
+        return
+    _pregenerate_assets()
+
+
+def _pregenerate_assets():
+    """Pre-generate all known asset bundles in a single subprocess.
+
+    Must be called BEFORE the odoo workers fork. Each worker caches its
+    asset-bundle lookups in-process forever (ormcache_context on
+    ir.qweb._generate_asset_nodes_cache). If we generate bundles after
+    the fork, workers still serve their own stale cached URLs even though
+    the new attachments are in the DB. Running pre-gen here means every
+    worker inherits the same committed state at fork time and never has to
+    create its own copy on first render.
+
+    Set ODOO_WARMUP_PREGENERATE=0 to skip, or ODOO_WARMUP_BUNDLES to a
+    comma-separated list to override the bundle set.
+    """
+    if os.getenv("ODOO_WARMUP_PREGENERATE", "1") != "1":
+        click.secho("Skipping asset pre-generation (ODOO_WARMUP_PREGENERATE=0)")
+        return
+    bundles = [
+        b.strip()
+        for b in os.getenv("ODOO_WARMUP_BUNDLES", ASSET_BUNDLES_DEFAULT).split(",")
+        if b.strip()
+    ]
+    if not bundles:
+        return
+    click.secho(
+        f"Pre-generating {len(bundles)} asset bundles in single-threaded odoo shell..."
+    )
+    bundle_list_repr = repr(bundles)
+    script = (
+        "bundles = " + bundle_list_repr + "\n"
+        "for _b in bundles:\n"
+        "    try:\n"
+        "        env['ir.qweb']._get_asset_link_urls(_b)\n"
+        "        env['ir.qweb']._get_asset_nodes(_b)\n"
+        "    except Exception as _e:\n"
+        "        print(f'asset pregenerate {_b}: {_e}')\n"
+        "env.cr.commit()\n"
+        "print('pregenerated assets:', bundles)\n"
+    )
+    try:
+        # Run via /odoolib/shell.py wrapper which handles odoo-shell setup.
+        # Pipe script via stdin (per shell.py "ODOO_SHELL_CMD" convention).
+        proc = subprocess.run(
+            ["/odoolib/shell.py", script],
+            capture_output=True,
+            text=True,
+            timeout=int(os.getenv("ODOO_WARMUP_PREGEN_TIMEOUT", "300")),
+        )
+        if proc.returncode != 0:
+            click.secho(
+                f"Asset pre-generation failed (rc={proc.returncode}): "
+                f"{proc.stderr[-500:] if proc.stderr else proc.stdout[-500:]}",
+                fg="yellow",
+            )
+        else:
+            click.secho("Asset pre-generation done.")
+    except Exception as e:
+        # Never block startup over warmup
+        click.secho(f"Asset pre-generation crashed: {e}", fg="yellow")
+
+
 def _touch():
     click.secho("Warming up odoo cache.")
     INTERNAL_ODOO_PORT = os.getenv("INTERNAL_ODOO_PORT", "8069")
@@ -805,10 +886,16 @@ def _touch():
         os.getenv("MAX_WARMUP_WORKERS", os.getenv("ODOO_WORKERS_WEB", "1"))
     )
 
-    url = f"http://localhost:{INTERNAL_ODOO_PORT}/web/login"
+    WARMUP_PATH = os.getenv("ODOO_WARMUP_PATH", "/web/login")
+    if not WARMUP_PATH.startswith("/"):
+        WARMUP_PATH = "/" + WARMUP_PATH
+    url = f"http://localhost:{INTERNAL_ODOO_PORT}{WARMUP_PATH}"
 
     # Einstellbar:
-    MAX_PARALLEL_WARMUP = int(os.getenv("MAX_PARALLEL_WARMUP", "4"))
+    # Default 1 (sequential): parallel HTTP warmup against a multi-worker
+    # Odoo races bundle generation across workers. See note in the warmup
+    # loop below. Set MAX_PARALLEL_WARMUP>1 to re-enable parallelism.
+    MAX_PARALLEL_WARMUP = int(os.getenv("MAX_PARALLEL_WARMUP", "1"))
     READY_TIMEOUT_S = float(
         os.getenv("ODOO_READY_TIMEOUT_S", "60")
     )  # wie lange auf "Odoo lebt" warten
@@ -821,19 +908,25 @@ def _touch():
     PER_REQUEST_RETRIES = int(os.getenv("ODOO_WARMUP_RETRIES", "3"))
     REQUEST_TIMEOUT_S = float(os.getenv("ODOO_REQUEST_TIMEOUT_S", "55"))
 
-    def wait_until_ready():
+    def wait_until_tcp_ready():
+        """Wait only for the Odoo TCP port to open — DOES NOT make an HTTP
+        request. Issuing an HTTP request here would trigger asset bundle
+        generation inside a worker before our single-threaded pre-generation
+        had a chance to run, defeating the whole point of pre-generating."""
         wait_for_tcp(
             "localhost",
             int(INTERNAL_ODOO_PORT),
             timeout=READY_TIMEOUT_S,
             interval=READY_INTERVAL_S,
         )
+
+    def wait_until_http_ready():
+        """After pre-gen has committed bundles, confirm HTTP actually works."""
         deadline = time.time() + READY_TIMEOUT_S
         last_ex = None
-        click.secho(f"Waiting for Odoo to become ready: {url}")
+        click.secho(f"Waiting for Odoo HTTP to respond: {url}")
         while time.time() < deadline:
             try:
-                click.secho(f"Fetching url {url}")
                 r = requests.get(url, timeout=REQUEST_TIMEOUT_S)
                 r.raise_for_status()
                 click.secho("Odoo is reachable.")
@@ -841,7 +934,6 @@ def _touch():
             except Exception as e:
                 last_ex = e
                 time.sleep(READY_INTERVAL_S)
-                click.secho(str(e))
         raise RuntimeError(
             f"Odoo not reachable after {READY_TIMEOUT_S}s: {last_ex}"
         )
@@ -858,13 +950,26 @@ def _touch():
                 time.sleep(0.2)
         raise last_ex
 
-    # 1) readiness check (einmal!)
-    wait_until_ready()
+    # 1) Wait only for TCP — must NOT make an HTTP request here, otherwise
+    #    a worker generates bundles before pre-gen.
+    wait_until_tcp_ready()
+
+    # 2) HTTP readiness probe (bundles were pre-generated by run.py BEFORE
+    #    odoo workers forked, so all workers inherit the same DB state).
+    wait_until_http_ready()
     click.secho(
         "Generally odoo is responsive, now warming up cache with multiple requests..."
     )
 
-    # 2) warmup in kontrollierter Parallelität
+    # 3) warmup in kontrollierter Parallelität
+    # Sequential per default: parallel HTTP warmup against a multi-worker
+    # web has each worker generate its own copy of any not-yet-cached asset
+    # bundle, producing duplicate ir.attachment rows and intermittent 404s
+    # when the browser hits an id that another worker has just replaced.
+    # Sequential lets the first worker commit, the rest find existing rows.
+    # Override with MAX_PARALLEL_WARMUP > 1 if you really want the old
+    # behaviour.
+    sequential = MAX_PARALLEL_WARMUP <= 1
     for attempt in range(3):
         click.secho(
             f"Warming up Odoo cache: total requests={WARMUP_REQUESTS}, "
@@ -873,27 +978,58 @@ def _touch():
 
         failed = []
 
-        with ThreadPoolExecutor(max_workers=MAX_PARALLEL_WARMUP) as ex:
-            futures = [
-                ex.submit(warmup_once, i) for i in range(WARMUP_REQUESTS)
-            ]
-            for f in as_completed(futures):
+        if sequential:
+            for i in range(WARMUP_REQUESTS):
                 try:
-                    f.result()
+                    warmup_once(i)
                 except Exception as e:
                     failed.append(e)
+        else:
+            with ThreadPoolExecutor(max_workers=MAX_PARALLEL_WARMUP) as ex:
+                futures = [
+                    ex.submit(warmup_once, i) for i in range(WARMUP_REQUESTS)
+                ]
+                for f in as_completed(futures):
+                    try:
+                        f.result()
+                    except Exception as e:
+                        failed.append(e)
 
         if not failed:
             click.secho("Successfully warmed up Odoo Cache.")
+            _signal_warmup_done()
             return
 
         click.secho(f"Warmup had {len(failed)} failures.")
         if attempt == 2:
             for e in failed[:10]:  # nicht unendlich spam
                 click.secho(e)
+            # Even on failure mark warmup as 'done' so the supervisor stops
+            # blocking cronjobs/queuejobs forever. They will see a degraded
+            # web but at least background work resumes.
+            _signal_warmup_done(failed=True)
             sys.exit(1)
 
         time.sleep(1.0)  # kurzer backoff vor nächstem attempt
+
+
+WARMUP_DONE_SENTINEL = "/var/run/zodoo-warmup.done"
+WARMUP_FAILED_SENTINEL = "/var/run/zodoo-warmup.failed"
+
+
+def _signal_warmup_done(failed=False):
+    """Write a sentinel file so the supervisor can gate cronjobs/queuejobs.
+
+    On success: touches WARMUP_DONE_SENTINEL.
+    On exhausted retries: touches WARMUP_FAILED_SENTINEL (the supervisor
+    treats both as 'release the gate' so background work doesn't hang).
+    """
+    path = WARMUP_FAILED_SENTINEL if failed else WARMUP_DONE_SENTINEL
+    try:
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        Path(path).write_text(str(int(time.time())))
+    except Exception as e:
+        click.secho(f"Could not write warmup sentinel {path}: {e}", fg="yellow")
 
 
 def set_proxy_update_modules(enabled):
