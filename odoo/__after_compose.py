@@ -683,6 +683,13 @@ def _apply_legacy_split_containers(yml, settings):
         if not odoo["volumes"]:
             odoo.pop("volumes", None)
 
+    # Drop the v14+ consolidated healthcheck inherited from odoo_base —
+    # it runs healthcheck_cronjobs in the web container and uses an
+    # awk-on-version test whose ${ODOO_VERSION:-0} interpolation gets
+    # eaten by compose before reaching the shell. Pre-supervisor odoo
+    # web had no healthcheck; restore that.
+    odoo.pop("healthcheck", None)
+
     # Re-introduce the per-role services that the supervisor commit
     # collapsed into a single container.
     _ensure_legacy_role(
@@ -692,9 +699,12 @@ def _apply_legacy_split_containers(yml, settings):
         labels={"odoo.queuejob_container": "1"},
         restart="on-failure",
         healthcheck={
+            # /opt/venv/bin/python is python2.7 on debian buster (v11),
+            # but healthcheck_cronjobs.py uses py3 syntax. Use python3
+            # explicitly.
             "test": [
                 "CMD-SHELL",
-                "/opt/venv/bin/python /odoolib/healthcheck_cronjobs.py",
+                "/opt/venv/bin/python3 /odoolib/healthcheck_cronjobs.py",
             ],
             "interval": "30s",
             "timeout": "10s",
@@ -762,6 +772,13 @@ def _ensure_legacy_role(
         svc["environment"] = dict(
             (kv.split("=", 1) + [""])[:2] for kv in svc["environment"]
         )
+    # Drop role flags inherited from the consolidated odoo web service
+    # before applying this role's override. Otherwise IS_ODOO_WEBSERVER=1
+    # leaks into cronjobs/queuejobs/update containers and they run the
+    # web codepath alongside their actual role.
+    for k in list(svc["environment"].keys()):
+        if k.startswith("IS_ODOO_"):
+            svc["environment"].pop(k, None)
     svc["environment"].update(env)
     if healthcheck:
         svc["healthcheck"] = healthcheck
