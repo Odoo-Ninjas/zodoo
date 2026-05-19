@@ -1,5 +1,11 @@
 # Changelog
 
+## 5.1.1
+
+
+- **Fix**: `odoo update -i` (--installed-modules) was short-circuited by the stored SHA-revision: when the DB sha matched HEAD, _perform_install returned with 'No module update required' before the -i path could run. The SHA shortcut is now skipped when -i is set, so installed modules are always updated.
+
+
 ## 5.1.0
 
 
