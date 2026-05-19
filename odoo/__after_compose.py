@@ -35,6 +35,12 @@ def after_compose(config, settings, yml, globals):
     yml["services"].pop("odoo_base")
     manifest = MANIFEST()
 
+    # Legacy v11/v13: revert the v14+ supervisor consolidation.
+    # Why: those Debian Buster images run Python 3.7 and predate the
+    # in-container supervisor; they must keep using run.py with one role
+    # per container (odoo, odoo_cronjobs, odoo_queuejobs, odoo_update).
+    _apply_legacy_split_containers(yml, settings)
+
     # odoo_debug inherits `profiles: [auto]` and `build:` from odoo_base via
     # compose.merge. We want it manual-only and pointing at the same image
     # tag as `odoo` (no separate build → truly one odoo image).
@@ -646,6 +652,126 @@ def _get_sha(config):
             ).strip()
         my_cache["sha"] = sha
     return my_cache["sha"]
+
+
+def is_legacy_version(settings):
+    """v11/v13 keep the pre-supervisor split-container layout."""
+    try:
+        return float(settings["ODOO_VERSION"]) < 14.0
+    except (KeyError, ValueError, TypeError):
+        return False
+
+
+def _apply_legacy_split_containers(yml, settings):
+    if not is_legacy_version(settings):
+        return
+
+    services = yml["services"]
+    odoo = services.get("odoo")
+    if odoo is None:
+        return
+
+    # In non-devmode, drop the host zodoo bind-mount so legacy images
+    # stay frozen at the zodoo source baked in at build time. In devmode
+    # we keep the bind-mount so the local CLI source (which may include
+    # py3.7 compatibility fixes not yet in upstream main) leaks into the
+    # container — otherwise the image's frozen zodoo (cloned from
+    # upstream main, possibly with py3.8+ syntax) will crash on import.
+    if str(settings.get("DEVMODE", "0")) != "1":
+        volumes = list(odoo.get("volumes") or [])
+        odoo["volumes"] = [v for v in volumes if not _is_zodoo_bind_mount(v)]
+        if not odoo["volumes"]:
+            odoo.pop("volumes", None)
+
+    # Re-introduce the per-role services that the supervisor commit
+    # collapsed into a single container.
+    _ensure_legacy_role(
+        services,
+        "odoo_cronjobs",
+        env={"IS_ODOO_CRONJOB": "1"},
+        labels={"odoo.queuejob_container": "1"},
+        restart="on-failure",
+        healthcheck={
+            "test": [
+                "CMD-SHELL",
+                "/opt/venv/bin/python /odoolib/healthcheck_cronjobs.py",
+            ],
+            "interval": "30s",
+            "timeout": "10s",
+            "retries": 1,
+            "start_period": "60s",
+        },
+    )
+    _ensure_legacy_role(
+        services,
+        "odoo_queuejobs",
+        env={"IS_ODOO_QUEUEJOB": "1"},
+        labels={"odoo.queuejob_container": "1"},
+        restart="on-failure",
+    )
+    _ensure_legacy_role(
+        services,
+        "odoo_update",
+        env={},
+        restart="no",
+        command="echo 'good bye - it is ok!'",
+    )
+
+
+def _is_zodoo_bind_mount(volume_entry):
+    if isinstance(volume_entry, str):
+        return ":/opt/zodoo" in volume_entry
+    if isinstance(volume_entry, dict):
+        return volume_entry.get("target") == "/opt/zodoo"
+    return False
+
+
+def _ensure_legacy_role(
+    services,
+    name,
+    env,
+    labels=None,
+    restart="unless-stopped",
+    healthcheck=None,
+    command=None,
+):
+    if name in services:
+        return
+
+    # compose.merge is applied earlier in the pipeline (before
+    # __after_compose runs), so newly added services here never inherit
+    # build/image from odoo_base. Clone the already-resolved `odoo`
+    # service as the base instead — same image, same volumes, same env
+    # block — then layer the role-specific overrides on top.
+    odoo = services.get("odoo")
+    if odoo is None:
+        return
+
+    svc = deepcopy(odoo)
+    svc.pop("ports", None)
+    svc.pop("profiles", None)
+    svc.pop("container_name", None)
+    svc.pop("hostname", None)
+    svc["restart"] = restart
+    svc.setdefault("labels", {})
+    svc["labels"].update({"compose.merge": "odoo_base"})
+    if labels:
+        svc["labels"].update(labels)
+    svc.setdefault("environment", {})
+    if isinstance(svc["environment"], list):
+        svc["environment"] = dict(
+            (kv.split("=", 1) + [""])[:2] for kv in svc["environment"]
+        )
+    svc["environment"].update(env)
+    if healthcheck:
+        svc["healthcheck"] = healthcheck
+    else:
+        svc.pop("healthcheck", None)
+    if command is not None:
+        svc["command"] = command
+    else:
+        svc.pop("command", None)
+    services[name] = svc
 
 
 def _setup_remote_debugging(config, yml):

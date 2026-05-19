@@ -300,7 +300,7 @@ ENV ENV_DIR=/opt/zodoo_pipx/venvs/zodoo
 ADD bin/ /odoolib/
 ENV ODOO_CONFIG_DIR=${ODOO_CONFIG_DIR}
 ADD config/${ODOO_VERSION}/config ${ODOO_CONFIG_DIR}.template
-CMD ["sh", "-c", "$ZODOO_PYTHON /odoolib/supervisor.py"]
+CMD ["sh", "-c", "$ZODOO_PYTHON /odoolib/run.py"]
 ENTRYPOINT ["/odoolib/entrypoint.sh"]
 
 #___SNIPPET_CLEANUP___
