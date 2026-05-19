@@ -525,7 +525,38 @@ def _update_gimera_src(config):
     )
 
 
+def _ensure_pipx_version():
+    # pipx <1.4 misclassifies absolute paths as URL requirements under
+    # packaging>=22, silently dropping --editable. Force-upgrade.
+    try:
+        ver = subprocess.check_output(
+            ["pipx", "--version"], encoding="utf-8"
+        ).strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return
+    parts = ver.split(".")
+    try:
+        major = int(parts[0])
+        minor = int(parts[1]) if len(parts) > 1 else 0
+    except ValueError:
+        return
+    if major > 1 or (major == 1 and minor >= 4):
+        return
+    click.secho(
+        f"Old pipx detected ({ver}) — upgrading to current.", fg="yellow"
+    )
+    subprocess.check_call(
+        ["python3", "-m", "pip", "install", "--user", "--upgrade", "pipx"]
+    )
+    local_bin = os.path.expanduser("~/.local/bin")
+    if local_bin not in os.environ.get("PATH", "").split(os.pathsep):
+        os.environ["PATH"] = (
+            local_bin + os.pathsep + os.environ.get("PATH", "")
+        )
+
+
 def _reinstall():
+    _ensure_pipx_version()
     images_dir = Path(os.path.expanduser("~/.odoo/images"))
     path = str(images_dir / "zodoo" / "src")
     for name in ["zodoo", "wodoo"]:

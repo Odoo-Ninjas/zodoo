@@ -1,20 +1,35 @@
-import importlib.metadata
 import os
 
 from tools import (
     exec_odoo,
     is_odoo_cronjob,
     is_odoo_queuejob,
-    prepare_run_role,
+    prepare_run,
 )
 from tools import set_proxy_update_modules
 
 try:
-    _zodoo_version = importlib.metadata.version("zodoo")
-except importlib.metadata.PackageNotFoundError:
+    import importlib.metadata as _md  # py >= 3.8
+except ImportError:
+    try:
+        import importlib_metadata as _md  # py 3.7 backport (if installed)
+    except ImportError:
+        _md = None
+
+if _md is None:
     _zodoo_version = "unknown"
+else:
+    try:
+        _zodoo_version = _md.version("zodoo")
+    except Exception:
+        _zodoo_version = "unknown"
 print(f"Starting up odoo (zodoo {_zodoo_version})")
-prepare_run_role()
+# Legacy v11/v13 entrypoint: each role container runs run.py directly,
+# so we must do the full prepare (config rendering + role-specific
+# fixups). With the v14+ supervisor those two halves are split across
+# prepare_run_shared (once, by the supervisor) and prepare_run_role
+# (per spawned role).
+prepare_run()
 
 TOUCH_URL = not is_odoo_cronjob and not is_odoo_queuejob
 if os.getenv("DEVMODE") == "1":

@@ -146,9 +146,8 @@ def do_kill(ctx, config, machines=[], brutal=False, profile="auto"):
                 SAFE_KILL.append(machine)
 
     machines = list(machines)
-    # Redirect legacy service names to the in-container supervisor.
-    legacy = [m for m in machines if m in _LEGACY_ROLE_MAP]
-    machines = [m for m in machines if m not in _LEGACY_ROLE_MAP]
+    # Redirect legacy service names to the in-container supervisor (v14+).
+    legacy, machines = _legacy_role_match(config, machines)
     for m in legacy:
         _supervisor_action_role(config, "stop", _LEGACY_ROLE_MAP[m])
     if legacy and not machines:
@@ -207,9 +206,8 @@ def up(
     allow_build=False,
 ):
     machines = list(machines)
-    # Redirect legacy service names to the in-container supervisor.
-    legacy = [m for m in machines if m in _LEGACY_ROLE_MAP]
-    machines = [m for m in machines if m not in _LEGACY_ROLE_MAP]
+    # Redirect legacy service names to the in-container supervisor (v14+).
+    legacy, machines = _legacy_role_match(config, machines)
     for m in legacy:
         _supervisor_action_role(config, "start", _LEGACY_ROLE_MAP[m])
     if legacy and not machines:
@@ -325,7 +323,7 @@ def _remove_oneoff_containers(config, machines=None):
                         "docker",
                         "inspect",
                         "--format",
-                        "{{ index .Config.Labels \"com.docker.compose.service\" }}",
+                        '{{ index .Config.Labels "com.docker.compose.service" }}',
                         cid,
                     ],
                     text=True,
@@ -362,6 +360,26 @@ _LEGACY_ROLE_MAP = {
     "odoo_cronjobs": "cronjobs",
     "odoo_queuejobs": "queuejobs",
 }
+
+
+def _has_in_container_supervisor(config):
+    """v11/v13 keep the pre-supervisor split-container layout — those
+    versions run debian-buster with Python 3.7 and use legacy run.py.
+    For them odoo_cronjobs / odoo_queuejobs are real compose services,
+    so the LEGACY_ROLE_MAP redirect to the in-container supervisor must
+    be bypassed."""
+    try:
+        return float(config.odoo_version) >= 14.0
+    except (AttributeError, ValueError, TypeError):
+        return True
+
+
+def _legacy_role_match(config, machines):
+    if not _has_in_container_supervisor(config):
+        return [], list(machines)
+    legacy = [m for m in machines if m in _LEGACY_ROLE_MAP]
+    rest = [m for m in machines if m not in _LEGACY_ROLE_MAP]
+    return legacy, rest
 
 
 def _supervisor_action_role(config, action, role):
@@ -407,10 +425,9 @@ def restart(
 ):
     machines = list(machines)
 
-    # Redirect legacy service names to the in-container supervisor so
-    # existing robot tests that do `odoo restart odoo_cronjobs` keep working.
-    legacy = [m for m in machines if m in _LEGACY_ROLE_MAP]
-    machines = [m for m in machines if m not in _LEGACY_ROLE_MAP]
+    # Redirect legacy service names to the in-container supervisor (v14+).
+    # For v11/v13 those names are real compose services, no redirect.
+    legacy, machines = _legacy_role_match(config, machines)
     for m in legacy:
         _supervisor_restart_role(config, _LEGACY_ROLE_MAP[m])
     if legacy and not machines:

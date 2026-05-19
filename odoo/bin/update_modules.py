@@ -238,12 +238,20 @@ def main(
     log,
     upgrade_path,
 ):
-    import importlib.metadata
-
     try:
-        _zodoo_version = importlib.metadata.version("zodoo")
-    except importlib.metadata.PackageNotFoundError:
+        import importlib.metadata as _md  # py >= 3.8
+    except ImportError:
+        try:
+            import importlib_metadata as _md  # py 3.7 backport
+        except ImportError:
+            _md = None
+    if _md is None:
         _zodoo_version = "unknown"
+    else:
+        try:
+            _zodoo_version = _md.version("zodoo")
+        except Exception:
+            _zodoo_version = "unknown"
     print(f"zodoo {_zodoo_version}")
 
     # region config
