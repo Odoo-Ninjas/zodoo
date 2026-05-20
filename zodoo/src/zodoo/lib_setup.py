@@ -112,6 +112,49 @@ def remove_web_assets(ctx, config):
         click.echo("Please login as admin, so that assets are recreated.")
 
 
+# Mirror of ASSET_BUNDLES_DEFAULT in odoo/bin/tools.py. Kept here so the CLI
+# entrypoint can run before/without the odoo container's tools.py being
+# importable. Override per-call via ODOO_WARMUP_BUNDLES.
+_ASSET_BUNDLES_DEFAULT = (
+    "web.assets_common,web.assets_frontend,web.assets_backend,"
+    "web.assets_common_lazy,web.assets_frontend_lazy,"
+    "web.assets_common_minimal,web.assets_frontend_minimal,"
+    "web.assets_backend_prod_only"
+)
+
+
+@setup.command(name="regenerate-assets")
+@pass_config
+@click.pass_context
+def regenerate_assets(ctx, config):
+    """
+    Pre-render all asset bundles into the DB so a subsequent dump ships
+    with bundle attachments already in place (no cold-render on first
+    request after restore). Pairs with `remove-web-assets`.
+    """
+    bundles = [
+        b.strip()
+        for b in os.getenv("ODOO_WARMUP_BUNDLES", _ASSET_BUNDLES_DEFAULT).split(",")
+        if b.strip()
+    ]
+    if not bundles:
+        click.secho("No bundles to regenerate.", fg="yellow")
+        return
+    click.secho(f"Pre-generating {len(bundles)} asset bundles via odoo-shell...")
+    script = (
+        f"bundles = {bundles!r}\n"
+        "for _b in bundles:\n"
+        "    try:\n"
+        "        env['ir.qweb']._get_asset_link_urls(_b)\n"
+        "        env['ir.qweb']._get_asset_nodes(_b)\n"
+        "    except Exception as _e:\n"
+        "        print(f'asset regenerate {_b}: {_e}')\n"
+        "env.cr.commit()\n"
+        "print('regenerated assets:', bundles)\n"
+    )
+    Commands.invoke(ctx, "odoo-shell", command=[script])
+
+
 @setup.command()
 @pass_config
 def status(config):
