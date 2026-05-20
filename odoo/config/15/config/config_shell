@@ -1,3 +1,4 @@
 [options]
 http_enable = False
 log_level = debug
+max_cron_threads = 0
