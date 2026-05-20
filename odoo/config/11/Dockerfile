@@ -234,7 +234,6 @@ RUN rm -Rf /opt/zodoo/.git \
 /usr/share/man/* \
 /usr/share/doc/* \
 /usr/share/info/* \
-/usr/lib/jvm \
 /usr/lib/locale \
 /usr/lib/aarch64-linux-gnu/perl \
 /usr/lib/aarch64-linux-gnu/perl-base
