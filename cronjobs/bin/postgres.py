@@ -447,7 +447,9 @@ def __get_dump_type(filepath):
 
     try:
         output = subprocess.check_output(
-            ["unzip", "-q", "-l", filepath], encoding="utf8"
+            ["unzip", "-q", "-l", filepath],
+            encoding="utf8",
+            stderr=subprocess.DEVNULL,
         )
     except Exception:
         pass
