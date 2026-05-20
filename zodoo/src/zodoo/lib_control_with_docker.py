@@ -131,6 +131,30 @@ def get_all_running_containers(config, profiles=None):
     return output.splitlines()[1:]
 
 
+def _graceful_pg_shutdown(config):
+    """In production, ask postgres to shut down cleanly via pg_ctl before
+    docker stops the container. A `docker stop -t 20` only allows 20 s
+    between SIGTERM and SIGKILL — under heavy write load (large DELETEs,
+    WAL flush) the shutdown checkpoint may not finish in time and postgres
+    gets killed mid-write, forcing crash recovery on the next start.
+    `pg_ctl stop -m fast -w` cancels running queries, writes the
+    checkpoint and waits for the postmaster to exit."""
+    cmd = [
+        "postgres",
+        "bash",
+        "-c",
+        'pg_ctl stop -D "$PGDATA" -m fast -w -t 300',
+    ]
+    try:
+        __dcexec(config, cmd, interactive=False, user="postgres")
+    except subprocess.CalledProcessError as e:
+        click.secho(
+            f"pg_ctl graceful stop returned {e.returncode}; "
+            "falling back to docker compose stop.",
+            fg="yellow",
+        )
+
+
 def do_kill(ctx, config, machines=[], brutal=False, profile="auto"):
     """
     kills running machine
@@ -159,6 +183,13 @@ def do_kill(ctx, config, machines=[], brutal=False, profile="auto"):
         if not machines or machine in machines:
             if _is_container_running(config, machine):
                 safe_stop += [machine]
+
+    # In production, give postgres a chance to shut down cleanly via pg_ctl
+    # before docker sends SIGTERM/SIGKILL. 20 s grace is not enough under
+    # heavy write load and leaves the cluster in "not properly shut down"
+    # state on next start.
+    if not brutal and not config.devmode and "postgres" in safe_stop:
+        _graceful_pg_shutdown(config)
 
     if safe_stop:
         __dc(
