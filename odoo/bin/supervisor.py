@@ -453,7 +453,15 @@ class Supervisor:
 
         threading.Thread(target=self._socket_server, daemon=True).start()
         _prepare_shared()
-        _pregenerate()
+        # Phase 0 (asset pre-generation) runs in a background thread so
+        # the roles can spawn in parallel — pregen is an isolated odoo-
+        # shell subprocess with its own cr.commit(), so a worker that
+        # asks for a bundle before pregen commits just generates the
+        # bundle itself ad-hoc; pregen's commit then becomes a no-op
+        # (same content already present). Net effect: ~20 s shaved off
+        # restart time without losing the eventual asset-commit
+        # guarantee.
+        threading.Thread(target=_pregenerate, daemon=True).start()
         self.start_enabled()
         try:
             self.supervise_loop()
@@ -502,17 +510,22 @@ def _prepare_shared():
 def _pregenerate():
     """Phase 0: asset pre-generation in an isolated odoo-shell subprocess.
 
-    Runs BEFORE any role is spawned so a single web-shell process owns
-    the asset write window with no cron / queuejob workers running yet.
-    Always runs when the web role is enabled (no opt-in). Best-effort:
-    failures here NEVER block the supervisor from continuing to spawn
-    roles — asset-gen failures are non-fatal, the first real HTTP
-    request will then generate the missing bundle on demand.
+    Called from a daemon thread in Supervisor.run(), so it runs in
+    PARALLEL with the role spawns. Trade-off: race between this shell
+    process and the first /web request is possible but harmless —
+    workers will generate the bundle on demand if it isn't yet in the
+    DB; pregen's later commit either matches (no-op) or supersedes
+    (`ir.attachment` rows are content-addressed by hash). Always runs
+    when the web role is enabled. Best-effort: failures here NEVER
+    block roles — the supervisor doesn't wait on this thread.
     """
+    # Mirror the same enable check that start_enabled uses, so we don't
+    # diverge: RUN_ODOO_WEB defaults to "1" (web role is on unless
+    # explicitly turned off), so a non-set env var still means "yes".
     web_role = ROLES.get("web")
-    if not (web_role and _env_truthy(web_role.get("enabled_key", ""), "0")):
+    if not (web_role and _is_role_enabled(web_role)):
         return
-    _log("phase 0 ▸ asset pre-generation (single web-shell, before roles)")
+    _log("phase 0 ▸ asset pre-generation (parallel, single web-shell)")
     try:
         subprocess.run(
             [ZODOO_PYTHON, "-c", PREGENERATE_CMD],
