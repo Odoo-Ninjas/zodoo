@@ -683,7 +683,16 @@ def docker_kill_container(container_id, remove=False):
 
 
 def _is_container_running(config, machine_name):
-    container_id = __dc_out(config, ["ps", "-q", machine_name]).strip()
+    # `docker compose ps -q <svc>` exits non-zero (and prints
+    # "no such service: <svc>") when the service isn't declared in the
+    # effective compose file — e.g. legacy split-container roles like
+    # `cronjobs` / `queuejobs` that have since been merged into the
+    # single odoo container. Treat that as "not running" so callers
+    # (stop_update_blocking_roles, …) can safely probe legacy names.
+    try:
+        container_id = __dc_out(config, ["ps", "-q", machine_name]).strip()
+    except subprocess.CalledProcessError:
+        return False
     if container_id:
         status = _docker_id_state(container_id)
         if status:
