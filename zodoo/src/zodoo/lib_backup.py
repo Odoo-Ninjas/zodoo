@@ -854,8 +854,16 @@ def _restore_dump(
                 fg="cyan",
             )
             _trace_docker("finally-before-stop-helper", config.project_name)
-            # stop the run started postgres container; softly
-            subprocess.check_output(["docker", "stop", postgres_name])
+            # stop the run started postgres container; softly. The
+            # helper postgres can already be gone by the time we get
+            # here (auto-removed after dump finished, killed by the
+            # outer compose recreation, etc.) — `docker stop` returns
+            # non-zero on a vanished container which used to crash the
+            # whole restore in the finally block.
+            try:
+                subprocess.check_output(["docker", "stop", postgres_name])
+            except subprocess.CalledProcessError:
+                pass
             try:
                 subprocess.check_output(["docker", "kill", postgres_name])
             except subprocess.CalledProcessError:
