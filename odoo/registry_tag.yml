@@ -1,5 +1,5 @@
 # Increment to force a re-pull from the zebroo registry (e.g. after major infra changes).
-generation: 4
+generation: 5
 settings:
   - ODOO_PYTHON_VERSION
 tag_prefix:
@@ -8,12 +8,14 @@ tag_prefix:
 include_requirements_hash: true
 extra_paths:
   - odoo/config/${odoo_version_int}/Dockerfile
+  - odoo/config/Dockerfile.project.template
   - odoo/config/common.docker
   - odoo/bin
 # Only hash the zodoo source files that actually run inside the container.
 # Full zodoo/src/ is too broad — CLI-only changes should not invalidate the image.
 includes_zodoo: false
 zodoo_paths:
+  - zodoo/src/zodoo/lib_composer.py
   - zodoo/src/zodoo/lib_module.py
   - zodoo/src/zodoo/module_tools.py
   - zodoo/src/zodoo/odoo_config.py
