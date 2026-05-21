@@ -451,6 +451,13 @@ def _supervisor_restart_role(config, role):
 _UPDATE_BLOCKING_ROLES = ("web", "queuejobs", "cronjobs")
 
 
+def _declared_compose_services(config):
+    from .tools import _parse_yaml
+
+    yml = _parse_yaml(config.files["docker_compose"].read_text())
+    return set((yml.get("services", {}) or {}).keys())
+
+
 def stop_update_blocking_roles(config):
     """Stop web, queuejobs and cronjobs supervisor children + their
     legacy split-container counterparts. Silently no-ops if the odoo
@@ -467,8 +474,13 @@ def stop_update_blocking_roles(config):
             )
     # Pre-v14 layouts (and some current installs, e.g. cicd_app) also
     # run cronjobs/cronjobshell as separate compose services. Stop them
-    # explicitly so their odoo workers release locks too.
+    # explicitly so their odoo workers release locks too. Skip services
+    # that aren't declared (e.g. when RUN_ODOO_CRONJOBS=False) — querying
+    # docker compose for an unknown service errors out.
+    declared = _declared_compose_services(config)
     for svc in ("cronjobs", "cronjobshell", "queuejobs"):
+        if svc not in declared:
+            continue
         if _is_container_running(config, svc):
             try:
                 __dc(config, ["stop", "-t", "10", svc])
@@ -492,9 +504,10 @@ def start_update_blocking_roles(config):
                 f"Warning: could not start supervisor role {role}: {e}",
                 fg="yellow",
             )
+    declared = _declared_compose_services(config)
     for svc in ("cronjobs", "cronjobshell", "queuejobs"):
-        # docker compose start is idempotent for services that aren't
-        # declared; ignore failures.
+        if svc not in declared:
+            continue
         try:
             __dc(config, ["start", svc])
         except subprocess.CalledProcessError:
@@ -720,7 +733,7 @@ def _collect_bake_fs_reads(bake_files):
 
     for compose_path in files:
         try:
-            with open(compose_path, "r") as fh:
+            with open(compose_path) as fh:
                 data = yaml.safe_load(fh) or {}
         except (OSError, yaml.YAMLError):
             continue
@@ -795,12 +808,21 @@ def _build_with_network_retry(config, options, machines, env):
                 f"--allow=fs.read={p}"
                 for p in sorted(_collect_bake_fs_reads(bake_files))
             ]
+            # Pin the target platform for buildx bake to whatever
+            # DOCKER_DEFAULT_PLATFORM was set in the project env — otherwise
+            # bake defaults to the builder host's architecture, which breaks
+            # cross-builds (e.g. arm64 dev box → amd64 registry images).
+            platform_opts = []
+            _default_platform = full_env.get("DOCKER_DEFAULT_PLATFORM")
+            if _default_platform:
+                platform_opts = [f"--set=*.platform={_default_platform}"]
             cmd = (
                 ["docker", "buildx", "bake"]
                 + allow_opts
                 + ["--load"]
                 + bake_files
                 + _compose_opts_to_bake_opts(extra_options)
+                + platform_opts
                 + tags_opts
                 + list(machines)
             )
