@@ -806,6 +806,57 @@ ASSET_BUNDLES_DEFAULT = (
 )
 
 
+# Module-level start timestamp shared across pre-gen and HTTP warmup so the
+# closing banner can report end-to-end elapsed time.
+_WARMUP_T0 = None
+_WARMUP_WIDTH = 72
+
+
+def _warmup_banner(title, char="═", fg="cyan"):
+    line = char * _WARMUP_WIDTH
+    inner = f" {title} "
+    pad = max(0, (_WARMUP_WIDTH - len(inner)) // 2)
+    click.secho("")
+    click.secho(line, fg=fg, bold=True)
+    click.secho(" " * pad + inner, fg=fg, bold=True)
+    click.secho(line, fg=fg, bold=True)
+
+
+def _warmup_phase(num, total, title):
+    click.secho("")
+    header = click.style(f"[{num}/{total}]", fg="cyan", bold=True)
+    click.secho(f"{header} {click.style(title, bold=True)}")
+
+
+def _warmup_step_ok(label, elapsed=None, extra=""):
+    bullet = click.style("✓", fg="green", bold=True)
+    dots = "." * max(2, 48 - len(label))
+    timing = f" {elapsed:6.2f}s" if elapsed is not None else " " * 8
+    suffix = f"  {extra}" if extra else ""
+    click.secho(f"      {bullet} {label} {dots}{timing}{suffix}")
+
+
+def _warmup_step_fail(label, elapsed, error=""):
+    bullet = click.style("✗", fg="red", bold=True)
+    dots = "." * max(2, 48 - len(label))
+    timing = f" {elapsed:6.2f}s" if elapsed is not None else " " * 8
+    suffix = f"  {error}" if error else ""
+    click.secho(f"      {bullet} {label} {dots}{timing}{suffix}", fg="red")
+
+
+def _warmup_progress(done, total, elapsed, ok=True, note=""):
+    width = 28
+    filled = int(width * done / max(1, total))
+    bar = "█" * filled + "░" * (width - filled)
+    pct = int(100 * done / max(1, total))
+    bar_styled = click.style(bar, fg="green" if ok else "red")
+    status = click.style("ok ", fg="green") if ok else click.style("err", fg="red")
+    click.secho(
+        f"      [{bar_styled}] {done:>2}/{total:<2} {pct:>3}%  "
+        f"{elapsed:5.2f}s  {status} {note}".rstrip()
+    )
+
+
 def pregenerate_assets_if_web():
     """Public wrapper: only run pre-generation in the web role.
 
@@ -832,8 +883,13 @@ def _pregenerate_assets():
     Set ODOO_WARMUP_PREGENERATE=0 to skip, or ODOO_WARMUP_BUNDLES to a
     comma-separated list to override the bundle set.
     """
+    global _WARMUP_T0
+    _WARMUP_T0 = time.time()
+
     if os.getenv("ODOO_WARMUP_PREGENERATE", "1") != "1":
-        click.secho("Skipping asset pre-generation (ODOO_WARMUP_PREGENERATE=0)")
+        _warmup_banner("Odoo warm-up — caches & workers")
+        _warmup_phase(1, 3, "Pre-generating asset bundles")
+        _warmup_step_ok("skipped (ODOO_WARMUP_PREGENERATE=0)")
         return
     bundles = [
         b.strip()
@@ -841,46 +897,103 @@ def _pregenerate_assets():
         if b.strip()
     ]
     if not bundles:
+        _warmup_banner("Odoo warm-up — caches & workers")
+        _warmup_phase(1, 3, "Pre-generating asset bundles")
+        _warmup_step_ok("no bundles configured")
         return
-    click.secho(
-        f"Pre-generating {len(bundles)} asset bundles in single-threaded odoo shell..."
-    )
+
+    _warmup_banner("Odoo warm-up — caches & workers")
+    _warmup_phase(1, 3, f"Pre-generating {len(bundles)} asset bundles")
+    for b in bundles:
+        click.secho(f"        · {b}", dim=True)
+
     bundle_list_repr = repr(bundles)
     script = (
+        "import time as _t\n"
         "bundles = " + bundle_list_repr + "\n"
         "for _b in bundles:\n"
+        "    _start = _t.time()\n"
         "    try:\n"
         "        env['ir.qweb']._get_asset_link_urls(_b)\n"
         "        env['ir.qweb']._get_asset_nodes(_b)\n"
+        "        print(f'>>WARMUP_BUNDLE_OK {_b} {_t.time()-_start:.3f}')\n"
         "    except Exception as _e:\n"
-        "        print(f'asset pregenerate {_b}: {_e}')\n"
+        "        print(f'>>WARMUP_BUNDLE_FAIL {_b} {_t.time()-_start:.3f} {_e}')\n"
         "env.cr.commit()\n"
-        "print('pregenerated assets:', bundles)\n"
+        "print('>>WARMUP_BUNDLE_DONE', len(bundles))\n"
     )
+    t0 = time.time()
     try:
-        # Run via /odoolib/shell.py wrapper which handles odoo-shell setup.
-        # Pipe script via stdin (per shell.py "ODOO_SHELL_CMD" convention).
-        proc = subprocess.run(
+        proc = subprocess.Popen(
             ["/odoolib/shell.py", script],
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
-            timeout=int(os.getenv("ODOO_WARMUP_PREGEN_TIMEOUT", "300")),
         )
-        if proc.returncode != 0:
+        timeout_s = int(os.getenv("ODOO_WARMUP_PREGEN_TIMEOUT", "300"))
+        deadline = t0 + timeout_s
+        tail = []  # last lines for error reporting if rc != 0
+        ok_count = 0
+        fail_count = 0
+        try:
+            for line in proc.stdout:
+                line = line.rstrip("\n")
+                tail.append(line)
+                if len(tail) > 50:
+                    tail.pop(0)
+                if line.startswith(">>WARMUP_BUNDLE_OK "):
+                    _, name, secs = line.split(" ", 2)
+                    ok_count += 1
+                    _warmup_step_ok(name, float(secs))
+                elif line.startswith(">>WARMUP_BUNDLE_FAIL "):
+                    parts = line.split(" ", 3)
+                    fail_count += 1
+                    name = parts[1] if len(parts) > 1 else "?"
+                    secs = float(parts[2]) if len(parts) > 2 else 0.0
+                    err = parts[3] if len(parts) > 3 else ""
+                    _warmup_step_fail(name, secs, err)
+                elif line.startswith(">>WARMUP_BUNDLE_DONE"):
+                    pass
+                # else: drop shell.py / odoo loader output to keep the view clean
+                if time.time() > deadline:
+                    proc.kill()
+                    raise TimeoutError(f"pre-gen exceeded {timeout_s}s")
+            proc.wait(timeout=5)
+        except TimeoutError:
             click.secho(
-                f"Asset pre-generation failed (rc={proc.returncode}): "
-                f"{proc.stderr[-500:] if proc.stderr else proc.stdout[-500:]}",
+                f"      ⏱ Asset pre-generation timed out after {timeout_s}s",
                 fg="yellow",
             )
+            return
+        elapsed = time.time() - t0
+        if proc.returncode != 0:
+            click.secho(
+                f"      ⚠ pre-gen exited rc={proc.returncode} — last output:",
+                fg="yellow",
+            )
+            for line in tail[-10:]:
+                click.secho(f"        {line}", fg="yellow")
         else:
-            click.secho("Asset pre-generation done.")
+            summary = f"{ok_count} ok"
+            if fail_count:
+                summary += f", {fail_count} failed"
+            click.secho(
+                f"      ► all bundles processed in {elapsed:.2f}s ({summary})",
+                fg="green",
+                bold=True,
+            )
     except Exception as e:
         # Never block startup over warmup
-        click.secho(f"Asset pre-generation crashed: {e}", fg="yellow")
+        click.secho(f"      ⚠ Asset pre-generation crashed: {e}", fg="yellow")
 
 
 def _touch():
-    click.secho("Warming up odoo cache.")
+    global _WARMUP_T0
+    if _WARMUP_T0 is None:
+        # _touch may run without pre-gen (env opted out) — establish T0 here.
+        _WARMUP_T0 = time.time()
+        _warmup_banner("Odoo warm-up — caches & workers")
+
     INTERNAL_ODOO_PORT = os.getenv("INTERNAL_ODOO_PORT", "8069")
     ODOO_WORKERS_WEB = int(
         os.getenv("MAX_WARMUP_WORKERS", os.getenv("ODOO_WORKERS_WEB", "1"))
@@ -913,53 +1026,72 @@ def _touch():
         request. Issuing an HTTP request here would trigger asset bundle
         generation inside a worker before our single-threaded pre-generation
         had a chance to run, defeating the whole point of pre-generating."""
-        wait_for_tcp(
-            "localhost",
-            int(INTERNAL_ODOO_PORT),
-            timeout=READY_TIMEOUT_S,
-            interval=READY_INTERVAL_S,
+        t0 = time.time()
+        try:
+            wait_for_tcp(
+                "localhost",
+                int(INTERNAL_ODOO_PORT),
+                timeout=READY_TIMEOUT_S,
+                interval=READY_INTERVAL_S,
+            )
+        except Exception as e:
+            _warmup_step_fail(
+                f"TCP localhost:{INTERNAL_ODOO_PORT}", time.time() - t0, str(e)
+            )
+            raise
+        _warmup_step_ok(
+            f"TCP localhost:{INTERNAL_ODOO_PORT}", time.time() - t0
         )
 
     def wait_until_http_ready():
         """After pre-gen has committed bundles, confirm HTTP actually works."""
         deadline = time.time() + READY_TIMEOUT_S
         last_ex = None
-        click.secho(f"Waiting for Odoo HTTP to respond: {url}")
+        t0 = time.time()
         while time.time() < deadline:
             try:
                 r = requests.get(url, timeout=REQUEST_TIMEOUT_S)
                 r.raise_for_status()
-                click.secho("Odoo is reachable.")
+                size_kb = len(r.content) / 1024.0
+                _warmup_step_ok(
+                    f"HTTP {WARMUP_PATH}",
+                    time.time() - t0,
+                    extra=f"{r.status_code}  {size_kb:.0f} KB",
+                )
                 return
             except Exception as e:
                 last_ex = e
                 time.sleep(READY_INTERVAL_S)
+        _warmup_step_fail(
+            f"HTTP {WARMUP_PATH}", time.time() - t0, str(last_ex)
+        )
         raise RuntimeError(
             f"Odoo not reachable after {READY_TIMEOUT_S}s: {last_ex}"
         )
 
     def warmup_once(request_id: int):
+        """Returns (elapsed, error) — never raises so the caller can render
+        a progress line per request without try/except dance."""
         last_ex = None
+        t0 = time.time()
         for _ in range(PER_REQUEST_RETRIES):
             try:
                 r = requests.get(url, timeout=REQUEST_TIMEOUT_S)
                 r.raise_for_status()
-                return
+                return time.time() - t0, None
             except Exception as e:
                 last_ex = e
                 time.sleep(0.2)
-        raise last_ex
+        return time.time() - t0, last_ex
 
     # 1) Wait only for TCP — must NOT make an HTTP request here, otherwise
     #    a worker generates bundles before pre-gen.
+    _warmup_phase(2, 3, f"Probing Odoo HTTP ({url})")
     wait_until_tcp_ready()
 
     # 2) HTTP readiness probe (bundles were pre-generated by run.py BEFORE
     #    odoo workers forked, so all workers inherit the same DB state).
     wait_until_http_ready()
-    click.secho(
-        "Generally odoo is responsive, now warming up cache with multiple requests..."
-    )
 
     # 3) warmup in kontrollierter Parallelität
     # Sequential per default: parallel HTTP warmup against a multi-worker
@@ -970,40 +1102,101 @@ def _touch():
     # Override with MAX_PARALLEL_WARMUP > 1 if you really want the old
     # behaviour.
     sequential = MAX_PARALLEL_WARMUP <= 1
+    mode = "sequential" if sequential else f"parallel x{MAX_PARALLEL_WARMUP}"
+    _warmup_phase(
+        3,
+        3,
+        f"Warming up {WARMUP_REQUESTS} worker cache slot(s) — {mode}",
+    )
+
     for attempt in range(3):
-        click.secho(
-            f"Warming up Odoo cache: total requests={WARMUP_REQUESTS}, "
-            f"max parallel={MAX_PARALLEL_WARMUP}, attempt {attempt+1}/3"
-        )
+        if attempt > 0:
+            click.secho(
+                f"      ↻ retry {attempt + 1}/3 after partial failure",
+                fg="yellow",
+            )
 
         failed = []
+        phase_t0 = time.time()
+        done = 0
 
         if sequential:
             for i in range(WARMUP_REQUESTS):
-                try:
-                    warmup_once(i)
-                except Exception as e:
-                    failed.append(e)
+                elapsed, err = warmup_once(i)
+                done += 1
+                if err:
+                    failed.append(err)
+                    _warmup_progress(
+                        done,
+                        WARMUP_REQUESTS,
+                        elapsed,
+                        ok=False,
+                        note=f"req #{i + 1}  {err}",
+                    )
+                else:
+                    _warmup_progress(
+                        done,
+                        WARMUP_REQUESTS,
+                        elapsed,
+                        ok=True,
+                        note=f"req #{i + 1}",
+                    )
         else:
             with ThreadPoolExecutor(max_workers=MAX_PARALLEL_WARMUP) as ex:
-                futures = [
-                    ex.submit(warmup_once, i) for i in range(WARMUP_REQUESTS)
-                ]
+                futures = {
+                    ex.submit(warmup_once, i): i
+                    for i in range(WARMUP_REQUESTS)
+                }
                 for f in as_completed(futures):
-                    try:
-                        f.result()
-                    except Exception as e:
-                        failed.append(e)
+                    i = futures[f]
+                    elapsed, err = f.result()
+                    done += 1
+                    if err:
+                        failed.append(err)
+                        _warmup_progress(
+                            done,
+                            WARMUP_REQUESTS,
+                            elapsed,
+                            ok=False,
+                            note=f"req #{i + 1}  {err}",
+                        )
+                    else:
+                        _warmup_progress(
+                            done,
+                            WARMUP_REQUESTS,
+                            elapsed,
+                            ok=True,
+                            note=f"req #{i + 1}",
+                        )
 
+        phase_elapsed = time.time() - phase_t0
         if not failed:
-            click.secho("Successfully warmed up Odoo Cache.")
+            click.secho(
+                f"      ► all {WARMUP_REQUESTS} workers warm in "
+                f"{phase_elapsed:.2f}s",
+                fg="green",
+                bold=True,
+            )
+            total = time.time() - _WARMUP_T0
+            _warmup_banner(
+                f"✓ Warm-up complete in {total:.2f}s — Odoo is hot",
+                fg="green",
+            )
             _signal_warmup_done()
             return
 
-        click.secho(f"Warmup had {len(failed)} failures.")
+        click.secho(
+            f"      ✗ attempt {attempt + 1}/3 had {len(failed)} failure(s)",
+            fg="yellow",
+        )
         if attempt == 2:
             for e in failed[:10]:  # nicht unendlich spam
-                click.secho(e)
+                click.secho(f"        {e}", fg="red")
+            total = time.time() - _WARMUP_T0
+            _warmup_banner(
+                f"⚠ Warm-up degraded after {total:.2f}s — releasing gate",
+                fg="yellow",
+            )
             # Even on failure mark warmup as 'done' so the supervisor stops
             # blocking cronjobs/queuejobs forever. They will see a degraded
             # web but at least background work resumes.
