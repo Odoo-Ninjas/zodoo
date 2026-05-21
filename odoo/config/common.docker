@@ -83,6 +83,15 @@ ENV ZSTDOPTIONS="-10 -T4"
 WORKDIR /opt/src
 
 
+# ----------------------------------------------------------------------
+# Composer inserts the project-delta block here (project DEB + pip
+# install). It comes BEFORE the cleanup step so apt is still
+# functional, and AFTER all the static zodoo-CLI install above so a
+# new project pip dep does not invalidate any of those static layers.
+# ----------------------------------------------------------------------
+# MARKER PROJECT_DELTA_INSERT
+
+
 # ============================================================
 # CLEANUP — single consolidated RUN, executed BEFORE the venv
 # tar so that /opt/venv.tar.zst doesn't carry __pycache__,

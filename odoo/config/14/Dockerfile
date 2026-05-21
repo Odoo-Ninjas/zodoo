@@ -1,8 +1,8 @@
 ARG TARGETARCH
 ARG BASE_IMAGE=debian:bullseye
 ARG ODOO_VERSION
-ARG ODOO_REQUIREMENTS
-ARG ODOO_DEB_REQUIREMENTS
+ARG ODOO_PROJECT_REQUIREMENTS
+ARG ODOO_PROJECT_DEB_REQUIREMENTS
 ARG ODOO_PYTHON_VERSION
 ARG CUSTOMS_SHA
 ARG ODOO_CONFIG_DIR
@@ -57,8 +57,8 @@ RUN rsync /usr/local/src/Python-${ODOO_PYTHON_VERSION}/ /python -ar
 # PYTHON PIP PACKAGES
 # --------------------------------------------------------------------
 FROM $BASE_IMAGE AS build_pip
-ARG ODOO_DEB_REQUIREMENTS
-ARG ODOO_REQUIREMENTS
+ARG ODOO_PROJECT_DEB_REQUIREMENTS
+ARG ODOO_PROJECT_REQUIREMENTS
 ARG ODOO_FRAMEWORK_REQUIREMENTS
 
 ENV VIRTUAL_ENV=/opt/venv/env
@@ -99,12 +99,12 @@ RUN /opt/venv/bin/python3 -mpip install cython==0.29.35
 RUN /opt/venv/bin/python3 -mpip install wheel
 
 
-RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
+RUN echo "$ODOO_PROJECT_DEB_REQUIREMENTS"  | base64 --decode > /root/project_deb_requirements.txt
 RUN #___SNIPPET_DEB_REQUIERMENTS___
 
-RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
-RUN cat /root/pip_requirements.txt | grep -v postal > /root/pip_requirements.filtered.txt
-RUN . /opt/venv/bin/activate && /opt/venv/bin/python3 -mpip install -r /root/pip_requirements.filtered.txt --force --force-reinstall --ignore-installed
+RUN echo "$ODOO_PROJECT_REQUIREMENTS"  | base64 --decode > /root/project_requirements.txt
+RUN cat /root/project_requirements.txt | grep -v postal > /root/project_requirements.filtered.txt
+RUN . /opt/venv/bin/activate && /opt/venv/bin/python3 -mpip install -r /root/project_requirements.filtered.txt --force --force-reinstall --ignore-installed
 
 RUN /opt/venv/bin/python3 -mpip install pudb ipython debugpy
 
@@ -121,8 +121,8 @@ RUN bash /usr/local/src/python_3.8.email.patch
 FROM $BASE_IMAGE
 ARG TARGETARCH
 ARG ODOO_VERSION
-ARG ODOO_REQUIREMENTS
-ARG ODOO_DEB_REQUIREMENTS
+ARG ODOO_PROJECT_REQUIREMENTS
+ARG ODOO_PROJECT_DEB_REQUIREMENTS
 ARG CUSTOMS_SHA
 
 #___SNIPPET_CHECK_SHA___

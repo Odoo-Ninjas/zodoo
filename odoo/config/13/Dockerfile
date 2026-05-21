@@ -2,8 +2,8 @@
 ARG TARGETARCH
 ARG BASE_IMAGE=debian:bullseye
 ARG ODOO_VERSION
-ARG ODOO_REQUIREMENTS
-ARG ODOO_DEB_REQUIREMENTS
+ARG ODOO_PROJECT_REQUIREMENTS
+ARG ODOO_PROJECT_DEB_REQUIREMENTS
 ARG ODOO_FRAMEWORK_REQUIREMENTS
 ARG ODOO_PYTHON_VERSION
 ARG CUSTOMS_SHA
@@ -50,8 +50,8 @@ RUN rsync /usr/local/src/python/Python-${ODOO_PYTHON_VERSION}/ /python -ar
 # PYTHON PIP PACKAGES
 # --------------------------------------------------------------------
 FROM $BASE_IMAGE AS build_pip
-ARG ODOO_DEB_REQUIREMENTS
-ARG ODOO_REQUIREMENTS
+ARG ODOO_PROJECT_DEB_REQUIREMENTS
+ARG ODOO_PROJECT_REQUIREMENTS
 ARG ODOO_FRAMEWORK_REQUIREMENTS
 
 ENV VIRTUAL_ENV=/opt/venv/env
@@ -87,9 +87,9 @@ pip3 install $(cat /etc/pip_options) setuptools==57.5.0 -U
 RUN pip3 install $(cat /etc/pip_options) "Cython<3"
 RUN pip3 install --only-binary :all: pymssql
 
-RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
+RUN echo "$ODOO_PROJECT_REQUIREMENTS"  | base64 --decode > /root/project_requirements.txt
 
-RUN pip3 install --only-binary pymssql $(cat /etc/pip_options) -r /root/pip_requirements.txt
+RUN pip3 install --only-binary pymssql $(cat /etc/pip_options) -r /root/project_requirements.txt
 
 RUN pip3 install $(cat /etc/pip_options) \
 pudb ipython \
@@ -114,8 +114,8 @@ RUN pip3 install $(cat /etc/pip_options) /opt/openupgradelib
 FROM $BASE_IMAGE
 ARG TARGETARCH
 ARG ODOO_VERSION
-ARG ODOO_REQUIREMENTS
-ARG ODOO_DEB_REQUIREMENTS
+ARG ODOO_PROJECT_REQUIREMENTS
+ARG ODOO_PROJECT_DEB_REQUIREMENTS
 ARG CUSTOMS_SHA
 
 #___SNIPPET_CHECK_SHA___

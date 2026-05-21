@@ -151,48 +151,58 @@ def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
     odoo_machines = get_services(config, "odoo_base", yml=yml)
     odoo_dir = manifest.get("odoo_dir", "odoo")
 
-    external_dependencies = _get_dependencies(config, globals, PYTHON_VERSION)
-    external_dependencies_justaddons = _get_dependencies(
+    # Two clearly-separated dependency domains:
+    #
+    #   - framework_dependencies → Odoo's own upstream requirements.txt.
+    #     Changes 4-8x per year (Odoo major / security releases). Baked
+    #     into the per-version base image, so volatile-ARG-free at the
+    #     project layer.
+    #   - project_dependencies → everything the custom modules + the
+    #     project's requirements.static add on top. Changes constantly
+    #     (every new module / lib). Goes into the project layer as the
+    #     final ARG-driven step so it does not invalidate the static
+    #     zodoo-CLI install layers above it.
+    all_dependencies = _get_dependencies(config, globals, PYTHON_VERSION)
+    project_dependencies = _get_dependencies(
         config,
         globals,
         PYTHON_VERSION,
         exclude=(odoo_dir, "enterprise"),
     )
-    external_dependencies_odoo = _get_dependencies(
+    framework_dependencies = _get_dependencies(
         config,
         globals,
         PYTHON_VERSION,
         include=(odoo_dir, "enterprise"),
     )
 
-    # add programmatic static requirements
-
-    # add static requirements:
+    # add static requirements (project-local pins from requirements.static):
     static_reqs = customs_dir() / "requirements.static"
     if static_reqs.exists():
         static_reqs = static_reqs.read_text().splitlines()
         # remove static requirements from collected deps:
-        external_dependencies["pip"] = _remove_requirements_from_requirements(
-            external_dependencies["pip"], static_reqs
+        all_dependencies["pip"] = _remove_requirements_from_requirements(
+            all_dependencies["pip"], static_reqs
         )
-        external_dependencies["pip"] += static_reqs
-        external_dependencies_justaddons["pip"] += static_reqs
+        all_dependencies["pip"] += static_reqs
+        project_dependencies["pip"] += static_reqs
 
     store_sha_of_external_deps(
-        external_dependencies,
+        all_dependencies,
         PYTHON_VERSION,
         config.WORKING_DIR / "requirements.hash",
     )
     store_sha_of_external_deps(
-        external_dependencies_odoo,
+        framework_dependencies,
         PYTHON_VERSION,
         config.dirs["run"] / "requirements.odoo.hash",
     )
 
-    # When a per-version base image is in use, ODOO_REQUIREMENTS only
-    # contains the module-specific delta (Odoo's own requirements.txt is
-    # already installed in the base venv). Without a base, ODOO_REQUIREMENTS
-    # stays the legacy full set so the monolithic Dockerfile keeps working.
+    # When a per-version base image is in use, ODOO_PROJECT_REQUIREMENTS
+    # only contains the project-specific delta (Odoo's own
+    # requirements.txt is already installed in the base venv). Without a
+    # base, ODOO_PROJECT_REQUIREMENTS stays the legacy full set so the
+    # monolithic Dockerfile keeps working.
     use_base_split = _base_split_active(config)
 
     framework_reqs_path = config.WORKING_DIR / odoo_dir / "requirements.txt"
@@ -201,13 +211,13 @@ def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
     )
 
     if use_base_split:
-        module_py_deps = _subtract_framework_requirements(
-            external_dependencies["pip"],
+        project_pip_deps = _subtract_framework_requirements(
+            all_dependencies["pip"],
             _filter_framework_requirements(framework_reqs_text),
             python_version=PYTHON_VERSION,
         )
     else:
-        module_py_deps = external_dependencies["pip"]
+        project_pip_deps = all_dependencies["pip"]
 
     sha = _get_sha(config) if settings["SHA_IN_DOCKER"] == "1" else "n/a"
     for odoo_machine in odoo_machines:
@@ -215,24 +225,31 @@ def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
         if "build" not in service:
             continue
         service["build"].setdefault("args", [])
-        service["build"]["args"]["ODOO_REQUIREMENTS"] = base64.encodebytes(
-            "\n".join(module_py_deps).encode("utf-8")
-        ).decode("utf-8")
-        service["build"]["args"]["ODOO_REQUIREMENTS_CLEARTEXT"] = (
-            ";".join(module_py_deps).encode("utf-8")
-        ).decode("utf-8")
-        service["build"]["args"]["ODOO_DEB_REQUIREMENTS_CLEARTEXT"] = (
-            "\n".join(sorted(external_dependencies["deb"]))
+        # ODOO_PROJECT_REQUIREMENTS = the project-specific pip delta.
+        # Renamed from the historic (and misleading) ODOO_REQUIREMENTS so
+        # it's clear this is NOT Odoo's framework requirements but the
+        # custom-module + requirements.static delta.
+        service["build"]["args"]["ODOO_PROJECT_REQUIREMENTS"] = (
+            base64.encodebytes(
+                "\n".join(project_pip_deps).encode("utf-8")
+            ).decode("utf-8")
         )
-        service["build"]["args"]["ODOO_DEB_REQUIREMENTS"] = base64.encodebytes(
-            "\n".join(sorted(external_dependencies["deb"])).encode("utf-8")
+        service["build"]["args"]["ODOO_PROJECT_REQUIREMENTS_CLEARTEXT"] = (
+            ";".join(project_pip_deps).encode("utf-8")
         ).decode("utf-8")
+        service["build"]["args"]["ODOO_PROJECT_DEB_REQUIREMENTS_CLEARTEXT"] = (
+            "\n".join(sorted(all_dependencies["deb"]))
+        )
+        service["build"]["args"]["ODOO_PROJECT_DEB_REQUIREMENTS"] = (
+            base64.encodebytes(
+                "\n".join(sorted(all_dependencies["deb"])).encode("utf-8")
+            ).decode("utf-8")
+        )
         # Framework requirements are passed as a *constraint* file to the
-        # project pip install so transitive deps from module-specific
-        # packages don't silently upgrade Odoo-pinned packages (requests,
+        # project pip install so transitive deps from project packages
+        # don't silently upgrade Odoo-pinned packages (requests,
         # cryptography, urllib3 …). Filtering matches the base build so
-        # the project layer can install its own lxml pin from
-        # module-delta.
+        # the project layer can install its own lxml pin from the delta.
         service["build"]["args"]["ODOO_FRAMEWORK_REQUIREMENTS"] = (
             base64.encodebytes(
                 _filter_framework_requirements(framework_reqs_text).encode(
@@ -249,19 +266,17 @@ def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
         exist_ok=True, parents=True
     )
     config.files["native_collected_requirements_from_modules"].write_text(
-        "\n".join(external_dependencies["pip"])
+        "\n".join(all_dependencies["pip"])
     )
 
-    _hack_patch_requirements(external_dependencies["pip"])
+    _hack_patch_requirements(all_dependencies["pip"])
 
     # put the collected requirements into project root
     req_file_all = config.WORKING_DIR / "requirements.txt.all"
-    req_file_all.write_text("\n".join(external_dependencies["pip"]) + "\n")
+    req_file_all.write_text("\n".join(all_dependencies["pip"]) + "\n")
 
     req_file = config.WORKING_DIR / "requirements.txt"
-    req_file.write_text(
-        "\n".join(external_dependencies_justaddons["pip"]) + "\n"
-    )
+    req_file.write_text("\n".join(project_dependencies["pip"]) + "\n")
 
     # put hash of requirements in root
 

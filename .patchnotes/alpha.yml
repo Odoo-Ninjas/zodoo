@@ -1,0 +1,4 @@
+type: fix
+description: "project Dockerfile reordered (zodoo-CLI install runs before volatile ODOO_PROJECT_REQUIREMENTS) so adding one new pip dep no longer triggers a 130s rebuild; ODOO_REQUIREMENTS → ODOO_PROJECT_REQUIREMENTS rename clarifies framework vs project"
+breaking: true
+breaking_description: "Build args renamed: ODOO_REQUIREMENTS → ODOO_PROJECT_REQUIREMENTS, ODOO_DEB_REQUIREMENTS → ODOO_PROJECT_DEB_REQUIREMENTS (plus _CLEARTEXT variants). External tools or CI scripts that set these env vars directly must be updated. Existing projects need one `odoo reload` after updating to pick up the regenerated Dockerfile.project.template with the new MARKER COMMON_STATIC layout."

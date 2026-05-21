@@ -2,8 +2,8 @@
 ARG TARGETARCH
 ARG BASE_IMAGE=debian:bullseye
 ARG ODOO_VERSION
-ARG ODOO_REQUIREMENTS
-ARG ODOO_DEB_REQUIREMENTS
+ARG ODOO_PROJECT_REQUIREMENTS
+ARG ODOO_PROJECT_DEB_REQUIREMENTS
 ARG ODOO_FRAMEWORK_REQUIREMENTS
 ARG ODOO_PYTHON_VERSION
 ARG CUSTOMS_SHA
@@ -49,8 +49,8 @@ RUN rsync /usr/local/src/python/Python-${ODOO_PYTHON_VERSION}/ /python -ar
 # PYTHON PIP PACKAGES
 # --------------------------------------------------------------------
 FROM $BASE_IMAGE AS build_pip
-ARG ODOO_DEB_REQUIREMENTS
-ARG ODOO_REQUIREMENTS
+ARG ODOO_PROJECT_DEB_REQUIREMENTS
+ARG ODOO_PROJECT_REQUIREMENTS
 ARG ODOO_FRAMEWORK_REQUIREMENTS
 
 ENV VIRTUAL_ENV=/opt/venv/env
@@ -76,8 +76,8 @@ RUN pip3 install $(cat /etc/pip_options) wheel && \
 pip3 install $(cat /etc/pip_options) pip -U && \
 pip3 install $(cat /etc/pip_options) setuptools -U
 
-RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
-RUN pip3 install $(cat /etc/pip_options) -r /root/pip_requirements.txt
+RUN echo "$ODOO_PROJECT_REQUIREMENTS"  | base64 --decode > /root/project_requirements.txt
+RUN pip3 install $(cat /etc/pip_options) -r /root/project_requirements.txt
 
 RUN echo "$ODOO_FRAMEWORK_REQUIREMENTS"  | base64 --decode > /root/framework_requirements.txt
 RUN pip3 install $(cat /etc/pip_options) -r /root/framework_requirements.txt
@@ -103,8 +103,8 @@ RUN pip3 install $(cat /etc/pip_options) /opt/openupgradelib
 FROM $BASE_IMAGE
 ARG TARGETARCH
 ARG ODOO_VERSION
-ARG ODOO_REQUIREMENTS
-ARG ODOO_DEB_REQUIREMENTS
+ARG ODOO_PROJECT_REQUIREMENTS
+ARG ODOO_PROJECT_DEB_REQUIREMENTS
 ARG CUSTOMS_SHA
 
 #___SNIPPET_APT_PROXY___
@@ -188,7 +188,7 @@ WORKDIR /opt/python
 RUN make install
 RUN rm /usr/local/bin/python3 /usr/bin/python3
 
-RUN echo "$ODOO_DEB_REQUIREMENTS"  | base64 --decode > /root/deb_requirements.txt
+RUN echo "$ODOO_PROJECT_DEB_REQUIREMENTS"  | base64 --decode > /root/project_deb_requirements.txt
 #___SNIPPET_DEB_REQUIERMENTS___
 
 # RUN python3 -mpip install cython

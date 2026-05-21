@@ -1,8 +1,8 @@
 ARG TARGETARCH
 ARG BASE_IMAGE=ubuntu:22.04
 ARG ODOO_VERSION
-ARG ODOO_REQUIREMENTS
-ARG ODOO_DEB_REQUIREMENTS
+ARG ODOO_PROJECT_REQUIREMENTS
+ARG ODOO_PROJECT_DEB_REQUIREMENTS
 ARG ODOO_PYTHON_VERSION
 ARG ODOO_CONFIG_DIR
 ARG CUSTOMS_SHA
@@ -19,8 +19,8 @@ FROM ${ZODOO_REGISTRY_URL}/zodoo/python:${ODOO_PYTHON_VERSION}-${TARGETARCH} AS 
 # PYTHON PIP PACKAGES
 # --------------------------------------------------------------------
 FROM $BASE_IMAGE AS build_pip
-ARG ODOO_DEB_REQUIREMENTS
-ARG ODOO_REQUIREMENTS
+ARG ODOO_PROJECT_DEB_REQUIREMENTS
+ARG ODOO_PROJECT_REQUIREMENTS
 ARG ODOO_FRAMEWORK_REQUIREMENTS
 
 ENV VIRTUAL_ENV=/opt/venv/env
@@ -66,8 +66,8 @@ RUN pip3 install $(cat /etc/pip_options) wheel && \
 
 RUN pip3 install meson-python ninja
 
-RUN echo "$ODOO_REQUIREMENTS"  | base64 --decode > /root/pip_requirements.txt
-RUN pip3 install $(cat /etc/pip_options) -r /root/pip_requirements.txt --force --force-reinstall --ignore-installed
+RUN echo "$ODOO_PROJECT_REQUIREMENTS"  | base64 --decode > /root/project_requirements.txt
+RUN pip3 install $(cat /etc/pip_options) -r /root/project_requirements.txt --force --force-reinstall --ignore-installed
 
 RUN echo "$ODOO_FRAMEWORK_REQUIREMENTS"  | base64 --decode > /root/framework_requirements.txt
 RUN pip3 install $(cat /etc/pip_options) -r /root/framework_requirements.txt
@@ -84,8 +84,8 @@ RUN pip3 install $(cat /etc/pip_options) pudb ipython debugpy
 FROM $BASE_IMAGE
 ARG TARGETARCH
 ARG ODOO_VERSION
-ARG ODOO_REQUIREMENTS
-ARG ODOO_DEB_REQUIREMENTS
+ARG ODOO_PROJECT_REQUIREMENTS
+ARG ODOO_PROJECT_DEB_REQUIREMENTS
 ARG ODOO_PYTHON_VERSION
 ARG CUSTOMS_SHA
 

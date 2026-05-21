@@ -122,6 +122,47 @@ def _get_arch():
 _RELOAD_LOCK_TIMEOUT = 300  # 5 minutes
 
 
+# Project-delta block: the only volatile-ARG section of the rendered
+# project Dockerfile. Inserted into common.docker at the
+# `MARKER PROJECT_DELTA_INSERT` slot — that's AFTER the static zodoo-CLI
+# install and BEFORE the destructive cleanup that wipes /var/lib/dpkg.
+# This ordering means a new project pip dep only invalidates these few
+# layers (+ the inherently volatile cleanup/tar steps that depend on
+# venv content), not the ~25 layers of static common-docker setup.
+_PROJECT_DELTA_BLOCK = """\
+# ----------------------------------------------------------------------
+# PROJECT DELTA — volatile-ARG section. Adding a new project pip / deb
+# dep changes ODOO_PROJECT_REQUIREMENTS / ODOO_PROJECT_DEB_REQUIREMENTS
+# and invalidates these layers, but nothing above. Framework
+# requirements are passed as a *constraints* file only so transitive
+# deps cannot silently upgrade Odoo-pinned packages.
+# ----------------------------------------------------------------------
+ARG ODOO_PROJECT_REQUIREMENTS
+ARG ODOO_PROJECT_DEB_REQUIREMENTS
+ARG ODOO_FRAMEWORK_REQUIREMENTS
+ARG CUSTOMS_SHA
+
+COPY bin/check_sha.sh /usr/local/bin
+RUN /bin/bash /usr/local/bin/check_sha.sh "$CUSTOMS_SHA"
+
+# Project-specific Debian packages. apt-get update needed because the
+# base image may have pruned its apt cache.
+RUN echo "$ODOO_PROJECT_DEB_REQUIREMENTS" | base64 --decode > /root/project_deb_requirements.txt
+RUN touch /opt/container_settings && . /opt/container_settings && apt-get $(cat /etc/apt_options) update
+RUN xargs /etc/apt_install < /root/project_deb_requirements.txt
+
+# Project-specific pip packages (delta over Odoo's requirements.txt,
+# which was already installed in the base image's venv).
+RUN echo "$ODOO_PROJECT_REQUIREMENTS" | base64 --decode > /root/project_requirements.txt
+RUN echo "$ODOO_FRAMEWORK_REQUIREMENTS" | base64 --decode > /root/framework_constraints.txt
+RUN if [ -s /root/project_requirements.txt ]; then \\
+        pip3 install $(cat /etc/pip_options) -c /root/framework_constraints.txt -r /root/project_requirements.txt; \\
+    else \\
+        echo "No project-specific pip requirements to install."; \\
+    fi
+"""
+
+
 def _acquire_reload_lock(lock_file):
     """Acquire a file-based lock. Stale locks older than 5 minutes are removed."""
     lock_file = Path(lock_file)
@@ -1723,7 +1764,21 @@ def _merge_odoo_dockerfile(config, yamlcompose):
                 else:
                     shutil.copytree(part, dest / part.name)
 
-        # append common docker config
+        # Merge in common.docker.
+        # Base-split path: common.docker is *not* simply appended.
+        # Instead, the volatile project-delta block (deb + pip install
+        # of the project-specific requirements) is injected INTO
+        # common.docker at its `MARKER PROJECT_DELTA_INSERT` slot — that
+        # slot sits AFTER the static zodoo-CLI install (so the ~25
+        # static layers above stay cache-stable when a new project pip
+        # dep arrives) and BEFORE the destructive cleanup that wipes
+        # /var/lib/dpkg (so apt still works for the project deb install).
+        # The merged common-docker text then replaces the
+        # `MARKER COMMON_STATIC` slot in Dockerfile.project.template.
+        # Legacy monolithic path (Odoo <18, or version without
+        # Dockerfile.base): no marker, append at the end — the volatile
+        # pip-install layer already sits at the very bottom of the
+        # per-version Dockerfile.
         odoo_docker_file = config.files["odoo_docker_file"]
         common = config.dirs["images"] / "odoo" / "config" / "common.docker"
         ODOO_VERSION = str(MANIFEST()["version"]).split(".")[0]
@@ -1731,15 +1786,51 @@ def _merge_odoo_dockerfile(config, yamlcompose):
             common_text = common.read_text()
             if use_base_split:
                 # The base-split project Dockerfile has only one named
-                # stage (`project`) before common.docker is appended. The
+                # stage (`project`) before common.docker is merged. The
                 # legacy flatten copies from stage index 2; rewrite that
                 # reference to the named project stage.
                 common_text = common_text.replace(
                     "COPY --from=2 / /", "COPY --from=project / /"
                 )
-            odoo_docker_file.write_text(
-                odoo_docker_file.read_text() + "\n" + common_text
-            )
+                # Inject the project-delta block where common.docker has
+                # its `MARKER PROJECT_DELTA_INSERT` placeholder.
+                if "# MARKER PROJECT_DELTA_INSERT" in common_text:
+                    common_text = common_text.replace(
+                        "# MARKER PROJECT_DELTA_INSERT",
+                        _PROJECT_DELTA_BLOCK,
+                        1,
+                    )
+                else:
+                    # No insertion point — fall back to appending the
+                    # delta block at the end of common.docker. The build
+                    # will succeed but cleanup will run BEFORE the
+                    # project deb install (which then fails — but that
+                    # only triggers if the user has a stale common.docker
+                    # without the marker, after a partial update).
+                    common_text = common_text + "\n" + _PROJECT_DELTA_BLOCK
+                current = odoo_docker_file.read_text()
+                if "# MARKER COMMON_STATIC" in current:
+                    # count=1: a single, deterministic substitution. The
+                    # template's own header may *mention* the marker as
+                    # plain text — don't substitute those documentation
+                    # references.
+                    odoo_docker_file.write_text(
+                        current.replace(
+                            "# MARKER COMMON_STATIC", common_text, 1
+                        )
+                    )
+                else:
+                    # Defensive fallback: an older project.template lying
+                    # around in the run dir, without the marker. Append at
+                    # the end (pre-fix behaviour) so the build still
+                    # succeeds — but the cache-friendliness is lost until
+                    # `odoo reload` regenerates the template from
+                    # ~/.odoo/images.
+                    odoo_docker_file.write_text(current + "\n" + common_text)
+            else:
+                odoo_docker_file.write_text(
+                    odoo_docker_file.read_text() + "\n" + common_text
+                )
 
         # When zodoo source is mounted at runtime (default), strip the
         # bakery-only ``#___SNIPPET_ZODOO_EMBED_SOURCE___`` marker so the
