@@ -17,7 +17,10 @@ from tools import set_warmup_in_progress, signal_warmup_done
 # mounted (standalone/AWS deployments) and for cron/queuejob roles or
 # DEVMODE (no warmup loop will run; supervisor already skipped the
 # initial touch — keep this consistent).
-_DEVMODE = os.getenv("DEVMODE") == "1" or os.getenv("ZODOO_DEVMODE") == "1"
+# Only DEVMODE (Odoo's own dev flag) opts out of the warmup gate.
+# ZODOO_DEVMODE controls the zodoo CLI's git-branch tracking and is
+# unrelated to how Odoo itself runs.
+_DEVMODE = os.getenv("DEVMODE") == "1"
 if not is_odoo_cronjob and not is_odoo_queuejob and not _DEVMODE:
     set_warmup_in_progress()
 

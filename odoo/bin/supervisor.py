@@ -419,10 +419,12 @@ class Supervisor:
         # and we don't want devs staring at a maintenance page) and for
         # cron/queuejob-only containers (no web role → no one would
         # clear the sentinel).
-        devmode = (
-            os.environ.get("DEVMODE") == "1"
-            or os.environ.get("ZODOO_DEVMODE") == "1"
-        )
+        # Only DEVMODE (Odoo's own dev flag) skips the warmup gate.
+        # ZODOO_DEVMODE is a different concept — it just toggles whether
+        # the zodoo CLI tracks the current git branch vs. a stable tag,
+        # has nothing to do with how Odoo itself runs, and must NOT
+        # disable the proxy gate.
+        devmode = os.environ.get("DEVMODE") == "1"
         web_role = self.roles.get("web")
         if web_role and web_role.want_running and not devmode:
             try:
