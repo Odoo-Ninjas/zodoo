@@ -1245,6 +1245,10 @@ def set_warmup_in_progress():
     try:
         p.parent.mkdir(parents=True, exist_ok=True)
         p.touch()
+        click.secho(
+            f"[warmup gate] touched {p} — proxy will gate external traffic",
+            fg="cyan",
+        )
     except Exception as e:
         click.secho(
             f"[warmup gate] could not touch {p} — external port will NOT be "

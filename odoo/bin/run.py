@@ -10,6 +10,18 @@ from tools import set_proxy_update_modules
 from tools import pregenerate_assets_if_web
 from tools import set_warmup_in_progress, signal_warmup_done
 
+# Gate external traffic at the bundled nginx proxy as the *very first*
+# thing we do: prepare_run() + pregenerate can together take 30–60 s,
+# during which Odoo isn't listening yet — without an early sentinel the
+# proxy proxies into a dead backend and serves the static-404 fallback
+# (403) to real clients. No-op when the proxy_exchange volume isn't
+# mounted (standalone/AWS deployments) and for cron/queuejob roles or
+# DEVMODE (no warmup loop will run; supervisor already skipped the
+# initial touch — keep this consistent).
+_DEVMODE = os.getenv("DEVMODE") == "1" or os.getenv("ZODOO_DEVMODE") == "1"
+if not is_odoo_cronjob and not is_odoo_queuejob and not _DEVMODE:
+    set_warmup_in_progress()
+
 try:
     import importlib.metadata as _md  # py >= 3.8
 except ImportError:
@@ -34,7 +46,7 @@ print(f"Starting up odoo (zodoo {_zodoo_version})")
 prepare_run()
 
 TOUCH_URL = not is_odoo_cronjob and not is_odoo_queuejob
-if os.getenv("DEVMODE") == "1":
+if _DEVMODE:
     TOUCH_URL = False
 
 LEVEL = os.getenv("ODOO_LOG_LEVEL", "debug")
@@ -47,16 +59,11 @@ set_proxy_update_modules(False)
 # first request just pays the cost normally. No-op for cron/queuejob.
 pregenerate_assets_if_web()
 
-# Gate external traffic at the bundled nginx proxy while the web role
-# warms up (browsers see a maintenance page, API clients are held inside
-# the proxy until warmup completes). Only relevant when the warmup loop
-# (_touch) will actually run — gated by TOUCH_URL. In all other cases
-# (DEVMODE, cron/queuejob roles) signal "done" immediately, otherwise
-# the supervisor's ODOO_WARMUP_GATE_TIMEOUT_S timer (default 600s) hangs
-# background roles and the proxy gate stays closed forever.
-if TOUCH_URL:
-    set_warmup_in_progress()
-else:
+# If we won't actually run the warmup loop (DEVMODE / cron / queuejob),
+# signal warmup-done immediately so the supervisor's gate doesn't hang
+# for ODOO_WARMUP_GATE_TIMEOUT_S waiting for a signal that never comes.
+# Also clears the early proxy-gate sentinel (set above for web role).
+if not TOUCH_URL:
     signal_warmup_done()
 
 exec_odoo(

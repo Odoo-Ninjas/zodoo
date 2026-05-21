@@ -500,6 +500,28 @@ class Supervisor:
         _log("starting")
         self._install_signals()
 
+        # Touch the proxy-gate sentinel as the *very first* thing in the
+        # container lifecycle (before prepare_run_shared, before role
+        # spawn) so external traffic gets the warming-up page during the
+        # 20–50 s where Odoo isn't listening yet. Idempotent with the
+        # touch in run.py. Skipped in DEVMODE (no warmup loop will run,
+        # and we don't want devs staring at a maintenance page) and for
+        # cron/queuejob-only containers (no web role → no one would
+        # clear the sentinel).
+        devmode = (
+            os.environ.get("DEVMODE") == "1"
+            or os.environ.get("ZODOO_DEVMODE") == "1"
+        )
+        web_role = self.roles.get("web")
+        if web_role and web_role.want_running and not devmode:
+            try:
+                p = Path("/var/run/proxy_exchange/warmup_in_progress")
+                p.parent.mkdir(parents=True, exist_ok=True)
+                p.touch()
+                _log(f"  ▸ touched warmup-gate sentinel {p}")
+            except Exception as e:
+                _log(f"  ▸ could not touch warmup-gate sentinel: {e}")
+
         if _env_truthy("UPDATE_ON_STARTUP", "0"):
             _log("UPDATE_ON_STARTUP=1 — running update before spawning roles")
             try:
