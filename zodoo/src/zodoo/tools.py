@@ -574,15 +574,22 @@ def _wait_postgres(config, timeout=600):
         )
 
         postgres_containers = []
+        any_container = None
         for container_id in container_ids:
             if not container_id:
                 continue
+            any_container = any_container or container_id
             state = _docker_id_state(container_id)
             if state == "running":
                 postgres_containers += [container_id]
 
+        log_container = (
+            postgres_containers[0] if postgres_containers else any_container
+        )
+
         deadline = arrow.get().shift(seconds=timeout)
         last_ex = None
+        last_log_tail = None
         while True:
             if arrow.get() > deadline:
                 # if running containers wait for health state:
@@ -605,19 +612,52 @@ def _wait_postgres(config, timeout=600):
                         " ORDER BY table_schema,table_name "
                         " LIMIT 1; "
                     ),
+                    no_try=True,
                 )
                 break
 
             except Exception as ex:
                 seconds = (arrow.get() - started).total_seconds()
                 if seconds > 10:
-                    if str(ex) != str(last_ex):
+                    changed = str(ex) != str(last_ex)
+                    if changed:
                         click.secho(
-                            f"Waiting again for postgres. Last error is: {str(ex)}"
+                            f"Waiting again for postgres. Last error is: {str(ex)}",
+                            fg="yellow",
                         )
                     last_ex = ex
+                    if log_container and (
+                        changed
+                        or last_log_tail is None
+                        or (arrow.get() - last_log_tail).total_seconds() >= 10
+                    ):
+                        _print_postgres_log_tail(log_container)
+                        last_log_tail = arrow.get()
                 time.sleep(1)
         click.secho("Postgres now available.", fg="green")
+
+
+def _print_postgres_log_tail(container_id, lines=10):
+    try:
+        out = subprocess.run(
+            ["docker", "logs", "--tail", str(lines), container_id],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            encoding="utf8",
+            errors="replace",
+            timeout=5,
+        ).stdout
+    except Exception as ex:
+        click.secho(f"(could not read postgres docker log: {ex})", fg="yellow")
+        return
+    out = (out or "").strip()
+    if not out:
+        return
+    click.secho(
+        f"--- postgres docker log (tail {lines}) ---", fg="cyan"
+    )
+    click.echo(out)
+    click.secho("--- end postgres docker log ---", fg="cyan")
 
 
 def _docker_id_state(container_id):
