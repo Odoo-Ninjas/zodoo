@@ -42,7 +42,8 @@ PREPARE_SHARED_CMD = (
 # isolated odoo-shell subprocess) once BEFORE any role spawns. Doing
 # this in the supervisor — not in the web role's run.py — guarantees a
 # single web-shell process owns the asset write window with no cron /
-# queuejob workers running yet. Opt-in via ODOO_WARMUP_PREGENERATE=1.
+# queuejob workers running yet. Always runs when the web role is
+# enabled (no opt-in env var).
 PREGENERATE_CMD = (
     "import sys; sys.path.insert(0, '/odoolib'); "
     "from tools import pregenerate_assets_if_web; pregenerate_assets_if_web()"
@@ -503,9 +504,10 @@ def _pregenerate():
 
     Runs BEFORE any role is spawned so a single web-shell process owns
     the asset write window with no cron / queuejob workers running yet.
-    Idempotent and best-effort: failures here NEVER block the supervisor
-    from continuing to spawn roles (asset gen failures are non-fatal).
-    No-op when ODOO_WARMUP_PREGENERATE != "1".
+    Always runs when the web role is enabled (no opt-in). Best-effort:
+    failures here NEVER block the supervisor from continuing to spawn
+    roles — asset-gen failures are non-fatal, the first real HTTP
+    request will then generate the missing bundle on demand.
     """
     web_role = ROLES.get("web")
     if not (web_role and _env_truthy(web_role.get("enabled_key", ""), "0")):

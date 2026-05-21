@@ -888,17 +888,12 @@ def _pregenerate_assets():
     worker inherits the same committed state at fork time and never has to
     create its own copy on first render.
 
-    Opt-in: set ODOO_WARMUP_PREGENERATE=1 to enable. ODOO_WARMUP_BUNDLES
-    overrides the bundle set as a comma-separated list.
+    Always runs (no opt-in). ODOO_WARMUP_BUNDLES overrides the bundle
+    set as a comma-separated list.
     """
     global _WARMUP_T0
     _WARMUP_T0 = time.time()
 
-    if os.getenv("ODOO_WARMUP_PREGENERATE", "0") != "1":
-        _warmup_banner("Odoo warm-up — caches & workers")
-        _warmup_phase(1, 3, "Pre-generating asset bundles")
-        _warmup_step_ok("skipped (opt-in: set ODOO_WARMUP_PREGENERATE=1)")
-        return
     bundles = [
         b.strip()
         for b in os.getenv("ODOO_WARMUP_BUNDLES", ASSET_BUNDLES_DEFAULT).split(
