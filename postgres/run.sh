@@ -18,6 +18,15 @@ done
 rm -f /var/run/postgresql/.s.PGSQL.*.lock
 chown -R 999:999 /var/run/postgresql /logs
 
+# Ensure PGDATA's parent is writable by the postgres user. On a fresh volume
+# (or after `odoo snap restore` rsyncs into an empty mount) the mountpoint is
+# owned by root:root, so the unprivileged `gosu postgres` below cannot create
+# the pgdata subdirectory. We only chown the top-level mount; rsync from a
+# snapshot preserves per-file ownership of the contents underneath.
+if [ -d /var/lib/postgresql/data ]; then
+    chown 999:999 /var/lib/postgresql/data
+fi
+
 function make_entrypoint_with_params() {
 python3 <<EOF
 print("Version 1.0")
