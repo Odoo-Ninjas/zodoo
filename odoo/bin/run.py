@@ -8,6 +8,7 @@ from tools import (
 )
 from tools import set_proxy_update_modules
 from tools import pregenerate_assets_if_web
+from tools import set_warmup_in_progress
 
 try:
     import importlib.metadata as _md  # py >= 3.8
@@ -40,13 +41,17 @@ LEVEL = os.getenv("ODOO_LOG_LEVEL", "debug")
 
 set_proxy_update_modules(False)
 
-# Pre-generate asset bundles for the web role BEFORE odoo workers fork.
-# Workers cache asset-bundle lookups in-process forever (ormcache_context,
-# see ir.qweb._generate_asset_nodes_cache). If bundles are created after
-# the fork, each worker still serves its own stale cached URLs and
-# produces intermittent 404s. Doing the generation here means every
-# worker inherits the same DB state at fork time. No-op for cron/queuejob.
+# Opt-in: ODOO_WARMUP_PREGENERATE=1 pre-generates asset bundles for the
+# web role before workers fork (avoids per-worker stale ormcache_context
+# entries in ir.qweb._generate_asset_nodes_cache). Off by default — the
+# first request just pays the cost normally. No-op for cron/queuejob.
 pregenerate_assets_if_web()
+
+# Gate external traffic at the bundled nginx proxy while the web role
+# warms up (browsers see a maintenance page, API clients are held inside
+# the proxy until warmup completes). No-op when the proxy_exchange volume
+# isn't mounted (standalone/AWS deployments).
+set_warmup_in_progress()
 
 exec_odoo(
     None,

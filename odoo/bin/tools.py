@@ -471,7 +471,11 @@ def kill_odoo():
     if pidfile.exists():
         click.secho("Killing Odoo")
         pid = pidfile.read_text().strip()
-        base_cmd = ["/usr/bin/sudo"] if os.getenv("USE_DOCKER", "") == "1" and is_in_container() else []
+        base_cmd = (
+            ["/usr/bin/sudo"]
+            if os.getenv("USE_DOCKER", "") == "1" and is_in_container()
+            else []
+        )
         # SIGTERM first: master signals workers to exit cleanly, freeing port 8069
         subprocess.run(
             base_cmd + ["/bin/kill", "-15", pid],
@@ -480,10 +484,12 @@ def kill_odoo():
             stdin=subprocess.DEVNULL,
         )
         import time as _time
+
         for _ in range(10):
             _time.sleep(1)
             try:
                 import os as _os
+
                 _os.kill(int(pid), 0)
             except ProcessLookupError:
                 break
@@ -850,7 +856,9 @@ def _warmup_progress(done, total, elapsed, ok=True, note=""):
     bar = "█" * filled + "░" * (width - filled)
     pct = int(100 * done / max(1, total))
     bar_styled = click.style(bar, fg="green" if ok else "red")
-    status = click.style("ok ", fg="green") if ok else click.style("err", fg="red")
+    status = (
+        click.style("ok ", fg="green") if ok else click.style("err", fg="red")
+    )
     click.secho(
         f"      [{bar_styled}] {done:>2}/{total:<2} {pct:>3}%  "
         f"{elapsed:5.2f}s  {status} {note}".rstrip()
@@ -880,20 +888,22 @@ def _pregenerate_assets():
     worker inherits the same committed state at fork time and never has to
     create its own copy on first render.
 
-    Set ODOO_WARMUP_PREGENERATE=0 to skip, or ODOO_WARMUP_BUNDLES to a
-    comma-separated list to override the bundle set.
+    Opt-in: set ODOO_WARMUP_PREGENERATE=1 to enable. ODOO_WARMUP_BUNDLES
+    overrides the bundle set as a comma-separated list.
     """
     global _WARMUP_T0
     _WARMUP_T0 = time.time()
 
-    if os.getenv("ODOO_WARMUP_PREGENERATE", "1") != "1":
+    if os.getenv("ODOO_WARMUP_PREGENERATE", "0") != "1":
         _warmup_banner("Odoo warm-up — caches & workers")
         _warmup_phase(1, 3, "Pre-generating asset bundles")
-        _warmup_step_ok("skipped (ODOO_WARMUP_PREGENERATE=0)")
+        _warmup_step_ok("skipped (opt-in: set ODOO_WARMUP_PREGENERATE=1)")
         return
     bundles = [
         b.strip()
-        for b in os.getenv("ODOO_WARMUP_BUNDLES", ASSET_BUNDLES_DEFAULT).split(",")
+        for b in os.getenv("ODOO_WARMUP_BUNDLES", ASSET_BUNDLES_DEFAULT).split(
+            ","
+        )
         if b.strip()
     ]
     if not bundles:
@@ -1208,6 +1218,39 @@ def _touch():
 
 WARMUP_DONE_SENTINEL = "/var/run/zodoo-warmup.done"
 WARMUP_FAILED_SENTINEL = "/var/run/zodoo-warmup.failed"
+# Shared with the bundled nginx proxy via the proxy_exchange volume. Mounted
+# at /var/run/proxy_exchange in the odoo container (see docker-compose.yml)
+# and at /var/proxy_exchange in the proxy container. The proxy polls this
+# file once per second; while it exists, browsers get a maintenance page and
+# API clients are held inside the proxy until it disappears.
+WARMUP_IN_PROGRESS_SENTINEL = "/var/run/proxy_exchange/warmup_in_progress"
+
+
+def set_warmup_in_progress():
+    """Touch the proxy-gate sentinel so the bundled nginx proxy returns a
+    maintenance page / holds API requests for external clients while we warm
+    up.
+
+    No-op for cron/queuejob roles.
+
+    HARD GUARANTEE: this function NEVER raises. Standalone Odoo deployments
+    (e.g. AWS) ship without the zodoo proxy and without /var/run/proxy_exchange
+    mounted — in that case the touch silently fails (warning logged) and the
+    rest of the warmup proceeds normally. The proxy gate is a best-effort
+    optimization, never a hard dependency.
+    """
+    if is_odoo_cronjob or is_odoo_queuejob:
+        return
+    p = Path(WARMUP_IN_PROGRESS_SENTINEL)
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.touch()
+    except Exception as e:
+        click.secho(
+            f"[warmup gate] could not touch {p} — external port will NOT be "
+            f"gated (no zodoo proxy / standalone deployment): {e}",
+            fg="yellow",
+        )
 
 
 def _signal_warmup_done(failed=False):
@@ -1216,13 +1259,22 @@ def _signal_warmup_done(failed=False):
     On success: touches WARMUP_DONE_SENTINEL.
     On exhausted retries: touches WARMUP_FAILED_SENTINEL (the supervisor
     treats both as 'release the gate' so background work doesn't hang).
+
+    Also clears the proxy-gate sentinel so external traffic is released
+    (also in the failure path — degraded web is better than no web).
     """
     path = WARMUP_FAILED_SENTINEL if failed else WARMUP_DONE_SENTINEL
     try:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
         Path(path).write_text(str(int(time.time())))
     except Exception as e:
-        click.secho(f"Could not write warmup sentinel {path}: {e}", fg="yellow")
+        click.secho(
+            f"Could not write warmup sentinel {path}: {e}", fg="yellow"
+        )
+    try:
+        Path(WARMUP_IN_PROGRESS_SENTINEL).unlink(missing_ok=True)
+    except Exception as e:
+        click.secho(f"Could not clear warmup gate sentinel: {e}", fg="yellow")
 
 
 def set_proxy_update_modules(enabled):

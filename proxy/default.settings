@@ -8,3 +8,9 @@ PROXY_TRAEFIK_HOST=
 
 FASTIFY_DEBUG=0
 PROXY_DNS_SERVER=127.0.0.11
+
+# Max seconds the proxy holds an API request inside ngx.sleep while the odoo
+# container is warming up. Browser requests bypass this and get a 503 +
+# auto-refreshing maintenance page right away. After the timeout the API
+# client sees a 503 JSON {"error":"…"} instead of a dropped connection.
+WARMUP_PROXY_HOLD_S=120

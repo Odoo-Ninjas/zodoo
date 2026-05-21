@@ -13,6 +13,7 @@ services:
       - LUA_TEMPLATE=/opt/template.lua
       - PROXY_EXCHANGE=/var/proxy_exchange
       - CONSTRUCTION_SITE_PORT=3333
+      - WARMUP_PROXY_HOLD_S=${WARMUP_PROXY_HOLD_S:-120}
     volumes:
       - $HOST_RUN_DIR/proxy_exchange:/var/proxy_exchange
       - $HOST_RUN_DIR/proxy:/etc/proxy
