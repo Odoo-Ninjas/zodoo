@@ -7,7 +7,6 @@ from tools import (
     prepare_run,
 )
 from tools import set_proxy_update_modules
-from tools import pregenerate_assets_if_web
 from tools import set_warmup_in_progress, signal_warmup_done
 
 # Gate external traffic at the bundled nginx proxy as the *very first*
@@ -53,11 +52,11 @@ LEVEL = os.getenv("ODOO_LOG_LEVEL", "debug")
 
 set_proxy_update_modules(False)
 
-# Opt-in: ODOO_WARMUP_PREGENERATE=1 pre-generates asset bundles for the
-# web role before workers fork (avoids per-worker stale ormcache_context
-# entries in ir.qweb._generate_asset_nodes_cache). Off by default — the
-# first request just pays the cost normally. No-op for cron/queuejob.
-pregenerate_assets_if_web()
+# Asset pre-generation moved to supervisor._pregenerate() (Phase 0) — it
+# runs there once in an isolated odoo-shell subprocess BEFORE any role
+# spawns, so no cron/queuejob worker races the asset write. The web
+# role itself no longer pre-generates; the first real HTTP request
+# picks up the bundles that are already committed to the DB.
 
 # If we won't actually run the warmup loop (DEVMODE / cron / queuejob),
 # signal warmup-done immediately so the supervisor's gate doesn't hang

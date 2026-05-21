@@ -38,6 +38,15 @@ PREPARE_SHARED_CMD = (
     "import sys; sys.path.insert(0, '/odoolib'); "
     "from tools import prepare_run_shared; prepare_run_shared()"
 )
+# Runs pregenerate_assets_if_web (asset-bundle pre-generation via an
+# isolated odoo-shell subprocess) once BEFORE any role spawns. Doing
+# this in the supervisor — not in the web role's run.py — guarantees a
+# single web-shell process owns the asset write window with no cron /
+# queuejob workers running yet. Opt-in via ODOO_WARMUP_PREGENERATE=1.
+PREGENERATE_CMD = (
+    "import sys; sys.path.insert(0, '/odoolib'); "
+    "from tools import pregenerate_assets_if_web; pregenerate_assets_if_web()"
+)
 GRACE_SECONDS = 30
 BACKOFF_INITIAL = 1.0
 BACKOFF_MAX = 30.0
@@ -441,6 +450,7 @@ class Supervisor:
 
         threading.Thread(target=self._socket_server, daemon=True).start()
         _prepare_shared()
+        _pregenerate()
         self.start_enabled()
         try:
             self.supervise_loop()
@@ -484,6 +494,29 @@ def _prepare_shared():
     except subprocess.CalledProcessError as ex:
         _log(f"prepare_run_shared failed (rc={ex.returncode})")
         raise
+
+
+def _pregenerate():
+    """Phase 0: asset pre-generation in an isolated odoo-shell subprocess.
+
+    Runs BEFORE any role is spawned so a single web-shell process owns
+    the asset write window with no cron / queuejob workers running yet.
+    Idempotent and best-effort: failures here NEVER block the supervisor
+    from continuing to spawn roles (asset gen failures are non-fatal).
+    No-op when ODOO_WARMUP_PREGENERATE != "1".
+    """
+    web_role = ROLES.get("web")
+    if not (web_role and _env_truthy(web_role.get("enabled_key", ""), "0")):
+        return
+    _log("phase 0 ▸ asset pre-generation (single web-shell, before roles)")
+    try:
+        subprocess.run(
+            [ZODOO_PYTHON, "-c", PREGENERATE_CMD],
+            check=False,
+            cwd="/opt/src",
+        )
+    except Exception as ex:
+        _log(f"pregenerate failed (non-fatal, continuing): {ex}")
 
 
 # ---------------------------------------------------------------------
