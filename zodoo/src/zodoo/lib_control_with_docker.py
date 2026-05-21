@@ -444,6 +444,63 @@ def _supervisor_restart_role(config, role):
     _supervisor_action_role(config, "restart", role)
 
 
+# Roles that must be stopped before any DDL-heavy `odoo update` so that
+# queue/cron workers don't sit idle-in-transaction on tables the
+# pre-migrate ALTERs (lock timeout otherwise). web is included because
+# user requests can also grab row locks during long migrations.
+_UPDATE_BLOCKING_ROLES = ("web", "queuejobs", "cronjobs")
+
+
+def stop_update_blocking_roles(config):
+    """Stop web, queuejobs and cronjobs supervisor children + their
+    legacy split-container counterparts. Silently no-ops if the odoo
+    container or a given role isn't running. Used by `odoo update`."""
+    if not _has_in_container_supervisor(config):
+        return
+    for role in _UPDATE_BLOCKING_ROLES:
+        try:
+            _supervisor_action_role(config, "stop", role)
+        except subprocess.CalledProcessError as e:
+            click.secho(
+                f"Warning: could not stop supervisor role {role}: {e}",
+                fg="yellow",
+            )
+    # Pre-v14 layouts (and some current installs, e.g. cicd_app) also
+    # run cronjobs/cronjobshell as separate compose services. Stop them
+    # explicitly so their odoo workers release locks too.
+    for svc in ("cronjobs", "cronjobshell", "queuejobs"):
+        if _is_container_running(config, svc):
+            try:
+                __dc(config, ["stop", "-t", "10", svc])
+            except subprocess.CalledProcessError as e:
+                click.secho(
+                    f"Warning: could not stop service {svc}: {e}",
+                    fg="yellow",
+                )
+
+
+def start_update_blocking_roles(config):
+    """Counterpart of stop_update_blocking_roles: brings web, queuejobs,
+    cronjobs back up after an update completes."""
+    if not _has_in_container_supervisor(config):
+        return
+    for role in _UPDATE_BLOCKING_ROLES:
+        try:
+            _supervisor_action_role(config, "start", role)
+        except subprocess.CalledProcessError as e:
+            click.secho(
+                f"Warning: could not start supervisor role {role}: {e}",
+                fg="yellow",
+            )
+    for svc in ("cronjobs", "cronjobshell", "queuejobs"):
+        # docker compose start is idempotent for services that aren't
+        # declared; ignore failures.
+        try:
+            __dc(config, ["start", svc])
+        except subprocess.CalledProcessError:
+            pass
+
+
 def restart(
     ctx,
     config,

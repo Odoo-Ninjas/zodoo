@@ -1,0 +1,1 @@
+`odoo update` now stops `web`, `queuejobs` and `cronjobs` before running module updates, then restarts them on success. Prevents `ALTER TABLE … lock_timeout` failures in pre-migrate scripts caused by queue/cron workers holding row locks during DDL.

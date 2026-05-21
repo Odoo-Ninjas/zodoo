@@ -1198,6 +1198,14 @@ def update(
         manifest_mode = manifest
         if is_docker_available() and not dry_run:
             start_postgres_if_local(ctx, config)
+            # Always stop web/queuejobs/cronjobs before updating: live
+            # workers holding row locks (queue_job / cron) make DDL
+            # migrations (ALTER TABLE …) hit lock_timeout. The previous
+            # logic only stopped `web` via the odoo_base kill path, which
+            # left queue/cron workers around to block pre-migrate ALTERs.
+            from .lib_control_with_docker import stop_update_blocking_roles
+
+            stop_update_blocking_roles(config)
         manifest = MANIFEST()
         if manifest.get("before-odoo-update", []) and not no_scripts:
             if os.getenv("NO_BEFORE_ODOO_COMMAND") != "1":
@@ -1277,6 +1285,15 @@ def update(
 
         if not no_restart:
             _execute_after_update_scripts(config)
+            # Bring web/queuejobs/cronjobs back up — we forced them down
+            # at the start of the update so DDL pre-migrations could
+            # acquire ACCESS EXCLUSIVE locks without contention.
+            if is_docker_available() and not dry_run:
+                from .lib_control_with_docker import (
+                    start_update_blocking_roles,
+                )
+
+                start_update_blocking_roles(config)
 
         click.secho(
             f"Update done at {date} - duration {duration}s", fg="yellow"
