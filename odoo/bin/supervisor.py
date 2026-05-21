@@ -242,120 +242,22 @@ class Supervisor:
     # ------------------------------------------------------------------
 
     def start_enabled(self):
-        """Spawn enabled roles, holding cronjobs/queuejobs until web warmup.
-
-        Background roles (cronjobs/queuejobs) share the database with web
-        workers; if they spawn while web is mid-warmup they hit a registry
-        that is still settling (asset attachments being generated, queue.job
-        model loading, etc) and can dirty per-worker caches with stale
-        lookups. Wait for the warmup sentinel written by _touch() in
-        tools.py before bringing them up.
-
-        Set ODOO_GATE_BG_ON_WARMUP=0 to disable gating (legacy behaviour).
+        """Spawn all enabled roles in parallel. Web's HTTP-warmup loop
+        (pregenerate + Phase 2/3 in odoo/bin/tools.py) only gates the
+        external nginx proxy, not the local cron/queuejob roles —
+        background workers can settle their own caches the first time
+        they hit the DB; there's no need to hold them back during a
+        web restart.
         """
-        gating = os.environ.get("ODOO_GATE_BG_ON_WARMUP", "1") == "1"
-        bg_roles = {"cronjobs", "queuejobs"}
-
         enabled = [n for n, r in self.roles.items() if r.want_running]
         disabled = [n for n, r in self.roles.items() if not r.want_running]
-        fg = [n for n in enabled if n not in bg_roles]
-        bg = [n for n in enabled if n in bg_roles]
-        _log(
-            f"roles: enabled={enabled or '∅'} disabled={disabled or '∅'} "
-            f"foreground={fg or '∅'} background-gated={bg or '∅'} "
-            f"gating={'on' if gating else 'off'}"
-        )
-
-        # Phase 1 — spawn non-background roles first (web).
-        if fg:
-            _log(f"phase 1/3 ▸ spawning foreground roles: {fg}")
-            for name in fg:
-                self.roles[name].spawn()
-        else:
-            _log(
-                "phase 1/3 ▸ no foreground roles to spawn (skipping warmup gate)"
-            )
-
-        if not bg:
-            _log(
-                "phase 2/3 ▸ no background roles to gate (skipping warmup gate)"
-            )
-        elif not fg:
-            _log(
-                f"phase 2/3 ▸ no foreground role to warm up — releasing {bg} "
-                f"immediately"
-            )
-        elif not gating:
-            _log(
-                f"phase 2/3 ▸ warmup gate disabled (ODOO_GATE_BG_ON_WARMUP=0) — "
-                f"releasing {bg} immediately"
-            )
-        else:
-            # Best-effort wait for warmup. We don't fail-close because the
-            # warmup may legitimately fail (degraded web) — background work
-            # should still run.
-            timeout_s = float(
-                os.environ.get("ODOO_WARMUP_GATE_TIMEOUT_S", "600")
-            )
-            _log(
-                f"phase 2/3 ▸ gating background roles {bg} on web warmup "
-                f"(timeout {timeout_s:.0f}s)"
-            )
-            self._wait_for_warmup(timeout_s)
-
-        # Phase 3 — spawn background roles.
-        if bg:
-            _log(f"phase 3/3 ▸ spawning background roles: {bg}")
-            for name in bg:
-                self.roles[name].spawn()
-        else:
-            _log("phase 3/3 ▸ no background roles to spawn")
-
-    def _wait_for_warmup(self, timeout_s):
-        done = Path("/var/run/zodoo-warmup.done")
-        failed = Path("/var/run/zodoo-warmup.failed")
-        # Stale sentinels from a previous run would let us proceed
-        # immediately; remove them so the gate reflects this boot.
-        for p in (done, failed):
-            try:
-                p.unlink()
-            except FileNotFoundError:
-                pass
-        t0 = time.time()
-        deadline = t0 + timeout_s
-        # Heartbeat cadence — frequent enough to feel alive in a tail -f, sparse
-        # enough not to drown the `[web] …` warmup output. Override via env if
-        # someone wants louder/quieter feedback.
-        heartbeat_s = float(os.environ.get("ODOO_WARMUP_HEARTBEAT_S", "10"))
-        next_beat = t0 + heartbeat_s
-        while time.time() < deadline and not self._shutdown.is_set():
-            now = time.time()
-            if done.exists():
-                _log(
-                    f"  ✓ warmup sentinel observed after {now - t0:.1f}s — "
-                    f"releasing background roles"
-                )
-                return
-            if failed.exists():
-                _log(
-                    f"  ⚠ warmup failed sentinel observed after {now - t0:.1f}s — "
-                    f"releasing background roles anyway (web is degraded)"
-                )
-                return
-            if now >= next_beat:
-                elapsed = now - t0
-                remaining = max(0.0, deadline - now)
-                _log(
-                    f"  ⏱ still waiting for web warmup … "
-                    f"elapsed={elapsed:5.1f}s  remaining={remaining:5.1f}s  "
-                    f"(sentinel: /var/run/zodoo-warmup.done)"
-                )
-                next_beat = now + heartbeat_s
-            time.sleep(0.5)
-        _log(
-            f"  ✗ warmup gate timed out after {timeout_s:.0f}s — "
-            f"releasing background roles (web may still be warming up)"
-        )
+        _log(f"roles: enabled={enabled or '∅'} disabled={disabled or '∅'}")
+        if not enabled:
+            _log("no roles to spawn")
+            return
+        _log(f"spawning roles: {enabled}")
+        for name in enabled:
+            self.roles[name].spawn()
 
     def supervise_loop(self):
         """Reap children and respawn per policy (restart: on-failure).
