@@ -1253,6 +1253,18 @@ def set_warmup_in_progress():
         )
 
 
+def clear_warmup_in_progress():
+    """Remove the proxy-gate sentinel. Used by the non-warmup path
+    (DEVMODE, cron/queuejob roles) so a stale file from a previous run
+    doesn't keep the proxy blocking forever. Never raises."""
+    try:
+        Path(WARMUP_IN_PROGRESS_SENTINEL).unlink(missing_ok=True)
+    except Exception as e:
+        click.secho(
+            f"[warmup gate] could not clear stale sentinel: {e}", fg="yellow"
+        )
+
+
 def _signal_warmup_done(failed=False):
     """Write a sentinel file so the supervisor can gate cronjobs/queuejobs.
 

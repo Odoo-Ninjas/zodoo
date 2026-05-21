@@ -23,6 +23,12 @@ local dict = ngx.shared.flags
 -- _signal_warmup_done(). No-op when the standalone-deployment never set
 -- the sentinel in the first place.
 -- =========================================================================
+-- NOTE: template.lua is substituted via Python str.format() in
+-- proxy/bin/setup_config_files.py. Every literal opening or closing
+-- brace below must be doubled (open-open / close-close) so the
+-- formatter passes them through. This applies to the JSON error body
+-- and the CSS in the maintenance page — and to this comment, which is
+-- why it uses words rather than the brace characters themselves.
 if dict:get("warmup_in_progress") then
     local accept = ngx.var.http_accept or ""
     local uri    = ngx.var.uri or ""
@@ -51,23 +57,45 @@ if dict:get("warmup_in_progress") then
             ngx.status = 503
             ngx.header["Retry-After"] = "5"
             ngx.header["Content-Type"] = "application/json"
-            ngx.say('{"error":"odoo warming up — hold exceeded ' .. max_hold_s .. 's"}')
+            ngx.say('{{"error":"service starting — hold exceeded ' .. max_hold_s .. 's"}}')
             return ngx.exit(503)
         end
     else
-        -- Browser: Wartungsseite mit Auto-Refresh.
+        -- Browser: Wartungsseite mit Auto-Refresh. Generisch — kein
+        -- Branding-Leak. Alle "open-open"/"close-close" Klammern unten
+        -- werden von Python str.format() zu single braces zurückgesetzt.
         ngx.status = 503
         ngx.header["Retry-After"] = "3"
         ngx.header["Content-Type"] = "text/html; charset=utf-8"
-        ngx.say([[<!doctype html><html><head>
-<title>Warming up…</title>
+        ngx.say([[<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<title>Just a moment…</title>
 <meta http-equiv="refresh" content="3">
-<style>body{font-family:system-ui,sans-serif;max-width:520px;margin:8em auto;padding:0 1em;color:#444}
-h1{font-weight:600}.spin{display:inline-block;animation:s 1s linear infinite}
-@keyframes s{to{transform:rotate(360deg)}}</style>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{{color-scheme:light dark}}
+*{{box-sizing:border-box}}
+body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:#f5f6f8;color:#1f2937}}
+@media (prefers-color-scheme: dark){{body{{background:#0f1115;color:#e5e7eb}}}}
+.card{{max-width:420px;padding:48px 32px;text-align:center}}
+.spinner{{width:48px;height:48px;margin:0 auto 24px;
+  border:3px solid rgba(127,127,127,0.18);
+  border-top-color:#3b82f6;
+  border-radius:50%;
+  animation:spin 0.9s linear infinite}}
+@keyframes spin{{to{{transform:rotate(360deg)}}}}
+h1{{font-size:1.25rem;font-weight:600;margin:0 0 8px}}
+p{{font-size:0.95rem;opacity:0.7;margin:0;line-height:1.5}}
+</style>
 </head><body>
-<h1><span class="spin">&#9203;</span> Odoo is warming up</h1>
-<p>This usually takes a few seconds. The page will reload automatically.</p>
+<div class="card">
+  <div class="spinner" aria-hidden="true"></div>
+  <h1>Just a moment</h1>
+  <p>We're getting things ready. This page will reload automatically.</p>
+</div>
 </body></html>]])
         return ngx.exit(503)
     end
