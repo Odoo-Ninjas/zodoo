@@ -1174,9 +1174,17 @@ def update(
             "odoo.sh",
         ], f"Invalid update strategy: {update_strategy}"
 
-        if update_strategy and param_module:
+        # An explicit module selection on the CLI overrules UPDATE_STRATEGY:
+        # positional modules, -i / --installed-modules, -d / --dangling-modules,
+        # or -M / --manifest all signal "user wants exactly this set, not the
+        # odoo.sh outdated-only shortcut".
+        if update_strategy and (
+            param_module or installed_modules or dangling_modules or manifest
+        ):
             click.secho(
-                f"Ignoring update strategy '{update_strategy}' because a specific module list is provided.",
+                f"Ignoring update strategy '{update_strategy}' because an "
+                "explicit module selection (positional / -i / -d / -M) was "
+                "provided.",
                 fg="yellow",
             )
             update_strategy = None
