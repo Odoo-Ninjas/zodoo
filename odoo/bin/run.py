@@ -8,7 +8,7 @@ from tools import (
 )
 from tools import set_proxy_update_modules
 from tools import pregenerate_assets_if_web
-from tools import set_warmup_in_progress, clear_warmup_in_progress
+from tools import set_warmup_in_progress, signal_warmup_done
 
 try:
     import importlib.metadata as _md  # py >= 3.8
@@ -49,14 +49,15 @@ pregenerate_assets_if_web()
 
 # Gate external traffic at the bundled nginx proxy while the web role
 # warms up (browsers see a maintenance page, API clients are held inside
-# the proxy until warmup completes). Only set when we actually run the
-# warmup loop (TOUCH_URL); otherwise (DEVMODE, cron/queuejob) the
-# warmup-done signal would never fire and the gate would stay closed
-# forever — proactively clear any stale sentinel from a previous run.
+# the proxy until warmup completes). Only relevant when the warmup loop
+# (_touch) will actually run — gated by TOUCH_URL. In all other cases
+# (DEVMODE, cron/queuejob roles) signal "done" immediately, otherwise
+# the supervisor's ODOO_WARMUP_GATE_TIMEOUT_S timer (default 600s) hangs
+# background roles and the proxy gate stays closed forever.
 if TOUCH_URL:
     set_warmup_in_progress()
 else:
-    clear_warmup_in_progress()
+    signal_warmup_done()
 
 exec_odoo(
     None,

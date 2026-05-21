@@ -1192,7 +1192,7 @@ def _touch():
                 f"✓ Warm-up complete in {total:.2f}s — Odoo is hot",
                 fg="green",
             )
-            _signal_warmup_done()
+            signal_warmup_done()
             return
 
         click.secho(
@@ -1210,7 +1210,7 @@ def _touch():
             # Even on failure mark warmup as 'done' so the supervisor stops
             # blocking cronjobs/queuejobs forever. They will see a degraded
             # web but at least background work resumes.
-            _signal_warmup_done(failed=True)
+            signal_warmup_done(failed=True)
             sys.exit(1)
 
         time.sleep(1.0)  # kurzer backoff vor nächstem attempt
@@ -1253,19 +1253,7 @@ def set_warmup_in_progress():
         )
 
 
-def clear_warmup_in_progress():
-    """Remove the proxy-gate sentinel. Used by the non-warmup path
-    (DEVMODE, cron/queuejob roles) so a stale file from a previous run
-    doesn't keep the proxy blocking forever. Never raises."""
-    try:
-        Path(WARMUP_IN_PROGRESS_SENTINEL).unlink(missing_ok=True)
-    except Exception as e:
-        click.secho(
-            f"[warmup gate] could not clear stale sentinel: {e}", fg="yellow"
-        )
-
-
-def _signal_warmup_done(failed=False):
+def signal_warmup_done(failed=False):
     """Write a sentinel file so the supervisor can gate cronjobs/queuejobs.
 
     On success: touches WARMUP_DONE_SENTINEL.
