@@ -628,6 +628,75 @@ def _compose_opts_to_bake_opts(options):
     return bake_opts
 
 
+def _collect_bake_fs_reads(bake_files):
+    """Return the set of paths that should be passed to bake via
+    ``--allow=fs.read=…`` so it doesn't warn about reading outside the
+    bake file's directory.
+
+    Walks each compose file referenced in ``bake_files`` and collects
+    every ``build.context``, ``build.dockerfile`` and bind-mount source
+    that lives outside the compose file's own directory. Resolves
+    symlinks and "../" segments so the values match what bake sees at
+    runtime.
+    """
+    paths = set()
+    files = []
+    idx = 0
+    while idx < len(bake_files):
+        if bake_files[idx] == "-f" and idx + 1 < len(bake_files):
+            files.append(bake_files[idx + 1])
+            idx += 2
+        else:
+            idx += 1
+    try:
+        import yaml
+    except ImportError:
+        return paths
+
+    def _resolve(value):
+        if not value:
+            return None
+        try:
+            return str(Path(value).expanduser().resolve())
+        except (OSError, RuntimeError):
+            return None
+
+    for compose_path in files:
+        try:
+            with open(compose_path, "r") as fh:
+                data = yaml.safe_load(fh) or {}
+        except (OSError, yaml.YAMLError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        services = data.get("services") or {}
+        if not isinstance(services, dict):
+            continue
+        for svc in services.values():
+            if not isinstance(svc, dict):
+                continue
+            build = svc.get("build")
+            if isinstance(build, dict):
+                for key in ("context", "dockerfile"):
+                    resolved = _resolve(build.get(key))
+                    if resolved:
+                        paths.add(resolved)
+            elif isinstance(build, str):
+                resolved = _resolve(build)
+                if resolved:
+                    paths.add(resolved)
+            for mount in svc.get("volumes") or []:
+                if isinstance(mount, dict):
+                    resolved = _resolve(mount.get("source"))
+                elif isinstance(mount, str) and ":" in mount:
+                    resolved = _resolve(mount.split(":", 1)[0])
+                else:
+                    resolved = None
+                if resolved and Path(resolved).exists():
+                    paths.add(resolved)
+    return paths
+
+
 def _build_with_network_retry(config, options, machines, env):
     """Run the build; retry once with ``--no-cache`` when the failure looks like
     a transient network/PPA glitch.
@@ -639,7 +708,16 @@ def _build_with_network_retry(config, options, machines, env):
 
     pattern = re.compile(_BUILD_NETWORK_ERROR_PATTERN)
     ensure_project_name(config)
-    full_env = _merge_env_dict(_set_default_envs(env))
+    # BUILDX_BAKE_ENTITLEMENTS_FS=0 stops bake from *failing* on filesystem
+    # entitlement checks, but it still prints a "build is requesting
+    # privileges for following possibly insecure capabilities" warning for
+    # every context/dockerfile outside the bake file's directory. We
+    # enumerate every referenced path below as `--allow=fs.read=…` so the
+    # warning stays quiet; the env var is kept as a safety net in case the
+    # enumeration misses a path on some compose layout.
+    full_env = _merge_env_dict(
+        _set_default_envs({**env, "BUILDX_BAKE_ENTITLEMENTS_FS": "0"})
+    )
     use_buildx = _is_buildx_available()
 
     def _run(extra_options):
@@ -656,17 +734,14 @@ def _build_with_network_retry(config, options, machines, env):
             tags_opts = [
                 f"--set={m}.tags={config.project_name}-{m}" for m in machines
             ]
-            allow_opts = []
-            if config.HOST_RUN_DIR:
-                allow_opts = [f"--allow=fs.read={config.HOST_RUN_DIR}"]
-            images_dir = str(
-                Path(config.dirs["images"]).expanduser().resolve()
-            )
-            if images_dir and Path(images_dir).exists():
-                allow_opts.append(f"--allow=fs.read={images_dir}")
+            allow_opts = [
+                f"--allow=fs.read={p}"
+                for p in sorted(_collect_bake_fs_reads(bake_files))
+            ]
             cmd = (
-                ["docker", "buildx", "bake", "--load"]
+                ["docker", "buildx", "bake"]
                 + allow_opts
+                + ["--load"]
                 + bake_files
                 + _compose_opts_to_bake_opts(extra_options)
                 + tags_opts
