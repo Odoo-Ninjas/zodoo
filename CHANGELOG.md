@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.1.0
+
+
+- **Feature**: nginx proxy holds API requests and serves a maintenance page to browsers while Odoo is warming up, so external clients never hit a cold worker
+
+
 ## 6.0.0
 
 
