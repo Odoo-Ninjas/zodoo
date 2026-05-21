@@ -458,12 +458,31 @@ def _declared_compose_services(config):
     return set((yml.get("services", {}) or {}).keys())
 
 
+def _touch_proxy_warmup_gate(config):
+    """Touch the nginx-proxy warmup-gate sentinel from the host side so
+    external clients see the maintenance page (instead of the bare-503
+    static fallback) while `odoo update` stops the web role for several
+    minutes. The sentinel is cleared automatically once the web role
+    spawns again and finishes its warmup loop (signal_warmup_done in
+    odoo/bin/tools.py). Never raises — projects without the bundled
+    proxy simply don't have the volume mounted."""
+    try:
+        p = config.dirs["run"] / "proxy_exchange" / "warmup_in_progress"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.touch()
+    except Exception as e:
+        click.secho(f"[warmup gate] could not touch {p}: {e}", fg="yellow")
+
+
 def stop_update_blocking_roles(config):
     """Stop web, queuejobs and cronjobs supervisor children + their
     legacy split-container counterparts. Silently no-ops if the odoo
     container or a given role isn't running. Used by `odoo update`."""
     if not _has_in_container_supervisor(config):
         return
+    # Gate the proxy *before* we stop web so external clients never
+    # see the static-fallback 403 during an update.
+    _touch_proxy_warmup_gate(config)
     for role in _UPDATE_BLOCKING_ROLES:
         try:
             _supervisor_action_role(config, "stop", role)
