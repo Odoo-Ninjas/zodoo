@@ -10,6 +10,13 @@ on:
     paths:
       - "zodoo/src/**"
       - ".github/workflows/pytest.yml"
+  # Auch bei direkten Pushes auf main (z.B. fix-merges via gh CLI ohne PR),
+  # damit Test-Feedback nicht erst beim Release-on-merge sichtbar wird.
+  push:
+    branches: [main]
+    paths:
+      - "zodoo/src/**"
+      - ".github/workflows/pytest.yml"
   workflow_dispatch:
 
 jobs:

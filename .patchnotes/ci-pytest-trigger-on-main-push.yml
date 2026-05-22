@@ -1,0 +1,3 @@
+type: internal
+description: "CI: pytest.yml triggert jetzt auch bei direct-push auf main (nicht nur bei PR) — bisher gab's keinen Test-Run bei push-to-main, Feedback kam erst über den Release-Workflow"
+breaking: false
