@@ -337,6 +337,14 @@ def prepare_run_shared(local_config=None):
     # already-substituted files, leaving placeholders like __DB_MAXCONN__
     # in the live config and crashing odoo at CLI parse time).
     user_id = int(os.getenv("OWNER_UID", os.getuid()))
+    # Per-UID marker file inside ODOO_DATA_DIR records that the recursive
+    # chown ran for this UID. Filestores can be tens of GB — `chown -R`
+    # on every restart costs 5–15 s, mostly redundant. The marker makes
+    # the chown effectively a one-time cost per UID; a UID change (e.g.
+    # the host user got rotated) triggers a fresh chown automatically.
+    data_dir = Path(os.environ["ODOO_DATA_DIR"])
+    chown_marker = data_dir / f".zodoo-chowned-uid-{user_id}"
+    chowned_for_this_uid = chown_marker.exists()
     for path in [
         os.environ["ODOO_CONFIG_DIR"],
         os.environ["OUT_DIR"],
@@ -355,6 +363,16 @@ def prepare_run_shared(local_config=None):
             out_dir.mkdir(parents=True, exist_ok=True)
         if out_dir.exists():
             if out_dir.stat().st_uid == 0:
+                # Big subtrees (filestore) are skipped on subsequent boots
+                # via the per-UID marker — the recursive chown is expensive
+                # and the FS state only needs fixing once after a fresh
+                # mount or a UID change.
+                if chowned_for_this_uid and out_dir in (
+                    data_dir / "filestore",
+                    data_dir / "sessions",
+                    data_dir / "addons",
+                ):
+                    continue
                 subprocess.call(
                     [
                         "chown",
@@ -366,12 +384,28 @@ def prepare_run_shared(local_config=None):
         del path
         del out_dir
 
+    # Drop the marker after a successful first-pass chown so the next
+    # boot can skip the heavy filestore/sessions/addons rescan.
+    if not chowned_for_this_uid:
+        try:
+            chown_marker.parent.mkdir(parents=True, exist_ok=True)
+            chown_marker.touch()
+            os.chown(str(chown_marker), user_id, user_id)
+        except OSError:
+            pass
+
     _replace_variables_in_config_files(local_config)
 
     if config["RUN_AUTOSETUP"] == "1":
         _run_autosetup()
 
-    _run_libreoffice_in_background()
+    # LibreOffice was needed by older Odoo's report engine (wkhtmltopdf
+    # fallback for .docx → PDF conversions). Odoo 17+ ships its own PDF
+    # tooling and no longer hits soffice in the default report pipeline,
+    # so the background daemon (and its ~2-5 s startup cost) is dead
+    # weight there. Keep it on legacy versions to avoid surprises.
+    if current_version() < 17.0:
+        _run_libreoffice_in_background()
 
 
 def prepare_run_role():
@@ -888,11 +922,14 @@ def _pregenerate_assets():
     worker inherits the same committed state at fork time and never has to
     create its own copy on first render.
 
-    Always runs (no opt-in). ODOO_WARMUP_BUNDLES overrides the bundle
-    set as a comma-separated list.
+    Opt-in: set ODOO_WARMUP_PREGENERATE=1 to enable. ODOO_WARMUP_BUNDLES
+    overrides the bundle set as a comma-separated list.
     """
     global _WARMUP_T0
     _WARMUP_T0 = time.time()
+
+    if os.getenv("ODOO_WARMUP_PREGENERATE", "0") != "1":
+        return
 
     bundles = [
         b.strip()
