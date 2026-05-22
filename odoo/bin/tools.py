@@ -345,6 +345,11 @@ def prepare_run_shared(local_config=None):
     data_dir = Path(os.environ["ODOO_DATA_DIR"])
     chown_marker = data_dir / f".zodoo-chowned-uid-{user_id}"
     chowned_for_this_uid = chown_marker.exists()
+    click.secho(
+        f"[prepare_run_shared] chown marker {chown_marker} "
+        f"{'present — skipping recursive chown on big subtrees' if chowned_for_this_uid else 'missing — will chown big subtrees once'}",
+        fg="cyan",
+    )
     for path in [
         os.environ["ODOO_CONFIG_DIR"],
         os.environ["OUT_DIR"],
@@ -405,7 +410,16 @@ def prepare_run_shared(local_config=None):
     # so the background daemon (and its ~2-5 s startup cost) is dead
     # weight there. Keep it on legacy versions to avoid surprises.
     if current_version() < 17.0:
+        click.secho(
+            f"[prepare_run_shared] starting libreoffice (Odoo {current_version()} < 17)",
+            fg="cyan",
+        )
         _run_libreoffice_in_background()
+    else:
+        click.secho(
+            f"[prepare_run_shared] skipping libreoffice (Odoo {current_version()} >= 17)",
+            fg="cyan",
+        )
 
 
 def prepare_run_role():
@@ -929,6 +943,10 @@ def _pregenerate_assets():
     _WARMUP_T0 = time.time()
 
     if os.getenv("ODOO_WARMUP_PREGENERATE", "0") != "1":
+        click.secho(
+            "[pregenerate_assets] skipped (set ODOO_WARMUP_PREGENERATE=1 to enable)",
+            fg="cyan",
+        )
         return
 
     bundles = [
