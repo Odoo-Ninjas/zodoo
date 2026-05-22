@@ -1,3 +1,0 @@
-type: feature
-description: "nginx proxy holds API requests and serves a maintenance page to browsers while Odoo is warming up, so external clients never hit a cold worker"
-breaking: false

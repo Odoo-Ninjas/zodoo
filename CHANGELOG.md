@@ -1,5 +1,16 @@
 # Changelog
 
+## 7.0.0
+
+
+- **BREAKING**: project Dockerfile reordered (zodoo-CLI install runs before volatile ODOO_PROJECT_REQUIREMENTS) so adding one new pip dep no longer triggers a 130s rebuild; ODOO_REQUIREMENTS → ODOO_PROJECT_REQUIREMENTS rename clarifies framework vs project — Build args renamed: ODOO_REQUIREMENTS → ODOO_PROJECT_REQUIREMENTS, ODOO_DEB_REQUIREMENTS → ODOO_PROJECT_DEB_REQUIREMENTS (plus _CLEARTEXT variants). External tools or CI scripts that set these env vars directly must be updated. Existing projects need one `odoo reload` after updating to pick up the regenerated Dockerfile.project.template with the new MARKER COMMON_STATIC layout.
+- **Internal**: CI: pytest.yml triggert jetzt auch bei direct-push auf main (nicht nur bei PR) — bisher gab's keinen Test-Run bei push-to-main, Feedback kam erst über den Release-Workflow
+- **BREAKING**: RUN_REDIS default auf 0 — Redis-Container startet nicht mehr automatisch. Projekte, die Redis explizit brauchen (z.B. session-store, custom caching), müssen RUN_REDIS=1 in ihren settings setzen — Bestehende Projekte, die implizit auf den default-Redis-Container gesetzt haben, müssen RUN_REDIS=1 in ~/.odoo/settings.<project> oder ./.odoo/settings nachtragen. Odoo selbst nutzt Redis nicht — das betrifft nur Custom-Setups.
+- **Docs**: README.md: CRONJOB_DADDY_CLEANUP-Tabellenzelle in inline-code gewrappt — vorher hat Markdown den * in der Cron-Expression als Formatierung interpretiert und 'CRONJOB*DADDY_CLEANUP' gerendert
+- **Feature**: nginx proxy holds API requests and serves a maintenance page to browsers while Odoo is warming up, so external clients never hit a cold worker
+- **Fix**: odoo restart/kill/up akzeptieren odoo_web, odoo-web und odoo.web als equivalente Schreibweisen (analog für cronjobs/queuejobs); Tab-Completion schlägt alle drei Separator-Varianten vor; queue_job-jobrunner Log-Spam (~12 master-election-lost-DEBUG-Zeilen pro Minute) durch log_handler-INFO unterdrückt
+
+
 ## 6.0.0
 
 
