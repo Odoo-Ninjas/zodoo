@@ -2181,8 +2181,58 @@ def _setup_claude_settings(config):
         if entry not in existing_dirs:
             existing_dirs.append(entry)
     permissions["additionalDirectories"] = existing_dirs
-    settings_file.write_text(json.dumps(settings, indent=2) + "\n")
+    _write_text_with_sudo_fallback(
+        settings_file, json.dumps(settings, indent=2) + "\n"
+    )
     click.secho(f"Created {settings_file}", fg="green")
+
+
+def _write_text_with_sudo_fallback(path, text):
+    """Write ``text`` to ``path``. On PermissionError (typical when the
+    file was left behind by a container running as root), retry via
+    ``sudo tee`` and ``sudo chown`` so subsequent writes can stay
+    passwordless.
+
+    Falls back silently to a click warning if sudo is also unusable —
+    .vscode launch/settings files are dev-ergonomics, not load-bearing,
+    so we never want them to abort the reload.
+    """
+    path = Path(path)
+    try:
+        path.write_text(text)
+        return
+    except PermissionError:
+        pass
+
+    if not shutil.which("sudo"):
+        click.secho(
+            f"Cannot write {path}: permission denied and sudo not available.",
+            fg="yellow",
+        )
+        return
+
+    try:
+        subprocess.run(
+            ["sudo", "-n", "tee", str(path)],
+            input=text,
+            text=True,
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+        uid = os.getuid()
+        gid = os.getgid()
+        subprocess.run(
+            ["sudo", "-n", "chown", f"{uid}:{gid}", str(path)],
+            check=False,
+        )
+        click.secho(
+            f"Reclaimed root-owned {path} via sudo.", fg="yellow"
+        )
+    except subprocess.CalledProcessError as ex:
+        click.secho(
+            f"Cannot write {path}: permission denied and sudo failed ({ex}).",
+            fg="yellow",
+        )
 
 
 def setup_launch_json(config):
@@ -2294,8 +2344,8 @@ def setup_launch_json(config):
     ]
     content["configurations"] += template["configurations"]
     content_task["tasks"] += template["tasks"]
-    launch_json.write_text(json.dumps(content, indent=4))
-    task_json.write_text(json.dumps(content_task, indent=4))
+    _write_text_with_sudo_fallback(launch_json, json.dumps(content, indent=4))
+    _write_text_with_sudo_fallback(task_json, json.dumps(content_task, indent=4))
 
     setup_vscode_settings(config)
     click.secho(f"VSCode launch.json updated at {launch_json}", fg="green")
@@ -2329,7 +2379,7 @@ def setup_vscode_settings(config):
             "Warning: please setup robot pyenv so that tests appear in your vscode: odoo setup-pyenv",
             fg="yellow",
         )
-    file.write_text(json.dumps(content, indent=4))
+    _write_text_with_sudo_fallback(file, json.dumps(content, indent=4))
 
 
 Commands.register(do_reload, "reload")
