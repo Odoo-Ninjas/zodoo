@@ -653,9 +653,7 @@ def _print_postgres_log_tail(container_id, lines=10):
     out = (out or "").strip()
     if not out:
         return
-    click.secho(
-        f"--- postgres docker log (tail {lines}) ---", fg="cyan"
-    )
+    click.secho(f"--- postgres docker log (tail {lines}) ---", fg="cyan")
     click.echo(out)
     click.secho("--- end postgres docker log ---", fg="cyan")
 
@@ -2050,6 +2048,22 @@ def _shell_complete_machines(ctx, param, incomplete):
     )
     machines = list(map(lambda x: x.split(" ")[0], machines))
     machines = list(map(lambda x: x[len(project_name) + 1 :], machines))
+    # Add legacy supervisor-redirect names so users get tab-completion for
+    # `odoo restart odoo_web` etc., including hyphen and dot variants.
+    # _LEGACY_ROLE_MAP lives in lib_control_with_docker — import lazily to
+    # avoid a heavy module import at completion time.
+    try:
+        from .lib_control_with_docker import _LEGACY_ROLE_MAP
+
+        legacy_underscored = list(_LEGACY_ROLE_MAP.keys())
+        legacy = (
+            legacy_underscored
+            + [n.replace("_", "-") for n in legacy_underscored]
+            + [n.replace("_", ".") for n in legacy_underscored]
+        )
+        machines = list(dict.fromkeys(machines + legacy))
+    except Exception:
+        pass
     if incomplete:
         machines = list(filter(lambda x: incomplete in x, machines))
     return machines

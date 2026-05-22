@@ -1,6 +1,6 @@
 [options]
 log_handler1 = :ERROR,openerp:ERROR,werkzeug:ERROR
-log_handler = :DEBUG,openerp:DEBUG,werkzeug:DEBUG
+log_handler = :DEBUG,openerp:DEBUG,werkzeug:DEBUG,odoo.addons.queue_job.jobrunner.runner:INFO
 max_cron_threads = 0
 workers = __ODOO_WORKERS_WEB__
 

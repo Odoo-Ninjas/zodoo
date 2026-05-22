@@ -1145,6 +1145,124 @@ def test_e2e_remove_volumes_dry_run(odoo_project_19_running):
     assert res.returncode == 0
 
 
+# ---------------------------------------------------------------------------
+# restart dispatch: legacy supervisor-role names vs. real compose service
+# ---------------------------------------------------------------------------
+#
+# `odoo restart odoo_web` (and the hyphen/dot variants) must NOT touch the
+# compose service — they soft-restart the role inside the running container
+# via the supervisor unix socket. `odoo restart odoo` is the opposite: it
+# stops + recreates the whole compose service. These tests pin both branches
+# of the dispatch so a future refactor can't quietly regress one side.
+
+
+def _capture_restart_calls(monkeypatch):
+    """Monkey-patch the four functions restart() may delegate to, so the
+    test can observe which path the dispatch took."""
+    import zodoo.lib_control_with_docker as lcd
+
+    calls = {"supervisor": [], "kill": [], "up": []}
+
+    monkeypatch.setattr(
+        lcd,
+        "_supervisor_restart_role",
+        lambda config, role: calls["supervisor"].append(role),
+    )
+    monkeypatch.setattr(
+        lcd,
+        "do_kill",
+        lambda ctx, config, machines=None, brutal=True, profile="auto", **kw: calls[
+            "kill"
+        ].append(
+            list(machines or [])
+        ),
+    )
+    monkeypatch.setattr(
+        lcd,
+        "up",
+        lambda ctx, config, machines=None, **kw: calls["up"].append(
+            list(machines or [])
+        ),
+    )
+    # restart() also calls _has_in_container_supervisor — force-True so we
+    # don't need a real Odoo-version-detect on the FakeConfig.
+    monkeypatch.setattr(
+        lcd, "_has_in_container_supervisor", lambda config: True
+    )
+    return calls
+
+
+@pytest.mark.parametrize(
+    "machine,expected_role",
+    [
+        ("odoo_web", "web"),
+        ("odoo-web", "web"),
+        ("odoo.web", "web"),
+        ("odoo_cronjobs", "cronjobs"),
+        ("odoo-cronjobs", "cronjobs"),
+        ("odoo.cronjobs", "cronjobs"),
+        ("odoo_queuejobs", "queuejobs"),
+        ("odoo-queuejobs", "queuejobs"),
+        ("odoo.queuejobs", "queuejobs"),
+    ],
+)
+def test_restart_role_name_soft_restarts_via_supervisor(
+    monkeypatch, machine, expected_role
+):
+    """`odoo restart odoo_web` (and -/. variants, plus cronjobs/queuejobs)
+    must call the in-container supervisor and NOT recreate any compose
+    service. Container stays up, only the supervisor child is respawned."""
+    import zodoo.lib_control_with_docker as lcd
+
+    calls = _capture_restart_calls(monkeypatch)
+    lcd.restart(ctx=None, config=FakeConfig(), machines=[machine])
+
+    assert calls["supervisor"] == [
+        expected_role
+    ], f"Expected supervisor restart of {expected_role!r}, got {calls!r}"
+    assert calls["kill"] == [], (
+        f"`odoo restart {machine}` must NOT call do_kill (would recreate "
+        f"the whole compose service), got {calls['kill']!r}"
+    )
+    assert (
+        calls["up"] == []
+    ), f"`odoo restart {machine}` must NOT call up, got {calls['up']!r}"
+
+
+def test_restart_odoo_service_recreates_whole_container(monkeypatch, tmp_path):
+    """`odoo restart odoo` (plain, no _web suffix) is the explicit hard
+    path: stop + up the compose service. The supervisor is NOT called
+    because the user wants the whole container down — including the
+    supervisor itself."""
+    import zodoo.lib_control_with_docker as lcd
+
+    # restart() falls into a branch that reads docker_compose.yml when
+    # machines is empty; we hand it a real one to be safe.
+    compose = tmp_path / "dc.yml"
+    compose.write_text(
+        "services:\n"
+        "  odoo:\n"
+        "    image: x\n"
+        "    labels:\n"
+        "      compose.merge: odoo_base\n"
+    )
+    cfg = FakeConfig(files={"docker_compose": compose})
+
+    calls = _capture_restart_calls(monkeypatch)
+    lcd.restart(ctx=None, config=cfg, machines=["odoo"])
+
+    assert calls["supervisor"] == [], (
+        f"`odoo restart odoo` must NOT redirect to the supervisor (whole "
+        f"container needs to go down), got {calls['supervisor']!r}"
+    )
+    assert calls["kill"] == [
+        ["odoo"]
+    ], f"Expected do_kill(['odoo']), got {calls['kill']!r}"
+    assert calls["up"] == [
+        ["odoo"]
+    ], f"Expected up(['odoo']), got {calls['up']!r}"
+
+
 @pytest.mark.slow
 @requires_full_stack
 def test_e2e_kill_and_restart(odoo_project_19_running):

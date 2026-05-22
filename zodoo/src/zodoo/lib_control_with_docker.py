@@ -173,7 +173,7 @@ def do_kill(ctx, config, machines=[], brutal=False, profile="auto"):
     # Redirect legacy service names to the in-container supervisor (v14+).
     legacy, machines = _legacy_role_match(config, machines)
     for m in legacy:
-        _supervisor_action_role(config, "stop", _LEGACY_ROLE_MAP[m])
+        _supervisor_action_role(config, "stop", _resolve_legacy_role(m))
     if legacy and not machines:
         return
     if not machines:
@@ -240,7 +240,7 @@ def up(
     # Redirect legacy service names to the in-container supervisor (v14+).
     legacy, machines = _legacy_role_match(config, machines)
     for m in legacy:
-        _supervisor_action_role(config, "start", _LEGACY_ROLE_MAP[m])
+        _supervisor_action_role(config, "start", _resolve_legacy_role(m))
     if legacy and not machines:
         return
     from .consts import resolve_profiles
@@ -405,11 +405,25 @@ def _has_in_container_supervisor(config):
         return True
 
 
+def _normalize_legacy_name(name):
+    """Treat ``odoo_web``, ``odoo-web`` and ``odoo.web`` as the same name
+    so the user can spell role redirects either with underscore (matches
+    the original compose service), hyphen, or dot."""
+    return name.replace("-", "_").replace(".", "_")
+
+
+def _resolve_legacy_role(name):
+    """Return the supervisor-role name for a CLI machine name (with
+    separator tolerance), or ``None`` if the name doesn't refer to a
+    legacy supervisor-redirected service."""
+    return _LEGACY_ROLE_MAP.get(_normalize_legacy_name(name))
+
+
 def _legacy_role_match(config, machines):
     if not _has_in_container_supervisor(config):
         return [], list(machines)
-    legacy = [m for m in machines if m in _LEGACY_ROLE_MAP]
-    rest = [m for m in machines if m not in _LEGACY_ROLE_MAP]
+    legacy = [m for m in machines if _resolve_legacy_role(m) is not None]
+    rest = [m for m in machines if _resolve_legacy_role(m) is None]
     return legacy, rest
 
 
@@ -460,7 +474,11 @@ def _supervisor_action_role(config, action, role):
         if action == "stop":
             __dc(config, ["stop", "-t", "2", legacy_name], profile="auto")
         elif action == "start":
-            __dc(config, ["up", "-d", "--no-recreate", legacy_name], profile="auto")
+            __dc(
+                config,
+                ["up", "-d", "--no-recreate", legacy_name],
+                profile="auto",
+            )
         elif action == "restart":
             __dc(config, ["restart", legacy_name], profile="auto")
     except subprocess.CalledProcessError as e2:
@@ -582,7 +600,7 @@ def restart(
     # For v11/v13 those names are real compose services, no redirect.
     legacy, machines = _legacy_role_match(config, machines)
     for m in legacy:
-        _supervisor_restart_role(config, _LEGACY_ROLE_MAP[m])
+        _supervisor_restart_role(config, _resolve_legacy_role(m))
     if legacy and not machines:
         return
 
