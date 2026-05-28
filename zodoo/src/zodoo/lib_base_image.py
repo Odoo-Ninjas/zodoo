@@ -284,6 +284,11 @@ def _docker_build_args(config, inputs):
     args = {
         "ODOO_PYTHON_VERSION": inputs["python_version"],
         "ODOO_FRAMEWORK_REQUIREMENTS": reqs_b64,
+        # Pass TARGETARCH explicitly: BuildKit only auto-populates it under
+        # buildx with --platform. Hosts without buildx (e.g. fresh Debian
+        # without docker-buildx-plugin) fall back to the classic builder,
+        # which leaves TARGETARCH empty and breaks FROM lines that reference it.
+        "TARGETARCH": _arch(),
     }
 
     base_image = getattr(config, "BASE_IMAGE", None) or "ubuntu:22.04"
