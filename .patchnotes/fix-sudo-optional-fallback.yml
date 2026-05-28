@@ -1,0 +1,3 @@
+type: fix
+description: "Only invoke sudo for docker/zfs/chown commands when running them as the current user fails; print a hint with a ready-to-use sudoers NOPASSWD snippet when sudo is actually needed."
+breaking: false

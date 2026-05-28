@@ -980,9 +980,9 @@ def __try_to_set_owner(UID, path, abort_if_failed=True, verbose=False):
             except Exception:
                 try:
                     if Path(line).exists():
-                        subprocess.check_output(
-                            ["sudo", "chown", str(UID), line]
-                        )
+                        cmd = ["sudo", "chown", str(UID), line]
+                        print(f"  sudo: {' '.join(cmd)}", file=sys.stderr, flush=True)
+                        subprocess.check_output(cmd)
                 except Exception as ex:
                     if abort_if_failed:
                         abort(
@@ -998,9 +998,9 @@ def __try_to_set_owner(UID, path, abort_if_failed=True, verbose=False):
             except Exception:
                 try:
                     if Path.exists(line):
-                        subprocess.check_output(
-                            ["sudo", "chgrp", str(primary_group), line]
-                        )
+                        cmd = ["sudo", "chgrp", str(primary_group), line]
+                        print(f"  sudo: {' '.join(cmd)}", file=sys.stderr, flush=True)
+                        subprocess.check_output(cmd)
                 except Exception:
                     pass
 

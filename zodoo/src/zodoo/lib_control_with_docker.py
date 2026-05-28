@@ -27,25 +27,31 @@ import tempfile
 from pathlib import Path
 
 
-def _sudo_prefix():
-    """Only prefix with sudo on Linux (volume paths in /var/lib/docker
-    are root-owned there). On macOS the paths live inside the Docker VM
-    and are not accessed directly — plus an interactive sudo prompt
-    would hang non-interactive runs."""
+def _run_no_stdin(cmd):
+    """Try cmd without sudo; on failure retry with sudo (Linux only)."""
     import platform
 
-    return ["/usr/bin/sudo"] if platform.system() == "Linux" else []
+    try:
+        return subprocess.check_output(cmd, stdin=subprocess.DEVNULL)
+    except (subprocess.CalledProcessError, PermissionError):
+        if platform.system() == "Linux":
+            import sys
 
-
-def _run_no_stdin(cmd):
-    """Run a command with stdin closed so sudo can't prompt."""
-    return subprocess.check_output(cmd, stdin=subprocess.DEVNULL)
+            print(
+                f"  sudo: {' '.join(str(c) for c in cmd)}",
+                file=sys.stderr,
+                flush=True,
+            )
+            return subprocess.check_output(
+                ["/usr/bin/sudo"] + cmd, stdin=subprocess.DEVNULL
+            )
+        raise
 
 
 def _get_volume_hostpath(volume):
     from pathlib import Path
 
-    cmd = _sudo_prefix() + [
+    cmd = [
         "docker",
         "volume",
         "inspect",
@@ -61,7 +67,7 @@ def _get_volume_hostpath(volume):
 
 def _get_volume_size(volume):
     try:
-        cmd = _sudo_prefix() + ["du", "-sh", str(_get_volume_hostpath(volume))]
+        cmd = ["du", "-sh", str(_get_volume_hostpath(volume))]
         size = _run_no_stdin(cmd).decode("utf-8")
         size = size.split("\t")[0]
         return size
