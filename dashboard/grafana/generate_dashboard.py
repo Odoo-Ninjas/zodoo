@@ -183,7 +183,26 @@ def lt(expr, refId="A", ds=LOKI, legend=None, instant=False):
     return t
 
 
-def dashboard(title, uid, panels):
+PROJECT_VAR = {
+    "name": "project",
+    "label": "Project",
+    "type": "query",
+    "datasource": PROM,
+    "query": {
+        "query": "label_values(odoo_instance, project)",
+        "refId": "x",
+    },
+    "definition": "label_values(odoo_instance, project)",
+    "refresh": 1,
+    "sort": 1,
+    "includeAll": False,
+    "multi": False,
+    "hide": 2,
+    "current": {},
+}
+
+
+def dashboard(title, uid, panels, extra_vars=None):
     return {
         "annotations": {
             "list": [
@@ -200,27 +219,7 @@ def dashboard(title, uid, panels):
         "graphTooltip": 1,
         "schemaVersion": 39,
         "tags": ["zodoo", "odoo"],
-        "templating": {
-            "list": [
-                {
-                    "name": "project",
-                    "label": "Project",
-                    "type": "query",
-                    "datasource": PROM,
-                    "query": {
-                        "query": "label_values(odoo_instance, project)",
-                        "refId": "x",
-                    },
-                    "definition": "label_values(odoo_instance, project)",
-                    "refresh": 1,
-                    "sort": 1,
-                    "includeAll": False,
-                    "multi": False,
-                    "hide": 2,
-                    "current": {},
-                }
-            ]
-        },
+        "templating": {"list": [PROJECT_VAR] + (extra_vars or [])},
         "time": {"from": "now-3h", "to": "now"},
         "refresh": "30s",
         "timezone": "browser",
@@ -634,15 +633,70 @@ write(
 )
 
 # =========================================================================
-# Dashboard 2: logs  (/logs) — replaces log.io
+# Dashboard 2: logs  (/logs) — searchable log explorer, replaces log.io
 # =========================================================================
+# Interactive filters (Graylog-style): free-text Search, Container multi-select
+# and a Level dropdown. The matching log stream is filtered live.
+LOGS_VARS = [
+    {
+        "name": "search",
+        "label": "Search (regex, case-insensitive)",
+        "type": "textbox",
+        "query": "",
+        "current": {"text": "", "value": ""},
+        "options": [{"text": "", "value": "", "selected": True}],
+        "hide": 0,
+    },
+    {
+        "name": "container",
+        "label": "Container",
+        "type": "query",
+        "datasource": LOKI,
+        "query": 'label_values({job="docker", container=~"$project.*"}, container)',
+        "definition": 'label_values({job="docker", container=~"$project.*"}, container)',
+        "refresh": 1,
+        "sort": 1,
+        "includeAll": True,
+        "allValue": ".+",
+        "multi": True,
+        "current": {"text": "All", "value": "$__all", "selected": True},
+        "hide": 0,
+    },
+    {
+        "name": "level",
+        "label": "Level",
+        "type": "custom",
+        "query": ". : All, error|traceback|critical|exception : Errors, warn|warning : Warnings, info : Info",
+        "includeAll": False,
+        "multi": False,
+        "current": {"text": "All", "value": ".", "selected": True},
+        "options": [
+            {"text": "All", "value": ".", "selected": True},
+            {
+                "text": "Errors",
+                "value": "error|traceback|critical|exception",
+                "selected": False,
+            },
+            {"text": "Warnings", "value": "warn|warning", "selected": False},
+            {"text": "Info", "value": "info", "selected": False},
+        ],
+        "hide": 0,
+    },
+]
+
+# selector honouring project scope + all three filters
+SEL = (
+    '{job="docker", container=~"$project.*", container=~"$container"}'
+    " |~ `(?i)$search` |~ `(?i)$level`"
+)
+
 _id[0] = 0
 p = []
 y = 0
 p.append(
     stat(
         "Errors last 24h",
-        gp(0, y, 6, 5),
+        gp(0, y, 5, 4),
         [
             lt(
                 'sum(count_over_time({job="docker", %s} |~ `(?i)(error|traceback|critical)` [24h]))'
@@ -657,7 +711,7 @@ p.append(
 p.append(
     stat(
         "Warnings last 24h",
-        gp(6, y, 6, 5),
+        gp(5, y, 5, 4),
         [
             lt(
                 'sum(count_over_time({job="docker", %s} |~ `(?i)(warning|warn)` [24h]))'
@@ -671,11 +725,11 @@ p.append(
 )
 p.append(
     ts(
-        "Log lines/s by container",
-        gp(12, y, 12, 5),
+        "Matching log volume by container",
+        gp(10, y, 14, 4),
         [
             lt(
-                'sum by (container) (rate({job="docker", %s}[5m]))' % LC,
+                "sum by (container) (count_over_time(%s [$__interval]))" % SEL,
                 legend="{{container}}",
             )
         ],
@@ -684,23 +738,17 @@ p.append(
         stacking="normal",
     )
 )
-y += 5
+y += 4
 p.append(
     logs(
-        "Errors & tracebacks",
-        gp(0, y, 24, 9),
-        '{job="docker", %s} |~ `(?i)(error|traceback|critical|exception)`'
-        % LC,
+        "Logs  —  type in the Search box above (regex), pick Container / Level",
+        gp(0, y, 24, 24),
+        SEL,
     )
 )
-y += 9
-p.append(
-    logs(
-        "All container logs (this instance)",
-        gp(0, y, 24, 11),
-        '{job="docker", %s}' % LC,
-    )
-)
-y += 11
+y += 24
 
-write("zodoo-logs", dashboard("zodoo – Logs", "zodoo-logs", p))
+write(
+    "zodoo-logs",
+    dashboard("zodoo – Logs", "zodoo-logs", p, extra_vars=LOGS_VARS),
+)

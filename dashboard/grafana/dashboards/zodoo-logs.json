@@ -38,6 +38,82 @@
         "multi": false,
         "hide": 2,
         "current": {}
+      },
+      {
+        "name": "search",
+        "label": "Search (regex, case-insensitive)",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "options": [
+          {
+            "text": "",
+            "value": "",
+            "selected": true
+          }
+        ],
+        "hide": 0
+      },
+      {
+        "name": "container",
+        "label": "Container",
+        "type": "query",
+        "datasource": {
+          "type": "loki",
+          "uid": "loki"
+        },
+        "query": "label_values({job=\"docker\", container=~\"$project.*\"}, container)",
+        "definition": "label_values({job=\"docker\", container=~\"$project.*\"}, container)",
+        "refresh": 1,
+        "sort": 1,
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "current": {
+          "text": "All",
+          "value": "$__all",
+          "selected": true
+        },
+        "hide": 0
+      },
+      {
+        "name": "level",
+        "label": "Level",
+        "type": "custom",
+        "query": ". : All, error|traceback|critical|exception : Errors, warn|warning : Warnings, info : Info",
+        "includeAll": false,
+        "multi": false,
+        "current": {
+          "text": "All",
+          "value": ".",
+          "selected": true
+        },
+        "options": [
+          {
+            "text": "All",
+            "value": ".",
+            "selected": true
+          },
+          {
+            "text": "Errors",
+            "value": "error|traceback|critical|exception",
+            "selected": false
+          },
+          {
+            "text": "Warnings",
+            "value": "warn|warning",
+            "selected": false
+          },
+          {
+            "text": "Info",
+            "value": "info",
+            "selected": false
+          }
+        ],
+        "hide": 0
       }
     ]
   },
@@ -62,8 +138,8 @@
       "gridPos": {
         "x": 0,
         "y": 0,
-        "w": 6,
-        "h": 5
+        "w": 5,
+        "h": 4
       },
       "targets": [
         {
@@ -104,10 +180,10 @@
         "uid": "loki"
       },
       "gridPos": {
-        "x": 6,
+        "x": 5,
         "y": 0,
-        "w": 6,
-        "h": 5
+        "w": 5,
+        "h": 4
       },
       "targets": [
         {
@@ -142,16 +218,16 @@
     {
       "id": 3,
       "type": "timeseries",
-      "title": "Log lines/s by container",
+      "title": "Matching log volume by container",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
       "gridPos": {
-        "x": 12,
+        "x": 10,
         "y": 0,
-        "w": 12,
-        "h": 5
+        "w": 14,
+        "h": 4
       },
       "targets": [
         {
@@ -160,7 +236,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (container) (rate({job=\"docker\", container=~\"$project.*\"}[5m]))",
+          "expr": "sum by (container) (count_over_time({job=\"docker\", container=~\"$project.*\", container=~\"$container\"} |~ `(?i)$search` |~ `(?i)$level` [$__interval]))",
           "queryType": "range",
           "legendFormat": "{{container}}"
         }
@@ -190,16 +266,16 @@
     {
       "id": 4,
       "type": "logs",
-      "title": "Errors & tracebacks",
+      "title": "Logs  \u2014  type in the Search box above (regex), pick Container / Level",
       "datasource": {
         "type": "loki",
         "uid": "loki"
       },
       "gridPos": {
         "x": 0,
-        "y": 5,
+        "y": 4,
         "w": 24,
-        "h": 9
+        "h": 24
       },
       "targets": [
         {
@@ -208,39 +284,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{job=\"docker\", container=~\"$project.*\"} |~ `(?i)(error|traceback|critical|exception)`",
-          "queryType": "range"
-        }
-      ],
-      "options": {
-        "showTime": true,
-        "wrapLogMessage": true,
-        "enableLogDetails": true,
-        "sortOrder": "Descending"
-      }
-    },
-    {
-      "id": 5,
-      "type": "logs",
-      "title": "All container logs (this instance)",
-      "datasource": {
-        "type": "loki",
-        "uid": "loki"
-      },
-      "gridPos": {
-        "x": 0,
-        "y": 14,
-        "w": 24,
-        "h": 11
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "loki",
-            "uid": "loki"
-          },
-          "expr": "{job=\"docker\", container=~\"$project.*\"}",
+          "expr": "{job=\"docker\", container=~\"$project.*\", container=~\"$container\"} |~ `(?i)$search` |~ `(?i)$level`",
           "queryType": "range"
         }
       ],
