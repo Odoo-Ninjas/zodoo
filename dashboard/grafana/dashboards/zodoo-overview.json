@@ -47,14 +47,14 @@
   },
   "refresh": "30s",
   "timezone": "browser",
-  "title": "zodoo \u2013 Instance Overview",
+  "title": "zodoo - Instance Overview",
   "uid": "zodoo-overview",
-  "version": 3,
+  "version": 4,
   "panels": [
     {
       "id": 1,
       "type": "row",
-      "title": "System \u2013 CPU / RAM / Disk",
+      "title": "System - CPU / RAM / Disk",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -932,7 +932,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(pg_stat_database_blks_hit[5m])) / (sum(rate(pg_stat_database_blks_hit[5m])) + sum(rate(pg_stat_database_blks_read[5m])))",
+          "expr": "rate(odoo_db_activity_blks_hit[5m]) / (rate(odoo_db_activity_blks_hit[5m]) + rate(odoo_db_activity_blks_read[5m]))",
           "legendFormat": "hit ratio"
         }
       ],
@@ -976,7 +976,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(pg_stat_database_xact_commit[5m]))",
+          "expr": "rate(odoo_db_activity_xact_commit[5m])",
           "legendFormat": "commit"
         },
         {
@@ -985,7 +985,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(pg_stat_database_xact_rollback[5m]))",
+          "expr": "rate(odoo_db_activity_xact_rollback[5m])",
           "legendFormat": "rollback"
         }
       ],
@@ -1161,7 +1161,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum(count_over_time({job=\"docker\", container=~\"$project.*\"} |~ `(?i)(error|traceback|critical)` [24h]))",
+          "expr": "sum(count_over_time({job=\"docker\", container=~\"$project.*\", container!~\".*(grafana|prometheus|loki|alloy|cadvisor|exporter|proxy)$\"} |~ `ERROR|CRITICAL|Traceback|\\[error\\]|\\[crit\\]|level=error` [24h]))",
           "queryType": "instant"
         }
       ],
@@ -1253,7 +1253,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{job=\"docker\", container=~\"$project.*\"} |~ `(?i)(error|traceback|critical)`",
+          "expr": "{job=\"docker\", container=~\"$project.*\", container!~\".*(grafana|prometheus|loki|alloy|cadvisor|exporter|proxy)$\"} |~ `ERROR|CRITICAL|Traceback|\\[error\\]|\\[crit\\]|level=error`",
           "queryType": "range"
         }
       ],

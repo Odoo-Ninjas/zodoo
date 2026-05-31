@@ -119,6 +119,14 @@ services:
   postgres_exporter:
     image: quay.io/prometheuscommunity/postgres-exporter:v0.16.0
     restart: unless-stopped
+    # Disable the exporter's legacy built-in metrics: one of them queries the
+    # checkpoints_timed column which PostgreSQL 17 moved to
+    # pg_stat_checkpointer, erroring every scrape and spamming both the exporter
+    # and postgres logs. Everything the dashboard needs is defined explicitly in
+    # postgres_exporter_queries.yml (PG17-compatible), so nothing is lost.
+    command:
+      - --disable-default-metrics
+      - --no-collector.stat_bgwriter
     environment:
       DATA_SOURCE_NAME: "postgresql://${DB_USER:-odoo}:${DB_PWD:-odoo}@${DB_HOST:-postgres}:${DB_PORT:-5432}/${DBNAME}?sslmode=disable"
       PG_EXPORTER_EXTEND_QUERY_PATH: /etc/postgres_exporter/queries.yml

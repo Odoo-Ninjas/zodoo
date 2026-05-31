@@ -10,7 +10,7 @@ Grafana picks the files up automatically (file provisioning, 30s interval).
 
 Two dashboards are produced under dashboards/:
   - zodoo-overview.json : full instance overview (reached via /system)
-  - zodoo-logs.json     : log-focused view (reached via /logs)
+  - zodoo-logs.json     : searchable log explorer (reached via /logs)
 
 Every panel is scoped to the current instance via the hidden `$project`
 template variable (label_values(odoo_instance, project)). cadvisor and Loki
@@ -25,6 +25,20 @@ LOKI = {"type": "loki", "uid": "loki"}
 # container_name is "<project>_<service>"; Loki `container` label is the same.
 CN = 'name=~"$project.*"'  # cadvisor selector
 LC = 'container=~"$project.*"'  # Loki selector
+
+# Case-SENSITIVE level matchers. Case matters: matching a lowercase "error"
+# substring would flag nginx access logs (referrer URLs containing "Errors"),
+# normal words and info-level lines. Odoo/Python use ERROR/CRITICAL/Traceback,
+# nginx uses [error]/[crit], Grafana/Alloy use level=error.
+ERR_RE = r"ERROR|CRITICAL|Traceback|\[error\]|\[crit\]|level=error"
+WARN_RE = r"WARNING|\[warn\]|level=warn"
+
+# "Errors/Warnings last 24h" should reflect the Odoo workload, not the
+# observability stack griping about itself (alloy/loki/exporters) or the proxy
+# access/lua noise. Exclude those sidecars from the summary counters.
+EXCL = (
+    r'container!~".*(grafana|prometheus|loki|alloy|cadvisor|exporter|proxy)$"'
+)
 
 _id = [0]
 
@@ -188,10 +202,7 @@ PROJECT_VAR = {
     "label": "Project",
     "type": "query",
     "datasource": PROM,
-    "query": {
-        "query": "label_values(odoo_instance, project)",
-        "refId": "x",
-    },
+    "query": {"query": "label_values(odoo_instance, project)", "refId": "x"},
     "definition": "label_values(odoo_instance, project)",
     "refresh": 1,
     "sort": 1,
@@ -225,13 +236,17 @@ def dashboard(title, uid, panels, extra_vars=None):
         "timezone": "browser",
         "title": title,
         "uid": uid,
-        "version": 3,
+        "version": 4,
         "panels": panels,
     }
 
 
 def write(name, dash):
-    path = f"/Users/marcwimmer/.odoo/images/dashboard/grafana/dashboards/{name}.json"
+    path = (
+        "/Users/marcwimmer/.odoo/images/dashboard/grafana/dashboards/"
+        + name
+        + ".json"
+    )
     with open(path, "w") as f:
         json.dump(dash, f, indent=2)
     print(
@@ -243,12 +258,12 @@ def write(name, dash):
 
 
 # =========================================================================
-# Dashboard 1: overview  (/system)
+# Dashboard 1: overview  (/system)   ASCII hyphen -> clean slug
 # =========================================================================
 _id[0] = 0
 panels = []
 y = 0
-panels.append(rowp("System – CPU / RAM / Disk", y))
+panels.append(rowp("System - CPU / RAM / Disk", y))
 y += 1
 panels.append(
     ts(
@@ -517,7 +532,7 @@ panels.append(
         gp(8, y, 8, 7),
         [
             pt(
-                "sum(rate(pg_stat_database_blks_hit[5m])) / (sum(rate(pg_stat_database_blks_hit[5m])) + sum(rate(pg_stat_database_blks_read[5m])))",
+                "rate(odoo_db_activity_blks_hit[5m]) / (rate(odoo_db_activity_blks_hit[5m]) + rate(odoo_db_activity_blks_read[5m]))",
                 legend="hit ratio",
             )
         ],
@@ -530,12 +545,12 @@ panels.append(
         gp(16, y, 8, 7),
         [
             pt(
-                "sum(rate(pg_stat_database_xact_commit[5m]))",
+                "rate(odoo_db_activity_xact_commit[5m])",
                 refId="A",
                 legend="commit",
             ),
             pt(
-                "sum(rate(pg_stat_database_xact_rollback[5m]))",
+                "rate(odoo_db_activity_xact_rollback[5m])",
                 refId="B",
                 legend="rollback",
             ),
@@ -592,8 +607,8 @@ panels.append(
         gp(0, y, 6, 6),
         [
             lt(
-                'sum(count_over_time({job="docker", %s} |~ `(?i)(error|traceback|critical)` [24h]))'
-                % LC,
+                'sum(count_over_time({job="docker", %s, %s} |~ `%s` [24h]))'
+                % (LC, EXCL, ERR_RE),
                 instant=True,
             )
         ],
@@ -622,21 +637,22 @@ panels.append(
     logs(
         "Recent errors (this instance)",
         gp(0, y, 24, 10),
-        '{job="docker", %s} |~ `(?i)(error|traceback|critical)`' % LC,
+        f'{{job="docker", {LC}, {EXCL}}} |~ `{ERR_RE}`',
     )
 )
 y += 10
 
 write(
     "zodoo-overview",
-    dashboard("zodoo – Instance Overview", "zodoo-overview", panels),
+    dashboard("zodoo - Instance Overview", "zodoo-overview", panels),
 )
 
 # =========================================================================
 # Dashboard 2: logs  (/logs) — searchable log explorer, replaces log.io
 # =========================================================================
-# Interactive filters (Graylog-style): free-text Search, Container multi-select
-# and a Level dropdown. The matching log stream is filtered live.
+# Interactive filters (Graylog-style). Grafana custom-variable syntax is
+# "Display : value", so the value is the actual (case-sensitive) regex used in
+# the line filter. "All" -> "." matches every line.
 LOGS_VARS = [
     {
         "name": "search",
@@ -666,28 +682,31 @@ LOGS_VARS = [
         "name": "level",
         "label": "Level",
         "type": "custom",
-        "query": ". : All, error|traceback|critical|exception : Errors, warn|warning : Warnings, info : Info",
+        "query": "All : ., Errors : %s, Warnings : %s, Info : INFO|\\[info\\]|level=info"
+        % (ERR_RE, WARN_RE),
         "includeAll": False,
         "multi": False,
         "current": {"text": "All", "value": ".", "selected": True},
         "options": [
             {"text": "All", "value": ".", "selected": True},
+            {"text": "Errors", "value": ERR_RE, "selected": False},
+            {"text": "Warnings", "value": WARN_RE, "selected": False},
             {
-                "text": "Errors",
-                "value": "error|traceback|critical|exception",
+                "text": "Info",
+                "value": "INFO|\\[info\\]|level=info",
                 "selected": False,
             },
-            {"text": "Warnings", "value": "warn|warning", "selected": False},
-            {"text": "Info", "value": "info", "selected": False},
         ],
         "hide": 0,
     },
 ]
 
-# selector honouring project scope + all three filters
+# Selector honouring project scope + all three filters.
+#   search : case-INsensitive free text  (empty -> matches all)
+#   level  : case-SENSITIVE level regex   (All -> "." matches all)
 SEL = (
     '{job="docker", container=~"$project.*", container=~"$container"}'
-    " |~ `(?i)$search` |~ `(?i)$level`"
+    " |~ `(?i)$search` |~ `$level`"
 )
 
 _id[0] = 0
@@ -699,8 +718,8 @@ p.append(
         gp(0, y, 5, 4),
         [
             lt(
-                'sum(count_over_time({job="docker", %s} |~ `(?i)(error|traceback|critical)` [24h]))'
-                % LC,
+                'sum(count_over_time({job="docker", %s, %s} |~ `%s` [24h]))'
+                % (LC, EXCL, ERR_RE),
                 instant=True,
             )
         ],
@@ -714,8 +733,8 @@ p.append(
         gp(5, y, 5, 4),
         [
             lt(
-                'sum(count_over_time({job="docker", %s} |~ `(?i)(warning|warn)` [24h]))'
-                % LC,
+                'sum(count_over_time({job="docker", %s, %s} |~ `%s` [24h]))'
+                % (LC, EXCL, WARN_RE),
                 instant=True,
             )
         ],
@@ -741,7 +760,7 @@ p.append(
 y += 4
 p.append(
     logs(
-        "Logs  —  type in the Search box above (regex), pick Container / Level",
+        "Logs  -  Search (regex) / Container / Level filters above apply live",
         gp(0, y, 24, 24),
         SEL,
     )
@@ -750,5 +769,5 @@ y += 24
 
 write(
     "zodoo-logs",
-    dashboard("zodoo – Logs", "zodoo-logs", p, extra_vars=LOGS_VARS),
+    dashboard("zodoo - Logs", "zodoo-logs", p, extra_vars=LOGS_VARS),
 )

@@ -83,7 +83,7 @@
         "name": "level",
         "label": "Level",
         "type": "custom",
-        "query": ". : All, error|traceback|critical|exception : Errors, warn|warning : Warnings, info : Info",
+        "query": "All : ., Errors : ERROR|CRITICAL|Traceback|\\[error\\]|\\[crit\\]|level=error, Warnings : WARNING|\\[warn\\]|level=warn, Info : INFO|\\[info\\]|level=info",
         "includeAll": false,
         "multi": false,
         "current": {
@@ -99,17 +99,17 @@
           },
           {
             "text": "Errors",
-            "value": "error|traceback|critical|exception",
+            "value": "ERROR|CRITICAL|Traceback|\\[error\\]|\\[crit\\]|level=error",
             "selected": false
           },
           {
             "text": "Warnings",
-            "value": "warn|warning",
+            "value": "WARNING|\\[warn\\]|level=warn",
             "selected": false
           },
           {
             "text": "Info",
-            "value": "info",
+            "value": "INFO|\\[info\\]|level=info",
             "selected": false
           }
         ],
@@ -123,9 +123,9 @@
   },
   "refresh": "30s",
   "timezone": "browser",
-  "title": "zodoo \u2013 Logs",
+  "title": "zodoo - Logs",
   "uid": "zodoo-logs",
-  "version": 3,
+  "version": 4,
   "panels": [
     {
       "id": 1,
@@ -148,7 +148,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum(count_over_time({job=\"docker\", container=~\"$project.*\"} |~ `(?i)(error|traceback|critical)` [24h]))",
+          "expr": "sum(count_over_time({job=\"docker\", container=~\"$project.*\", container!~\".*(grafana|prometheus|loki|alloy|cadvisor|exporter|proxy)$\"} |~ `ERROR|CRITICAL|Traceback|\\[error\\]|\\[crit\\]|level=error` [24h]))",
           "queryType": "instant"
         }
       ],
@@ -192,7 +192,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum(count_over_time({job=\"docker\", container=~\"$project.*\"} |~ `(?i)(warning|warn)` [24h]))",
+          "expr": "sum(count_over_time({job=\"docker\", container=~\"$project.*\", container!~\".*(grafana|prometheus|loki|alloy|cadvisor|exporter|proxy)$\"} |~ `WARNING|\\[warn\\]|level=warn` [24h]))",
           "queryType": "instant"
         }
       ],
@@ -236,7 +236,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (container) (count_over_time({job=\"docker\", container=~\"$project.*\", container=~\"$container\"} |~ `(?i)$search` |~ `(?i)$level` [$__interval]))",
+          "expr": "sum by (container) (count_over_time({job=\"docker\", container=~\"$project.*\", container=~\"$container\"} |~ `(?i)$search` |~ `$level` [$__interval]))",
           "queryType": "range",
           "legendFormat": "{{container}}"
         }
@@ -266,7 +266,7 @@
     {
       "id": 4,
       "type": "logs",
-      "title": "Logs  \u2014  type in the Search box above (regex), pick Container / Level",
+      "title": "Logs  -  Search (regex) / Container / Level filters above apply live",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -284,7 +284,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{job=\"docker\", container=~\"$project.*\", container=~\"$container\"} |~ `(?i)$search` |~ `(?i)$level`",
+          "expr": "{job=\"docker\", container=~\"$project.*\", container=~\"$container\"} |~ `(?i)$search` |~ `$level`",
           "queryType": "range"
         }
       ],
