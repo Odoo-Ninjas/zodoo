@@ -1,0 +1,1 @@
+`reload` no longer fails when a service bind-mounts daemon-resolved system paths (e.g. `/sys`, `/proc`, `/var/lib/docker` used by monitoring sidecars like cadvisor/node-exporter). These can't be created on the host on Docker Desktop for Mac/Windows; they are now skipped and left to the daemon.

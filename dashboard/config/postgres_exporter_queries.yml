@@ -1,0 +1,15 @@
+# Extra query on top of postgres_exporter's built-in pg_stat_database metrics
+# (commits, blks_hit/read for cache-hit ratio, deadlocks, ...).
+# Table-specific Odoo metrics (mail, queue_job, ir_cron) live in the custom
+# odoo_metrics_exporter instead, because they need to_regclass() guards for
+# databases where the respective module is not installed.
+odoo_db:
+  query: "SELECT pg_database_size(current_database()) AS size_bytes, (SELECT count(*) FROM pg_stat_activity WHERE datname = current_database()) AS connections"
+  master: true
+  metrics:
+    - size_bytes:
+        usage: "GAUGE"
+        description: "On-disk size of the Odoo database in bytes"
+    - connections:
+        usage: "GAUGE"
+        description: "Active connections to the Odoo database"
