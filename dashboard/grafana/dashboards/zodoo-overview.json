@@ -17,6 +17,30 @@
   "graphTooltip": 1,
   "schemaVersion": 39,
   "tags": ["zodoo", "odoo"],
+  "templating": {
+    "list": [
+      {
+        "name": "project",
+        "label": "Project",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(odoo_instance, project)",
+          "refId": "x"
+        },
+        "definition": "label_values(odoo_instance, project)",
+        "refresh": 1,
+        "sort": 1,
+        "includeAll": false,
+        "multi": false,
+        "hide": 2,
+        "current": {}
+      }
+    ]
+  },
   "time": {
     "from": "now-3h",
     "to": "now"
@@ -25,7 +49,7 @@
   "timezone": "browser",
   "title": "zodoo \u2013 Instance Overview",
   "uid": "zodoo-overview",
-  "version": 2,
+  "version": 3,
   "panels": [
     {
       "id": 1,
@@ -60,7 +84,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\".+\"}[5m]))",
+          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name=~\"$project.*\"}[5m]))",
           "legendFormat": "{{name}}"
         }
       ],
@@ -104,7 +128,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (name) (container_memory_usage_bytes{name=~\".+\"})",
+          "expr": "sum by (name) (container_memory_usage_bytes{name=~\"$project.*\"})",
           "legendFormat": "{{name}}"
         }
       ],
@@ -746,7 +770,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (name) (rate(container_network_receive_bytes_total{name=~\".+\"}[5m]))",
+          "expr": "sum by (name) (rate(container_network_receive_bytes_total{name=~\"$project.*\"}[5m]))",
           "legendFormat": "recv {{name}}"
         },
         {
@@ -755,7 +779,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "- sum by (name) (rate(container_network_transmit_bytes_total{name=~\".+\"}[5m]))",
+          "expr": "- sum by (name) (rate(container_network_transmit_bytes_total{name=~\"$project.*\"}[5m]))",
           "legendFormat": "send {{name}}"
         }
       ],
@@ -1137,7 +1161,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum(count_over_time({job=\"docker\"} |~ `(?i)(error|traceback|critical)` [24h]))",
+          "expr": "sum(count_over_time({job=\"docker\", container=~\"$project.*\"} |~ `(?i)(error|traceback|critical)` [24h]))",
           "queryType": "instant"
         }
       ],
@@ -1181,7 +1205,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (container) (rate({job=\"docker\"}[5m]))",
+          "expr": "sum by (container) (rate({job=\"docker\", container=~\"$project.*\"}[5m]))",
           "queryType": "range",
           "legendFormat": "{{container}}"
         }
@@ -1211,7 +1235,7 @@
     {
       "id": 31,
       "type": "logs",
-      "title": "Recent errors (all containers)",
+      "title": "Recent errors (this instance)",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -1229,7 +1253,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "{job=\"docker\"} |~ `(?i)(error|traceback|critical)`",
+          "expr": "{job=\"docker\", container=~\"$project.*\"} |~ `(?i)(error|traceback|critical)`",
           "queryType": "range"
         }
       ],

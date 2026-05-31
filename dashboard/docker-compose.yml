@@ -28,6 +28,14 @@ services:
       GF_ANALYTICS_REPORTING_ENABLED: "false"
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       GF_USERS_DEFAULT_THEME: "dark"
+      # frictionless, "kiosk-style" access: no login wall, land straight on the
+      # overview dashboard. Admin login (admin/<password>) still works for edits.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+      GF_AUTH_ANONYMOUS_HIDE_VERSION: "true"
+      GF_AUTH_BASIC_ENABLED: "true"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/zodoo-overview.json
+      GF_USERS_DEFAULT_LANGUAGE: "en-US"
     expose:
       - 3000
     volumes:

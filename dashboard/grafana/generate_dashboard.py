@@ -1,9 +1,31 @@
+#!/usr/bin/env python3
+"""Generate the provisioned Grafana dashboards.
+
+Hand-editing multi-panel Grafana JSON is painful, so the dashboards are
+generated here. After changing panels run:
+
+    python3 dashboard/grafana/generate_dashboard.py
+
+Grafana picks the files up automatically (file provisioning, 30s interval).
+
+Two dashboards are produced under dashboards/:
+  - zodoo-overview.json : full instance overview (reached via /system)
+  - zodoo-logs.json     : log-focused view (reached via /logs)
+
+Every panel is scoped to the current instance via the hidden `$project`
+template variable (label_values(odoo_instance, project)). cadvisor and Loki
+otherwise see ALL containers on the docker host, not just this project's.
+"""
+
 import json
 
 PROM = {"type": "prometheus", "uid": "prometheus"}
 LOKI = {"type": "loki", "uid": "loki"}
 
-panels = []
+# container_name is "<project>_<service>"; Loki `container` label is the same.
+CN = 'name=~"$project.*"'  # cadvisor selector
+LC = 'container=~"$project.*"'  # Loki selector
+
 _id = [0]
 
 
@@ -161,8 +183,72 @@ def lt(expr, refId="A", ds=LOKI, legend=None, instant=False):
     return t
 
 
+def dashboard(title, uid, panels):
+    return {
+        "annotations": {
+            "list": [
+                {
+                    "builtIn": 1,
+                    "datasource": {"type": "grafana", "uid": "-- Grafana --"},
+                    "enable": True,
+                    "hide": True,
+                    "type": "dashboard",
+                }
+            ]
+        },
+        "editable": True,
+        "graphTooltip": 1,
+        "schemaVersion": 39,
+        "tags": ["zodoo", "odoo"],
+        "templating": {
+            "list": [
+                {
+                    "name": "project",
+                    "label": "Project",
+                    "type": "query",
+                    "datasource": PROM,
+                    "query": {
+                        "query": "label_values(odoo_instance, project)",
+                        "refId": "x",
+                    },
+                    "definition": "label_values(odoo_instance, project)",
+                    "refresh": 1,
+                    "sort": 1,
+                    "includeAll": False,
+                    "multi": False,
+                    "hide": 2,
+                    "current": {},
+                }
+            ]
+        },
+        "time": {"from": "now-3h", "to": "now"},
+        "refresh": "30s",
+        "timezone": "browser",
+        "title": title,
+        "uid": uid,
+        "version": 3,
+        "panels": panels,
+    }
+
+
+def write(name, dash):
+    path = f"/Users/marcwimmer/.odoo/images/dashboard/grafana/dashboards/{name}.json"
+    with open(path, "w") as f:
+        json.dump(dash, f, indent=2)
+    print(
+        name,
+        "->",
+        len([p for p in dash["panels"] if p["type"] != "row"]),
+        "panels",
+    )
+
+
+# =========================================================================
+# Dashboard 1: overview  (/system)
+# =========================================================================
+_id[0] = 0
+panels = []
 y = 0
-# ---------- Row: System ----------
 panels.append(rowp("System – CPU / RAM / Disk", y))
 y += 1
 panels.append(
@@ -171,7 +257,8 @@ panels.append(
         gp(0, y, 12, 8),
         [
             pt(
-                'sum by (name) (rate(container_cpu_usage_seconds_total{name=~".+"}[5m]))',
+                "sum by (name) (rate(container_cpu_usage_seconds_total{%s}[5m]))"
+                % CN,
                 legend="{{name}}",
             )
         ],
@@ -184,7 +271,7 @@ panels.append(
         gp(12, y, 12, 8),
         [
             pt(
-                'sum by (name) (container_memory_usage_bytes{name=~".+"})',
+                "sum by (name) (container_memory_usage_bytes{%s})" % CN,
                 legend="{{name}}",
             )
         ],
@@ -250,7 +337,6 @@ panels.append(
 )
 y += 7
 
-# ---------- Row: Requests (Loki) ----------
 panels.append(rowp("Requests & Response times", y))
 y += 1
 panels.append(
@@ -341,7 +427,6 @@ panels.append(
 )
 y += 6
 
-# ---------- Row: Routes (Loki) ----------
 panels.append(rowp("Routes (from nginx access log)", y))
 y += 1
 panels.append(
@@ -373,7 +458,6 @@ panels.append(
 )
 y += 8
 
-# ---------- Row: Network / Disk IO ----------
 panels.append(rowp("Network & Disk IO", y))
 y += 1
 panels.append(
@@ -382,12 +466,14 @@ panels.append(
         gp(0, y, 12, 8),
         [
             pt(
-                'sum by (name) (rate(container_network_receive_bytes_total{name=~".+"}[5m]))',
+                "sum by (name) (rate(container_network_receive_bytes_total{%s}[5m]))"
+                % CN,
                 refId="A",
                 legend="recv {{name}}",
             ),
             pt(
-                '- sum by (name) (rate(container_network_transmit_bytes_total{name=~".+"}[5m]))',
+                "- sum by (name) (rate(container_network_transmit_bytes_total{%s}[5m]))"
+                % CN,
                 refId="B",
                 legend="send {{name}}",
             ),
@@ -416,7 +502,6 @@ panels.append(
 )
 y += 8
 
-# ---------- Row: Postgres ----------
 panels.append(rowp("PostgreSQL", y))
 y += 1
 panels.append(
@@ -461,7 +546,6 @@ panels.append(
 )
 y += 7
 
-# ---------- Row: Mails ----------
 panels.append(rowp("Mail", y))
 y += 1
 panels.append(
@@ -501,7 +585,6 @@ panels.append(
 )
 y += 7
 
-# ---------- Row: Logs / Errors ----------
 panels.append(rowp("Logs & Errors", y))
 y += 1
 panels.append(
@@ -510,7 +593,8 @@ panels.append(
         gp(0, y, 6, 6),
         [
             lt(
-                'sum(count_over_time({job="docker"} |~ `(?i)(error|traceback|critical)` [24h]))',
+                'sum(count_over_time({job="docker", %s} |~ `(?i)(error|traceback|critical)` [24h]))'
+                % LC,
                 instant=True,
             )
         ],
@@ -524,7 +608,7 @@ panels.append(
         gp(6, y, 18, 6),
         [
             lt(
-                'sum by (container) (rate({job="docker"}[5m]))',
+                'sum by (container) (rate({job="docker", %s}[5m]))' % LC,
                 legend="{{container}}",
                 ds=LOKI,
             )
@@ -537,46 +621,86 @@ panels.append(
 y += 6
 panels.append(
     logs(
-        "Recent errors (all containers)",
+        "Recent errors (this instance)",
         gp(0, y, 24, 10),
-        '{job="docker"} |~ `(?i)(error|traceback|critical)`',
+        '{job="docker", %s} |~ `(?i)(error|traceback|critical)`' % LC,
     )
 )
 y += 10
 
-dashboard = {
-    "annotations": {
-        "list": [
-            {
-                "builtIn": 1,
-                "datasource": {"type": "grafana", "uid": "-- Grafana --"},
-                "enable": True,
-                "hide": True,
-                "type": "dashboard",
-            }
-        ]
-    },
-    "editable": True,
-    "graphTooltip": 1,
-    "schemaVersion": 39,
-    "tags": ["zodoo", "odoo"],
-    "time": {"from": "now-3h", "to": "now"},
-    "refresh": "30s",
-    "timezone": "browser",
-    "title": "zodoo – Instance Overview",
-    "uid": "zodoo-overview",
-    "version": 2,
-    "panels": panels,
-}
-
-with open(
-    "/Users/marcwimmer/.odoo/images/dashboard/grafana/dashboards/zodoo-overview.json",
-    "w",
-) as f:
-    json.dump(dashboard, f, indent=2)
-print(
-    "panels:",
-    len([p for p in panels if p["type"] != "row"]),
-    "rows:",
-    len([p for p in panels if p["type"] == "row"]),
+write(
+    "zodoo-overview",
+    dashboard("zodoo – Instance Overview", "zodoo-overview", panels),
 )
+
+# =========================================================================
+# Dashboard 2: logs  (/logs) — replaces log.io
+# =========================================================================
+_id[0] = 0
+p = []
+y = 0
+p.append(
+    stat(
+        "Errors last 24h",
+        gp(0, y, 6, 5),
+        [
+            lt(
+                'sum(count_over_time({job="docker", %s} |~ `(?i)(error|traceback|critical)` [24h]))'
+                % LC,
+                instant=True,
+            )
+        ],
+        ds=LOKI,
+        unit="short",
+    )
+)
+p.append(
+    stat(
+        "Warnings last 24h",
+        gp(6, y, 6, 5),
+        [
+            lt(
+                'sum(count_over_time({job="docker", %s} |~ `(?i)(warning|warn)` [24h]))'
+                % LC,
+                instant=True,
+            )
+        ],
+        ds=LOKI,
+        unit="short",
+    )
+)
+p.append(
+    ts(
+        "Log lines/s by container",
+        gp(12, y, 12, 5),
+        [
+            lt(
+                'sum by (container) (rate({job="docker", %s}[5m]))' % LC,
+                legend="{{container}}",
+            )
+        ],
+        unit="short",
+        ds=LOKI,
+        stacking="normal",
+    )
+)
+y += 5
+p.append(
+    logs(
+        "Errors & tracebacks",
+        gp(0, y, 24, 9),
+        '{job="docker", %s} |~ `(?i)(error|traceback|critical|exception)`'
+        % LC,
+    )
+)
+y += 9
+p.append(
+    logs(
+        "All container logs (this instance)",
+        gp(0, y, 24, 11),
+        '{job="docker", %s}' % LC,
+    )
+)
+y += 11
+
+write("zodoo-logs", dashboard("zodoo – Logs", "zodoo-logs", p))

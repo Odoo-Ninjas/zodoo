@@ -35,6 +35,11 @@ PORT = int(os.environ.get("EXPORTER_PORT", "9333"))
 FILESTORE_ROOT = os.environ.get("FILESTORE_ROOT", "/opt/files")
 FILESTORE_REFRESH = int(os.environ.get("EXPORTER_FILESTORE_REFRESH", "300"))
 DBNAME = os.environ.get("DBNAME", "")
+# Container names are "<project>_<service>" and this prometheus only scrapes
+# its own exporter, so odoo_instance{project=...} carries exactly one value.
+# The dashboard uses it to auto-scope every panel to this instance's
+# containers (cadvisor/Loki see ALL host containers otherwise).
+PROJECT = os.environ.get("PROJECT_NAME") or os.environ.get("NETWORK_NAME", "")
 
 # Background-refreshed filestore size (du can be slow on big filestores, so we
 # never run it inside a scrape).
@@ -122,6 +127,15 @@ class OdooCollector:
         )
         g.add_metric([], _queuejob_workers())
         yield g
+
+        inst = GaugeMetricFamily(
+            "odoo_instance",
+            "Static info about this instance; the dashboard uses its "
+            "project label to auto-scope panels to this instance's containers",
+            labels=["project"],
+        )
+        inst.add_metric([PROJECT], 1.0)
+        yield inst
 
         g = GaugeMetricFamily(
             "odoo_filestore_bytes", "Filestore size in bytes"
