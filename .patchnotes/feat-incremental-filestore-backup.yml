@@ -1,0 +1,3 @@
+type: feature
+description: "`backup files` now backs up the filestore incrementally: a timestamp marker (<dump>.marker) records the start of the last successful run and only source files newer than it are copied (find -newer | rsync --files-from), avoiding the full destination scan that took ~45-65 min over a network share on large filestores. The filestore is content-addressed/immutable, so --ignore-existing is a safe net and --delete is never used (additive). restore files now also accepts the rsync-directory format (legacy tar.gz still supported)."
+breaking: false
