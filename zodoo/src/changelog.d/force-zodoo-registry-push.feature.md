@@ -1,0 +1,1 @@
+`odoo build --force-zodoo-registry-push` (`-ZPf`) re-uploads images to the zodoo registry even when they were pulled (not rebuilt). Normally a pulled/existing image is excluded from the post-build upload; this flag re-uploads every target. The SRC_EXTRA and registry-config gates still apply, so customer-baked images are never uploaded.

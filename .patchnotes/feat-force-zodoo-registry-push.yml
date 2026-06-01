@@ -1,0 +1,3 @@
+type: feature
+description: "odoo build --force-zodoo-registry-push (-ZPf): re-upload images to the zodoo registry even when they were pulled instead of rebuilt"
+breaking: false
