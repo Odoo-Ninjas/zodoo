@@ -1,0 +1,3 @@
+type: feature
+description: "odoo setup upgrade warns (and asks to wait) when CI pipelines are currently running on main, i.e. a new release is on the way; skipped in ZODOO_DEVMODE/ZODOO_ALPHA and never blocks on network errors"
+breaking: false

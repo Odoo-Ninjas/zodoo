@@ -134,13 +134,17 @@ def regenerate_assets(ctx, config):
     """
     bundles = [
         b.strip()
-        for b in os.getenv("ODOO_WARMUP_BUNDLES", _ASSET_BUNDLES_DEFAULT).split(",")
+        for b in os.getenv(
+            "ODOO_WARMUP_BUNDLES", _ASSET_BUNDLES_DEFAULT
+        ).split(",")
         if b.strip()
     ]
     if not bundles:
         click.secho("No bundles to regenerate.", fg="yellow")
         return
-    click.secho(f"Pre-generating {len(bundles)} asset bundles via odoo-shell...")
+    click.secho(
+        f"Pre-generating {len(bundles)} asset bundles via odoo-shell..."
+    )
     script = (
         f"bundles = {bundles!r}\n"
         "for _b in bundles:\n"
@@ -257,6 +261,33 @@ def _show_changelog_since(images_dir, old_version):
 @click.pass_context
 def upgrade(ctx, config, no_install):
 
+    # Production installs pin to the latest release tag. If CI is currently
+    # running on main, a new release is probably minutes away — let the user
+    # wait so they upgrade straight to it. Skipped for devmode/alpha (those
+    # track a branch, not releases) and never blocks on API/network errors.
+    if not _zodoo_devmode(config) and not _zodoo_alpha(config):
+        running = _release_pipelines_running(config)
+        if running:
+            click.secho(
+                f"\nA new zodoo version may be on the way — "
+                f"{len(running)} pipeline(s) currently running on main:",
+                fg="yellow",
+            )
+            for r in running:
+                click.secho(
+                    f"  - {r['name']} ({r['status']})  {r['html_url']}",
+                    fg="yellow",
+                )
+            click.secho(
+                "Waiting a few minutes lets you upgrade straight to the new "
+                "release.",
+                fg="yellow",
+            )
+            if sys.stdin.isatty():
+                if not click.confirm("Upgrade anyway now?", default=False):
+                    click.secho("Upgrade cancelled.", fg="cyan")
+                    return
+
     stashed = False
     if not is_git_clean(config.dirs["images"]):
         click.secho("Stashing local changes...", fg="yellow")
@@ -344,6 +375,68 @@ def _zodoo_alpha(config):
     if not val:
         val = getattr(config, "ZODOO_ALPHA", "0") or "0"
     return str(val).strip() in ("1", "true", "True", "yes", "on")
+
+
+def _github_repo_slug(images_dir):
+    """owner/repo from the origin remote, or None."""
+    try:
+        url = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=images_dir,
+            capture_output=True,
+            encoding="utf-8",
+            text=True,
+            check=True,
+        ).stdout.strip()
+    except Exception:
+        return None
+    m = re.search(r"github\.com[:/]+([^/]+/[^/]+?)(?:\.git)?/?$", url)
+    return m.group(1) if m else None
+
+
+def _release_pipelines_running(config):
+    """Queued/running GitHub Actions runs on `main`.
+
+    Returns a list of {name, status, html_url} dicts, or None when it could
+    not be determined (offline, rate-limited, non-GitHub remote, ...). Never
+    raises — upgrading must not depend on GitHub being reachable. Works without
+    authentication on the public repo (subject to GitHub's anonymous rate
+    limit).
+    """
+    try:
+        import json
+        import urllib.request
+
+        slug = _github_repo_slug(config.dirs["images"])
+        if not slug:
+            return None
+        url = (
+            f"https://api.github.com/repos/{slug}/actions/runs"
+            "?branch=main&per_page=30"
+        )
+        req = urllib.request.Request(
+            url,
+            headers={
+                "Accept": "application/vnd.github+json",
+                "User-Agent": "zodoo-upgrade",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        active = {"queued", "in_progress", "waiting", "requested", "pending"}
+        runs = []
+        for run in data.get("workflow_runs", []):
+            if run.get("status") in active:
+                runs.append(
+                    {
+                        "name": run.get("name") or "?",
+                        "status": run.get("status"),
+                        "html_url": run.get("html_url") or "",
+                    }
+                )
+        return runs
+    except Exception:
+        return None
 
 
 def _upgrade_track_alpha(images_dir):
