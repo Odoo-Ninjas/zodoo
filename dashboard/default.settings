@@ -6,3 +6,7 @@ DASHBOARD_GRAFANA_ADMIN_PASSWORD=admin
 DASHBOARD_PROMETHEUS_RETENTION=15d
 # Loki log retention (must be a Go duration, e.g. 168h = 7d).
 DASHBOARD_LOKI_RETENTION=168h
+# HTTP basic-auth password the proxy requires for /system, /logs and /logs2
+# (user "admin"). Left empty here: auto-generated on non-DEVMODE instances
+# (see __after_settings.py), and skipped entirely in DEVMODE.
+DASHBOARD_PASSWORD=
