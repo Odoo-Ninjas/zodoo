@@ -25,6 +25,12 @@ LOKI = {"type": "loki", "uid": "loki"}
 # container_name is "<project>_<service>"; Loki `container` label is the same.
 CN = 'name=~"$project.*"'  # cadvisor selector
 LC = 'container=~"$project.*"'  # Loki selector
+# Core app containers only (odoo + postgres, anchored so the *_exporter and
+# *_cronjobs siblings are excluded). Used for the focused Network/Disk IO row.
+CORE = 'name=~"$project.*_(odoo|postgres)$"'
+# Loki equivalent: the log-volume panel focuses on the containers that
+# actually matter operationally (odoo app, db, reverse proxy).
+LCORE = 'container=~"$project.*_(odoo|postgres|proxy)$"'
 
 # Case-SENSITIVE level matchers. Case matters: matching a lowercase "error"
 # substring would flag nginx access logs (referrer URLs containing "Errors"),
@@ -472,22 +478,22 @@ panels.append(
 )
 y += 8
 
-panels.append(rowp("Network & Disk IO", y))
+panels.append(rowp("Network & Disk IO (odoo / postgres)", y))
 y += 1
 panels.append(
     ts(
-        "Network IO per container (recv/send)",
+        "Network IO odoo / postgres (recv/send)",
         gp(0, y, 12, 8),
         [
             pt(
                 "sum by (name) (rate(container_network_receive_bytes_total{%s}[5m]))"
-                % CN,
+                % CORE,
                 refId="A",
                 legend="recv {{name}}",
             ),
             pt(
                 "- sum by (name) (rate(container_network_transmit_bytes_total{%s}[5m]))"
-                % CN,
+                % CORE,
                 refId="B",
                 legend="send {{name}}",
             ),
@@ -497,18 +503,20 @@ panels.append(
 )
 panels.append(
     ts(
-        "Disk IO (host/VM)",
+        "Disk IO odoo / postgres (read/write)",
         gp(12, y, 12, 8),
         [
             pt(
-                "sum by (device) (rate(node_disk_read_bytes_total[5m]))",
+                "sum by (name) (rate(container_fs_reads_bytes_total{%s}[5m]))"
+                % CORE,
                 refId="A",
-                legend="read {{device}}",
+                legend="read {{name}}",
             ),
             pt(
-                "- sum by (device) (rate(node_disk_written_bytes_total[5m]))",
+                "- sum by (name) (rate(container_fs_writes_bytes_total{%s}[5m]))"
+                % CORE,
                 refId="B",
-                legend="write {{device}}",
+                legend="write {{name}}",
             ),
         ],
         unit="Bps",
@@ -682,11 +690,11 @@ panels.append(
 )
 panels.append(
     ts(
-        "Log lines/s by container",
+        "Log lines/s by container (odoo / postgres / proxy)",
         gp(6, y, 18, 6),
         [
             lt(
-                'sum by (container) (rate({job="docker", %s}[5m]))' % LC,
+                'sum by (container) (rate({job="docker", %s}[5m]))' % LCORE,
                 legend="{{container}}",
                 ds=LOKI,
             )

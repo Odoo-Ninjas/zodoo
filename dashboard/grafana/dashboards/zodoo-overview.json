@@ -740,7 +740,7 @@
     {
       "id": 18,
       "type": "row",
-      "title": "Network & Disk IO",
+      "title": "Network & Disk IO (odoo / postgres)",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -752,7 +752,7 @@
     {
       "id": 19,
       "type": "timeseries",
-      "title": "Network IO per container (recv/send)",
+      "title": "Network IO odoo / postgres (recv/send)",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -770,7 +770,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (name) (rate(container_network_receive_bytes_total{name=~\"$project.*\"}[5m]))",
+          "expr": "sum by (name) (rate(container_network_receive_bytes_total{name=~\"$project.*_(odoo|postgres)$\"}[5m]))",
           "legendFormat": "recv {{name}}"
         },
         {
@@ -779,7 +779,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "- sum by (name) (rate(container_network_transmit_bytes_total{name=~\"$project.*\"}[5m]))",
+          "expr": "- sum by (name) (rate(container_network_transmit_bytes_total{name=~\"$project.*_(odoo|postgres)$\"}[5m]))",
           "legendFormat": "send {{name}}"
         }
       ],
@@ -805,7 +805,7 @@
     {
       "id": 20,
       "type": "timeseries",
-      "title": "Disk IO (host/VM)",
+      "title": "Disk IO odoo / postgres (read/write)",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -823,8 +823,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (device) (rate(node_disk_read_bytes_total[5m]))",
-          "legendFormat": "read {{device}}"
+          "expr": "sum by (name) (rate(container_fs_reads_bytes_total{name=~\"$project.*_(odoo|postgres)$\"}[5m]))",
+          "legendFormat": "read {{name}}"
         },
         {
           "refId": "B",
@@ -832,8 +832,8 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "- sum by (device) (rate(node_disk_written_bytes_total[5m]))",
-          "legendFormat": "write {{device}}"
+          "expr": "- sum by (name) (rate(container_fs_writes_bytes_total{name=~\"$project.*_(odoo|postgres)$\"}[5m]))",
+          "legendFormat": "write {{name}}"
         }
       ],
       "fieldConfig": {
@@ -1417,7 +1417,7 @@
     {
       "id": 35,
       "type": "timeseries",
-      "title": "Log lines/s by container",
+      "title": "Log lines/s by container (odoo / postgres / proxy)",
       "datasource": {
         "type": "loki",
         "uid": "loki"
@@ -1435,7 +1435,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "sum by (container) (rate({job=\"docker\", container=~\"$project.*\"}[5m]))",
+          "expr": "sum by (container) (rate({job=\"docker\", container=~\"$project.*_(odoo|postgres|proxy)$\"}[5m]))",
           "queryType": "range",
           "legendFormat": "{{container}}"
         }
