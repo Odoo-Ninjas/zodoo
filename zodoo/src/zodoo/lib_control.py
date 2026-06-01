@@ -460,6 +460,16 @@ def attach(ctx, config, machine):
     help="Build for a specific platform",
 )
 @click.option(
+    "--repair-zodoo-registry",
+    is_flag=True,
+    help="Repair a corrupt/stale image in the zodoo (fast-build helper) "
+    "registry: rebuild it locally (ignoring the registry copy) and overwrite "
+    "the registry with the fresh build. Bundles --no-zodoo-pull and "
+    "--force-zodoo-registry-push so you don't have to remember the "
+    "combination. Asks interactively whether to also drop the local Docker "
+    "build cache.",
+)
+@click.option(
     "--no-zodoo-pull",
     "-ZPl",
     is_flag=True,
@@ -502,6 +512,7 @@ def build(
     plain,
     include_source,
     platform,
+    repair_zodoo_registry,
     no_zodoo_pull,
     no_zodoo_push,
     force_zodoo_registry_push,
@@ -529,6 +540,35 @@ def build(
         for service in compose["services"]:
             if compose["services"][service].get("build"):
                 machines.append(service)
+
+    # --repair-zodoo-registry is the friendly entry point: ignore the
+    # (possibly corrupt) registry copy, rebuild locally, and overwrite it.
+    # It just bundles the two low-level flags so nobody has to remember the
+    # combination.
+    if repair_zodoo_registry:
+        no_zodoo_pull = True
+        force_zodoo_registry_push = True
+        click.secho(
+            "Repairing zodoo-registry image(s): "
+            f"{', '.join(machines)}\n"
+            "  -> rebuilding locally (skipping the registry pull) and "
+            "overwriting the registry copy.",
+            fg="yellow",
+        )
+        # Ask whether to also drop the local Docker layer cache. Default no:
+        # a corrupt *registry* image is fixed by a normal local rebuild; only
+        # bypass the local cache if the corruption might be cached locally too.
+        if not no_cache and sys.stdin.isatty():
+            click.secho(
+                "\nThe local Docker layer cache is kept by default (fast). "
+                "Drop it only if the corruption might also be in the local "
+                "build cache — slower, but a guaranteed-fresh rebuild.",
+                fg="cyan",
+            )
+            no_cache = click.confirm(
+                "Also rebuild without the local Docker cache (--no-cache)?",
+                default=False,
+            )
 
     # Try pulling from zodoo registry before building
     already_pulled = []
