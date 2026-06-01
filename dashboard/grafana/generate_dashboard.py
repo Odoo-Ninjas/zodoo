@@ -560,6 +560,70 @@ panels.append(
 )
 y += 7
 
+panels.append(rowp("Background jobs (queue & cron)", y))
+y += 1
+# DB reachability as a coloured UP/DOWN stat (exporter's odoo_db_up).
+panels.append(
+    stat(
+        "DB reachable",
+        gp(0, y, 4, 6),
+        [pt("odoo_db_up", instant=True)],
+        graphmode="none",
+    )
+)
+panels[-1]["fieldConfig"]["defaults"]["mappings"] = [
+    {
+        "type": "value",
+        "options": {
+            "0": {"text": "DOWN", "color": "red", "index": 0},
+            "1": {"text": "UP", "color": "green", "index": 1},
+        },
+    }
+]
+panels[-1]["fieldConfig"]["defaults"]["thresholds"] = {
+    "mode": "absolute",
+    "steps": [
+        {"color": "red", "value": None},
+        {"color": "green", "value": 1},
+    ],
+}
+panels.append(
+    stat(
+        "Active cron jobs",
+        gp(4, y, 4, 6),
+        [pt("odoo_ir_cron_active", instant=True)],
+        unit="short",
+        graphmode="none",
+    )
+)
+# Failed queue jobs: green at 0, red as soon as anything failed. Empty on
+# instances without the queue_job module (panel shows "No data").
+panels.append(
+    stat(
+        "Queue jobs failed",
+        gp(8, y, 4, 6),
+        [pt('odoo_queue_jobs{state=~"failed"}', instant=True)],
+        unit="short",
+        graphmode="none",
+    )
+)
+panels[-1]["fieldConfig"]["defaults"]["thresholds"] = {
+    "mode": "absolute",
+    "steps": [
+        {"color": "green", "value": None},
+        {"color": "red", "value": 1},
+    ],
+}
+panels.append(
+    ts(
+        "Queue jobs by state",
+        gp(12, y, 12, 6),
+        [pt("odoo_queue_jobs", legend="{{state}}")],
+        unit="short",
+    )
+)
+y += 6
+
 panels.append(rowp("Mail", y))
 y += 1
 panels.append(

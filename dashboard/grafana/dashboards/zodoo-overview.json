@@ -1011,7 +1011,7 @@
     {
       "id": 25,
       "type": "row",
-      "title": "Mail",
+      "title": "Background jobs (queue & cron)",
       "collapsed": false,
       "gridPos": {
         "x": 0,
@@ -1022,6 +1022,236 @@
     },
     {
       "id": 26,
+      "type": "stat",
+      "title": "DB reachable",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 58,
+        "w": 4,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "odoo_db_up",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red",
+                  "index": 0
+                },
+                "1": {
+                  "text": "UP",
+                  "color": "green",
+                  "index": 1
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "graphMode": "none",
+        "colorMode": "value",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 27,
+      "type": "stat",
+      "title": "Active cron jobs",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 58,
+        "w": 4,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "odoo_ir_cron_active",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "graphMode": "none",
+        "colorMode": "value",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 28,
+      "type": "stat",
+      "title": "Queue jobs failed",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 58,
+        "w": 4,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "odoo_queue_jobs{state=~\"failed\"}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "graphMode": "none",
+        "colorMode": "value",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        }
+      }
+    },
+    {
+      "id": 29,
+      "type": "timeseries",
+      "title": "Queue jobs by state",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 58,
+        "w": 12,
+        "h": 6
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "odoo_queue_jobs",
+          "legendFormat": "{{state}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line"
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 30,
+      "type": "row",
+      "title": "Mail",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 64,
+        "w": 24,
+        "h": 1
+      }
+    },
+    {
+      "id": 31,
       "type": "timeseries",
       "title": "Mail messages by type (increase/1h)",
       "datasource": {
@@ -1030,7 +1260,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 58,
+        "y": 65,
         "w": 12,
         "h": 7
       },
@@ -1065,7 +1295,7 @@
       }
     },
     {
-      "id": 27,
+      "id": 32,
       "type": "stat",
       "title": "Outgoing / failed / sent mail (mail.mail)",
       "datasource": {
@@ -1074,7 +1304,7 @@
       },
       "gridPos": {
         "x": 12,
-        "y": 58,
+        "y": 65,
         "w": 12,
         "h": 7
       },
@@ -1129,19 +1359,19 @@
       }
     },
     {
-      "id": 28,
+      "id": 33,
       "type": "row",
       "title": "Logs & Errors",
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 65,
+        "y": 72,
         "w": 24,
         "h": 1
       }
     },
     {
-      "id": 29,
+      "id": 34,
       "type": "stat",
       "title": "Errors last 24h",
       "datasource": {
@@ -1150,7 +1380,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 66,
+        "y": 73,
         "w": 6,
         "h": 6
       },
@@ -1185,7 +1415,7 @@
       }
     },
     {
-      "id": 30,
+      "id": 35,
       "type": "timeseries",
       "title": "Log lines/s by container",
       "datasource": {
@@ -1194,7 +1424,7 @@
       },
       "gridPos": {
         "x": 6,
-        "y": 66,
+        "y": 73,
         "w": 18,
         "h": 6
       },
@@ -1233,7 +1463,7 @@
       }
     },
     {
-      "id": 31,
+      "id": 36,
       "type": "logs",
       "title": "Recent errors (this instance)",
       "datasource": {
@@ -1242,7 +1472,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 72,
+        "y": 79,
         "w": 24,
         "h": 10
       },
