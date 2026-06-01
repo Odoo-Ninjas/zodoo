@@ -1,0 +1,20 @@
+# manage-order: 510
+volumes:
+  barman_data:
+services:
+  barman:
+    build:
+      context: $ODOO_IMAGES/barman
+      args:
+        POSTGRES_VERSION: $POSTGRES_VERSION
+    restart: unless-stopped
+    profiles:
+      - auto
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      # Barman catalog (base backups + streamed WAL). Survives container rebuilds.
+      - barman_data:/var/lib/barman
+      # Shared dumps dir, used when exporting a recovered datadir back to the host.
+      - $DUMPS_PATH:/host/dumps

@@ -1,0 +1,25 @@
+RUN_BARMAN=0
+# Recovery window for point-in-time-recovery. Barman keeps every full backup
+# plus the WAL needed to recover to any point inside this window.
+BARMAN_RETENTION=RECOVERY WINDOW OF 7 DAYS
+# Cron schedule (5 or 6 columns) for the daily full backup. Wired into the
+# zodoo cronjobs daemon via CRONJOB_BARMAN_BACKUP (cronjobs/default.settings).
+BARMAN_BACKUP_CRON=0 2 * * *
+# Postgres major version of the streaming client tools (pg_basebackup /
+# pg_receivewal). Must match the server major -> reuse POSTGRES_VERSION.
+BARMAN_VERSION=17
+# Barman streams + backs up continuously and is meant for production. On
+# DEVMODE machines it is disabled by default (see __after_settings.py). Set to
+# 1 to force it on even in DEVMODE (e.g. to test the integration locally).
+BARMAN_FORCE_IN_DEVMODE=0
+# Upper bound on the WAL the barman replication slot may retain on the primary.
+# The slot prevents postgres from recycling WAL barman hasn't received yet - good
+# against WAL loss, but if barman stays down the primary's pg_wal would grow
+# until the disk fills. This caps it: once exceeded the slot is invalidated
+# (backup continuity breaks, needs a fresh backup) but the PRIMARY stays up.
+# Set to 0 (or empty) for unlimited (postgres default = no cap).
+BARMAN_MAX_SLOT_WAL_KEEP_SIZE=10GB
+# Safeguard `odoo update`: when 1 (and RUN_BARMAN=1), every update first sets a
+# PITR restore point. If the update fails, the console offers to rewind the DB
+# to that pre-update state (non-interactive runs only print how to do it).
+BARMAN_GUARD_UPDATE=0
