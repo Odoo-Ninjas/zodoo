@@ -674,7 +674,9 @@ LOGS_VARS = [
         "sort": 1,
         "includeAll": True,
         "allValue": ".+",
-        "multi": True,
+        # single-select: a multi-select leaves "All" co-selected on the first
+        # click, so picking one container still matches everything (.+).
+        "multi": False,
         "current": {"text": "All", "value": "$__all", "selected": True},
         "hide": 0,
     },

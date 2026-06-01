@@ -71,7 +71,7 @@
         "sort": 1,
         "includeAll": true,
         "allValue": ".+",
-        "multi": true,
+        "multi": false,
         "current": {
           "text": "All",
           "value": "$__all",
