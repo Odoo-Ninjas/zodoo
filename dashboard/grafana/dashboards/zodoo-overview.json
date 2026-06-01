@@ -678,7 +678,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "topk(10, quantile_over_time(0.95, {job=\"nginx\"} | json | unwrap request_time [$__interval]) by (uri))",
+          "expr": "topk(10, quantile_over_time(0.95, {job=\"nginx\"} !~ `\"uri\":\"/(system|logs)` | json | unwrap request_time [$__interval]) by (uri))",
           "queryType": "range",
           "legendFormat": "{{uri}}"
         }
@@ -723,7 +723,7 @@
             "type": "loki",
             "uid": "loki"
           },
-          "expr": "topk(15, quantile_over_time(0.95, {job=\"nginx\"} | json | unwrap request_time [$__range]) by (uri))",
+          "expr": "topk(15, quantile_over_time(0.95, {job=\"nginx\"} !~ `\"uri\":\"/(system|logs)` | json | unwrap request_time [$__range]) by (uri))",
           "queryType": "instant"
         }
       ],
