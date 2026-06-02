@@ -8,7 +8,7 @@ def generate_password(length=12):
 
 
 def after_settings(settings, config):
-    # Mirror logsio_web: auto-generate a basic-auth password on real
-    # instances, but leave it empty in DEVMODE (proxy then skips auth).
+    # Mirror logsio_web: auto-generate the dashboard gate password on real
+    # instances, but leave it empty in DEVMODE (gate then stays open).
     if not settings.get("DASHBOARD_PASSWORD") and settings["DEVMODE"] != "1":
         settings["DASHBOARD_PASSWORD"] = generate_password(12)

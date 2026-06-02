@@ -18,6 +18,13 @@ otherwise see ALL containers on the docker host, not just this project's.
 """
 
 import json
+import os
+
+# Output dir resolved relative to this script, so it works in any checkout
+# (not just the author's machine).
+_DASHBOARDS_DIR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "dashboards"
+)
 
 PROM = {"type": "prometheus", "uid": "prometheus"}
 LOKI = {"type": "loki", "uid": "loki"}
@@ -248,13 +255,10 @@ def dashboard(title, uid, panels, extra_vars=None):
 
 
 def write(name, dash):
-    path = (
-        "/Users/marcwimmer/.odoo/images/dashboard/grafana/dashboards/"
-        + name
-        + ".json"
-    )
+    path = os.path.join(_DASHBOARDS_DIR, name + ".json")
     with open(path, "w") as f:
         json.dump(dash, f, indent=2)
+        f.write("\n")
     print(
         name,
         "->",

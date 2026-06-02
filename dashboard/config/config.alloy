@@ -16,6 +16,17 @@ loki.write "default" {
 
 /////////////////////////////////////////////////////////////////////////////
 // 1) All container logs -> Loki
+//
+// MULTI-TENANCY CAVEAT: discovery.docker sees EVERY container on the host, so
+// on a host that runs several zodoo projects this Loki ingests all of their
+// logs. The dashboards scope to the current project via the `container=~
+// "$project.*"` selectors, but a user could still read other projects' logs
+// via Grafana Explore (/logs2). On the usual one-project-per-host/VM zodoo
+// deploy this is a non-issue. To harden multi-tenant hosts, add a relabel
+// `keep` rule below filtering __meta_docker_container_label_com_docker_compose_project
+// to this project -- that needs the project name available in the alloy
+// container env (currently absent), so it is a follow-up that must be tested
+// live before shipping.
 /////////////////////////////////////////////////////////////////////////////
 discovery.docker "containers" {
   host = "unix:///var/run/docker.sock"

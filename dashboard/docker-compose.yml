@@ -2,7 +2,6 @@
 # Monitoring dashboard stack. Enabled via RUN_DASHBOARD=1 (default).
 # Grafana is published through the proxy under /system (see proxy/dashboard.conf),
 # all other components stay internal (expose only, no host ports).
-version: "3.3"
 volumes:
   dashboard_grafana_data:
   dashboard_prometheus_data:
@@ -33,7 +32,10 @@ services:
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
       GF_AUTH_ANONYMOUS_HIDE_VERSION: "true"
-      GF_AUTH_BASIC_ENABLED: "true"
+      # Basic auth is disabled: the proxy gate handles access (password-only),
+      # and Grafana must stay anonymous. The gate does not forward any
+      # Authorization header, so there is nothing for Grafana to authenticate.
+      GF_AUTH_BASIC_ENABLED: "false"
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/zodoo-overview.json
       GF_USERS_DEFAULT_LANGUAGE: "en-US"
     expose:
