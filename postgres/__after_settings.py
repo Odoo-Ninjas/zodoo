@@ -56,17 +56,26 @@ def _compute_max_connections(settings):
     set the corresponding key in POSTGRES_CONFIG explicitly.
     """
     import math
+    import re
 
-    # Track whether the user already pinned postgres max_connections — affects
-    # only POSTGRES_CONFIG, not DB_MAXCONN. DB_MAXCONN is the odoo-side
-    # connection-pool ceiling and must always be set, otherwise the
-    # `__DB_MAXCONN__` placeholder in the odoo config templates is left
+    def _extract_max_conn(text):
+        m = re.search(r"max_connections\s*=\s*(\d+)", text)
+        return int(m.group(1)) if m else None
+
+    # Track whether the user already pinned postgres max_connections. When they
+    # do, the postgres server runs with *their* value, so DB_MAXCONN (the
+    # odoo-side connection-pool ceiling) must be set to that same value rather
+    # than the computed one — otherwise odoo's pool ceiling drifts above the
+    # server's actual limit. DB_MAXCONN must always be set regardless, otherwise
+    # the `__DB_MAXCONN__` placeholder in the odoo config templates is left
     # unsubstituted and odoo crashes at CLI parse time.
     user_override_max_conn = False
+    user_max_conn_value = None
 
     existing_config = settings.get("POSTGRES_CONFIG", "")
     if "max_connections" in existing_config:
         user_override_max_conn = True
+        user_max_conn_value = _extract_max_conn(existing_config)
 
     # Also respect override in ~/.odoo/postgres.conf or ~/.odoo/<project>/postgres.conf
     from pathlib import Path
@@ -90,6 +99,11 @@ def _compute_max_connections(settings):
                 ]
                 if any("max_connections" in ln for ln in lines):
                     user_override_max_conn = True
+                    for ln in lines:
+                        val = _extract_max_conn(ln)
+                        if val is not None:
+                            user_max_conn_value = val
+                            break
                     break
 
     def _parse_channels(raw):
@@ -102,21 +116,16 @@ def _compute_max_connections(settings):
             return sum(v for _, v in parts)
         return 1
 
+    MIN_FLOOR = 100
     try:
         web = int(settings.get("ODOO_WORKERS_WEB", 6))
         cron = int(settings.get("ODOO_MAX_CRON_THREADS", 2))
 
-        # Check both spelling variants; use the larger result.
-        # ODOO_QUEUEJOB_CHANNELS (singular) is the per-channel concurrency
-        # config written into config_queuejob; ODOO_QUEUEJOBS_CHANNELS
-        # (plural) is a legacy alias.  Prefer the singular form when set.
-        qj_singular = settings.get("ODOO_QUEUEJOB_CHANNELS", "")
-        qj_plural = settings.get("ODOO_QUEUEJOBS_CHANNELS", "root:1")
-        channels_raw = qj_singular if qj_singular else qj_plural
-        qj_sum = max(
-            _parse_channels(qj_singular) if qj_singular else 1,
-            _parse_channels(qj_plural),
-        )
+        # Only ODOO_QUEUEJOBS_CHANNELS (plural) exists in zodoo's settings
+        # pipeline (odoo/default.settings, lib_composer, config_queuejob); the
+        # singular spelling is never written, so we read the plural directly.
+        qj_channels = settings.get("ODOO_QUEUEJOBS_CHANNELS", "root:1")
+        qj_sum = _parse_channels(qj_channels)
         queuejob_workers = qj_sum * 2  # matches _get_queuejob_channels
 
         total = web + cron + queuejob_workers
@@ -127,15 +136,22 @@ def _compute_max_connections(settings):
         # plus at least one extra cursor).  3 containers × ~5 extra = 15,
         # plus the original 30 for maintenance → 50 total.
         HEADROOM = 50
-        MIN_FLOOR = 100
         extra = int(settings.get("EXTRA_DB_CONN", 0))
         max_conn = (
             max(MIN_FLOOR, math.ceil(total * PER_PROCESS) + HEADROOM) + extra
         )
     except (ValueError, TypeError):
+        # Never leave DB_MAXCONN unset — that re-introduces the unsubstituted
+        # `__DB_MAXCONN__` placeholder crash. Fall back to the floor.
+        settings["DB_MAXCONN"] = str(MIN_FLOOR)
         return
 
-    settings["DB_MAXCONN"] = str(max_conn)
+    # When the user pinned max_connections, the server runs with that value, so
+    # keep the odoo-side ceiling in sync with it instead of the computed value.
+    if user_override_max_conn and user_max_conn_value is not None:
+        settings["DB_MAXCONN"] = str(user_max_conn_value)
+    else:
+        settings["DB_MAXCONN"] = str(max_conn)
 
     if not user_override_max_conn:
         glue = (

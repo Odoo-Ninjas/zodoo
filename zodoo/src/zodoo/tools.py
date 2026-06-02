@@ -210,6 +210,12 @@ def run_root_cmd(
     re-raised when ``check`` is True. With ``capture=True``, the stdout of the
     successful tier is returned as ``bytes``; otherwise the
     :class:`subprocess.CompletedProcess` is returned.
+
+    Note: ``env`` is applied to the spawned process only. On the Docker tier
+    the actual command runs inside a host-namespace helper container, so these
+    env vars do NOT reach it — that tier relies on the sudoers ``env_keep``
+    whitelist instead. Don't pass ``env`` expecting it to reach a host-root
+    command.
     """
     cmd = [str(part) for part in cmd]
 
@@ -240,10 +246,12 @@ def run_root_cmd(
             except Exception:
                 pass
         kw = {"cwd": cwd, "env": env, "check": check}
-        if stdin_mode == "devnull":
-            kw["stdin"] = subprocess.DEVNULL
         if input is not None:
+            # input and an explicit stdin are mutually exclusive in
+            # subprocess.run; input wins (it manages stdin itself).
             kw["input"] = input
+        elif stdin_mode == "devnull":
+            kw["stdin"] = subprocess.DEVNULL
         try:
             if capture:
                 proc = subprocess.run(wrapped, capture_output=True, **kw)

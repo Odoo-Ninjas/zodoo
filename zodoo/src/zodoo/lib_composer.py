@@ -461,6 +461,10 @@ def _tweak_config(ODOO_VERSION, config):
     # come straight from the proxy when available) but pypi.org remains
     # the default index. Builds keep working when the proxy is
     # unreachable instead of stalling on 20-retry-by-120s timeouts.
+    # NOTE: with --extra-index-url pip picks the highest version across BOTH
+    # indexes. This is only safe when the proxy is a pull-through pypi cache
+    # (identical versions). If it ever hosts private packages with higher
+    # version numbers, that is a dependency-confusion vector.
     PIP_OPTION_INDEX_URL = (
         f" --extra-index-url http://{config.PIP_PROXY_IP}/index "
         f"--trusted-host {config.PIP_PROXY_IP} "
@@ -2225,9 +2229,7 @@ def _write_text_with_sudo_fallback(path, text):
             ["sudo", "-n", "chown", f"{uid}:{gid}", str(path)],
             check=False,
         )
-        click.secho(
-            f"Reclaimed root-owned {path} via sudo.", fg="yellow"
-        )
+        click.secho(f"Reclaimed root-owned {path} via sudo.", fg="yellow")
     except subprocess.CalledProcessError as ex:
         click.secho(
             f"Cannot write {path}: permission denied and sudo failed ({ex}).",
@@ -2345,7 +2347,9 @@ def setup_launch_json(config):
     content["configurations"] += template["configurations"]
     content_task["tasks"] += template["tasks"]
     _write_text_with_sudo_fallback(launch_json, json.dumps(content, indent=4))
-    _write_text_with_sudo_fallback(task_json, json.dumps(content_task, indent=4))
+    _write_text_with_sudo_fallback(
+        task_json, json.dumps(content_task, indent=4)
+    )
 
     setup_vscode_settings(config)
     click.secho(f"VSCode launch.json updated at {launch_json}", fg="green")
