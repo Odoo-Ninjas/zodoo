@@ -154,6 +154,11 @@ while IFS= read -r container; do
     else
       rm -f "$state_file"
     fi
+  elif [ "$status" != "running" ] && [ "$status" != "restarting" ]; then
+    # Episodes are meaningless for stopped containers. Drop the state so a
+    # stale first_epoch can't fire the crash-loop branch prematurely when
+    # the container comes back hours later and crashes again.
+    rm -f "$state_file"
   fi
 
   if [ -n "$reason" ]; then

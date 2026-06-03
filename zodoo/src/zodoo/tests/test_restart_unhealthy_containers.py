@@ -276,6 +276,20 @@ def test_stale_state_cleaned_but_lock_survives(harness):
     assert (harness.state / ".lock").exists()
 
 
+def test_stopped_container_drops_stale_episode(harness):
+    """Episode state of a stopped container must be dropped — otherwise a
+    stale first_epoch fires the crash-loop branch immediately when the
+    container comes back hours later and crashes again."""
+    harness.state.mkdir()
+    first_epoch = int(time.time()) - 7200
+    harness.state_file("myproj_odoo").write_text(f"{first_epoch} 3 0\n")
+    harness.run(
+        [f"myproj_odoo exited none 3 {_ts(7200)} 0 false {_ts(7200)}"]
+    )
+    assert harness.restarts() == []
+    assert not harness.state_file("myproj_odoo").exists()
+
+
 def test_ps_scopes_by_compose_project_label(harness):
     """Containers must be scoped by the compose project label (exact
     equality) — name-based matching is ambiguous: a prefix filter for
