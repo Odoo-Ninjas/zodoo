@@ -32,7 +32,23 @@ EXITED_STUCK_SECS=${EXITED_STUCK_SECS:-300}
 # RESTARTING_STUCK_SECS is a genuine crash-loop.
 # State file per container: "<episode_start_epoch> <last_restart_count>"
 STATE_DIR=${RESTART_UNHEALTHY_STATE_DIR:-/opt/cronjobs/restart_unhealthy_state}
-mkdir -p "$STATE_DIR"
+if ! mkdir -p "$STATE_DIR" 2>/dev/null || [ ! -w "$STATE_DIR" ]; then
+  echo "⚠️  State dir '$STATE_DIR' is not writable (cronjobs volume missing?) — falling back to /tmp; crash-loop episodes won't survive container restarts."
+  STATE_DIR=/tmp/restart_unhealthy_state
+  mkdir -p "$STATE_DIR"
+fi
+
+# Only one instance at a time: a tick that restarts several containers can
+# exceed the 1-minute cron interval (docker restart blocks up to 10s per
+# container) and run.py spawns job threads without a lock. Overlapping
+# instances would double-restart containers and race on the episode state
+# files. (.lock starts with a dot so the stale-state cleanup glob below
+# never touches it.)
+exec 9>"$STATE_DIR/.lock"
+if ! flock -n 9; then
+  echo "⏭️  Previous run still active — skipping this tick."
+  exit 0
+fi
 
 now_epoch=$(date -u +%s)
 to_restart=()
@@ -72,6 +88,11 @@ while IFS= read -r container; do
       #     'docker stop' and restores all stop via SIGTERM) → hands off.
       #   137 = SIGKILL: only a crash if the kernel OOM-killed it
       #     (manual 'docker kill' also yields 137, but without OOMKilled).
+      # CONTRACT: this relies on every service's PID 1 exiting 0 or 143 on
+      # SIGTERM (supervisor.py exits 0; official postgres/nginx/redis
+      # images exit 0/143). A service whose SIGTERM handler exits with any
+      # other code would be wrongly revived here — keep shutdown paths
+      # clean-exiting.
       crashed=0
       case "$exit_code" in
         0 | 130 | 143) ;;
@@ -97,9 +118,10 @@ while IFS= read -r container; do
     if [ "${restart_count:-0}" -gt 0 ]; then
       if [ -f "$state_file" ]; then
         read -r first_epoch last_count <"$state_file"
-        first_epoch=${first_epoch:-$now_epoch}
-        last_count=${last_count:-0}
-        if [ "$restart_count" -gt "$last_count" ]; then
+        if [[ ! "$first_epoch" =~ ^[0-9]+$ ]] || [[ ! "$last_count" =~ ^[0-9]+$ ]]; then
+          # Corrupt state file (e.g. partial write) → restart the episode.
+          echo "$now_epoch $restart_count" >"$state_file"
+        elif [ "$restart_count" -gt "$last_count" ]; then
           # Count grew since the last tick → still crashing.
           if [ $((now_epoch - first_epoch)) -gt "$RESTARTING_STUCK_SECS" ]; then
             reason="crash-loop (${restart_count} restarts over $((now_epoch - first_epoch))s)"
