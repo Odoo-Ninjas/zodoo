@@ -18,6 +18,11 @@ fi
 #      strips it), a crashed container sits in 'exited' forever.
 # Thresholds are deliberately generous so normal boot / brief restarts
 # don't trip them.
+#
+# NOTE on coverage: only container-level failures are visible here. A role
+# crash-looping INSIDE the odoo container (supervisor.py respawns it with
+# backoff while PID 1 stays alive — RestartCount stays 0, no healthcheck)
+# cannot be detected by this script.
 RESTARTING_STUCK_SECS=${RESTARTING_STUCK_SECS:-300}
 STARTING_STUCK_SECS=${STARTING_STUCK_SECS:-300}
 EXITED_STUCK_SECS=${EXITED_STUCK_SECS:-300}
@@ -59,7 +64,7 @@ while IFS= read -r container; do
   seen_containers["$container"]=1
 
   read -r status health restart_count started_at exit_code oom_killed finished_at <<<"$(
-    docker inspect "$container" --format \
+    timeout 60 docker inspect "$container" --format \
       '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} {{.RestartCount}} {{.State.StartedAt}} {{.State.ExitCode}} {{.State.OOMKilled}} {{.State.FinishedAt}}' \
       2>/dev/null
   )"
@@ -145,7 +150,10 @@ while IFS= read -r container; do
   if [ -n "$reason" ]; then
     to_restart+=("${container}|${reason}")
   fi
-done < <(docker ps -a --filter "name=${PROJECT_NAME}_" --format '{{.Names}}')
+# The name filter is a regex SUBSTRING match — anchor it so project 'foo'
+# does not also manage the containers of project 'foo_staging' (container
+# names carry a leading '/', same pattern as zodoo tools.docker_list_containers).
+done < <(timeout 60 docker ps -a --filter "name=^/${PROJECT_NAME}_" --format '{{.Names}}')
 
 # Drop episode state of containers that no longer exist.
 for state_file in "$STATE_DIR"/*; do
@@ -164,16 +172,25 @@ for entry in "${to_restart[@]}"; do
 done
 echo
 
+failed=0
 for entry in "${to_restart[@]}"; do
   container="${entry%%|*}"
   reason="${entry#*|}"
   echo "🔄 Restarting container: $container ($reason)"
-  docker restart "$container"
+  if ! timeout 180 docker restart "$container"; then
+    echo "❌ Restart of '$container' FAILED."
+    failed=$((failed + 1))
+  fi
   # Manual restart resets docker's RestartCount — start a fresh episode so
   # a persistent crash escalates again only after RESTARTING_STUCK_SECS
-  # (natural rate limit instead of restarting every tick).
+  # (natural rate limit instead of restarting every tick). Cleared even on
+  # failure for the same reason: keeping the state would re-fire every tick.
   rm -f "$STATE_DIR/$container"
 done
 
 echo
-echo "✅ Restart process completed."
+if [ "$failed" -gt 0 ]; then
+  echo "⚠️  Restart process completed with $failed failure(s)."
+else
+  echo "✅ Restart process completed."
+fi
