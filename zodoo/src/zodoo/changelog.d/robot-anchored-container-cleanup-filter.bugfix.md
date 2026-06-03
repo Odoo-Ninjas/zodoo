@@ -1,1 +1,1 @@
-Robot test cleanup (`_remove_service`) now anchors its docker name filter to the project's own containers. Previously the unanchored substring match could `docker rm -f` same-named service containers of other projects on the host.
+Robot test cleanup (`_remove_service`) now anchors its docker name filter to the exact container name. Previously the unanchored substring match could `docker rm -f` containers of other projects whose names merely contain the service name.

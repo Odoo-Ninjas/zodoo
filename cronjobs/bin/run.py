@@ -88,15 +88,33 @@ def execute(job_cmd, job_name=None):
     # job with itself (one thread per job, execute() blocks the loop), but
     # a manual `run.py run <JOB>` can collide with the daemon thread — and
     # e.g. two concurrent backups would corrupt the dump.
+    # Lock failures other than "already locked" degrade to running WITHOUT
+    # the lock: a raise here would kill the job's daemon thread for good
+    # (_run_job's try wraps the whole loop), and a misleading skip would
+    # disable the job permanently (e.g. flock unsupported on the fs).
     lock_file = f"/tmp/zodoo_cronjob_{job_name}.lock"
-    with open(lock_file, "w") as lockf:
+    try:
+        lockf = open(lock_file, "w")
+    except OSError as ex:
+        logger.warning(
+            f"Could not open lock file {lock_file} ({ex}) — "
+            f"running {job_name} without overlap protection."
+        )
+        os.system(job_cmd)
+        return
+    with lockf:
         try:
             fcntl.flock(lockf, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except (BlockingIOError, OSError):
+        except BlockingIOError:
             logger.warning(
                 f"Job {job_name} is already running — skipping this run."
             )
             return
+        except OSError as ex:
+            logger.warning(
+                f"flock not available for {lock_file} ({ex}) — "
+                f"running {job_name} without overlap protection."
+            )
         os.system(job_cmd)
 
 

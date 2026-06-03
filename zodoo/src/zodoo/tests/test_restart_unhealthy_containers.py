@@ -38,6 +38,7 @@ pytestmark = pytest.mark.skipif(
 _STUB_DOCKER = r"""#!/bin/bash
 case "$1" in
   ps)
+    echo "$@" >> "$TEST_PS_ARGS_LOG"
     awk '{print $1}' "$TEST_CONTAINERS"
     ;;
   inspect)
@@ -68,6 +69,7 @@ class Harness:
         self.state = tmp_path / "state"
         self.containers = tmp_path / "containers.txt"
         self.restart_log = tmp_path / "restarts.log"
+        self.ps_args_log = tmp_path / "ps_args.log"
 
     def run(self, table, fail_restart=None, env=None):
         self.containers.write_text(
@@ -82,7 +84,13 @@ class Harness:
             RESTART_UNHEALTHY_STATE_DIR=str(self.state),
             TEST_CONTAINERS=str(self.containers),
             TEST_RESTART_LOG=str(self.restart_log),
+            TEST_PS_ARGS_LOG=str(self.ps_args_log),
             TEST_FAIL_RESTART=fail_restart or "",
+            # pin the thresholds: a developer's project settings may export
+            # these and would otherwise change the test arithmetic
+            RESTARTING_STUCK_SECS="300",
+            STARTING_STUCK_SECS="300",
+            EXITED_STUCK_SECS="300",
         )
         full_env.update(env or {})
         return subprocess.run(
@@ -242,6 +250,17 @@ def test_stale_state_cleaned_but_lock_survives(harness):
     )
     assert not harness.state_file("myproj_gone").exists()
     assert (harness.state / ".lock").exists()
+
+
+def test_ps_filter_is_anchored_to_project(harness):
+    """The name filter must stay anchored (^/{project}_) — an unanchored
+    substring match would also manage the containers of e.g. a
+    'myproj_staging' project on the same host."""
+    harness.run(
+        [f"myproj_odoo running healthy 0 {_ts(400)} 0 false {_ts(400)}"]
+    )
+    ps_args = harness.ps_args_log.read_text()
+    assert "name=^/myproj_" in ps_args
 
 
 def test_devmode_skips_everything(harness):
