@@ -1,0 +1,3 @@
+type: fix
+description: "restart_unhealthy_containers: drop crash-loop episode state of stopped containers so a stale episode can't fire prematurely when the container returns"
+breaking: false
