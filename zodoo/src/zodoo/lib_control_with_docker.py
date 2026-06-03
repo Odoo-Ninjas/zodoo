@@ -1274,7 +1274,12 @@ def logall(config, machines, follow, lines):
 
 
 def shell(config, command="", queuejobs=False):
-    if _is_in_container():
+    # Only take the in-container shortcut when we are actually inside the
+    # odoo container (where /odoolib exists). _is_in_container() is True for
+    # ANY container - e.g. the instanceconsole - which would wrongly try to
+    # exec a non-existent /odoolib/entrypoint.sh instead of spawning a shell
+    # in the instance's stack via docker-compose.
+    if os.path.exists("/odoolib/entrypoint.sh"):
         cmdline = ["/odoolib/entrypoint.sh", "/odoolib/shell.py"]
         if command:
             cmdline += [command]

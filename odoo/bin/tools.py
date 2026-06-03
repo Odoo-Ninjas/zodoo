@@ -516,42 +516,54 @@ def is_in_container():
 
 
 def kill_odoo():
-    if pidfile.exists():
-        click.secho("Killing Odoo")
-        pid = pidfile.read_text().strip()
-        base_cmd = (
-            ["/usr/bin/sudo"]
-            if os.getenv("USE_DOCKER", "") == "1" and is_in_container()
-            else []
-        )
-        # SIGTERM first: master signals workers to exit cleanly, freeing port 8069
-        subprocess.run(
-            base_cmd + ["/bin/kill", "-15", pid],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,
-        )
-        import time as _time
+    if not pidfile.exists():
+        sane_tty()
+        return
 
-        for _ in range(10):
-            _time.sleep(1)
-            try:
-                import os as _os
-
-                _os.kill(int(pid), 0)
-            except ProcessLookupError:
-                break
-        else:
-            subprocess.run(
-                base_cmd + ["/bin/kill", "-9", pid],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                stdin=subprocess.DEVNULL,
-            )
+    click.secho("Killing Odoo")
+    raw_pid = pidfile.read_text().strip()
+    try:
+        pid = int(raw_pid)
+    except ValueError:
+        # Stale / empty / half-written pidfile: nothing reliable to signal.
         try:
             pidfile.unlink()
         except FileNotFoundError:
             pass
+        sane_tty()
+        return
+
+    base_cmd = (
+        ["/usr/bin/sudo"]
+        if os.getenv("USE_DOCKER", "") == "1" and is_in_container()
+        else []
+    )
+    # SIGTERM first: master signals workers to exit cleanly, freeing port 8069
+    subprocess.run(
+        base_cmd + ["/bin/kill", "-15", str(pid)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL,
+    )
+    for _ in range(10):
+        time.sleep(1)
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            break  # process gone -> done
+        except PermissionError:
+            pass  # exists but foreign-owned -> still alive, keep waiting
+    else:
+        subprocess.run(
+            base_cmd + ["/bin/kill", "-9", str(pid)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+        )
+    try:
+        pidfile.unlink()
+    except FileNotFoundError:
+        pass
 
     sane_tty()
 
