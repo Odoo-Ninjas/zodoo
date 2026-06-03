@@ -51,6 +51,10 @@ _filestore_bytes = {"value": float("nan")}
 # A single connection is kept alive across scrapes instead of reconnecting
 # every 15s (avoids per-scrape connect/close churn on Postgres).
 _conn = {"c": None}
+# prometheus_client serves /metrics from a threaded HTTP server, so overlapping
+# scrapes can call collect() concurrently; the shared connection above is not
+# thread-safe, so all DB access is serialized with this lock.
+_db_lock = threading.Lock()
 
 
 def _connect():
@@ -193,6 +197,9 @@ class OdooCollector:
         up = GaugeMetricFamily(
             "odoo_db_up", "1 if the exporter could query the Odoo DB"
         )
+        # Serialize DB access: the threaded /metrics server can run collect()
+        # concurrently and the connection above is shared.
+        _db_lock.acquire()
         try:
             conn = _get_conn()
             cur = conn.cursor()
@@ -227,6 +234,8 @@ class OdooCollector:
             up.add_metric([], 0.0)
             # drop the (possibly broken) connection so the next scrape reconnects
             _close_conn()
+        finally:
+            _db_lock.release()
 
         yield up
         yield mail_mail

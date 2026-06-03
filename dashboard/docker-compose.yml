@@ -28,7 +28,7 @@ services:
       GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
       GF_USERS_DEFAULT_THEME: "dark"
       # frictionless, "kiosk-style" access: no login wall, land straight on the
-      # overview dashboard. Admin login (admin/<password>) still works for edits.
+      # overview dashboard. Access is gated by the proxy password.
       GF_AUTH_ANONYMOUS_ENABLED: "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
       GF_AUTH_ANONYMOUS_HIDE_VERSION: "true"
@@ -36,6 +36,11 @@ services:
       # and Grafana must stay anonymous. The gate does not forward any
       # Authorization header, so there is nothing for Grafana to authenticate.
       GF_AUTH_BASIC_ENABLED: "false"
+      # No Grafana web login at all: dashboards/datasources are file-provisioned
+      # and everyone behind the gate is an anonymous Viewer, so the login form
+      # would only expose the admin account (admin/<password>) for someone past
+      # the gate. Disable it. (Flip to "false" temporarily if UI admin needed.)
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/zodoo-overview.json
       GF_USERS_DEFAULT_LANGUAGE: "en-US"
     expose:
@@ -155,17 +160,18 @@ services:
       #   DBNAME, DB_HOST, DB_PORT, DB_USER, DB_PWD,
       #   ODOO_WORKERS_WEB, ODOO_MAX_CRON_THREADS, ODOO_QUEUEJOBS_CHANNELS
       EXPORTER_PORT: "9333"
-      # the exporter measures /opt/files/filestore/<DBNAME> (see mount below)
+      # the exporter measures /opt/files/filestore/<DBNAME> with du (actual
+      # disk usage -- catches orphaned filestore files that the DB no longer
+      # references, which a sum over ir_attachment would miss).
       FILESTORE_ROOT: /opt/files
-      # how often `du` re-measures the filestore size (seconds); large default
-      # because the size barely changes and du is heavy on big filestores.
+      # how often du re-measures (seconds); large default, the size changes slowly
       EXPORTER_FILESTORE_REFRESH: "900"
     expose:
       - 9333
     volumes:
       # Mount ONLY this instance's filestore subdir, not the whole shared
-      # ~/.odoo/files (which holds every project's filestore on the host).
-      # This keeps the exporter scoped to its own project and avoids exposing
-      # other instances' attachments. The target path matches what the
-      # exporter measures (FILESTORE_ROOT/filestore/<DBNAME>).
+      # ~/.odoo/files (which holds every project's filestore on the host), so
+      # the exporter cannot see other projects. zodoo create_directories
+      # pre-creates this source as the host user before `up`, so there is no
+      # root-owned auto-create that would break a fresh DB's filestore writes.
       - ${ODOO_FILES}/filestore/${DBNAME}:/opt/files/filestore/${DBNAME}:ro
