@@ -1,0 +1,3 @@
+type: fix
+description: "restart_unhealthy_containers: also detect crash-looping containers (via RestartCount episode tracking across cron ticks), stuck-in-'starting' containers and crashed 'exited' containers (non-clean exit code / OOM-killed), not only health=unhealthy. Plus: per-job lock in cronjobs run.py, anchored docker name filters (script + lib_robot), committed pytest coverage for the script."
+breaking: false

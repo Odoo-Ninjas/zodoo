@@ -561,8 +561,22 @@ def _remove_service(
         file.write_text(_yamldump(yml))
 
     for was_popped in popped:
+        # Anchor the filter (it is a regex substring match otherwise) to
+        # the exact container name. Cloned seleniumdriver services set
+        # container_name = service_name (bare, no project prefix — see
+        # _clone_seleniumdriver_template), so anchor on exactly that; an
+        # unanchored match could also hit containers of other projects
+        # whose names merely contain the service name — which then get
+        # `docker rm -f`'d.
         result = subprocess.run(
-            ["docker", "ps", "-a", "--filter", f"name={was_popped}", "-q"],
+            [
+                "docker",
+                "ps",
+                "-a",
+                "--filter",
+                f"name=^/{was_popped}$",
+                "-q",
+            ],
             capture_output=True,
             text=True,
         )
