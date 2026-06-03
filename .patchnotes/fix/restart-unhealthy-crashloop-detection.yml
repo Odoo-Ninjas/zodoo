@@ -1,0 +1,3 @@
+type: fix
+description: "restart_unhealthy_containers: also detect crash-looping (stuck in 'restarting') and stuck-in-'starting' containers, not only health=unhealthy"
+breaking: false
