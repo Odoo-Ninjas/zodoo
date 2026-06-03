@@ -75,6 +75,9 @@ class Harness:
         self.containers.write_text(
             "\n".join(table) + "\n" if table else ""
         )
+        # fresh per run — assertions must reflect the last tick only
+        self.restart_log.unlink(missing_ok=True)
+        self.ps_args_log.unlink(missing_ok=True)
         full_env = dict(os.environ)
         full_env.update(
             PATH=f"{self.bin}:{os.environ['PATH']}",
@@ -91,6 +94,7 @@ class Harness:
             RESTARTING_STUCK_SECS="300",
             STARTING_STUCK_SECS="300",
             EXITED_STUCK_SECS="300",
+            LC_ALL="C",
         )
         full_env.update(env or {})
         return subprocess.run(
@@ -252,15 +256,58 @@ def test_stale_state_cleaned_but_lock_survives(harness):
     assert (harness.state / ".lock").exists()
 
 
-def test_ps_filter_is_anchored_to_project(harness):
-    """The name filter must stay anchored (^/{project}_) — an unanchored
-    substring match would also manage the containers of e.g. a
-    'myproj_staging' project on the same host."""
+def test_ps_scopes_by_compose_project_label(harness):
+    """Containers must be scoped by the compose project label (exact
+    equality) — name-based matching is ambiguous: a prefix filter for
+    project 'myproj' would also manage 'myproj_staging_odoo' of project
+    'myproj_staging' on the same host."""
     harness.run(
         [f"myproj_odoo running healthy 0 {_ts(400)} 0 false {_ts(400)}"]
     )
     ps_args = harness.ps_args_log.read_text()
-    assert "name=^/myproj_" in ps_args
+    assert "label=com.docker.compose.project=myproj" in ps_args
+
+
+def test_multiple_containers_restarted_in_one_tick(harness):
+    res = harness.run(
+        [
+            f"myproj_proxy running unhealthy 0 {_ts(400)} 0 false {_ts(400)}",
+            f"myproj_pg running healthy 0 {_ts(400)} 0 false {_ts(400)}",
+            f"myproj_odoo exited none 0 {_ts(400)} 1 false {_ts(400)}",
+        ]
+    )
+    assert harness.restarts() == ["myproj_proxy", "myproj_odoo"]
+    assert res.stdout.count("🔄 Restarting") == 2
+
+
+def test_exited_that_never_ran_is_left_alone(harness):
+    """FinishedAt=0001-01-01 (container never ran) must not fire the
+    exited-crash branch despite a non-clean exit code."""
+    harness.run(
+        [
+            "myproj_odoo exited none 0 0001-01-01T00:00:00Z 1 false "
+            "0001-01-01T00:00:00Z"
+        ]
+    )
+    assert harness.restarts() == []
+
+
+@pytest.mark.skipif(
+    os.geteuid() == 0, reason="root bypasses directory permissions"
+)
+def test_unwritable_state_dir_falls_back_and_still_works(harness, tmp_path):
+    ro_dir = tmp_path / "ro_state"
+    ro_dir.mkdir()
+    ro_dir.chmod(0o555)
+    try:
+        res = harness.run(
+            [f"myproj_proxy running unhealthy 0 {_ts(400)} 0 false {_ts(400)}"],
+            env={"RESTART_UNHEALTHY_STATE_DIR": str(ro_dir)},
+        )
+        assert "not writable" in res.stdout
+        assert harness.restarts() == ["myproj_proxy"]
+    finally:
+        ro_dir.chmod(0o755)
 
 
 def test_devmode_skips_everything(harness):

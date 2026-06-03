@@ -150,10 +150,13 @@ while IFS= read -r container; do
   if [ -n "$reason" ]; then
     to_restart+=("${container}|${reason}")
   fi
-# The name filter is a regex SUBSTRING match — anchor it so project 'foo'
-# does not also manage the containers of project 'foo_staging' (container
-# names carry a leading '/', same pattern as zodoo tools.docker_list_containers).
-done < <(timeout 60 docker ps -a --filter "name=^/${PROJECT_NAME}_" --format '{{.Names}}')
+# Scope by the compose project label (exact equality match) instead of a
+# name prefix: names are ambiguous — a prefix anchor for project 'foo'
+# would still match 'foo_staging_odoo' of project 'foo_staging', since
+# service names may contain underscores.
+done < <(timeout 60 docker ps -a \
+  --filter "label=com.docker.compose.project=${PROJECT_NAME}" \
+  --format '{{.Names}}')
 
 # Drop episode state of containers that no longer exist.
 for state_file in "$STATE_DIR"/*; do
@@ -162,7 +165,7 @@ for state_file in "$STATE_DIR"/*; do
 done
 
 if [ ${#to_restart[@]} -eq 0 ]; then
-  echo "✅ All containers starting with '${PROJECT_NAME}_' look fine."
+  echo "✅ All containers of project '${PROJECT_NAME}' look fine."
   exit 0
 fi
 
