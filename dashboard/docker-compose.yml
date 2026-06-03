@@ -155,7 +155,7 @@ services:
       #   DBNAME, DB_HOST, DB_PORT, DB_USER, DB_PWD,
       #   ODOO_WORKERS_WEB, ODOO_MAX_CRON_THREADS, ODOO_QUEUEJOBS_CHANNELS
       EXPORTER_PORT: "9333"
-      # filestore lives under ODOO_DATA_DIR/filestore/<dbname> (mounted read-only below)
+      # the exporter measures /opt/files/filestore/<DBNAME> (see mount below)
       FILESTORE_ROOT: /opt/files
       # how often `du` re-measures the filestore size (seconds); large default
       # because the size barely changes and du is heavy on big filestores.
@@ -163,4 +163,9 @@ services:
     expose:
       - 9333
     volumes:
-      - ${ODOO_FILES}:/opt/files:ro
+      # Mount ONLY this instance's filestore subdir, not the whole shared
+      # ~/.odoo/files (which holds every project's filestore on the host).
+      # This keeps the exporter scoped to its own project and avoids exposing
+      # other instances' attachments. The target path matches what the
+      # exporter measures (FILESTORE_ROOT/filestore/<DBNAME>).
+      - ${ODOO_FILES}/filestore/${DBNAME}:/opt/files/filestore/${DBNAME}:ro
