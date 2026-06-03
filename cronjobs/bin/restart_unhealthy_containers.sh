@@ -7,17 +7,20 @@ if [ "$DEVMODE" = "1" ] && [ "$FORCE_RESTART_UNHEALTHY_CONTAINERS" != "1" ]; the
   exit 0
 fi
 
-# Filtering on health=unhealthy alone misses two real failure modes:
+# Filtering on health=unhealthy alone misses three real failure modes:
 #   1. crash-loop: supervisor exits before StartPeriod, Docker keeps
 #      reviving the container, the healthcheck never runs, status never
 #      becomes 'unhealthy'. The 2026-05-23 MANIFEST=0B incident sat here
 #      for days.
 #   2. stuck-in-starting: container is up but health stays 'starting'
 #      (e.g. a hanging healthcheck command).
+#   3. crashed-and-exited: without a restart policy (RESTART_CONTAINERS=0
+#      strips it), a crashed container sits in 'exited' forever.
 # Thresholds are deliberately generous so normal boot / brief restarts
 # don't trip them.
 RESTARTING_STUCK_SECS=${RESTARTING_STUCK_SECS:-300}
 STARTING_STUCK_SECS=${STARTING_STUCK_SECS:-300}
+EXITED_STUCK_SECS=${EXITED_STUCK_SECS:-300}
 
 # Crash-loops cannot be detected from a single snapshot: docker's restart
 # backoff is capped at 60s, so while a container crash-loops,
@@ -39,9 +42,9 @@ while IFS= read -r container; do
   [ -z "$container" ] && continue
   seen_containers["$container"]=1
 
-  read -r status health restart_count started_at <<<"$(
+  read -r status health restart_count started_at exit_code oom_killed finished_at <<<"$(
     docker inspect "$container" --format \
-      '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} {{.RestartCount}} {{.State.StartedAt}}' \
+      '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} {{.RestartCount}} {{.State.StartedAt}} {{.State.ExitCode}} {{.State.OOMKilled}} {{.State.FinishedAt}}' \
       2>/dev/null
   )"
   if [ -z "$status" ]; then
@@ -60,6 +63,28 @@ while IFS= read -r container; do
         if [ "$started_epoch" -gt 0 ] && \
            [ $((now_epoch - started_epoch)) -gt "$STARTING_STUCK_SECS" ]; then
           reason="stuck-in-starting ($((now_epoch - started_epoch))s)"
+        fi
+      fi
+      ;;
+    exited)
+      # Distinguish crashes from intentional stops by exit code:
+      #   0 / 130 / 143 = clean exit / SIGINT / SIGTERM ('odoo kill',
+      #     'docker stop' and restores all stop via SIGTERM) → hands off.
+      #   137 = SIGKILL: only a crash if the kernel OOM-killed it
+      #     (manual 'docker kill' also yields 137, but without OOMKilled).
+      crashed=0
+      case "$exit_code" in
+        0 | 130 | 143) ;;
+        137) [ "$oom_killed" = "true" ] && crashed=1 ;;
+        *) crashed=1 ;;
+      esac
+      if [ "$crashed" = "1" ]; then
+        finished_epoch=$(date -u -d "$finished_at" +%s 2>/dev/null || echo 0)
+        if [ "$finished_epoch" -gt 0 ] && \
+           [ $((now_epoch - finished_epoch)) -gt "$EXITED_STUCK_SECS" ]; then
+          oom_note=""
+          [ "$oom_killed" = "true" ] && oom_note=", OOM-killed"
+          reason="crashed (exit ${exit_code}${oom_note}, down $((now_epoch - finished_epoch))s)"
         fi
       fi
       ;;
