@@ -35,7 +35,8 @@ EXITED_STUCK_SECS=${EXITED_STUCK_SECS:-300}
 # the count only grows while the restart policy keeps reviving the
 # container. An episode whose count keeps growing for longer than
 # RESTARTING_STUCK_SECS is a genuine crash-loop.
-# State file per container: "<episode_start_epoch> <last_restart_count>"
+# State file per container:
+#   "<episode_start_epoch> <last_restart_count> <stable_ticks>"
 STATE_DIR=${RESTART_UNHEALTHY_STATE_DIR:-/opt/cronjobs/restart_unhealthy_state}
 if ! mkdir -p "$STATE_DIR" 2>/dev/null || [ ! -w "$STATE_DIR" ]; then
   echo "⚠️  State dir '$STATE_DIR' is not writable (cronjobs volume missing?) — falling back to /tmp; crash-loop episodes won't survive container restarts."
@@ -122,25 +123,33 @@ while IFS= read -r container; do
   if [ -z "$reason" ] && { [ "$status" = "running" ] || [ "$status" = "restarting" ]; }; then
     if [ "${restart_count:-0}" -gt 0 ]; then
       if [ -f "$state_file" ]; then
-        read -r first_epoch last_count <"$state_file"
-        if [[ ! "$first_epoch" =~ ^[0-9]+$ ]] || [[ ! "$last_count" =~ ^[0-9]+$ ]]; then
+        read -r first_epoch last_count stable_streak <"$state_file"
+        stable_streak=${stable_streak:-0}
+        if [[ ! "$first_epoch" =~ ^[0-9]+$ ]] || [[ ! "$last_count" =~ ^[0-9]+$ ]] \
+           || [[ ! "$stable_streak" =~ ^[0-9]+$ ]]; then
           # Corrupt state file (e.g. partial write) → restart the episode.
-          echo "$now_epoch $restart_count" >"$state_file"
+          echo "$now_epoch $restart_count 0" >"$state_file"
         elif [ "$restart_count" -gt "$last_count" ]; then
           # Count grew since the last tick → still crashing.
           if [ $((now_epoch - first_epoch)) -gt "$RESTARTING_STUCK_SECS" ]; then
             reason="crash-loop (${restart_count} restarts over $((now_epoch - first_epoch))s)"
           else
-            echo "$first_epoch $restart_count" >"$state_file"
+            echo "$first_epoch $restart_count 0" >"$state_file"
           fi
-        else
-          # Count stable for a full tick → container recovered; end episode.
+        elif [ "$stable_streak" -ge 1 ]; then
+          # Count stable for two consecutive ticks → recovered; end episode.
           rm -f "$state_file"
+        else
+          # One quiet tick can be sampling luck: a mature crash cycle is
+          # ~62s (60s backoff cap + runtime) vs the 60s tick, so the count
+          # occasionally doesn't grow between two consecutive samples.
+          # Only end the episode after a second consecutive stable tick.
+          echo "$first_epoch $last_count $((stable_streak + 1))" >"$state_file"
         fi
       else
         # First sighting of a non-zero count → start an episode. It only
         # escalates if the count is still growing on later ticks.
-        echo "$now_epoch $restart_count" >"$state_file"
+        echo "$now_epoch $restart_count 0" >"$state_file"
       fi
     else
       rm -f "$state_file"
@@ -194,6 +203,6 @@ done
 echo
 if [ "$failed" -gt 0 ]; then
   echo "⚠️  Restart process completed with $failed failure(s)."
-else
-  echo "✅ Restart process completed."
+  exit 1
 fi
+echo "✅ Restart process completed."

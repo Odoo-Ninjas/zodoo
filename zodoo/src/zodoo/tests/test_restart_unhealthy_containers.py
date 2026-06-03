@@ -201,13 +201,32 @@ def test_crashloop_episode_tracking(harness):
 
 
 def test_stable_restart_count_ends_episode(harness):
-    """A non-zero but stable RestartCount (old blip) never escalates."""
+    """A non-zero but stable RestartCount (old blip) never escalates;
+    the episode ends after TWO consecutive stable ticks."""
     row = f"myproj_pg running healthy 5 {_ts(4000)} 0 false {_ts(4000)}"
     harness.run([row])
     assert harness.state_file("myproj_pg").exists()
-    harness.run([row])  # count unchanged for a full tick → recovered
+    harness.run([row])  # first stable tick → episode kept (sampling luck)
+    assert harness.state_file("myproj_pg").exists()
+    harness.run([row])  # second stable tick → recovered
     assert not harness.state_file("myproj_pg").exists()
     assert harness.restarts() == []
+
+
+def test_one_quiet_tick_does_not_reset_episode(harness):
+    """A mature crash cycle (~62s: 60s backoff cap + runtime) vs the 60s
+    tick means the count occasionally doesn't grow between two samples —
+    one quiet tick must not reset the episode clock."""
+    harness.state.mkdir()
+    first_epoch = int(time.time()) - 400
+    harness.state_file("myproj_odoo").write_text(f"{first_epoch} 3 0\n")
+    row = f"myproj_odoo restarting none {{count}} {_ts(400)} 1 false {_ts(30)}"
+    harness.run([row.format(count=3)])  # quiet tick: count unchanged
+    assert harness.restarts() == []
+    assert harness.state_file("myproj_odoo").exists()
+    res = harness.run([row.format(count=9)])  # growth again → must fire
+    assert harness.restarts() == ["myproj_odoo"]
+    assert "crash-loop" in res.stdout
 
 
 def test_corrupt_state_file_restarts_episode(harness):
@@ -217,8 +236,8 @@ def test_corrupt_state_file_restarts_episode(harness):
         [f"myproj_odoo restarting none 5 {_ts(400)} 1 false {_ts(30)}"]
     )
     assert harness.restarts() == []
-    epoch, count = harness.state_file("myproj_odoo").read_text().split()
-    assert epoch.isdigit() and count == "5"
+    epoch, count, streak = harness.state_file("myproj_odoo").read_text().split()
+    assert epoch.isdigit() and count == "5" and streak == "0"
 
 
 def test_concurrent_instance_is_skipped(harness):
@@ -244,6 +263,7 @@ def test_failed_restart_is_reported(harness):
     assert harness.restarts() == []
     assert "FAILED" in res.stdout
     assert "1 failure" in res.stdout
+    assert res.returncode != 0
 
 
 def test_stale_state_cleaned_but_lock_survives(harness):
