@@ -1,6 +1,9 @@
 #!/bin/bash
 # Output each environment variable as an `env` directive
 
+mkdir -p /var/log/nginx
+touch /var/log/nginx/access.json /var/log/nginx/error.log
+chmod 666 /var/log/nginx/access.json /var/log/nginx/error.log
 
 env | while IFS='=' read -r var _; do
     echo "env $var;"

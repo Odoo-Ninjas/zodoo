@@ -1,4 +1,0 @@
-type: breaking
-description: "RUN_REDIS default auf 0 — Redis-Container startet nicht mehr automatisch. Projekte, die Redis explizit brauchen (z.B. session-store, custom caching), müssen RUN_REDIS=1 in ihren settings setzen"
-breaking: true
-breaking_description: "Bestehende Projekte, die implizit auf den default-Redis-Container gesetzt haben, müssen RUN_REDIS=1 in ~/.odoo/settings.<project> oder ./.odoo/settings nachtragen. Odoo selbst nutzt Redis nicht — das betrifft nur Custom-Setups."

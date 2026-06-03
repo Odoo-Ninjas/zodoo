@@ -1,5 +1,11 @@
 # MARKER COMMON.DOCKER BEGIN
 
+# Refresh apt proxy config in project layer: the cached base image may
+# carry a stale /etc/apt/apt.conf.d/01proxy from when it was built on a
+# different host. Re-apply with the current APT_PROXY_IP before running
+# any apt-get in the project layer.
+#___SNIPPET_APT_PROXY___
+
 # install zodoo
 RUN #___SNIPPET_APT_INSTALL___ \
 build-essential python3-dev

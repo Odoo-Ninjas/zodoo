@@ -1,3 +1,0 @@
-type: docs
-description: "README.md: CRONJOB_DADDY_CLEANUP-Tabellenzelle in inline-code gewrappt — vorher hat Markdown den * in der Cron-Expression als Formatierung interpretiert und 'CRONJOB*DADDY_CLEANUP' gerendert"
-breaking: false

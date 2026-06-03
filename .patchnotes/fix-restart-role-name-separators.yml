@@ -1,3 +1,0 @@
-type: fix
-description: "odoo restart/kill/up akzeptieren odoo_web, odoo-web und odoo.web als equivalente Schreibweisen (analog für cronjobs/queuejobs); Tab-Completion schlägt alle drei Separator-Varianten vor; queue_job-jobrunner Log-Spam (~12 master-election-lost-DEBUG-Zeilen pro Minute) durch log_handler-INFO unterdrückt"
-breaking: false

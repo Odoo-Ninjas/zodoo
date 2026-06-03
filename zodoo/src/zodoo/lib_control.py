@@ -460,6 +460,16 @@ def attach(ctx, config, machine):
     help="Build for a specific platform",
 )
 @click.option(
+    "--repair-zodoo-registry",
+    is_flag=True,
+    help="Repair a corrupt/stale image in the zodoo (fast-build helper) "
+    "registry: rebuild it locally (ignoring the registry copy) and overwrite "
+    "the registry with the fresh build. Bundles --no-zodoo-pull and "
+    "--force-zodoo-registry-push so you don't have to remember the "
+    "combination. Asks interactively whether to also drop the local Docker "
+    "build cache.",
+)
+@click.option(
     "--no-zodoo-pull",
     "-ZPl",
     is_flag=True,
@@ -475,6 +485,15 @@ def attach(ctx, config, machine):
     "-ZPs",
     is_flag=True,
     help="Skip pushing built images to zodoo registry after build",
+)
+@click.option(
+    "--force-zodoo-registry-push",
+    "-ZPf",
+    is_flag=True,
+    help="Push to the zodoo registry even for images that were pulled "
+    "(not rebuilt). Normally a pulled/existing image is excluded from the "
+    "upload; this re-uploads it anyway. Still honours the SRC_EXTRA and "
+    "registry-config gates (it does not upload customer-baked images).",
 )
 @click.option(
     "--suppress-other-platform-build",
@@ -493,8 +512,10 @@ def build(
     plain,
     include_source,
     platform,
+    repair_zodoo_registry,
     no_zodoo_pull,
     no_zodoo_push,
+    force_zodoo_registry_push,
     registry_only,
     suppress_other_platform_build,
 ):
@@ -519,6 +540,35 @@ def build(
         for service in compose["services"]:
             if compose["services"][service].get("build"):
                 machines.append(service)
+
+    # --repair-zodoo-registry is the friendly entry point: ignore the
+    # (possibly corrupt) registry copy, rebuild locally, and overwrite it.
+    # It just bundles the two low-level flags so nobody has to remember the
+    # combination.
+    if repair_zodoo_registry:
+        no_zodoo_pull = True
+        force_zodoo_registry_push = True
+        click.secho(
+            "Repairing zodoo-registry image(s): "
+            f"{', '.join(machines)}\n"
+            "  -> rebuilding locally (skipping the registry pull) and "
+            "overwriting the registry copy.",
+            fg="yellow",
+        )
+        # Ask whether to also drop the local Docker layer cache. Default no:
+        # a corrupt *registry* image is fixed by a normal local rebuild; only
+        # bypass the local cache if the corruption might be cached locally too.
+        if not no_cache and sys.stdin.isatty():
+            click.secho(
+                "\nThe local Docker layer cache is kept by default (fast). "
+                "Drop it only if the corruption might also be in the local "
+                "build cache — slower, but a guaranteed-fresh rebuild.",
+                fg="cyan",
+            )
+            no_cache = click.confirm(
+                "Also rebuild without the local Docker cache (--no-cache)?",
+                default=False,
+            )
 
     # Try pulling from zodoo registry before building
     already_pulled = []
@@ -549,16 +599,22 @@ def build(
             no_zodoo_push=no_zodoo_push,
         )
 
-        # Queue registry pushes; the actual `docker push` happens in a
-        # detached worker so build returns as soon as the local image is
-        # ready. `odoo run-crontab` is the safety net for crashed workers.
-        if not no_zodoo_push:
-            enqueue_registry_uploads(
-                config,
-                machines_to_build,
-                suppress_other_platform=suppress_other_platform_build,
-            )
-    elif already_pulled:
+    # Queue zodoo-registry pushes; the actual `docker push` happens in a
+    # detached worker so build returns as soon as the local image is ready.
+    # `odoo run-crontab` is the safety net for crashed workers.
+    # Normally only freshly built images are uploaded (pulled/existing ones are
+    # already in the registry). With --force-zodoo-registry-push we re-upload
+    # every target, including images that were just pulled.
+    push_targets = (
+        list(machines) if force_zodoo_registry_push else machines_to_build
+    )
+    if push_targets and not no_zodoo_push:
+        enqueue_registry_uploads(
+            config,
+            push_targets,
+            suppress_other_platform=suppress_other_platform_build,
+        )
+    elif already_pulled and not machines_to_build:
         click.secho(
             "All images pulled from zodoo registry, no build needed.",
             fg="green",
