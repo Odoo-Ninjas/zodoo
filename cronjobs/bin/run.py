@@ -2,6 +2,7 @@
 import arrow
 import threading
 import string
+import fcntl
 import os
 import sys
 import time
@@ -69,7 +70,7 @@ def replace_params(text):
     return text
 
 
-def execute(job_cmd):
+def execute(job_cmd, job_name=None):
     logger.info(f"Executing: {job_cmd}")
 
     job_cmd = replace_params(job_cmd)
@@ -80,7 +81,23 @@ def execute(job_cmd):
             f"-p {os.environ['PROJECT_NAME']} "
             f"{job_cmd[5:]}"
         )
-    os.system(job_cmd)
+    if not job_name:
+        os.system(job_cmd)
+        return
+    # One instance per job. The daemon scheduler itself cannot overlap a
+    # job with itself (one thread per job, execute() blocks the loop), but
+    # a manual `run.py run <JOB>` can collide with the daemon thread — and
+    # e.g. two concurrent backups would corrupt the dump.
+    lock_file = f"/tmp/zodoo_cronjob_{job_name}.lock"
+    with open(lock_file, "w") as lockf:
+        try:
+            fcntl.flock(lockf, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except (BlockingIOError, OSError):
+            logger.warning(
+                f"Job {job_name} is already running — skipping this run."
+            )
+            return
+        os.system(job_cmd)
 
 
 @cli.command(name="run")
@@ -95,7 +112,7 @@ def run_job(job):
             click.secho(f"Job: {job['name']}")
         sys.exit(-1)
     cmd = found[0]["cmd"]
-    execute(cmd)
+    execute(cmd, job_name=found[0]["name"])
 
 
 def _run_job(job):
@@ -114,7 +131,7 @@ def _run_job(job):
                 logger.info(f"Starting now the following job: {job['cmd']}")
                 started = datetime.utcnow()
                 try:
-                    execute(job["cmd"])
+                    execute(job["cmd"], job_name=job["name"])
                 finally:
                     end = datetime.now()
                 logger.info(

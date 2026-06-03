@@ -561,8 +561,19 @@ def _remove_service(
         file.write_text(_yamldump(yml))
 
     for was_popped in popped:
+        # Anchor the filter (it is a regex substring match otherwise):
+        # container names are {project}_{service} (lib_composer), and an
+        # unanchored service-name match would also hit containers of other
+        # projects on the same host — which then get `docker rm -f`'d.
         result = subprocess.run(
-            ["docker", "ps", "-a", "--filter", f"name={was_popped}", "-q"],
+            [
+                "docker",
+                "ps",
+                "-a",
+                "--filter",
+                f"name=^/{config.project_name}_{was_popped}$",
+                "-q",
+            ],
             capture_output=True,
             text=True,
         )
