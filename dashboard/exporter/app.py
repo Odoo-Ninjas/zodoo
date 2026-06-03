@@ -33,7 +33,9 @@ log = logging.getLogger("odoo_metrics_exporter")
 
 PORT = int(os.environ.get("EXPORTER_PORT", "9333"))
 FILESTORE_ROOT = os.environ.get("FILESTORE_ROOT", "/opt/files")
-FILESTORE_REFRESH = int(os.environ.get("EXPORTER_FILESTORE_REFRESH", "300"))
+# Filestore sizing runs `du` over the whole tree, which is heavy on large
+# filestores; the size barely changes, so refresh infrequently by default.
+FILESTORE_REFRESH = int(os.environ.get("EXPORTER_FILESTORE_REFRESH", "900"))
 DBNAME = os.environ.get("DBNAME", "")
 # Container names are "<project>_<service>" and this prometheus only scrapes
 # its own exporter, so odoo_instance{project=...} carries exactly one value.
@@ -46,7 +48,12 @@ PROJECT = os.environ.get("PROJECT_NAME") or os.environ.get("NETWORK_NAME", "")
 _filestore_bytes = {"value": float("nan")}
 
 
-def _db_conn():
+# A single connection is kept alive across scrapes instead of reconnecting
+# every 15s (avoids per-scrape connect/close churn on Postgres).
+_conn = {"c": None}
+
+
+def _connect():
     return psycopg2.connect(
         host=os.environ.get("DB_HOST", "postgres"),
         port=int(os.environ.get("DB_PORT", "5432")),
@@ -55,6 +62,32 @@ def _db_conn():
         dbname=DBNAME or os.environ.get("DB_USER", "odoo"),
         connect_timeout=5,
     )
+
+
+def _get_conn():
+    """Return a live autocommit connection, (re)connecting if needed."""
+    c = _conn["c"]
+    if c is not None and getattr(c, "closed", 1) == 0:
+        try:
+            with c.cursor() as cur:
+                cur.execute("SELECT 1")
+            return c
+        except Exception:  # noqa: BLE001 -- stale connection, drop & reconnect
+            _close_conn()
+    conn = _connect()
+    conn.autocommit = True
+    _conn["c"] = conn
+    return conn
+
+
+def _close_conn():
+    c = _conn["c"]
+    _conn["c"] = None
+    if c is not None:
+        try:
+            c.close()
+        except Exception:  # noqa: BLE001
+            pass
 
 
 def _table_exists(cur, name):
@@ -161,8 +194,7 @@ class OdooCollector:
             "odoo_db_up", "1 if the exporter could query the Odoo DB"
         )
         try:
-            conn = _db_conn()
-            conn.autocommit = True
+            conn = _get_conn()
             cur = conn.cursor()
             up.add_metric([], 1.0)
             if _table_exists(cur, "mail_mail"):
@@ -190,10 +222,11 @@ class OdooCollector:
                 cur.execute("SELECT count(*) FROM ir_cron WHERE active")
                 cron_active.add_metric([], float(cur.fetchone()[0]))
             cur.close()
-            conn.close()
         except Exception as exc:  # noqa: BLE001
             log.warning("db scrape failed: %s", exc)
             up.add_metric([], 0.0)
+            # drop the (possibly broken) connection so the next scrape reconnects
+            _close_conn()
 
         yield up
         yield mail_mail

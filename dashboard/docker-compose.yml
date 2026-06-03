@@ -130,7 +130,7 @@ services:
       - --disable-default-metrics
       - --no-collector.stat_bgwriter
     environment:
-      DATA_SOURCE_NAME: "postgresql://${DB_USER:-odoo}:${DB_PWD:-odoo}@${DB_HOST:-postgres}:${DB_PORT:-5432}/${DBNAME}?sslmode=disable"
+      DATA_SOURCE_NAME: "postgresql://${DB_USER:-odoo}:${DB_PWD:-odoo}@${DB_HOST:-postgres}:${DB_PORT:-5432}/${DBNAME:-postgres}?sslmode=disable"
       PG_EXPORTER_EXTEND_QUERY_PATH: /etc/postgres_exporter/queries.yml
     expose:
       - 9187
@@ -155,9 +155,11 @@ services:
       #   DBNAME, DB_HOST, DB_PORT, DB_USER, DB_PWD,
       #   ODOO_WORKERS_WEB, ODOO_MAX_CRON_THREADS, ODOO_QUEUEJOBS_CHANNELS
       EXPORTER_PORT: "9333"
-      EXPORTER_SCRAPE_INTERVAL: "30"
       # filestore lives under ODOO_DATA_DIR/filestore/<dbname> (mounted read-only below)
       FILESTORE_ROOT: /opt/files
+      # how often `du` re-measures the filestore size (seconds); large default
+      # because the size barely changes and du is heavy on big filestores.
+      EXPORTER_FILESTORE_REFRESH: "900"
     expose:
       - 9333
     volumes:

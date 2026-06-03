@@ -23,6 +23,22 @@ local function token(password)
     return ngx.encode_base64(ngx.hmac_sha1(SECRET, password))
 end
 
+-- Constant-time string comparison (avoid leaking length/prefix via timing).
+local bit = require("bit")
+local function const_eq(a, b)
+    if type(a) ~= "string" or type(b) ~= "string" then
+        return false
+    end
+    if #a ~= #b then
+        return false
+    end
+    local diff = 0
+    for i = 1, #a do
+        diff = bit.bor(diff, bit.bxor(a:byte(i), b:byte(i)))
+    end
+    return diff == 0
+end
+
 local function login_page(msg)
     local err = ""
     if msg then
@@ -70,7 +86,7 @@ function _M.gate(password)
         end
         ngx.req.read_body()
         local args = ngx.req.get_post_args() or {}
-        if args.password == password then
+        if const_eq(args.password, password) then
             ngx.header["Set-Cookie"] = COOKIE
                 .. "="
                 .. expected
@@ -81,7 +97,7 @@ function _M.gate(password)
     end
 
     -- Already authenticated via cookie?
-    if ngx.var["cookie_" .. COOKIE] == expected then
+    if const_eq(ngx.var["cookie_" .. COOKIE], expected) then
         return
     end
 
