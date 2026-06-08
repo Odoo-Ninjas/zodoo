@@ -923,15 +923,10 @@ def _execute_after_compose(config, yml):
                         globals,
                     )
 
-                except PermissionError:
-                    # CI runners may have read-only images dirs (symlinked
-                    # from another user); skip non-fatal write errors.
-                    pass
                 except Exception as ex:
                     msg = traceback.format_exc()
-                    click.secho(f"Failed: {module.__file__}", fg="red")
-                    click.secho(msg)
-                    sys.exit(-1)
+                    click.secho(f"Warning: after_compose failed: {module.__file__}", fg="yellow")
+                    click.secho(str(ex))
 
                 duration = (arrow.get() - started).total_seconds()
                 if duration > 2 and config.verbose:
