@@ -630,8 +630,11 @@ def _export_container_buildsettings(ctx, config, yamlcompose):
                         f"Could not determine build path for service {service}"
                     )
             filepath = path / "buildsettings.env"
-            filepath.write_text(content)
-            __assure_gitignore(path / ".gitignore", filepath.name)
+            try:
+                filepath.write_text(content)
+                __assure_gitignore(path / ".gitignore", filepath.name)
+            except PermissionError:
+                pass  # read-only images dir on CI runners
 
 
 def _copy_zodoo_src(ctx, config):
