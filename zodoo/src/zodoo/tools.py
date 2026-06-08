@@ -2190,7 +2190,9 @@ def _make_sure_module_is_installed(
 
 
 def bashfind(path, name=None, wholename=None, type=None, maxdepth=None):
-    cmd = ["find", path]
+    # -L follows symbolic links during traversal (needed for ~/.odoo/images/
+    # which may contain symlinked subdirectories on CI runners).
+    cmd = ["find", "-L", path]
     if type:
         cmd += ["-type", type]
     if maxdepth:
