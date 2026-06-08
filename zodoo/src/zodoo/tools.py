@@ -2008,7 +2008,11 @@ def _get_customs_root(p):
     # arg_dir = p
     if p:
         while len(p.parts) > 1:
-            if (p / "MANIFEST").exists():
+            manifest = p / "MANIFEST"
+            # Skip symlinks: a MANIFEST symlink at a wrapper/CI checkout root
+            # (e.g. pointing to odoo_admin/MANIFEST) must not be mistaken for
+            # the actual customs root. Continue up until the real file is found.
+            if manifest.exists() and not manifest.is_symlink():
                 return p
             p = p.parent
 
