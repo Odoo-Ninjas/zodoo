@@ -85,16 +85,27 @@ def cli(
         except Exception:
             cwd_root = None
         if cwd_root and cwd_root.name != project_name:
-            abort(
-                f"Directory name '{cwd_root.name}' (at {cwd_root}) does "
-                f"not match project-name '{project_name}'. Either "
-                f"rename the directory to '{project_name}', or change "
-                "--project-name / ~/.odoo/settings PROJECT_NAME to "
-                "match. (Compose state lives in "
-                f"~/.odoo/run/{project_name}/ but the source tree is "
-                f"at {cwd_root}; a mismatch causes 'no such file' "
-                "lookups inside `odoo up` and friends.)"
+            from .tools import _sanitize_project_name
+
+            dir_sanitized = _sanitize_project_name(
+                "".join(
+                    c if c not in " ?:/*\\!@#$%^&*()." else "_"
+                    for c in cwd_root.name
+                )
             )
+            if dir_sanitized == project_name:
+                pass  # name was auto-shortened from this directory — ok
+            else:
+                abort(
+                    f"Directory name '{cwd_root.name}' (at {cwd_root}) does "
+                    f"not match project-name '{project_name}'. Either "
+                    f"rename the directory to '{project_name}', or change "
+                    "--project-name / ~/.odoo/settings PROJECT_NAME to "
+                    "match. (Compose state lives in "
+                    f"~/.odoo/run/{project_name}/ but the source tree is "
+                    f"at {cwd_root}; a mismatch causes 'no such file' "
+                    "lookups inside `odoo up` and friends.)"
+                )
 
     config.set_restrict("settings", restrict_setting)
     config.set_restrict("docker-compose", restrict_docker_compose)
