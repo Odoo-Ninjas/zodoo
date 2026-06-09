@@ -12,7 +12,6 @@ from .tools import _wait_postgres
 from .tools import __replace_in_file
 from .tools import _wait_for_port
 from .tools import __dcexec
-from .tools import _is_in_container
 from .tools import __dc
 from .tools import __dc_out
 from .tools import _get_host_ip
@@ -1274,6 +1273,16 @@ def logall(config, machines, follow, lines):
 
 
 def shell(config, command="", queuejobs=False):
+    import time as _time
+
+    def _ts(label):
+        click.secho(
+            f"[shell-trace] {label:50s}  t={_time.monotonic():.3f}s",
+            fg="yellow",
+            err=True,
+        )
+
+    _ts("shell() called (host side)")
     # Only take the in-container shortcut when we are actually inside the
     # odoo container (where /odoolib exists). _is_in_container() is True for
     # ANY container - e.g. the instanceconsole - which would wrongly try to
@@ -1283,7 +1292,9 @@ def shell(config, command="", queuejobs=False):
         cmdline = ["/odoolib/entrypoint.sh", "/odoolib/shell.py"]
         if command:
             cmdline += [command]
+        _ts("in-container shortcut: running entrypoint.sh")
         res = subprocess.run(cmdline)
+        _ts("in-container shortcut: done")
         return res.returncode
     cmd = [
         "run",
@@ -1302,4 +1313,7 @@ def shell(config, command="", queuejobs=False):
     ]
     if queuejobs:
         cmd += ["--queuejobs"]
-    return __cmd_interactive(config, *(cmd + [command]))
+    _ts("docker compose run: starting")
+    rc = __cmd_interactive(config, *(cmd + [command]))
+    _ts("docker compose run: returned")
+    return rc
