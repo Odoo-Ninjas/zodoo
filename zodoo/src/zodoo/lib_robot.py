@@ -514,6 +514,24 @@ def _run_test(
             )
         else:
             try:
+                # Start full Odoo stack (proxy, odoo, etc.) for tests
+                Commands.invoke(ctx, "up", daemon=True)
+                # Wait for Odoo proxy to be healthy (up to 120s)
+                import time as _time
+                proxy_container = f"{config.project_name}_proxy"
+                for _i in range(60):
+                    import subprocess as _sp
+                    result = _sp.run(
+                        ["docker", "inspect", proxy_container,
+                         "--format", "{{.State.Health.Status}}"],
+                        capture_output=True, text=True
+                    )
+                    if "healthy" in result.stdout:
+                        click.secho(f"Odoo proxy healthy after {_i*2}s", fg="green")
+                        break
+                    _time.sleep(2)
+                else:
+                    click.secho("Warning: proxy not healthy after 120s, continuing anyway", fg="yellow")
                 Commands.invoke(
                     ctx, "up", daemon=True, machines=[selenium_service_name]
                 )
