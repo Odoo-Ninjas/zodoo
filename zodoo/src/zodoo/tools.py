@@ -1951,6 +1951,26 @@ def download_file(url):
         yield file
 
 
+def _sanitize_project_name(name, max_len=50):
+    """Shorten a project name to max_len characters.
+
+    Docker's embedded DNS server rejects labels longer than 63 chars.
+    Container names are <project>_<service>, so we cap the project name at 50
+    to leave room for any service suffix.
+
+    Strategy:
+      1. Strip underscores (they pad length without adding information).
+      2. If still too long, cut from the centre so both the prefix (which
+         encodes the product/repo) and the suffix (which often carries the
+         ticket number or branch tag) are preserved.
+    """
+    name = name.replace("_", "")
+    if len(name) > max_len:
+        half = max_len // 2
+        name = name[:half] + name[-(max_len - half) :]
+    return name
+
+
 def _get_default_project_name(restrict):
     from .exceptions import NoProjectNameException
 
@@ -1982,6 +2002,7 @@ def _get_default_project_name(restrict):
             name = root.name
             for c in " ?:/*\\!@#$%^&*().":
                 name = name.replace(c, "_")
+            name = _sanitize_project_name(name)
             return name
     raise NoProjectNameException(
         "No default project name could be determined."
