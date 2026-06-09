@@ -781,6 +781,10 @@ def make_variable_file(ctx, config, userpassword=None):
     data.setdefault("ROBO_ODOO_PASSWORD", "admin")
     data["project_name"] = config.project_name
     data["ROBO_ODOO_USER"] = "admin"
+    # Aliases for compatibility with robot_utils/keywords that use ODOO_USER etc.
+    data["ODOO_USER"] = data["ROBO_ODOO_USER"]
+    data["ODOO_PASSWORD"] = data.get("ROBO_ODOO_PASSWORD", "admin")
+    data["ODOO_URL"] = url
     data["ROBO_ODOO_VERSION"] = current_version()
     data["ROBO_ODOO_PORT"] = config.PROXY_PORT
     data["TEST_RUN_INDEX"] = 0
