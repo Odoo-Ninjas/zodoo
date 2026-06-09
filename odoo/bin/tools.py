@@ -377,11 +377,12 @@ def prepare_run_shared(local_config=None):
             out_dir.mkdir(parents=True, exist_ok=True)
         if out_dir.exists():
             if out_dir.stat().st_uid == 0:
-                # Big subtrees (filestore) are skipped on subsequent boots
-                # via the per-UID marker — the recursive chown is expensive
-                # and the FS state only needs fixing once after a fresh
-                # mount or a UID change.
+                # Big subtrees are skipped on subsequent boots via the
+                # per-UID marker.  data_dir itself must be included: a
+                # `chown -R data_dir` recurses into filestore/sessions/addons
+                # and is just as expensive as chowning them individually.
                 if chowned_for_this_uid and out_dir in (
+                    data_dir,
                     data_dir / "filestore",
                     data_dir / "sessions",
                     data_dir / "addons",
