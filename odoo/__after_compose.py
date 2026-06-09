@@ -138,6 +138,76 @@ def _remove_requirements_from_requirements(the_list, remove_this):
     return result
 
 
+def _check_fonttools_requirement(
+    config, settings, all_dependencies, project_dependencies, static_reqs_path
+):
+    """For Odoo 19+: warn if fonttools is missing and offer to add it to requirements.static."""
+    import sys
+
+    try:
+        odoo_version = float(settings.get("ODOO_VERSION", "0"))
+    except (ValueError, TypeError):
+        return
+
+    if odoo_version < 19.0:
+        return
+
+    all_names = {
+        _canonical_pip_name(p) for p in all_dependencies.get("pip", [])
+    }
+    if "fonttools" in all_names:
+        return
+
+    # Non-interactive: skip silently.
+    is_interactive_mode = (
+        os.getenv("ZODOO_INTERACTIVE", "1") == "1" and sys.stdin.isatty()
+    )
+    if not is_interactive_mode:
+        return
+
+    # Check if user previously said "no".
+    from zodoo.myconfigparser import MyConfigParser
+
+    project_settings_path = (config.files or {}).get("project_settings")
+    if project_settings_path and project_settings_path.exists():
+        proj_cfg = MyConfigParser(project_settings_path)
+        if proj_cfg.get("ZODOO_FONTTOOLS_SKIP", "0") == "1":
+            return
+
+    click.secho(
+        "\nOdoo 19: fonttools is not listed in requirements.txt but is required "
+        "for correct font/PDF rendering. zodoo can add it to requirements.static.",
+        fg="yellow",
+    )
+    add_it = click.confirm(
+        "Add fonttools to requirements.static?", default=True
+    )
+
+    if add_it:
+        existing = (
+            static_reqs_path.read_text() if static_reqs_path.exists() else ""
+        )
+        if existing and not existing.endswith("\n"):
+            existing += "\n"
+        static_reqs_path.write_text(existing + "fonttools\n")
+        all_dependencies["pip"] = _remove_requirements_from_requirements(
+            all_dependencies["pip"], ["fonttools"]
+        )
+        all_dependencies["pip"].append("fonttools")
+        project_dependencies["pip"].append("fonttools")
+        click.secho("fonttools added to requirements.static.", fg="green")
+    else:
+        if project_settings_path:
+            proj_cfg = MyConfigParser(project_settings_path)
+            proj_cfg["ZODOO_FONTTOOLS_SKIP"] = "1"
+            proj_cfg.write()
+            click.secho(
+                f"zodoo will not ask again. To re-enable: remove ZODOO_FONTTOOLS_SKIP "
+                f"from {project_settings_path}",
+                fg="yellow",
+            )
+
+
 def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
     from zodoo.odoo_config import customs_dir, MANIFEST
 
@@ -177,15 +247,23 @@ def _determine_requirements(config, yml, PYTHON_VERSION, settings, globals):
     )
 
     # add static requirements (project-local pins from requirements.static):
-    static_reqs = customs_dir() / "requirements.static"
-    if static_reqs.exists():
-        static_reqs = static_reqs.read_text().splitlines()
+    static_reqs_path = customs_dir() / "requirements.static"
+    if static_reqs_path.exists():
+        static_reqs = static_reqs_path.read_text().splitlines()
         # remove static requirements from collected deps:
         all_dependencies["pip"] = _remove_requirements_from_requirements(
             all_dependencies["pip"], static_reqs
         )
         all_dependencies["pip"] += static_reqs
         project_dependencies["pip"] += static_reqs
+
+    _check_fonttools_requirement(
+        config,
+        settings,
+        all_dependencies,
+        project_dependencies,
+        static_reqs_path,
+    )
 
     store_sha_of_external_deps(
         all_dependencies,
