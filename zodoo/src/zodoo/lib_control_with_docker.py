@@ -146,9 +146,12 @@ def _graceful_pg_shutdown(config):
     ]
     try:
         __dcexec(config, cmd, interactive=False, user="postgres")
-    except subprocess.CalledProcessError as e:
+    except Exception as e:
+        # Best-effort: any failure (non-zero pg_ctl, vanished container,
+        # exec error) must fall through to the subsequent docker compose
+        # stop rather than aborting the whole kill, as the message promises.
         click.secho(
-            f"pg_ctl graceful stop returned {e.returncode}; "
+            f"pg_ctl graceful stop failed ({e}); "
             "falling back to docker compose stop.",
             fg="yellow",
         )
@@ -250,6 +253,13 @@ def up(
     ]
     if not allow_build:
         options += ["--no-build"]
+    else:
+        # With --build, compose builds the project image whose
+        # `FROM ${BASE_TAG}` references the per-version base image. That base
+        # is built by `odoo build`, not by compose — so ensure it exists
+        # (build or pull) first, otherwise the compose build fails resolving
+        # the base tag (this is the registry-less CICD path that uses --build).
+        _ensure_base_image_for_build(config, machines)
     if force_recreate:
         options += ["--force-recreate"]
     if no_recreate:
@@ -427,6 +437,10 @@ def _legacy_role_match(config, machines):
 
 
 def _supervisor_action_role(config, action, role):
+    """Returns True when the action was confirmed (or is a definitional no-op,
+    e.g. stopping a role whose container isn't running), False when neither the
+    supervisor nor the compose fallback could carry it out. Callers that gate
+    DDL on a role being stopped must inspect the return value."""
     container = f"{config.project_name}_odoo"
     if action in ("stop", "restart") and not _is_container_running(
         config, "odoo"
@@ -435,7 +449,7 @@ def _supervisor_action_role(config, action, role):
             f"Container {container} is not running — skipping supervisor {action} {role}",
             fg="yellow",
         )
-        return
+        return True
     click.secho(
         f"Legacy service name → supervisor: {action} {role} in {container}",
         fg="yellow",
@@ -452,7 +466,7 @@ def _supervisor_action_role(config, action, role):
                 role,
             ]
         )
-        return
+        return True
     except subprocess.CalledProcessError as e:
         # Transition period: old containers may not ship supervisor.py yet,
         # or may not know the requested role. Fall back to compose-level ops
@@ -468,7 +482,7 @@ def _supervisor_action_role(config, action, role):
             fg="yellow",
         )
         if not legacy_name:
-            return
+            return False
     try:
         if action == "stop":
             __dc(config, ["stop", "-t", "2", legacy_name], profile="auto")
@@ -480,6 +494,7 @@ def _supervisor_action_role(config, action, role):
             )
         elif action == "restart":
             __dc(config, ["restart", legacy_name], profile="auto")
+        return True
     except subprocess.CalledProcessError as e2:
         # Legacy service may not exist in the current compose either. Don't
         # fail update over a best-effort op — caller recreates containers.
@@ -488,6 +503,7 @@ def _supervisor_action_role(config, action, role):
             f"({e2}). Continuing.",
             fg="red",
         )
+        return False
 
 
 def _supervisor_restart_role(config, role):
@@ -533,14 +549,22 @@ def stop_update_blocking_roles(config):
     # Gate the proxy *before* we stop web so external clients never
     # see the static-fallback 403 during an update.
     _touch_proxy_warmup_gate(config)
+    unconfirmed = []
     for role in _UPDATE_BLOCKING_ROLES:
-        try:
-            _supervisor_action_role(config, "stop", role)
-        except subprocess.CalledProcessError as e:
-            click.secho(
-                f"Warning: could not stop supervisor role {role}: {e}",
-                fg="yellow",
-            )
+        if not _supervisor_action_role(config, "stop", role):
+            unconfirmed.append(role)
+    if unconfirmed:
+        # Neither the supervisor nor the compose fallback could confirm the
+        # stop. The update proceeds, but DDL migrations may hit lock
+        # contention from workers still holding row/table locks — make this
+        # loud so it isn't lost in CI logs as a single yellow line.
+        click.secho(
+            f"WARNING: could not confirm stop of role(s) "
+            f"{', '.join(unconfirmed)} before update — DDL migrations may "
+            f"block on locks held by still-running workers.",
+            fg="red",
+            bold=True,
+        )
     # Pre-v14 layouts (and some current installs, e.g. cicd_app) also
     # run cronjobs/cronjobshell as separate compose services. Stop them
     # explicitly so their odoo workers release locks too. Skip services
