@@ -1,5 +1,14 @@
 # Changelog
 
+## 7.1.0
+
+
+- **Feature**: Odoo 19: check for missing fonttools and offer to add it to requirements.static on reload
+- **Feature**: odoo build --repair-zodoo-registry: rebuild locally and overwrite a corrupt/stale image in the zodoo (fast-build helper) registry; bundles --no-zodoo-pull + --force-zodoo-registry-push (-ZPf), asks interactively about --no-cache
+- **Feature**: odoo setup upgrade warns (and asks to wait) when CI pipelines are currently running on main, i.e. a new release is on the way; skipped in ZODOO_DEVMODE/ZODOO_ALPHA and never blocks on network errors
+- **Fix**: release workflow: skip tag creation if version tag already exists (idempotent)
+
+
 ## 7.0.0
 
 

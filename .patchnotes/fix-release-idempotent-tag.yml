@@ -1,3 +1,0 @@
-type: fix
-description: "release workflow: skip tag creation if version tag already exists (idempotent)"
-breaking: false
