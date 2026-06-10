@@ -151,16 +151,23 @@ jobs:
 
       - name: Commit and tag
         if: steps.check.outputs.skip == 'false'
+        id: tag
         run: |
+          if git rev-parse "v${{ steps.bump.outputs.version }}" >/dev/null 2>&1; then
+            echo "tagged=false" >> "$GITHUB_OUTPUT"
+            echo "Tag v${{ steps.bump.outputs.version }} already exists on remote, skipping."
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add VERSION CHANGELOG.md .patchnotes/ zodoo/src/setup.cfg zodoo/src/zodoo/version.txt
           git commit -m "release v${{ steps.bump.outputs.version }}"
           git tag "v${{ steps.bump.outputs.version }}"
           git push origin main --tags
+          echo "tagged=true" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
-        if: steps.check.outputs.skip == 'false'
+        if: steps.check.outputs.skip == 'false' && steps.tag.outputs.tagged == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
