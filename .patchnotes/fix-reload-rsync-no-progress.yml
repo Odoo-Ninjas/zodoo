@@ -1,0 +1,3 @@
+type: fix
+description: "odoo reload: rsync source syncs no longer print progress info (log noise); snapshot volume copies keep their progress"
+breaking: false

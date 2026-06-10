@@ -1530,20 +1530,17 @@ def sync_folder(dir, dest_dir, excludes=None):
         raise Exception(f"invalid dirs: {dir} {dest_dir}")
 
     if platform.system() in ["Linux", "Darwin"]:
-        cmd = list(
-            filter(
-                bool,
-                [
-                    "rsync",
-                    str(dir) + "/",
-                    str(dest_dir) + "/",
-                    rsync_progress_param(),
-                    "-r",
-                    "-l",
-                    "--delete-after",
-                ],
-            )
-        )
+        # No progress output here on purpose: sync_folder runs on every
+        # `odoo reload` for source trees and just spams the logs. The big
+        # snapshot volume copies keep their progress (lib_db_snapshots_*).
+        cmd = [
+            "rsync",
+            str(dir) + "/",
+            str(dest_dir) + "/",
+            "-r",
+            "-l",
+            "--delete-after",
+        ]
         for exclude in list(excludes or []) + ["__pycache__", "*.pyc"]:
             cmd += [f"--exclude={exclude}"]
         subprocess.check_call(cmd)
