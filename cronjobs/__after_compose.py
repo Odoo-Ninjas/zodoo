@@ -10,7 +10,7 @@ dir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 
 
 def after_compose(config, settings, yml, globals):
-    shutil.copy(
+    shutil.copyfile(
         current_dir.parent / "common_snippets" / "set_docker_group.sh",
         current_dir / "bin" / "set_docker_group.sh",
     )

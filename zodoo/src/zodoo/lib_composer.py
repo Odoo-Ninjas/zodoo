@@ -673,7 +673,7 @@ def _copy_all_dockerfiles_to_run_dir_and_set_dockerfile_in_dockercompose(
 
     for service_name in yamlcompose["services"]:
         service = yamlcompose["services"][service_name]
-        if service.get("image"):
+        if service.get("image") and not service.get("build"):
             continue
         buildcontext = service.get("build", {}).get("context")
         if not buildcontext:
@@ -954,8 +954,14 @@ def _execute_after_settings(config):
     """
     from .myconfigparser import MyConfigParser
 
+    import glob as _glob
+
     settings = MyConfigParser(config.files["settings"])
-    for module in config.dirs["images"].glob("**/__after_settings.py"):
+    for module_path in _glob.glob(
+        str(config.dirs["images"] / "**" / "__after_settings.py"),
+        recursive=True,
+    ):
+        module = Path(module_path)
         if module.is_dir():
             continue
         spec = importlib.util.spec_from_file_location(

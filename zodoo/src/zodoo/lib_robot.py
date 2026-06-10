@@ -391,6 +391,7 @@ def run(
                 profile="auto",
             )
         _wait_for_odoo_ready(config)
+        _wait_for_warmup_done(config)
 
         res = _run_test(
             ctx,
@@ -467,8 +468,9 @@ def _run_test(
 
     def params():
         ODOO_VERSION = str(manifest["version"])
+        robot_url_prefix = getattr(config, "ROBOT_URL_PREFIX", "") or ""
         params = {
-            "url": "http://proxy",
+            "url": f"http://proxy{robot_url_prefix}",
             "user": user,
             "dbname": config.DBNAME,
             "password": pwd,
@@ -703,6 +705,30 @@ def _wait_for_odoo_ready(config, timeout=180):
         time.sleep(3)
     click.secho(
         "Warning: Odoo readiness check timed out, proceeding anyway.",
+        fg="yellow",
+    )
+
+
+def _wait_for_warmup_done(config, timeout=300):
+    """Wait until the proxy warmup sentinel is cleared inside the odoo container."""
+    odoo_container = f"{config.project_name}_odoo"
+    sentinel = "/var/run/proxy_exchange/warmup_in_progress"
+    deadline = time.time() + timeout
+    click.secho(
+        f"Waiting for Odoo warmup to complete (up to {timeout}s)...",
+        fg="yellow",
+    )
+    while time.time() < deadline:
+        result = subprocess.run(
+            ["docker", "exec", odoo_container, "test", "-f", sentinel],
+            capture_output=True,
+        )
+        if result.returncode != 0:
+            click.secho("Odoo warmup complete!", fg="green")
+            return
+        time.sleep(3)
+    click.secho(
+        "Warning: warmup sentinel still present after timeout, proceeding anyway.",
         fg="yellow",
     )
 

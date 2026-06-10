@@ -27,7 +27,7 @@ def after_compose(config, settings, yml, globals):
     # store also in clear text the requirements
     from zodoo.odoo_config import MANIFEST
 
-    shutil.copy(
+    shutil.copyfile(
         current_dir.parent / "common_snippets" / "set_docker_group.sh",
         current_dir / "set_docker_group.sh",
     )

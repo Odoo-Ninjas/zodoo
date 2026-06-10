@@ -1,0 +1,3 @@
+type: fix
+description: "robot: wait for proxy warmup sentinel before starting tests, ROBOT_URL_PREFIX setting, pass uppercase run-parameters as robot variables; composer: build services that define both image and build, glob-based __after_settings.py discovery; use shutil.copyfile for set_docker_group.sh"
+breaking: false

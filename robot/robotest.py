@@ -92,6 +92,20 @@ def _run_test(
     def run_robot(index):
         effective_variables = {}
         effective_variables["TEST_RUN_INDEX"] = index
+        # Explicit lowercase→ROBOT_VAR mappings
+        param_to_robot = {
+            "url": "ODOO_URL",
+            "user": "ODOO_USER",
+            "password": "ODOO_PASSWORD",
+            "dbname": "ODOO_DB",
+        }
+        for param_key, robot_var in param_to_robot.items():
+            if param_key in run_parameters:
+                effective_variables[robot_var] = run_parameters[param_key]
+        # Pass all uppercase params directly as robot variables
+        for k, v in run_parameters.items():
+            if k.isupper() and ":" not in k:
+                effective_variables[k] = v
 
         started = arrow.utcnow()
         effective_output_dir = output_dir / str(index)
