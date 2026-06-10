@@ -1,0 +1,74 @@
+// Grafana Alloy (Promtail's successor) — unified collector for the dashboard.
+//   1. ships every container's stdout/stderr to Loki  -> "errors last 24h", log stats
+//   2. tails the proxy's JSON access log, extracts request metrics for Prometheus
+//      and forwards the structured lines to Loki -> per-route response time, slowest routes
+
+logging {
+  level  = "warn"
+  format = "logfmt"
+}
+
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// 1) All container logs -> Loki
+//
+// MULTI-TENANCY CAVEAT: discovery.docker sees EVERY container on the host, so
+// on a host that runs several zodoo projects this Loki ingests all of their
+// logs. The dashboards scope to the current project via the `container=~
+// "$project.*"` selectors, but a user could still read other projects' logs
+// via Grafana Explore (/logs2). On the usual one-project-per-host/VM zodoo
+// deploy this is a non-issue. To harden multi-tenant hosts, add a relabel
+// `keep` rule below filtering __meta_docker_container_label_com_docker_compose_project
+// to this project -- that needs the project name available in the alloy
+// container env (currently absent), so it is a follow-up that must be tested
+// live before shipping.
+/////////////////////////////////////////////////////////////////////////////
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/?(.*)"
+    target_label  = "container"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_log_stream"]
+    target_label  = "stream"
+  }
+}
+
+loki.source.docker "containers" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.docker.containers.targets
+  relabel_rules = discovery.relabel.containers.rules
+  labels        = { job = "docker" }
+  forward_to    = [loki.write.default.receiver]
+}
+
+/////////////////////////////////////////////////////////////////////////////
+// 2) nginx JSON access log -> request metrics (Prometheus) + structured Loki
+/////////////////////////////////////////////////////////////////////////////
+local.file_match "nginx" {
+  path_targets = [{
+    __path__ = "/var/log/nginx/access.json",
+    job      = "nginx",
+  }]
+}
+
+// The proxy already writes one JSON object per line, so no processing is
+// needed: ship the raw lines under the single stream label job="nginx".
+// The dashboard parses status / request_time / uri at query time with
+// `| json`, which keeps response-time percentile queries to a single series.
+loki.source.file "nginx" {
+  targets    = local.file_match.nginx.targets
+  forward_to = [loki.write.default.receiver]
+}

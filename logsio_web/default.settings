@@ -1,2 +1,5 @@
-RUN_LOGSIO_WEB=1
+# Superseded by the dashboard service (Loki/Alloy logs on /logs). Off by default;
+# set RUN_LOGSIO_WEB=1 to use the legacy log.io UI instead (then disable the
+# dashboard's /logs route to avoid both claiming /logs).
+RUN_LOGSIO_WEB=0
 LOGS_PASSWORD=

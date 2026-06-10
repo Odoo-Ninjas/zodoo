@@ -1,4 +1,10 @@
 #manage-order: 5000
+volumes:
+  # shared with the dashboard's Alloy collector: the nginx JSON access log.
+  # Declared here (proxy always runs) so the mount is valid even when the
+  # dashboard service is disabled.
+  dashboard_nginx_logs:
+
 services:
   proxy_abstract:
     build: $ODOO_IMAGES/proxy
@@ -23,6 +29,8 @@ services:
       - $ODOO_IMAGES/proxy/static:/usr/local/openresty/nginx/static:ro
       - $ODOO_IMAGES/proxy/lua/template.lua:/opt/template.lua
       - ${ODOO_IMAGES}/proxy/lua/myngx.lua:/usr/local/openresty/luajit/share/lua/5.1/myngx.lua
+      - ${ODOO_IMAGES}/proxy/lua/dashauth.lua:/usr/local/openresty/luajit/share/lua/5.1/dashauth.lua
+      - dashboard_nginx_logs:/var/log/nginx
 
     logging:
       driver: "json-file"

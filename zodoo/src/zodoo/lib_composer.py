@@ -1419,9 +1419,21 @@ def create_directories(config, content):
                         host_path.touch()
                     else:
                         host_path.mkdir(parents=True, exist_ok=True)
-                except PermissionError:
-                    if "docker.sock" in str(host_path):
+                except (PermissionError, OSError):
+                    # Some bind sources are resolved by the docker daemon, not
+                    # on the host: the docker socket, and Linux system paths
+                    # such as /sys, /proc, /dev and /var/lib/docker that
+                    # monitoring sidecars (cadvisor, node-exporter) mount.
+                    # On Docker Desktop for Mac/Windows these do not exist on
+                    # the host and cannot be created (/ is read-only); the
+                    # daemon mounts them from its VM. Skip here and let `up`
+                    # surface any genuine problem.
+                    sp = str(host_path)
+                    if "docker.sock" in sp or sp.startswith(
+                        ("/sys", "/proc", "/dev", "/var/lib/docker")
+                    ):
                         continue
+                    raise
 
 
 def _fix_contents(contents):
@@ -2227,9 +2239,7 @@ def _write_text_with_sudo_fallback(path, text):
             ["sudo", "-n", "chown", f"{uid}:{gid}", str(path)],
             check=False,
         )
-        click.secho(
-            f"Reclaimed root-owned {path} via sudo.", fg="yellow"
-        )
+        click.secho(f"Reclaimed root-owned {path} via sudo.", fg="yellow")
     except subprocess.CalledProcessError as ex:
         click.secho(
             f"Cannot write {path}: permission denied and sudo failed ({ex}).",
@@ -2347,7 +2357,9 @@ def setup_launch_json(config):
     content["configurations"] += template["configurations"]
     content_task["tasks"] += template["tasks"]
     _write_text_with_sudo_fallback(launch_json, json.dumps(content, indent=4))
-    _write_text_with_sudo_fallback(task_json, json.dumps(content_task, indent=4))
+    _write_text_with_sudo_fallback(
+        task_json, json.dumps(content_task, indent=4)
+    )
 
     setup_vscode_settings(config)
     click.secho(f"VSCode launch.json updated at {launch_json}", fg="green")

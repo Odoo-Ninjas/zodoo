@@ -1,0 +1,13 @@
+# Per-instance monitoring dashboard (Grafana + Prometheus + Loki + Alloy + exporters).
+# Reachable through the proxy under /system .
+RUN_DASHBOARD=1
+DASHBOARD_GRAFANA_ADMIN_PASSWORD=admin
+# Prometheus metric retention.
+DASHBOARD_PROMETHEUS_RETENTION=15d
+# Loki log retention (must be a Go duration, e.g. 168h = 7d).
+DASHBOARD_LOKI_RETENTION=168h
+# Password for the proxy's password-only gate on /system, /logs and /logs2
+# (no username; see proxy/lua/dashauth.lua). Left empty here: auto-generated
+# on non-DEVMODE instances (see __after_settings.py) and skipped entirely in
+# DEVMODE (empty -> gate disabled, no prompt).
+DASHBOARD_PASSWORD=

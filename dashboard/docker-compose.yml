@@ -1,0 +1,177 @@
+#manage-order: 8500
+# Monitoring dashboard stack. Enabled via RUN_DASHBOARD=1 (default).
+# Grafana is published through the proxy under /system (see proxy/dashboard.conf),
+# all other components stay internal (expose only, no host ports).
+volumes:
+  dashboard_grafana_data:
+  dashboard_prometheus_data:
+  dashboard_loki_data:
+  dashboard_alloy_data:
+
+services:
+  grafana:
+    image: grafana/grafana:11.4.0
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+      - loki
+    labels:
+      proxy_config: ${ODOO_IMAGES}/dashboard/proxy/dashboard.conf
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${DASHBOARD_GRAFANA_ADMIN_PASSWORD:-admin}
+      # Served behind the proxy under /system . A path-only root_url keeps this
+      # host-agnostic (the proxy may be reached via localhost, an IP, or a
+      # domain) while serve_from_sub_path makes Grafana emit assets under /system.
+      GF_SERVER_ROOT_URL: "/system/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_USERS_DEFAULT_THEME: "dark"
+      # frictionless, "kiosk-style" access: no login wall, land straight on the
+      # overview dashboard. Access is gated by the proxy password.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+      GF_AUTH_ANONYMOUS_HIDE_VERSION: "true"
+      # Basic auth is disabled: the proxy gate handles access (password-only),
+      # and Grafana must stay anonymous. The gate does not forward any
+      # Authorization header, so there is nothing for Grafana to authenticate.
+      GF_AUTH_BASIC_ENABLED: "false"
+      # No Grafana web login at all: dashboards/datasources are file-provisioned
+      # and everyone behind the gate is an anonymous Viewer, so the login form
+      # would only expose the admin account (admin/<password>) for someone past
+      # the gate. Disable it. (Flip to "false" temporarily if UI admin needed.)
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/zodoo-overview.json
+      GF_USERS_DEFAULT_LANGUAGE: "en-US"
+    expose:
+      - 3000
+    volumes:
+      - dashboard_grafana_data:/var/lib/grafana
+      - $ODOO_IMAGES/dashboard/grafana/provisioning:/etc/grafana/provisioning:ro
+      - $ODOO_IMAGES/dashboard/grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${DASHBOARD_PROMETHEUS_RETENTION:-15d}
+      - --web.enable-lifecycle
+    expose:
+      - 9090
+    volumes:
+      - $ODOO_IMAGES/dashboard/config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - dashboard_prometheus_data:/prometheus
+
+  loki:
+    image: grafana/loki:3.3.2
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki-config.yml -config.expand-env=true
+    expose:
+      - 3100
+    volumes:
+      - $ODOO_IMAGES/dashboard/config/loki-config.yml:/etc/loki/loki-config.yml:ro
+      - dashboard_loki_data:/loki
+
+  alloy:
+    image: grafana/alloy:v1.5.1
+    restart: unless-stopped
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    depends_on:
+      - loki
+    expose:
+      - 12345
+    volumes:
+      - $ODOO_IMAGES/dashboard/config/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # shared with the proxy: the nginx JSON access log
+      - dashboard_nginx_logs:/var/log/nginx:ro
+      # persist log-tail positions so a container recreation doesn't re-ship
+      # the whole container-log history
+      - dashboard_alloy_data:/var/lib/alloy/data
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    restart: unless-stopped
+    privileged: true
+    expose:
+      - 8080
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  node_exporter:
+    image: prom/node-exporter:v1.8.2
+    restart: unless-stopped
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/host/root
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+    expose:
+      - 9100
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro
+
+  postgres_exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.16.0
+    restart: unless-stopped
+    # Disable the exporter's legacy built-in metrics: one of them queries the
+    # checkpoints_timed column which PostgreSQL 17 moved to
+    # pg_stat_checkpointer, erroring every scrape and spamming both the exporter
+    # and postgres logs. Everything the dashboard needs is defined explicitly in
+    # postgres_exporter_queries.yml (PG17-compatible), so nothing is lost.
+    command:
+      - --disable-default-metrics
+      - --no-collector.stat_bgwriter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${DB_USER:-odoo}:${DB_PWD:-odoo}@${DB_HOST:-postgres}:${DB_PORT:-5432}/${DBNAME:-postgres}?sslmode=disable"
+      PG_EXPORTER_EXTEND_QUERY_PATH: /etc/postgres_exporter/queries.yml
+    expose:
+      - 9187
+    volumes:
+      - $ODOO_IMAGES/dashboard/config/postgres_exporter_queries.yml:/etc/postgres_exporter/queries.yml:ro
+
+  nginx_exporter:
+    image: nginx/nginx-prometheus-exporter:1.4.0
+    restart: unless-stopped
+    command:
+      - --nginx.scrape-uri=http://proxy:81/stub_status
+    expose:
+      - 9113
+
+  odoo_metrics_exporter:
+    build:
+      context: $ODOO_IMAGES/dashboard
+    restart: unless-stopped
+    environment:
+      # all settings are injected via env_file by the composer; these are the
+      # ones the exporter reads explicitly (documented here for clarity):
+      #   DBNAME, DB_HOST, DB_PORT, DB_USER, DB_PWD,
+      #   ODOO_WORKERS_WEB, ODOO_MAX_CRON_THREADS, ODOO_QUEUEJOBS_CHANNELS
+      EXPORTER_PORT: "9333"
+      # the exporter measures /opt/files/filestore/<DBNAME> with du (actual
+      # disk usage -- catches orphaned filestore files that the DB no longer
+      # references, which a sum over ir_attachment would miss).
+      FILESTORE_ROOT: /opt/files
+      # how often du re-measures (seconds); large default, the size changes slowly
+      EXPORTER_FILESTORE_REFRESH: "900"
+    expose:
+      - 9333
+    volumes:
+      # Mount ONLY this instance's filestore subdir, not the whole shared
+      # ~/.odoo/files (which holds every project's filestore on the host), so
+      # the exporter cannot see other projects. zodoo create_directories
+      # pre-creates this source as the host user before `up`, so there is no
+      # root-owned auto-create that would break a fresh DB's filestore writes.
+      - ${ODOO_FILES}/filestore/${DBNAME}:/opt/files/filestore/${DBNAME}:ro
