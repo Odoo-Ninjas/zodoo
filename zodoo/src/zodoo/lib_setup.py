@@ -1082,3 +1082,8 @@ def fix_permissions(config, paths):
 Commands.register(status)
 Commands.register(fix_permissions)
 Commands.register(edit_msg)
+
+# Register status directly in the top-level cli group so `odoo status`
+# resolves via exact match instead of AliasedGroup's subgroup search.
+# Without this, barman/status wins the tie (barman < setup alphabetically).
+cli.add_command(status)

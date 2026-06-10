@@ -81,13 +81,6 @@ def barman_list(config):
 )
 @pass_config
 def barman_status(config):
-    if not config.run_barman:
-        click.secho(
-            "Barman is not enabled. Set RUN_BARMAN=1 (and on DEVMODE machines "
-            "BARMAN_FORCE_IN_DEVMODE=1), then `odoo reload && odoo up -d`.",
-            fg="yellow",
-        )
-        return
     _barman_exec(config, ["status", SERVER])
 
 
@@ -501,6 +494,11 @@ def barman_switch_wal(config):
 
 Commands.register(barman_backup)
 Commands.register(barman_recover)
+
+# Top-level shortcut: `odoo barman-status` → same as `odoo barman status`.
+# The hyphenated name avoids the AliasedGroup tie with `setup status` that
+# caused `odoo status` to resolve to barman's status instead of setup's.
+cli.add_command(barman_status, name="barman-status")
 
 
 # --------------------------------------------------------------------------- #
