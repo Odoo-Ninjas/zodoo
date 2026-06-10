@@ -1135,6 +1135,7 @@ def update(
     updateinprogress.parent.mkdir(parents=True, exist_ok=True)
     if not config.DEVMODE and updateinprogress:
         atomic_write_text(updateinprogress, "1")
+    safepoint_marker = None
     try:
 
         started = arrow.get()
@@ -1214,6 +1215,18 @@ def update(
             from .lib_control_with_docker import stop_update_blocking_roles
 
             stop_update_blocking_roles(config)
+            # Writers are stopped now and postgres is up: take a barman PITR
+            # safepoint so a failed update can be rewound (opt-in via
+            # BARMAN_GUARD_UPDATE=1 + RUN_BARMAN=1).
+            from . import lib_barman
+
+            if lib_barman.guard_update_enabled(config):
+                safepoint_marker = lib_barman.create_update_safepoint(config)
+                if safepoint_marker:
+                    click.secho(
+                        f"Barman update safepoint set: {safepoint_marker}",
+                        fg="green",
+                    )
         manifest = MANIFEST()
         if manifest.get("before-odoo-update", []) and not no_scripts:
             if os.getenv("NO_BEFORE_ODOO_COMMAND") != "1":
@@ -1312,6 +1325,14 @@ def update(
                 customs_dir() / ".gitignore",
                 update_log_file.relative_to(customs_dir()),
             )
+    except Exception:
+        if safepoint_marker:
+            from . import lib_barman
+
+            lib_barman.offer_safepoint_rollback(
+                ctx, config, safepoint_marker, non_interactive
+            )
+        raise
     finally:
         atomic_write_text(updateinprogress, "0")
 

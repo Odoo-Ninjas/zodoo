@@ -1,0 +1,21 @@
+[odoo]
+description = "Odoo PostgreSQL (zodoo) - streaming backup + PITR"
+
+# Connection used for management/queries and for the streaming replication
+# protocol. We reuse the odoo superuser; a superuser has the REPLICATION
+# privilege implicitly, so no extra role is needed.
+conninfo = host=${DB_HOST} port=${DB_PORT} user=${DB_USER} dbname=postgres
+streaming_conninfo = host=${DB_HOST} port=${DB_PORT} user=${DB_USER} dbname=postgres
+
+# Streaming-only setup: no SSH, no archive_command. Base backups are taken with
+# pg_basebackup over the replication protocol, WAL is streamed continuously with
+# pg_receivewal into a replication slot so nothing is lost between full backups.
+backup_method = postgres
+streaming_archiver = on
+slot_name = barman
+create_slot = auto
+
+# Point-in-time-recovery window. Older backups + WAL are expired automatically.
+retention_policy = ${BARMAN_RETENTION}
+retention_policy_mode = auto
+minimum_redundancy = 1
