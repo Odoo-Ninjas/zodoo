@@ -52,8 +52,19 @@ def _arch():
     return machine
 
 
-def _resolve_version_dir(odoo_version):
-    """Locate ``odoo/config/<v>/`` accepting both float and int spellings."""
+def _resolve_version_dir(odoo_version, images_dir=None):
+    """Locate ``odoo/config/<v>/`` accepting both float and int spellings.
+
+    ``images_dir`` overrides the module-level default (``~/.odoo/images``)
+    so callers that already resolved the images tree from the project
+    config (which honors the ``ODOO_IMAGES`` env override) look in the
+    right place instead of silently falling back to the installed copy.
+    """
+    config_dir = (
+        Path(images_dir) / "odoo" / "config"
+        if images_dir is not None
+        else ODOO_CONFIG_DIR
+    )
     candidates = [str(odoo_version)]
     try:
         as_float = float(odoo_version)
@@ -62,15 +73,15 @@ def _resolve_version_dir(odoo_version):
     except (TypeError, ValueError):
         pass
     for variant in candidates:
-        path = ODOO_CONFIG_DIR / variant
+        path = config_dir / variant
         if path.is_dir():
             return path
     return None
 
 
-def base_dockerfile_path(odoo_version):
+def base_dockerfile_path(odoo_version, images_dir=None):
     """Return path to ``Dockerfile.base`` for the given version, or None."""
-    version_dir = _resolve_version_dir(odoo_version)
+    version_dir = _resolve_version_dir(odoo_version, images_dir=images_dir)
     if version_dir is None:
         return None
     candidate = version_dir / "Dockerfile.base"

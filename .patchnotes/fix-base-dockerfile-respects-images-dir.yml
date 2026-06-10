@@ -1,0 +1,3 @@
+type: fix
+description: "base_dockerfile_path resolves against the project's images dir (honors ODOO_IMAGES) instead of hardcoded ~/.odoo/images; remove duplicated _locate_odoo_config_dockerfile"
+breaking: false
