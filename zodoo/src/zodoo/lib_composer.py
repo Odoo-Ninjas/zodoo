@@ -928,7 +928,10 @@ def _execute_after_compose(config, yml):
 
                 except Exception as ex:
                     msg = traceback.format_exc()
-                    click.secho(f"Warning: after_compose failed: {module.__file__}", fg="yellow")
+                    click.secho(
+                        f"Warning: after_compose failed: {module.__file__}",
+                        fg="yellow",
+                    )
                     click.secho(str(ex))
 
                 duration = (arrow.get() - started).total_seconds()
@@ -1707,15 +1710,18 @@ def _merge_odoo_dockerfile(config, yamlcompose):
     use_base_split = base_inputs is not None
 
     dockerfile1 = None
-    for service in yamlcompose["services"]:
-        service = yamlcompose["services"][service]
+    for service_name in yamlcompose["services"]:
+        service = yamlcompose["services"][service_name]
         dockerfile = service.get("build", {})
         if isinstance(dockerfile, str):
             continue
         dockerfile = dockerfile.get("dockerfile")
         if not dockerfile:
             continue
-        if "odoo/images/odoo" in dockerfile:
+        # Match the odoo service by name (not by path) so both the legacy
+        # odoo/images/odoo path and the newer Dockerfiles/odoo generated path
+        # are handled correctly.
+        if service_name == "odoo" or "odoo/images/odoo" in dockerfile:
             shutil.copy(dockerfile, config.files["odoo_docker_file"])
             dockerfile1 = dockerfile
             service["build"]["dockerfile"] = str(

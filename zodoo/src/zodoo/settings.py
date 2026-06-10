@@ -86,15 +86,22 @@ def _collect_settings_files(config, quiet=False):
 
     if config.dirs:
         _files.append(config.dirs["odoo_home"] / "defaults")
-        # optimize
-        for filename in config.dirs["images"].glob("**/default.settings"):
-            _files.append(config.dirs["images"] / filename)
+        # Use bashfind(-L) so symlinked image subdirectories are traversed.
+        # pathlib.glob("**") does not follow symlinks in Python ≤3.12.
+        from .tools import bashfind
+
+        for filename in bashfind(
+            config.dirs["images"], name="default.settings"
+        ):
+            _files.append(filename)
     if config.restrict.get("settings"):
         # System-wide settings (/etc/odoo/settings) are always merged in
         # front of the restricted file(s) so host-level overrides
         # (APT_PROXY_IP, PIP_PROXY_IP, …) still apply when a wrapper uses
         # -xs to pin a project-specific settings file.
-        system_settings = config.files.get("system_settings") if config.files else None
+        system_settings = (
+            config.files.get("system_settings") if config.files else None
+        )
         if system_settings and Path(system_settings).exists():
             _files.append(system_settings)
         _files += config.restrict["settings"]

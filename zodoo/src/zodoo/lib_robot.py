@@ -375,6 +375,23 @@ def run(
                     modules=modules_to_uninstall,
                 )
 
+        # Ensure odoo and proxy are running before the robot test.
+        # Use profile="auto" — lib_composer gives every service profiles: [auto],
+        # so profile="all" (which includes "manual") would fail with
+        # "no such service: odoo".
+        # Always start proxy: robot tests use ROBO_ODOO_HOST=http://proxy and
+        # config.RUN_PROXY may be unset even when the proxy service is defined.
+        for machine in ["odoo", "proxy"]:
+            Commands.invoke(
+                ctx,
+                "up",
+                daemon=True,
+                machines=[machine],
+                no_recreate=True,
+                profile="auto",
+            )
+        _wait_for_odoo_ready(config)
+
         res = _run_test(
             ctx,
             config,
@@ -518,20 +535,33 @@ def _run_test(
                 Commands.invoke(ctx, "up", daemon=True)
                 # Wait for Odoo proxy to be healthy (up to 120s)
                 import time as _time
+
                 proxy_container = f"{config.project_name}_proxy"
                 for _i in range(60):
                     import subprocess as _sp
+
                     result = _sp.run(
-                        ["docker", "inspect", proxy_container,
-                         "--format", "{{.State.Health.Status}}"],
-                        capture_output=True, text=True
+                        [
+                            "docker",
+                            "inspect",
+                            proxy_container,
+                            "--format",
+                            "{{.State.Health.Status}}",
+                        ],
+                        capture_output=True,
+                        text=True,
                     )
                     if "healthy" in result.stdout:
-                        click.secho(f"Odoo proxy healthy after {_i*2}s", fg="green")
+                        click.secho(
+                            f"Odoo proxy healthy after {_i*2}s", fg="green"
+                        )
                         break
                     _time.sleep(2)
                 else:
-                    click.secho("Warning: proxy not healthy after 120s, continuing anyway", fg="yellow")
+                    click.secho(
+                        "Warning: proxy not healthy after 120s, continuing anyway",
+                        fg="yellow",
+                    )
                 Commands.invoke(
                     ctx, "up", daemon=True, machines=[selenium_service_name]
                 )
@@ -617,6 +647,64 @@ def _clone_seleniumdriver_template(ctx, config, appendix):
     with atomic_write(config.files["docker_compose"]) as file:
         file.write_text(_yamldump(yml))
     return service_name
+
+
+def _wait_for_odoo_ready(config, timeout=180):
+    """Poll until the odoo container serves HTTP or the timeout is reached."""
+    odoo_container = f"{config.project_name}_odoo"
+    deadline = time.time() + timeout
+    click.secho(
+        f"Waiting for odoo container {odoo_container} to be ready (up to {timeout}s)...",
+        fg="yellow",
+    )
+    while time.time() < deadline:
+        try:
+            result = subprocess.run(
+                [
+                    "docker",
+                    "inspect",
+                    "--format={{.State.Health.Status}}",
+                    odoo_container,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            status = result.stdout.strip()
+            if status == "healthy":
+                click.secho("Odoo is healthy!", fg="green")
+                return
+            if status == "unhealthy":
+                click.secho(
+                    "Odoo reports unhealthy; proceeding anyway.", fg="red"
+                )
+                return
+            if not status or status == "<no value>":
+                # Container has no healthcheck — fall back to a TCP check via docker exec
+                rc = subprocess.run(
+                    [
+                        "docker",
+                        "exec",
+                        odoo_container,
+                        "curl",
+                        "-sf",
+                        "--max-time",
+                        "3",
+                        "http://localhost:8069/",
+                    ],
+                    capture_output=True,
+                    timeout=8,
+                ).returncode
+                if rc == 0:
+                    click.secho("Odoo is responding on port 8069!", fg="green")
+                    return
+        except Exception:
+            pass
+        time.sleep(3)
+    click.secho(
+        "Warning: Odoo readiness check timed out, proceeding anyway.",
+        fg="yellow",
+    )
 
 
 def _prepare_fresh_robotest(ctx):
