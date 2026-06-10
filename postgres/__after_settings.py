@@ -148,7 +148,20 @@ def _compute_max_connections(settings):
 
     # When the user pinned max_connections, the server runs with that value, so
     # keep the odoo-side ceiling in sync with it instead of the computed value.
-    if user_override_max_conn and user_max_conn_value is not None:
+    if user_override_max_conn:
+        if user_max_conn_value is None:
+            import sys
+
+            import click
+
+            click.secho(
+                "ERROR: max_connections is set in your postgres config but "
+                "could not be parsed as an integer. Fix the value and re-run "
+                "odoo reload.",
+                fg="red",
+                bold=True,
+            )
+            sys.exit(1)
         settings["DB_MAXCONN"] = str(user_max_conn_value)
     else:
         settings["DB_MAXCONN"] = str(max_conn)

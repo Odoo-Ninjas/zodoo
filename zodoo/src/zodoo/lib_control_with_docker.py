@@ -494,6 +494,8 @@ def _supervisor_action_role(config, action, role):
             )
         elif action == "restart":
             __dc(config, ["restart", legacy_name], profile="auto")
+        else:
+            raise ValueError(f"unknown supervisor action {action!r}")
         return True
     except subprocess.CalledProcessError as e2:
         # Legacy service may not exist in the current compose either. Don't

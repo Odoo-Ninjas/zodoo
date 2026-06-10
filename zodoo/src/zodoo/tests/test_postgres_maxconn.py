@@ -79,10 +79,21 @@ def test_malformed_input_falls_back_to_floor_never_unset():
     assert s["DB_MAXCONN"] == "100"
 
 
-def test_malformed_channels_falls_back_to_floor():
+def test_malformed_channels_uses_parse_fallback_and_hits_floor():
+    # _parse_channels handles "root" (no ":n") internally via IndexError → 1,
+    # so no exception propagates; the floor is hit because the computed value
+    # (ceil(10*3)+50=80) is below MIN_FLOOR=100.
     s = {"ODOO_QUEUEJOBS_CHANNELS": "root"}  # missing ":n"
     _compute(s)
     assert s["DB_MAXCONN"] == "100"
+
+
+def test_unparseable_user_override_aborts():
+    # When the user sets max_connections but the value cannot be parsed,
+    # zodoo must abort hard (sys.exit) rather than silently falling back to
+    # the computed value — the user's intent was to cap connections lower.
+    with pytest.raises(SystemExit):
+        _compute({"POSTGRES_CONFIG": "max_connections=not-a-number"})
 
 
 def test_non_root_channels_drive_worker_count():
