@@ -1,4 +1,3 @@
-import json
 import re
 import subprocess
 import sys
@@ -11,10 +10,9 @@ from pathlib import Path
 from .cli import cli, pass_config, Commands
 from .lib_clickhelpers import AliasedGroup
 from .tools import abort
+from .tools import __dc
 from .tools import __dcexec
 from .tools import __get_cmd
-from .tools import __get_postgres_volume_name
-from .tools import autocleanpaper
 
 SERVER = "odoo"
 
@@ -215,32 +213,26 @@ def _perform_recover(ctx, config, backup_id, target_time, target_name):
     if not host_recovered.exists():
         abort(f"Recovered datadir not found at {host_recovered} on the host.")
 
-    # 2) Stop everything and swap the recovered datadir into the postgres volume.
+    # 2) Stop everything and swap the recovered datadir into the postgres
+    #    volume. The swap runs inside a one-off postgres container
+    #    (`docker compose run`) instead of against the volume's host
+    #    mountpoint: /var/lib/docker/volumes/... is only reachable on a
+    #    Linux host with a local daemon — on Docker Desktop / Colima /
+    #    remote daemons it lives inside the VM, so host-side writes fail
+    #    (and the old sudo fallback can't prompt in non-interactive runs).
     Commands.invoke(ctx, "down")
-    volume = json.loads(
-        subprocess.check_output(
-            [
-                "docker",
-                "volume",
-                "inspect",
-                __get_postgres_volume_name(config),
-            ],
-            encoding="utf-8",
-        )
-    )
-    mountpoint = volume[0]["Mountpoint"]
-    pgdata = f"{mountpoint}/pgdata"
+    # Paths inside the postgres service container: compose mounts the
+    # postgres volume at /var/lib/postgresql/data and $DUMPS_PATH at
+    # /opt/dumps (postgres/docker-compose.yml).
+    data_mount = "/var/lib/postgresql/data"
+    pgdata = f"{data_mount}/pgdata"
     # Build the recovered datadir alongside the live one and swap it in with an
     # atomic rename, so the live volume is never left half-written if the
     # operation is interrupted (e.g. power loss mid-copy). The previous datadir
     # is kept as a rollback.
-    pgdata_new = f"{mountpoint}/pgdata.barman_new"
-    pgdata_prev = f"{mountpoint}/pgdata.prev"
-    # The path postgres sees for its data dir inside its own container
-    # (PGDATA in postgres/docker-compose.yml). barman bakes the recovery
-    # staging path into restore_command/recovery_end_command; we rewrite it to
-    # this so postgres can find the WAL shipped inside the datadir (barman_wal/).
-    container_pgdata = "/var/lib/postgresql/data/pgdata"
+    pgdata_new = f"{data_mount}/pgdata.barman_new"
+    pgdata_prev = f"{data_mount}/pgdata.prev"
+    recovered = "/opt/dumps/barman_recover"
     click.secho(f"Swapping recovered datadir into {pgdata} ...", fg="yellow")
 
     # For a targeted recovery, promote once the target is reached - otherwise
@@ -253,58 +245,60 @@ def _perform_recover(ctx, config, backup_id, target_time, target_name):
             f">> '{pgdata_new}/postgresql.auto.conf'\n"
         )
 
-    with autocleanpaper() as scriptfile:
-        scriptfile.write_text(
-            "#!/bin/bash\n"
-            "set -e\n"
-            # 1) assemble the new datadir in a sibling dir (live one untouched)
-            f"rm -Rf '{pgdata_new}'\n"
-            f"mkdir -p '{pgdata_new}'\n"
-            # copy contents (barman writes recovery.signal / postgresql.auto.conf in there)
-            f"cp -a '{host_recovered}/.' '{pgdata_new}/'\n"
-            # recovery.signal is what tells postgres to enter archive recovery
-            # (replay WAL to the target + honour recovery_target_*). Without it
-            # postgres attempts a plain crash recovery against backup_label and
-            # dies with "could not locate required checkpoint record". barman
-            # should create it; ensure it exists so the recovered datadir always
-            # boots into recovery.
-            f"touch '{pgdata_new}/recovery.signal'\n"
-            # barman's restore_command/recovery_end_command reference the
-            # staging path (valid only in the barman container). Rewrite them to
-            # the postgres-container path so postgres can fetch the WAL that
-            # shipped inside the datadir as barman_wal/.
-            f"sed -i 's#{recover_target}#{container_pgdata}#g' "
-            f"'{pgdata_new}/postgresql.auto.conf'\n"
-            f"echo '--- postgresql.auto.conf (rewritten) ---'; "
-            f"cat '{pgdata_new}/postgresql.auto.conf' 2>/dev/null || true\n"
-            f"{promote_line}"
-            # postgres runs as uid/gid 999 inside the container
-            f"chown -R 999:999 '{pgdata_new}'\n"
-            f"chmod 700 '{pgdata_new}'\n"
-            # 2) atomic swap: keep the old datadir as a rollback, move the new
-            #    one into place. The only non-atomic window is two renames (ms).
-            f"rm -Rf '{pgdata_prev}'\n"
-            f"if [ -e '{pgdata}' ]; then mv '{pgdata}' '{pgdata_prev}'; fi\n"
-            f"mv '{pgdata_new}' '{pgdata}'\n"
-            # 3) drop the staging copy (a full datadir) from the dumps dir
-            f"rm -Rf '{host_recovered}'\n"
-            f"echo 'Previous datadir preserved at {pgdata_prev} "
-            f"(remove once the recovery is verified).'\n"
+    swap_script = (
+        "set -e\n"
+        # 1) assemble the new datadir in a sibling dir (live one untouched)
+        f"rm -Rf '{pgdata_new}'\n"
+        f"mkdir -p '{pgdata_new}'\n"
+        # copy contents (barman writes recovery.signal / postgresql.auto.conf in there)
+        f"cp -a '{recovered}/.' '{pgdata_new}/'\n"
+        # recovery.signal is what tells postgres to enter archive recovery
+        # (replay WAL to the target + honour recovery_target_*). Without it
+        # postgres attempts a plain crash recovery against backup_label and
+        # dies with "could not locate required checkpoint record". barman
+        # should create it; ensure it exists so the recovered datadir always
+        # boots into recovery.
+        f"touch '{pgdata_new}/recovery.signal'\n"
+        # barman's restore_command/recovery_end_command reference the
+        # staging path (valid only in the barman container). Rewrite them to
+        # the path postgres sees (PGDATA in postgres/docker-compose.yml) so
+        # postgres can fetch the WAL that shipped inside the datadir as
+        # barman_wal/.
+        f"sed -i 's#{recover_target}#{pgdata}#g' "
+        f"'{pgdata_new}/postgresql.auto.conf'\n"
+        f"echo '--- postgresql.auto.conf (rewritten) ---'; "
+        f"cat '{pgdata_new}/postgresql.auto.conf' 2>/dev/null || true\n"
+        f"{promote_line}"
+        # postgres runs as uid/gid 999 inside the container
+        f"chown -R 999:999 '{pgdata_new}'\n"
+        f"chmod 700 '{pgdata_new}'\n"
+        # 2) atomic swap: keep the old datadir as a rollback, move the new
+        #    one into place. The only non-atomic window is two renames (ms).
+        f"rm -Rf '{pgdata_prev}'\n"
+        f"if [ -e '{pgdata}' ]; then mv '{pgdata}' '{pgdata_prev}'; fi\n"
+        f"mv '{pgdata_new}' '{pgdata}'\n"
+        # 3) drop the staging copy (a full datadir) from the dumps dir
+        f"rm -Rf '{recovered}'\n"
+        f"echo 'Previous datadir preserved at {pgdata_prev} "
+        f"(remove once the recovery is verified).'\n"
+    )
+    try:
+        __dc(
+            config,
+            [
+                "run",
+                "-T",
+                "--rm",
+                "--no-deps",
+                "--entrypoint",
+                "/bin/bash",
+                "postgres",
+                "-c",
+                swap_script,
+            ],
         )
-        ran = False
-        for mode in ["", "sudo"]:
-            try:
-                subprocess.check_call(
-                    list(filter(bool, [mode, "/bin/bash", str(scriptfile)]))
-                )
-                ran = True
-                break
-            except subprocess.CalledProcessError:
-                continue
-        if not ran:
-            abort(
-                "Failed to write recovered datadir into the postgres volume."
-            )
+    except subprocess.CalledProcessError:
+        abort("Failed to write recovered datadir into the postgres volume.")
 
     # 3) Start postgres alone first so it can replay WAL + promote. Bringing the
     #    whole stack up immediately would let odoo connect while postgres is

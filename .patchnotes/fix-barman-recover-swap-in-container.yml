@@ -1,0 +1,3 @@
+type: fix
+description: "barman recover: datadir swap runs inside a one-off postgres container instead of writing to the volume's host mountpoint — works on Docker Desktop/Colima/remote daemons (PITR e2e test passes on macOS now)"
+breaking: false
