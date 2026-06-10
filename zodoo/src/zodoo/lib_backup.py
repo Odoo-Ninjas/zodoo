@@ -282,15 +282,74 @@ def backup_files(config, filename):
     if not files_dir.exists():
         raise Exception(f"Files directory not found: {files_dir}")
     filepath.mkdir(parents=True, exist_ok=True)
-    subprocess.check_call(
-        [
-            "rsync",
-            "-a",
-            "--info=stats2",
-            f"{files_dir}/",
-            f"{filepath}/",
-        ]
-    )
+
+    # Incremental backup driven by a timestamp marker.
+    #
+    # The Odoo filestore is content-addressed: every file is named after its
+    # sha and is immutable once written - files are only ever added, never
+    # changed. That lets us avoid scanning the whole destination on every run
+    # (stat()-ing millions of files over a network share took ~45-65 min per
+    # run) and copy only the source files created since the last successful
+    # backup, selected via `find -newer <marker>`.
+    #
+    # The marker's mtime is the *start* of the previous successful run, so any
+    # file created while a backup was running is simply picked up by the next
+    # run. `--ignore-existing` is a cheap safety net (an existing file never
+    # changes) and `--delete` is intentionally never used: the backup is purely
+    # additive, we never want to lose a file that was removed from the source.
+    marker = filepath.parent / (filepath.name + ".marker")
+    in_progress = filepath.parent / (filepath.name + ".marker.inprogress")
+    in_progress.touch()  # mtime == start of this run
+
+    if marker.exists():
+        click.secho(
+            f"Incremental files backup: only files newer than {marker}",
+            fg="yellow",
+        )
+        find_proc = subprocess.Popen(
+            ["find", ".", "-type", "f", "-newer", str(marker), "-print0"],
+            cwd=str(files_dir),
+            stdout=subprocess.PIPE,
+        )
+        rsync_proc = subprocess.Popen(
+            [
+                "rsync",
+                "-a",
+                "--info=stats2",
+                "--ignore-existing",
+                "--from0",
+                "--files-from=-",
+                f"{files_dir}/",
+                f"{filepath}/",
+            ],
+            stdin=find_proc.stdout,
+        )
+        find_proc.stdout.close()
+        rsync_rc = rsync_proc.wait()
+        find_rc = find_proc.wait()
+        if find_rc != 0 or rsync_rc != 0:
+            in_progress.unlink()
+            raise Exception(
+                f"Incremental files backup failed "
+                f"(find={find_rc}, rsync={rsync_rc})"
+            )
+    else:
+        click.secho("Full files backup (no marker yet)...", fg="yellow")
+        subprocess.check_call(
+            [
+                "rsync",
+                "-a",
+                "--info=stats2",
+                "--ignore-existing",
+                f"{files_dir}/",
+                f"{filepath}/",
+            ]
+        )
+
+    # Advance the marker only after a successful run, so a failed/aborted run
+    # is retried in full next time instead of silently skipping files.
+    os.replace(in_progress, marker)
+
     __apply_dump_permissions(filepath)
     click.secho(f"Backup files done to {filepath}", fg="green")
     return filepath
@@ -912,20 +971,33 @@ def _get_filestore_destination(config):
 
 
 def __do_restore_files(config, filepath):
-    # https://askubuntu.com/questions/128492/is-there-a-way-to-tar-extract-without-clobbering
-    # remove the postgres volume and reinit
     filepath = Path(filepath)
     if len(filepath.parts) == 1:
         filepath = Path(config.dumps_path) / filepath
     files_dir = _get_filestore_destination(config)
-    subprocess.check_call(
-        [
-            "tar",
-            "xzf",
-            filepath,
-        ],
-        cwd=files_dir,
-    )
+    if filepath.is_dir():
+        # New rsync-directory backup format (see backup_files): the dump is a
+        # plain mirror of the filestore, so restore by syncing it back in.
+        subprocess.check_call(
+            [
+                "rsync",
+                "-a",
+                "--info=stats2",
+                f"{filepath}/",
+                f"{files_dir}/",
+            ]
+        )
+    else:
+        # Legacy single-archive format.
+        # https://askubuntu.com/questions/128492/is-there-a-way-to-tar-extract-without-clobbering
+        subprocess.check_call(
+            [
+                "tar",
+                "xzf",
+                filepath,
+            ],
+            cwd=files_dir,
+        )
     click.secho(f"Files restored from {filepath} to {files_dir}", fg="green")
 
 
