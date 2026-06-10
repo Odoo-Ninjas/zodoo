@@ -81,6 +81,13 @@ def barman_list(config):
 )
 @pass_config
 def barman_status(config):
+    if not config.run_barman:
+        click.secho(
+            "Barman is not enabled. Set RUN_BARMAN=1 (and on DEVMODE machines "
+            "BARMAN_FORCE_IN_DEVMODE=1), then `odoo reload && odoo up -d`.",
+            fg="yellow",
+        )
+        return
     _barman_exec(config, ["status", SERVER])
 
 
