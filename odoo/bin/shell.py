@@ -1,11 +1,27 @@
 #!/opt/zodoo_pipx/venvs/zodoo/bin/python3
 import os
 import sys
+import time as _time
+import click
 from zodoo.odoo_config import current_version
 from tools import exec_odoo
 from tools import prepare_run
 
+_t0 = _time.monotonic()
+
+
+def _ts(label):
+    click.secho(
+        f"[shell.py] {label:50s}  +{_time.monotonic() - _t0:.3f}s",
+        fg="green",
+    )
+
+
+_ts("script start (container is up)")
+
+_ts("prepare_run: start")
 prepare_run()
+_ts("prepare_run: done")
 
 os.environ["PYTHONBREAKPOINT"] = "pudb.set_trace"
 params = sys.argv
@@ -44,6 +60,7 @@ if stdin:
         "    _os._exit(1)\n"
     )
 
+_ts("exec_odoo (odoo-bin shell): start")
 rc, _ = exec_odoo(
     "config_shell",
     *cmd,
@@ -51,4 +68,5 @@ rc, _ = exec_odoo(
     stdin=stdin,
     dokill=False,
 )
+_ts("exec_odoo (odoo-bin shell): done")
 sys.exit(rc)

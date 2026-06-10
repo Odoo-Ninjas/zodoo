@@ -336,6 +336,15 @@ def prepare_run_shared(local_config=None):
     # in each role races on ODOO_CONFIG_DIR (templates get copied back over
     # already-substituted files, leaving placeholders like __DB_MAXCONN__
     # in the live config and crashing odoo at CLI parse time).
+    _t0 = time.monotonic()
+
+    def _ts(label):
+        click.secho(
+            f"[prepare_run_shared] {label:50s}  +{time.monotonic() - _t0:.3f}s",
+            fg="cyan",
+        )
+
+    _ts("start")
     user_id = int(os.getenv("OWNER_UID", os.getuid()))
     # Per-UID marker file inside ODOO_DATA_DIR records that the recursive
     # chown ran for this UID. Filestores can be tens of GB — `chown -R`
@@ -368,16 +377,18 @@ def prepare_run_shared(local_config=None):
             out_dir.mkdir(parents=True, exist_ok=True)
         if out_dir.exists():
             if out_dir.stat().st_uid == 0:
-                # Big subtrees (filestore) are skipped on subsequent boots
-                # via the per-UID marker — the recursive chown is expensive
-                # and the FS state only needs fixing once after a fresh
-                # mount or a UID change.
+                # Big subtrees are skipped on subsequent boots via the
+                # per-UID marker.  data_dir itself must be included: a
+                # `chown -R data_dir` recurses into filestore/sessions/addons
+                # and is just as expensive as chowning them individually.
                 if chowned_for_this_uid and out_dir in (
+                    data_dir,
                     data_dir / "filestore",
                     data_dir / "sessions",
                     data_dir / "addons",
                 ):
                     continue
+                _ts(f"chown -R {out_dir}")
                 subprocess.call(
                     [
                         "chown",
@@ -386,6 +397,7 @@ def prepare_run_shared(local_config=None):
                         str(out_dir),
                     ]
                 )
+                _ts(f"chown -R {out_dir} done")
         del path
         del out_dir
 
@@ -399,10 +411,14 @@ def prepare_run_shared(local_config=None):
         except OSError:
             pass
 
+    _ts("_replace_variables_in_config_files: start")
     _replace_variables_in_config_files(local_config)
+    _ts("_replace_variables_in_config_files: done")
 
     if config["RUN_AUTOSETUP"] == "1":
+        _ts("_run_autosetup: start")
         _run_autosetup()
+        _ts("_run_autosetup: done")
 
     # LibreOffice was needed by older Odoo's report engine (wkhtmltopdf
     # fallback for .docx → PDF conversions). Odoo 17+ ships its own PDF
@@ -648,14 +664,27 @@ def exec_odoo(
     capture_output=None,
     **kwargs,
 ):  # NOQA
+    _t0_exec = time.monotonic()
+
+    def _ts(label):
+        click.secho(
+            f"[exec_odoo] {label:50s}  +{time.monotonic() - _t0_exec:.3f}s",
+            fg="magenta",
+        )
+
+    _ts("start")
     assert not [
         x for x in args if "--pidfile" in x
     ], "Not custom pidfile allowed"
 
     if dokill:
+        _ts("kill_odoo: start")
         kill_odoo()
+        _ts("kill_odoo: done")
 
+    _ts("wait_postgres: start")
     wait_postgres()
+    _ts("wait_postgres: done")
 
     MANIFEST = odoo_config.MANIFEST()
     manifest = MANIFEST._get_data()
@@ -717,6 +746,7 @@ def exec_odoo(
         params_capture = {}
         output = ""
 
+    _ts(f"spawning odoo-bin (shell={odoo_shell})")
     if stdin:
         if not isinstance(stdin, str):
             stdin = (
