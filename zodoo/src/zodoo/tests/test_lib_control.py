@@ -1166,7 +1166,9 @@ def _capture_restart_calls(monkeypatch):
     monkeypatch.setattr(
         lcd,
         "_supervisor_restart_role",
-        lambda config, role: calls["supervisor"].append(role),
+        # append returns None — return True explicitly so restart() sees a
+        # confirmed restart and doesn't print the could-not-confirm warning
+        lambda config, role: calls["supervisor"].append(role) or True,
     )
     monkeypatch.setattr(
         lcd,
@@ -1261,6 +1263,64 @@ def test_restart_odoo_service_recreates_whole_container(monkeypatch, tmp_path):
     assert calls["up"] == [
         ["odoo"]
     ], f"Expected up(['odoo']), got {calls['up']!r}"
+
+
+def test_restart_warns_when_supervisor_restart_unconfirmed(
+    monkeypatch, capsys
+):
+    """When the supervisor cannot confirm a role restart, restart() must
+    surface a warning instead of silently dropping the failure."""
+    import zodoo.lib_control_with_docker as lcd
+
+    monkeypatch.setattr(
+        lcd, "_has_in_container_supervisor", lambda config: True
+    )
+    monkeypatch.setattr(
+        lcd, "_supervisor_restart_role", lambda config, role: False
+    )
+    lcd.restart(ctx=None, config=FakeConfig(), machines=["odoo_web"])
+    out = capsys.readouterr().out
+    assert "could not confirm restart" in out
+    assert "web" in out
+
+
+def test_start_update_blocking_roles_warns_on_unconfirmed(monkeypatch, capsys):
+    """start_update_blocking_roles must warn (not silently continue) when a
+    role start cannot be confirmed by the supervisor."""
+    import zodoo.lib_control_with_docker as lcd
+
+    monkeypatch.setattr(
+        lcd, "_has_in_container_supervisor", lambda config: True
+    )
+    monkeypatch.setattr(
+        lcd,
+        "_supervisor_action_role",
+        lambda config, action, role: role != "queuejobs",
+    )
+    monkeypatch.setattr(
+        lcd, "_declared_compose_services", lambda config: set()
+    )
+    lcd.start_update_blocking_roles(FakeConfig())
+    out = capsys.readouterr().out
+    assert "could not confirm start" in out
+    assert "queuejobs" in out
+    assert "web" not in out.split("could not confirm start")[1].split("\n")[0]
+
+
+def test_start_update_blocking_roles_silent_on_success(monkeypatch, capsys):
+    import zodoo.lib_control_with_docker as lcd
+
+    monkeypatch.setattr(
+        lcd, "_has_in_container_supervisor", lambda config: True
+    )
+    monkeypatch.setattr(
+        lcd, "_supervisor_action_role", lambda config, action, role: True
+    )
+    monkeypatch.setattr(
+        lcd, "_declared_compose_services", lambda config: set()
+    )
+    lcd.start_update_blocking_roles(FakeConfig())
+    assert "could not confirm" not in capsys.readouterr().out
 
 
 @pytest.mark.slow

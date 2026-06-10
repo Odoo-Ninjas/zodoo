@@ -495,10 +495,21 @@ def barman_switch_wal(config):
 Commands.register(barman_backup)
 Commands.register(barman_recover)
 
+
 # Top-level shortcut: `odoo barman-status` → same as `odoo barman status`.
 # The hyphenated name avoids the AliasedGroup tie with `setup status` that
 # caused `odoo status` to resolve to barman's status instead of setup's.
-cli.add_command(barman_status, name="barman-status")
+# A dedicated command (not cli.add_command(barman_status, name=...)) so the
+# command object's .name is really "barman-status" — re-registering the
+# subgroup command under an alias keeps .name == "status", which breaks
+# AliasedGroup's name-based tie-breaks and garbles its error messages.
+@cli.command(
+    name="barman-status",
+    help="Show barman server status (streaming, slot, last backup).",
+)
+@pass_config
+def barman_status_toplevel(config):
+    _barman_exec(config, ["status", SERVER])
 
 
 # --------------------------------------------------------------------------- #

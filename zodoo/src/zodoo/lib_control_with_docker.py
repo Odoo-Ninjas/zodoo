@@ -627,7 +627,12 @@ def restart(
     # For v11/v13 those names are real compose services, no redirect.
     legacy, machines = _legacy_role_match(config, machines)
     for m in legacy:
-        _supervisor_restart_role(config, _resolve_legacy_role(m))
+        role = _resolve_legacy_role(m)
+        if not _supervisor_restart_role(config, role):
+            click.secho(
+                f"WARNING: could not confirm restart of role {role}.",
+                fg="yellow",
+            )
     if legacy and not machines:
         return
 

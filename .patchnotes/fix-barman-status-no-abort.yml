@@ -1,3 +1,0 @@
-type: fix
-description: "barman status: informational message instead of hard abort when barman is not enabled"
-breaking: false

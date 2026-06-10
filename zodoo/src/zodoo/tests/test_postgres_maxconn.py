@@ -129,10 +129,10 @@ def test_trailing_semicolon_no_double_separator():
     assert "max_connections=" in s["POSTGRES_CONFIG"]
 
 
-def test_idempotent_when_zodoo_values_persisted():
-    """If POSTGRES_CONFIG was persisted with zodoo-auto-appended values from a
-    prior run (e.g. via `odoo setting`), re-running must not accumulate
-    duplicate entries."""
+def test_persisted_max_connections_is_pinned_not_duplicated():
+    """If POSTGRES_CONFIG was persisted with values from a prior run (e.g.
+    via `odoo setting`), the contained max_connections is treated as a user
+    pin: kept as-is, never duplicated, DB_MAXCONN tracks it."""
     s = {
         "POSTGRES_CONFIG": (
             "shared_buffers=256MB;"
@@ -140,9 +140,31 @@ def test_idempotent_when_zodoo_values_persisted():
             "superuser_reserved_connections=10"
         )
     }
-    # The persisted max_connections is treated as a user pin and kept.
     _compute(s)
+    assert s["DB_MAXCONN"] == "100"
     assert s["POSTGRES_CONFIG"].count("max_connections") == 1
+    assert s["POSTGRES_CONFIG"].count("superuser_reserved_connections") == 1
+
+
+def test_user_superuser_reserved_connections_is_respected():
+    """A user-set superuser_reserved_connections (without max_connections)
+    must survive the reload untouched — zodoo appends max_connections but
+    must NOT overwrite or duplicate the user's reserved value."""
+    s = {"POSTGRES_CONFIG": "superuser_reserved_connections=5"}
+    _compute(s)
+    assert "superuser_reserved_connections=5" in s["POSTGRES_CONFIG"]
+    assert s["POSTGRES_CONFIG"].count("superuser_reserved_connections") == 1
+    assert "max_connections=100" in s["POSTGRES_CONFIG"]
+
+
+def test_user_superuser_reserved_with_other_keys_and_spaces():
+    s = {
+        "POSTGRES_CONFIG": (
+            "shared_buffers=256MB;superuser_reserved_connections = 7"
+        )
+    }
+    _compute(s)
+    assert "superuser_reserved_connections = 7" in s["POSTGRES_CONFIG"]
     assert s["POSTGRES_CONFIG"].count("superuser_reserved_connections") == 1
 
 
@@ -240,6 +262,20 @@ def test_postgres_conf_non_numeric_value_aborts(tmp_path):
     (odoo_dir / "postgres.conf").write_text("max_connections = notanumber\n")
     with pytest.raises(SystemExit):
         _compute({"PROJECT_NAME": "x"})
+
+
+def test_postgres_conf_duplicate_key_last_wins(tmp_path):
+    """When max_connections appears multiple times in postgres.conf, the
+    LAST value wins — same semantics PostgreSQL applies to its own config.
+    DB_MAXCONN must track the value the server actually runs with."""
+    odoo_dir = tmp_path / ".odoo"
+    odoo_dir.mkdir()
+    (odoo_dir / "postgres.conf").write_text(
+        "max_connections = 100\nmax_connections = 200\n"
+    )
+    s = {}
+    _compute(s)
+    assert s["DB_MAXCONN"] == "200"
 
 
 def test_postgres_conf_comment_lines_ignored(tmp_path):

@@ -55,6 +55,19 @@ if click:
                     matches = try_matches[:1]
                 elif try_matches:
                     matches = try_matches
+                else:
+                    # No exact match. If the shortest matched name is itself
+                    # a prefix of ALL matched names (e.g. `odoo bar` matches
+                    # both `barman` and `barman-status`), resolve to the
+                    # shortest one — first by registration order on equal
+                    # names. Without this, adding `barman-status` made the
+                    # established `odoo bar` abbreviation ambiguous.
+                    names = {m[0].name for m in matches}
+                    shortest = min(names, key=len)
+                    if all(n.startswith(shortest) for n in names):
+                        matches = [
+                            m for m in matches if m[0].name == shortest
+                        ][:1]
 
             if len(matches) == 1:
                 return matches[0][0]

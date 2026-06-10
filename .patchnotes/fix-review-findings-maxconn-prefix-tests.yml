@@ -1,0 +1,3 @@
+type: fix
+description: "postgres: respect user-set superuser_reserved_connections, last-wins for duplicate max_connections in postgres.conf; CLI: odoo bar prefix resolves again, restart warns on unconfirmed supervisor role; routing + warning paths now tested"
+breaking: false

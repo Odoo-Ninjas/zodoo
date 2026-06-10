@@ -126,18 +126,17 @@ def _compute_max_connections(settings):
                     content = candi.read_text()
                 except OSError:
                     continue
-                lines = [
+                effective = "\n".join(
                     ln.strip()
                     for ln in content.splitlines()
                     if ln.strip() and not ln.strip().startswith("#")
-                ]
-                if any(_has_max_conn(ln) for ln in lines):
+                )
+                if _has_max_conn(effective):
                     user_override_max_conn = True
-                    for ln in lines:
-                        val = _extract_max_conn(ln)
-                        if val is not None:
-                            user_max_conn_value = val
-                            break
+                    # _extract_max_conn takes the LAST numeric match — same
+                    # last-wins semantics PostgreSQL applies to its own
+                    # config files when a key appears multiple times.
+                    user_max_conn_value = _extract_max_conn(effective)
                     break
 
     def _parse_channels(raw):
@@ -196,36 +195,23 @@ def _compute_max_connections(settings):
         settings["DB_MAXCONN"] = str(max_conn)
 
     if not user_override_max_conn:
-        # Strip any zodoo-auto-appended entries before writing fresh values so
-        # they never accumulate if POSTGRES_CONFIG was persisted with the
-        # computed value from a prior run (idempotency).
-        def _strip_zodoo_keys(cfg):
-            for key in (
-                "max_connections",
-                "superuser_reserved_connections",
-            ):
-                cfg = (
-                    re.sub(
-                        r"(?:^|;)\s*" + re.escape(key) + r"\s*=\s*\d+",
-                        "",
-                        cfg,
-                    )
-                    .strip(";")
-                    .strip()
-                )
-            return cfg
-
-        base_config = _strip_zodoo_keys(existing_config)
-        glue = "" if not base_config or base_config.endswith(";") else ";"
+        # existing_config cannot contain max_connections here — that would
+        # have flipped user_override_max_conn above. Re-runs always start
+        # from the user's original POSTGRES_CONFIG (this hook mutates only
+        # the in-memory settings), so plain appending stays idempotent.
+        glue = (
+            "" if not existing_config or existing_config.endswith(";") else ";"
+        )
         settings["POSTGRES_CONFIG"] = (
-            f"{base_config}{glue}max_connections={max_conn}"
+            f"{existing_config}{glue}max_connections={max_conn}"
         )
 
-        # superuser_reserved_connections: ~10 % of max_connections (min 3, capped at 20)
-        # so admins / monitoring can still connect when the regular pool is exhausted.
-        # Skipped if the user already set the key in POSTGRES_CONFIG.
-        if "superuser_reserved_connections" not in settings.get(
-            "POSTGRES_CONFIG", ""
+        # superuser_reserved_connections: ~10 % of max_connections (min 3,
+        # capped at 20) so admins / monitoring can still connect when the
+        # regular pool is exhausted. A user-set value in POSTGRES_CONFIG is
+        # respected and never overwritten.
+        if not re.search(
+            r"(?<!\w)superuser_reserved_connections\s*=", existing_config
         ):
             reserved = max(3, min(20, math.ceil(max_conn * 0.1)))
             current = settings["POSTGRES_CONFIG"]

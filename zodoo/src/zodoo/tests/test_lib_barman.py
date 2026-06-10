@@ -165,6 +165,43 @@ def test_barman_cli_group_registered():
     } <= set(grp.commands.keys())
 
 
+def test_status_resolves_to_setup_status_not_barman():
+    """`odoo status` must show the project info (setup status), not barman's
+    server status. The original bug: AliasedGroup's subgroup search resolved
+    the tie barman/status vs setup/status by registration order (barman
+    imports first) — fixed by registering setup.status directly on the cli
+    group so the exact top-level match wins before the subgroup search."""
+    import click
+    from zodoo.cli import cli
+    from zodoo import lib_setup
+
+    ctx = click.Context(cli)
+    assert cli.get_command(ctx, "status") is lib_setup.status
+
+
+def test_barman_status_toplevel_shortcut_registered():
+    from zodoo.cli import cli
+    from zodoo import lib_barman
+
+    cmd = cli.commands.get("barman-status")
+    assert cmd is not None
+    assert cmd.name == "barman-status"
+    assert cmd is lib_barman.barman_status_toplevel
+
+
+def test_barman_prefix_still_resolves_to_barman_group():
+    """`odoo bar` must keep resolving to the barman group even though the
+    top-level `barman-status` shares the prefix — AliasedGroup picks the
+    shortest matched name when it is a prefix of all other matches."""
+    import click
+    from zodoo.cli import cli
+
+    ctx = click.Context(cli)
+    for prefix in ("bar", "barm", "barma", "barman"):
+        assert cli.get_command(ctx, prefix) is cli.commands["barman"], prefix
+    assert cli.get_command(ctx, "barman-s") is cli.commands["barman-status"]
+
+
 def test_guard_update_enabled():
     from zodoo import lib_barman as b
 
