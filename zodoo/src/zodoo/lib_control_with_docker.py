@@ -509,7 +509,7 @@ def _supervisor_action_role(config, action, role):
 
 
 def _supervisor_restart_role(config, role):
-    _supervisor_action_role(config, "restart", role)
+    return _supervisor_action_role(config, "restart", role)
 
 
 # Roles that must be stopped before any DDL-heavy `odoo update` so that
@@ -591,14 +591,16 @@ def start_update_blocking_roles(config):
     cronjobs back up after an update completes."""
     if not _has_in_container_supervisor(config):
         return
+    unconfirmed = []
     for role in _UPDATE_BLOCKING_ROLES:
-        try:
-            _supervisor_action_role(config, "start", role)
-        except subprocess.CalledProcessError as e:
-            click.secho(
-                f"Warning: could not start supervisor role {role}: {e}",
-                fg="yellow",
-            )
+        if not _supervisor_action_role(config, "start", role):
+            unconfirmed.append(role)
+    if unconfirmed:
+        click.secho(
+            f"WARNING: could not confirm start of role(s) "
+            f"{', '.join(unconfirmed)} after update.",
+            fg="yellow",
+        )
     declared = _declared_compose_services(config)
     for svc in ("cronjobs", "cronjobshell", "queuejobs"):
         if svc not in declared:

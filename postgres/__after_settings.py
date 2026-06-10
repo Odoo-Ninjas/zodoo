@@ -29,7 +29,7 @@ def _compute_max_connections(settings):
                  + ODOO_MAX_CRON_THREADS
                  + queuejob_workers) * PER_PROCESS
             ) + HEADROOM,
-        )
+        ) + EXTRA_DB_CONN
 
     where queuejob_workers mirrors the formula in odoo/bin/tools.py:
     sum of the non-root channel capacities (or the root channel if it's
@@ -41,7 +41,7 @@ def _compute_max_connections(settings):
     already" on `odoo update` of small dev installs (default 6 web + 2
     cron + 2 queuejob → 22 conns, instantly exhausted).
 
-    HEADROOM = 30 covers superuser / monitoring / maintenance sessions
+    HEADROOM = 50 covers superuser / monitoring / maintenance sessions
     plus the side processes that an `odoo update` spawns transiently.
 
     MIN_FLOOR = 100 keeps even tiny installs (e.g. 1 web worker) above
@@ -57,10 +57,44 @@ def _compute_max_connections(settings):
     """
     import math
     import re
+    import sys
+
+    import click
 
     def _extract_max_conn(text):
-        m = re.search(r"max_connections\s*=\s*(\d+)", text)
-        return int(m.group(1)) if m else None
+        # (?<!\w) prevents matching keys like other_max_connections.
+        # findall + [-1] so last-wins semantics match PostgreSQL's own
+        # behaviour when a key appears multiple times.
+        matches = re.findall(r"(?<!\w)max_connections\s*=\s*(\d+)", text)
+        return int(matches[-1]) if matches else None
+
+    def _has_max_conn(text):
+        # Detect the key regardless of value format — extraction via _extract_max_conn
+        # then validates the value; unparseable values trigger sys.exit rather than
+        # silently ignoring the user's intent to cap connections.
+        return bool(re.search(r"(?<!\w)max_connections\s*=", text))
+
+    # Validate EXTRA_DB_CONN before any computation so the error is
+    # clear and does not cause a silent MIN_FLOOR fallback.
+    extra_raw = settings.get("EXTRA_DB_CONN", "0")
+    try:
+        extra = int(extra_raw)
+    except (ValueError, TypeError):
+        click.secho(
+            f"ERROR: EXTRA_DB_CONN={extra_raw!r} is not a valid integer. "
+            "Fix the value and re-run odoo reload.",
+            fg="red",
+            bold=True,
+        )
+        sys.exit(1)
+    if extra < 0:
+        click.secho(
+            f"ERROR: EXTRA_DB_CONN={extra} is negative. "
+            "Fix the value and re-run odoo reload.",
+            fg="red",
+            bold=True,
+        )
+        sys.exit(1)
 
     # Track whether the user already pinned postgres max_connections. When they
     # do, the postgres server runs with *their* value, so DB_MAXCONN (the
@@ -73,19 +107,19 @@ def _compute_max_connections(settings):
     user_max_conn_value = None
 
     existing_config = settings.get("POSTGRES_CONFIG", "")
-    if "max_connections" in existing_config:
+    if _has_max_conn(existing_config):
         user_override_max_conn = True
         user_max_conn_value = _extract_max_conn(existing_config)
 
-    # Also respect override in ~/.odoo/postgres.conf or ~/.odoo/<project>/postgres.conf
+    # Also respect override in postgres.conf files.
+    # Project-specific wins over global (matches zodoo's settings priority).
     from pathlib import Path
 
     if not user_override_max_conn:
+        project_name = settings.get("PROJECT_NAME", "")
         for candi in [
+            Path(f"~/.odoo/{project_name}/postgres.conf").expanduser(),
             Path("~/.odoo/postgres.conf").expanduser(),
-            Path(
-                f"~/.odoo/{settings.get('PROJECT_NAME', '')}/postgres.conf"
-            ).expanduser(),
         ]:
             if candi.is_file():
                 try:
@@ -97,7 +131,7 @@ def _compute_max_connections(settings):
                     for ln in content.splitlines()
                     if ln.strip() and not ln.strip().startswith("#")
                 ]
-                if any("max_connections" in ln for ln in lines):
+                if any(_has_max_conn(ln) for ln in lines):
                     user_override_max_conn = True
                     for ln in lines:
                         val = _extract_max_conn(ln)
@@ -136,7 +170,6 @@ def _compute_max_connections(settings):
         # plus at least one extra cursor).  3 containers × ~5 extra = 15,
         # plus the original 30 for maintenance → 50 total.
         HEADROOM = 50
-        extra = int(settings.get("EXTRA_DB_CONN", 0))
         max_conn = (
             max(MIN_FLOOR, math.ceil(total * PER_PROCESS) + HEADROOM) + extra
         )
@@ -150,10 +183,6 @@ def _compute_max_connections(settings):
     # keep the odoo-side ceiling in sync with it instead of the computed value.
     if user_override_max_conn:
         if user_max_conn_value is None:
-            import sys
-
-            import click
-
             click.secho(
                 "ERROR: max_connections is set in your postgres config but "
                 "could not be parsed as an integer. Fix the value and re-run "
@@ -167,11 +196,29 @@ def _compute_max_connections(settings):
         settings["DB_MAXCONN"] = str(max_conn)
 
     if not user_override_max_conn:
-        glue = (
-            "" if not existing_config or existing_config.endswith(";") else ";"
-        )
+        # Strip any zodoo-auto-appended entries before writing fresh values so
+        # they never accumulate if POSTGRES_CONFIG was persisted with the
+        # computed value from a prior run (idempotency).
+        def _strip_zodoo_keys(cfg):
+            for key in (
+                "max_connections",
+                "superuser_reserved_connections",
+            ):
+                cfg = (
+                    re.sub(
+                        r"(?:^|;)\s*" + re.escape(key) + r"\s*=\s*\d+",
+                        "",
+                        cfg,
+                    )
+                    .strip(";")
+                    .strip()
+                )
+            return cfg
+
+        base_config = _strip_zodoo_keys(existing_config)
+        glue = "" if not base_config or base_config.endswith(";") else ";"
         settings["POSTGRES_CONFIG"] = (
-            f"{existing_config}{glue}max_connections={max_conn}"
+            f"{base_config}{glue}max_connections={max_conn}"
         )
 
         # superuser_reserved_connections: ~10 % of max_connections (min 3, capped at 20)
