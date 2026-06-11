@@ -10,7 +10,6 @@ import json
 from pathlib import Path
 import threading
 import logging
-import threading
 from robot import rebot, run
 from dotenv import load_dotenv
 

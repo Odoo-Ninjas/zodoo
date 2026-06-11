@@ -486,7 +486,7 @@ def _run_test(
             params["tags"] = tags
 
         for param in PARAM:
-            k, v = param.split("=")
+            k, v = param.split("=", 1)
             params[k] = v
             del param
 
