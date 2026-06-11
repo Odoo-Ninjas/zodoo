@@ -1367,8 +1367,15 @@ def signal_warmup_done(failed=False):
         click.secho(
             f"Could not write warmup sentinel {path}: {e}", fg="yellow"
         )
+    # Path.unlink(missing_ok=...) is Python 3.8+; the legacy Odoo 11 image
+    # still ships Python 3.7, so use an exists() check instead. Otherwise
+    # the unlink raises TypeError, the warmup-in-progress sentinel is
+    # never cleared, and the bundled proxy gates ALL external traffic
+    # forever after every container start (only the cli warning fires).
     try:
-        Path(WARMUP_IN_PROGRESS_SENTINEL).unlink(missing_ok=True)
+        p = Path(WARMUP_IN_PROGRESS_SENTINEL)
+        if p.exists():
+            p.unlink()
     except Exception as e:
         click.secho(f"Could not clear warmup gate sentinel: {e}", fg="yellow")
 
