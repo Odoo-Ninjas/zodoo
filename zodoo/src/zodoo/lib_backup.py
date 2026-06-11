@@ -272,7 +272,12 @@ def backup_files(config, filename):
     if len(filepath.parts) == 1:
         filepath = Path(config.dumps_path) / filepath
 
-    if filepath.is_file() and filepath.suffixes[-2:] == [".tar", ".gz"]:
+    # Pre-rsync layouts wrote the backup as a single file (sometimes
+    # `.tar.gz`, sometimes a plain dump with no suffix). The current layout
+    # rsyncs into a directory at `filepath`, so any regular file already
+    # sitting there must be removed before mkdir() — otherwise the cronjob
+    # crashes with FileExistsError on every run.
+    if filepath.is_file():
         filepath.unlink()
     legacy = filepath.with_name(filepath.name + ".tar.gz")
     if legacy.is_file():

@@ -1,0 +1,1 @@
+`odoo backup files` now removes any pre-existing regular file at the target path, not only `*.tar.gz`. Without this, projects upgrading from the old single-file layout to the new rsync-directory layout crashed with `FileExistsError` on every scheduled run.

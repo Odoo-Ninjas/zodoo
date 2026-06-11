@@ -419,6 +419,34 @@ def test_backup_files_rsyncs_filestore(tmp_path, monkeypatch):
     assert out_dir.is_dir()
 
 
+def test_backup_files_replaces_legacy_plain_file(tmp_path, monkeypatch):
+    """A pre-rsync single-file backup (no .tar.gz suffix) must be removed
+    so mkdir() of the new directory layout does not crash."""
+    filestore = tmp_path / "fs"
+    filestore.mkdir()
+    (filestore / "f").write_bytes(b"x")
+
+    monkeypatch.setattr(mod, "_get_filestore_folder", lambda c: filestore)
+    monkeypatch.setattr(
+        subprocess, "check_call", lambda cmd, cwd=None: None
+    )
+    for attr in dir(mod):
+        if attr.endswith("__apply_dump_permissions"):
+            monkeypatch.setattr(mod, attr, lambda *a, **kw: None)
+
+    out = tmp_path / "myproj.files"
+    out.write_bytes(b"legacy single-file backup")
+    assert out.is_file()
+
+    cfg = FakeConfig(dumps_path=str(tmp_path), project_name="myproj")
+    cfg._project_name = "myproj"
+    res = CliRunner().invoke(
+        mod.backup_files, [str(out)], obj=cfg, catch_exceptions=False
+    )
+    assert res.exit_code == 0
+    assert out.is_dir()
+
+
 def test_backup_files_aborts_when_dir_missing(tmp_path, monkeypatch):
     monkeypatch.setattr(
         mod, "_get_filestore_folder", lambda c: tmp_path / "nope"
@@ -701,16 +729,16 @@ def test_e2e_show_dumps_on_fresh_project(odoo_project_19):
 @pytest.mark.slow
 @requires_full_stack
 def test_e2e_backup_files_roundtrip(odoo_project_19_running, tmp_path):
-    """`backup files` produces a tar archive."""
-    target = tmp_path / "files.tar.gz"
+    """`backup files` rsyncs the filestore into a directory."""
+    target = tmp_path / "files"
     odoo_project_19_running.run(
         "backup", "files", str(target), check=False, timeout=120
     )
-    # tar must exist and be non-empty if run produced a file; absent stack
-    # state on a bare "up -d" may result in an empty filestore — either
-    # way the command should not crash.
+    # Directory must exist if run produced output; absent stack state on a
+    # bare "up -d" may result in an empty filestore — either way the
+    # command should not crash.
     if target.exists():
-        assert target.stat().st_size > 0
+        assert target.is_dir()
 
 
 @pytest.mark.slow
