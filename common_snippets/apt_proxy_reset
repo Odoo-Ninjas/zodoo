@@ -1,0 +1,21 @@
+# Host-portable base image: strip the build host's apt/pip proxy config
+# before this image is pushed to the shared registry. A pulled image must
+# NOT carry a host-specific proxy IP (e.g. the builder's APT_PROXY_IP) —
+# otherwise consumers on other hosts hit an unreachable proxy. Each
+# consuming layer re-applies its own APT_PROXY_IP via the apt_proxy snippet
+# (see common.docker / Dockerfile.base) before running apt/pip. If no proxy
+# is configured there, apt/pip simply go direct.
+RUN rm -f /etc/apt/apt.conf.d/01proxy
+RUN if [ -f /opt/container_settings ]; then \
+        sed -i \
+            -e 's|^export APT_PROXY_IP=.*|export APT_PROXY_IP=""|' \
+            -e 's|^export PIP_PROXY_IP=.*|export PIP_PROXY_IP=""|' \
+            -e 's| --extra-index-url [^ "]*||g' \
+            -e 's| --trusted-host [^ "]*||g' \
+            /opt/container_settings; \
+    fi
+RUN for f in /etc/pip_options /etc/pip_options_no_buildisolation /etc/apt_options; do \
+        if [ -f "$f" ]; then \
+            sed -i -e 's| --extra-index-url [^ ]*||g' -e 's| --trusted-host [^ ]*||g' "$f"; \
+        fi; \
+    done

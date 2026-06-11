@@ -172,6 +172,13 @@ RUN cd /usr && \
     #___SNIPPET_TAR___
     share | zstd $ZSTDOPTIONS > share.tar.zst && rm -Rf share && cd - '
 
+# Strip this build host's apt/pip proxy before the image is flattened and
+# pushed to the shared registry — otherwise a pulled image on another host
+# points at an unreachable proxy. Runs in the last shell-capable stage so
+# the COPY --from below carries the cleaned files. Each host re-applies its
+# own APT_PROXY_IP via the apt_proxy snippet before apt/pip.
+#___SNIPPET_APT_PROXY_RESET___
+
 # --- Flatten all layers to remove dead bytes from cleanup ---
 FROM scratch AS final
 COPY --from=2 / /

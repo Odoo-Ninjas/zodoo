@@ -75,3 +75,8 @@ ln -s /usr/bin/ssh /root/programs/ssh
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
 COPY entrypoint.sh /entrypoint.sh
 COPY set_docker_group.sh /usr/local/bin/set_docker_group.sh
+
+# Strip this build host's apt/pip proxy before the image is pushed to the
+# shared registry, so a pull on another host does not point at an unreachable
+# proxy. Each consuming host re-applies its own APT_PROXY_IP before apt/pip.
+#___SNIPPET_APT_PROXY_RESET___
