@@ -1964,11 +1964,15 @@ def _sanitize_project_name(name, max_len=50):
     to leave room for any service suffix.
 
     Strategy:
-      1. Strip underscores (they pad length without adding information).
-      2. If still too long, cut from the centre so both the prefix (which
+      1. Lowercase the name. Docker Compose rejects project names containing
+         uppercase letters, so ticket-style directories like
+         ``ZO-05216-foo`` must be folded to lowercase.
+      2. Strip underscores (they pad length without adding information).
+      3. If still too long, cut from the centre so both the prefix (which
          encodes the product/repo) and the suffix (which often carries the
          ticket number or branch tag) are preserved.
     """
+    name = name.lower()
     name = name.replace("_", "")
     if len(name) > max_len:
         half = max_len // 2
