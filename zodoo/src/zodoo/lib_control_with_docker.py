@@ -1058,9 +1058,19 @@ def _ensure_prebuilt_python_image(config, arch):
         return
 
     python_version = getattr(config, "ODOO_PYTHON_VERSION", None)
-    registry_url = (getattr(config, "ZODOO_REGISTRY_URL", None) or "").rstrip(
-        "/"
-    )
+    registry_url = (getattr(config, "ZODOO_REGISTRY_URL", None) or "").strip()
+    # Docker image references must not carry a URL scheme. A setting like
+    # "https://registry.../" would produce an invalid tag and break both
+    # `docker manifest inspect` and the build with a cryptic error, so fail
+    # early with a clear, actionable message instead.
+    if registry_url.startswith(("https://", "http://")):
+        raise click.ClickException(
+            "ZODOO_REGISTRY_URL must not contain a URL scheme "
+            f"(http:// or https://): got {registry_url!r}. "
+            "Set it to a bare host[:port][/path], "
+            "e.g. ZODOO_REGISTRY_URL=registry.zebroo.de"
+        )
+    registry_url = registry_url.rstrip("/")
     if not python_version or not registry_url:
         return
 

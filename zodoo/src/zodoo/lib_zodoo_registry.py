@@ -30,6 +30,26 @@ from pathlib import Path
 IMAGES_DIR = Path.home() / ".odoo" / "images"
 
 
+def _validate_registry_url(url):
+    """Reject a ZODOO_REGISTRY_URL that carries a URL scheme.
+
+    The value is used verbatim to build Docker image references
+    (``<url>/zodoo/python:...``). A leading ``http://`` / ``https://``
+    would produce an invalid tag and fail the build with a cryptic
+    "invalid reference format". Fail early with a clear message instead.
+    Returns the trimmed (scheme-free) value.
+    """
+    url = (url or "").strip()
+    if url.startswith(("https://", "http://")):
+        raise click.ClickException(
+            "ZODOO_REGISTRY_URL must not contain a URL scheme "
+            f"(http:// or https://): got {url!r}. "
+            "Use a bare host[:port][/path], "
+            "e.g. ZODOO_REGISTRY_URL=registry.zebroo.de"
+        )
+    return url
+
+
 def _get_images_git_sha():
     """Return the current git commit SHA of ~/.odoo/images."""
     try:
@@ -133,7 +153,9 @@ def _get_registry_config(config):
             click.secho("Registry disabled. Will not ask again.", fg="yellow")
             return None
 
-        url = click.prompt("ZODOO_REGISTRY_URL", default="registry.zebroo.de")
+        url = _validate_registry_url(
+            click.prompt("ZODOO_REGISTRY_URL", default="registry.zebroo.de")
+        )
 
         try:
             request_account = click.confirm(
@@ -223,7 +245,7 @@ def _get_registry_config(config):
             "password": password,
         }
 
-    url = (
+    url = _validate_registry_url(
         _read_user_setting(config, "ZODOO_REGISTRY_URL")
         or getattr(config, "ZODOO_REGISTRY_URL", None)
         or ""
@@ -246,7 +268,9 @@ def _get_registry_config(config):
             "Registry credentials incomplete. Please re-enter:", fg="yellow"
         )
         try:
-            url = click.prompt("ZODOO_REGISTRY_URL", default=url)
+            url = _validate_registry_url(
+                click.prompt("ZODOO_REGISTRY_URL", default=url)
+            )
             username = click.prompt(
                 "ZODOO_REGISTRY_USERNAME", default=username
             )
