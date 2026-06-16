@@ -1112,6 +1112,37 @@ def __resolve_custom_merge(whole_content, value):
     return whole_content
 
 
+def __anchor_relative_build_context(service, base_dir):
+    """Make a relative docker ``build`` context absolute (anchored to the
+    fragment's own directory).
+
+    Fragments are later copied into a throw-away temp dir before
+    ``docker compose config`` runs; a relative context (e.g. ``build: .``)
+    would otherwise resolve against that temp dir and point at a path that
+    is gone once the temp dir is cleaned up. Contexts that are already
+    absolute or still contain an unresolved ``$``-variable are left as-is.
+    """
+    build = service.get("build")
+
+    def _relative(value):
+        return (
+            isinstance(value, str)
+            and value.strip()
+            and not value.startswith("/")
+            and "$" not in value
+        )
+
+    if isinstance(build, str):
+        if _relative(build):
+            service["build"] = str((base_dir / build).resolve())
+    elif isinstance(build, dict):
+        context = build.get("context")
+        if context is None:
+            build["context"] = str(base_dir.resolve())
+        elif _relative(context):
+            build["context"] = str((base_dir / context).resolve())
+
+
 def __get_sorted_contents(paths):
     import yaml
 
@@ -1139,6 +1170,7 @@ def __get_sorted_contents(paths):
             service.setdefault("labels", {})
             service["labels"].setdefault("compose.order", int(order))
             service["labels"][f"source.path.{path}"] = str(path)
+            __anchor_relative_build_context(service, path.parent)
         contents.append((order, yaml_content, path))
 
     contents = list(map(lambda x: x[1], sorted(contents, key=lambda x: x[0])))
