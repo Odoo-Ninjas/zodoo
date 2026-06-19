@@ -1980,11 +1980,13 @@ def _sanitize_project_name(name, max_len=50):
     return name
 
 
-def _get_default_project_name(restrict):
-    from .exceptions import NoProjectNameException
+def _project_name_from_settings(restrict):
+    """Return PROJECT_NAME if it is explicitly defined in a settings file.
 
-    if os.environ.get("project_name") and _is_in_container():
-        return os.environ.get("project_name", None)
+    A name found here was set on purpose (the user decoupled project-name
+    from the source directory), so callers can treat it like an explicit
+    -p override and skip the directory-name sanity check.
+    """
 
     def _get_project_name_from_file(path):
         path = Path(path)
@@ -2003,6 +2005,18 @@ def _get_default_project_name(restrict):
         pj = _get_project_name_from_file(path)
         if pj:
             return pj
+    return None
+
+
+def _get_default_project_name(restrict):
+    from .exceptions import NoProjectNameException
+
+    if os.environ.get("project_name") and _is_in_container():
+        return os.environ.get("project_name", None)
+
+    pj = _project_name_from_settings(restrict)
+    if pj:
+        return pj
 
     customs_root = _get_customs_root(Path(os.getcwd()))
     if customs_root:

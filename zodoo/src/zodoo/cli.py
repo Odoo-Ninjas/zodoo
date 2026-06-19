@@ -50,6 +50,7 @@ def cli(
         config.WORKING_DIR = chdir
 
     from .tools import _get_default_project_name
+    from .tools import _project_name_from_settings
     from .tools import _get_customs_root
     from .tools import _is_in_container
     from .tools import abort
@@ -60,6 +61,17 @@ def cli(
             project_name = _get_default_project_name(restrict_setting)
         except Exception:
             project_name = ""
+
+    # A PROJECT_NAME pinned in a settings file is a deliberate choice to
+    # decouple the project-name from the source directory name (e.g. dir
+    # 'ipe' but PROJECT_NAME='odoo_prod'). Treat it like an explicit -p
+    # override and skip the directory-name sanity check below.
+    try:
+        project_name_from_settings = bool(
+            _project_name_from_settings(restrict_setting)
+        )
+    except Exception:
+        project_name_from_settings = False
 
     # Sanity: if we're inside a project tree (cwd has a MANIFEST root),
     # its directory name must equal the effective project_name. The
@@ -76,8 +88,13 @@ def cli(
     #   - the caller passed -p explicitly (the user knows the source
     #     tree's name differs from the project_name — typical for CI
     #     workflows that use a hashed project_name on a checkout dir)
+    #   - PROJECT_NAME is pinned in a settings file (a deliberate decoupling
+    #     of project-name from the source directory name)
     skip_dir_check = (
-        _is_in_container() or bool(restrict_setting) or explicit_project_name
+        _is_in_container()
+        or bool(restrict_setting)
+        or explicit_project_name
+        or project_name_from_settings
     )
     if project_name and not skip_dir_check:
         try:
