@@ -785,25 +785,21 @@ def _apply_legacy_split_containers(yml, settings):
 
     # Re-introduce the per-role services that the supervisor commit
     # collapsed into a single container.
+    # NOTE: no healthcheck here. The consolidated healthcheck runs
+    # /odoolib/healthcheck_cronjobs.py, but that script only ships in the
+    # newer (supervisor-based) images. On the pre-supervisor images this
+    # role split targets, the script is absent, so the check always exits
+    # non-zero -> the container is permanently "unhealthy" and the
+    # restart_unhealthy_containers watchdog restarts it every ~1-2 min.
+    # That kills in-flight queue jobs mid-run (leaving "started" zombies)
+    # and stalls the queue. Pre-supervisor cronjobs had no healthcheck;
+    # restore that (matches the web container above).
     _ensure_legacy_role(
         services,
         "odoo_cronjobs",
         env={"IS_ODOO_CRONJOB": "1"},
         labels={"odoo.queuejob_container": "1"},
         restart="on-failure",
-        healthcheck={
-            # /opt/venv/bin/python is python2.7 on debian buster (v11),
-            # but healthcheck_cronjobs.py uses py3 syntax. Use python3
-            # explicitly.
-            "test": [
-                "CMD-SHELL",
-                "/opt/venv/bin/python3 /odoolib/healthcheck_cronjobs.py",
-            ],
-            "interval": "30s",
-            "timeout": "10s",
-            "retries": 1,
-            "start_period": "60s",
-        },
     )
     _ensure_legacy_role(
         services,
