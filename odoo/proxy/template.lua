@@ -104,9 +104,25 @@ end
 local odoo_update = dict:get("odoo_update")
 
 if odoo_update then
-    hostname = "proxy"
-    port = "3333"
-    ip = myngx.get_ip(hostname)
+    -- Module update in progress: serve the construction site directly
+    -- with HTTP 503 (Service Unavailable) so monitoring and crawlers see
+    -- a real "down" status instead of a misleading 200. Served inline
+    -- here rather than proxied to the :3333 static server, because the
+    -- surrounding location has `proxy_intercept_errors on` together with
+    -- `error_page 502 503 504 ... @fallback` -- proxying a 503 upstream
+    -- would be swallowed by nginx and rewritten via @fallback.
+    local f = io.open("/opt/construction_site/index.html", "rb")
+    ngx.status = 503
+    ngx.header["Retry-After"] = "30"
+    ngx.header["Content-Type"] = "text/html; charset=utf-8"
+    if f then
+        local body = f:read("*a")
+        f:close()
+        ngx.say(body)
+    else
+        ngx.say("Service temporarily unavailable -- update in progress.")
+    end
+    return ngx.exit(503)
 else
 
     -- insert: if cookie exists - "debugpython=1" then set hostname to "odoo_debug"

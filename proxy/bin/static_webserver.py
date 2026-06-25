@@ -15,9 +15,13 @@ class Handler(BaseHTTPRequestHandler):
             with open(HTML_FILE, "rb") as f:
                 content = f.read()
 
-            self.send_response(200)
+            # 503 (not 200): the construction site is a maintenance page,
+            # so the service must signal "temporarily unavailable" to
+            # browsers, crawlers and monitoring instead of pretending OK.
+            self.send_response(503)
             self.send_header("Content-Type", "text/html")
             self.send_header("Content-Length", str(len(content)))
+            self.send_header("Retry-After", "30")
             self.end_headers()
             self.wfile.write(content)
 
