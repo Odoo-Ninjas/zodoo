@@ -17,6 +17,7 @@ from .tools import __dc_out
 from .tools import _get_host_ip
 from .tools import __needs_docker
 from .tools import get_docker_version
+from .tools import abort
 from .tools import __get_cmd
 from .tools import _set_default_envs
 from .tools import _merge_env_dict
@@ -1282,7 +1283,7 @@ def logall(config, machines, follow, lines):
     __dc(config, cmd)
 
 
-def shell(config, command="", queuejobs=False):
+def shell(config, command="", queuejobs=False, debug=False, debug_port=None):
     import time as _time
 
     def _ts(label):
@@ -1312,6 +1313,14 @@ def shell(config, command="", queuejobs=False):
     ]
     if get_docker_version()[0] >= 26:
         cmd += ["-it"]
+
+    if debug:
+        # Publish the in-container debugpy port (5678) on its own host port
+        # so VSCode can attach. Must differ from the always-published odoo
+        # service debug port (PROXY/debug mapping) to avoid a bind clash.
+        if not debug_port:
+            abort("--debug requires --debug-port")
+        cmd += ["-p", f"{debug_port}:5678", "-e", "ODOO_SHELL_DEBUG=1"]
 
     cmd += [
         "-e",

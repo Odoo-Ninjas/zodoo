@@ -42,7 +42,34 @@
                 "close": true
             },
             "problemMatcher": []
+        },
+    {
+      "label": "launch:docker:odoo:shell:debugpy",
+      "type": "shell",
+      "command": "odoo shell --debug --debug-port {ODOO_PYTHON_DEBUG_PORT_SHELL}",
+      "isBackground": true,
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true,
+        "focus": true
+      },
+      "problemMatcher": {
+        "pattern": {
+          "regexp": "^(ZODOO_DEBUGPY_SHELL_READY)$",
+          "file": 1,
+          "message": 1
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Shell debug mode: waiting",
+          "endsPattern": "ZODOO_DEBUGPY_SHELL_READY"
         }
+      }
+    }
   ],
   "configurations": [
 
@@ -56,6 +83,23 @@
       },
       "preLaunchTask": "launch:docker:odoo:debugpy",
       "postDebugTask": "show:docker:result:logs",
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}",
+          "remoteRoot": "/opt/src"
+        }
+      ],
+      "justMyCode": false
+    },
+    {
+      "name": "zodoo-shell-docker",
+      "type": "python",
+      "request": "attach",
+      "connect": {
+        "host": "127.0.0.1",
+        "port": {ODOO_PYTHON_DEBUG_PORT_SHELL}
+      },
+      "preLaunchTask": "launch:docker:odoo:shell:debugpy",
       "pathMappings": [
         {
           "localRoot": "${workspaceFolder}",

@@ -2318,6 +2318,14 @@ def setup_launch_json(config):
     template = template.replace(
         "{ODOO_PYTHON_DEBUG_PORT}", (config.ODOO_PYTHON_DEBUG_PORT or "0")
     )
+    # Debug shell ('zodoo-shell-docker') runs in its own one-off `docker
+    # compose run` container and must publish debugpy on a port distinct from
+    # the always-published odoo service debug port — use debug_port + 1.
+    _dbg_port = int(config.ODOO_PYTHON_DEBUG_PORT or "0")
+    template = template.replace(
+        "{ODOO_PYTHON_DEBUG_PORT_SHELL}",
+        str(_dbg_port + 1) if _dbg_port else "0",
+    )
     template = json.loads(template)
 
     if config.run_postgres:
@@ -2374,6 +2382,13 @@ def setup_launch_json(config):
 
     for taskconfig in template["tasks"]:
         cmd = taskconfig["command"]
+
+        # Tasks that invoke the `odoo` CLI directly (e.g. the debug shell)
+        # derive all config from the project dir. Prepending the launch-script
+        # env vars here would override zodoo settings via env (env wins in the
+        # settings precedence), e.g. a stale PROXY_PORT — so skip them.
+        if cmd.lstrip().startswith("odoo "):
+            continue
 
         def b(var):
             return "1" if var else "0"
