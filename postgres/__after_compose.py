@@ -72,6 +72,31 @@ def after_compose(config, settings, yml, globals):
             fg="red",
         )
 
+    _apply_cpu_limit_postgres(settings, yml)
+
+
+def _apply_cpu_limit_postgres(settings, yml):
+    """Limit CPU cores of the postgres container via CPU_LIMIT_POSTGRES.
+
+    0 / unset = unlimited. Set as deploy.resources.limits.cpus, honoured by
+    `docker compose up` in non-swarm mode.
+    """
+    try:
+        cpus = float(settings.get("CPU_LIMIT_POSTGRES") or 0)
+    except (TypeError, ValueError):
+        return
+    if cpus <= 0:
+        return
+    service = yml.get("services", {}).get("postgres")
+    if service is None:
+        return
+    limits = (
+        service.setdefault("deploy", {})
+        .setdefault("resources", {})
+        .setdefault("limits", {})
+    )
+    limits["cpus"] = str(cpus)
+
 
 def suggest_postgres_conf(
     workload="oltp", max_connections: int = 100, pg_version: int = 17

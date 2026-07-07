@@ -87,6 +87,34 @@ def after_compose(config, settings, yml, globals):
 
     _eval_setting_common_filestore(config, settings, globals)
 
+    _apply_cpu_limit(config, yml, settings, globals)
+
+
+def _apply_cpu_limit(config, yml, settings, globals):
+    """Limit CPU cores of the odoo container(s) via CPU_LIMIT_ODOO.
+
+    0 / unset = unlimited. Applied to every service merged from odoo_base
+    (web + legacy split roles) as deploy.resources.limits.cpus, which
+    `docker compose up` honours in non-swarm mode (mirrors the mem-limit
+    pattern already used elsewhere).
+    """
+    try:
+        cpus = float(settings.get("CPU_LIMIT_ODOO") or 0)
+    except (TypeError, ValueError):
+        return
+    if cpus <= 0:
+        return
+    for name in globals["tools"].get_services(config, "odoo_base", yml=yml):
+        service = yml["services"].get(name)
+        if service is None:
+            continue
+        limits = (
+            service.setdefault("deploy", {})
+            .setdefault("resources", {})
+            .setdefault("limits", {})
+        )
+        limits["cpus"] = str(cpus)
+
 
 def store_sha_of_external_deps(deps, PYTHON_VERSION, file):
     v = ""
