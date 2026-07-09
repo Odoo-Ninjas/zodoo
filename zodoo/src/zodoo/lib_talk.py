@@ -15,6 +15,7 @@ from .tools import _get_setting
 from .tools import odoorpc
 from .tools import _is_in_container
 from .tools import abort
+from .tools import __assure_gitignore
 
 
 def _stringify_translated_dict(v):
@@ -120,6 +121,13 @@ def get_config_parameter(ctx, config, name):
 RIBBON_MODULE = "web_environment_ribbon"
 
 
+def _is_odoo_module(path):
+    # Odoo >= 10 uses __manifest__.py, <= 9 uses __openerp__.py
+    return (path / "__manifest__.py").exists() or (
+        path / "__openerp__.py"
+    ).exists()
+
+
 def _fetch_oca_ribbon_module(branch, dest_root):
     """Sparse-clone the OCA/web ``web_environment_ribbon`` module of the given
     branch into ``dest_root/web_environment_ribbon`` (without the .git)."""
@@ -158,13 +166,14 @@ def _fetch_oca_ribbon_module(branch, dest_root):
                     RIBBON_MODULE,
                 ]
             )
-        except subprocess.CalledProcessError:
+        except (subprocess.CalledProcessError, FileNotFoundError, OSError):
             abort(
                 f"Could not fetch {RIBBON_MODULE} from {url} (branch {branch}). "
-                "Check network access / that the branch exists."
+                "Check that git is installed, network access works and the "
+                "branch exists."
             )
         src = tmp / RIBBON_MODULE
-        if not (src / "__manifest__.py").exists():
+        if not _is_odoo_module(src):
             abort(f"OCA/web@{branch} does not contain {RIBBON_MODULE}.")
         target = dest_root / RIBBON_MODULE
         if target.exists():
@@ -180,12 +189,16 @@ def _ensure_ribbon_module(config):
     from .odoo_config import MANIFEST, current_version, customs_dir
 
     rel_path = "addons_zodoo_provided"
-    provided_root = customs_dir() / rel_path
+    customs = customs_dir()
+    provided_root = customs / rel_path
     module_dir = provided_root / RIBBON_MODULE
 
-    if not (module_dir / "__manifest__.py").exists():
+    if not _is_odoo_module(module_dir):
         branch = f"{current_version():.1f}"
         _fetch_oca_ribbon_module(branch, provided_root)
+
+    # keep the vendored copy out of the project's git history
+    __assure_gitignore(customs / ".gitignore", "/" + rel_path + "/")
 
     manifest = MANIFEST()
     paths = list(manifest["addons_paths"])
