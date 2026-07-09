@@ -1,7 +1,9 @@
 import json
+import subprocess
 import xml.etree.ElementTree as ET
 import arrow
 import time
+from pathlib import Path
 
 import click
 from tabulate import tabulate
@@ -12,6 +14,7 @@ from .tools import _execute_sql
 from .tools import _get_setting
 from .tools import odoorpc
 from .tools import _is_in_container
+from .tools import abort
 
 
 def _stringify_translated_dict(v):
@@ -114,37 +117,140 @@ def get_config_parameter(ctx, config, name):
     click.secho(_get_setting(conn, name))
 
 
-@talk.command()
+RIBBON_MODULE = "web_environment_ribbon"
+
+
+def _fetch_oca_ribbon_module(branch, dest_root):
+    """Sparse-clone the OCA/web ``web_environment_ribbon`` module of the given
+    branch into ``dest_root/web_environment_ribbon`` (without the .git)."""
+    import shutil
+    import tempfile
+
+    url = "https://github.com/OCA/web"
+    dest_root.mkdir(parents=True, exist_ok=True)
+    click.secho(
+        f"Fetching {RIBBON_MODULE} from OCA/web@{branch}...", fg="blue"
+    )
+    with tempfile.TemporaryDirectory() as tmpd:
+        tmp = Path(tmpd)
+        try:
+            subprocess.check_call(
+                [
+                    "git",
+                    "clone",
+                    "--depth",
+                    "1",
+                    "--filter=blob:none",
+                    "--sparse",
+                    "-b",
+                    branch,
+                    url,
+                    str(tmp),
+                ]
+            )
+            subprocess.check_call(
+                [
+                    "git",
+                    "-C",
+                    str(tmp),
+                    "sparse-checkout",
+                    "set",
+                    RIBBON_MODULE,
+                ]
+            )
+        except subprocess.CalledProcessError:
+            abort(
+                f"Could not fetch {RIBBON_MODULE} from {url} (branch {branch}). "
+                "Check network access / that the branch exists."
+            )
+        src = tmp / RIBBON_MODULE
+        if not (src / "__manifest__.py").exists():
+            abort(f"OCA/web@{branch} does not contain {RIBBON_MODULE}.")
+        target = dest_root / RIBBON_MODULE
+        if target.exists():
+            shutil.rmtree(target)
+        shutil.copytree(src, target, ignore=shutil.ignore_patterns(".git"))
+    click.secho(f"Provided {RIBBON_MODULE} at {target}", fg="green")
+
+
+def _ensure_ribbon_module(config):
+    """Make sure the OCA ``web_environment_ribbon`` module is available: fetch a
+    version-matched copy into ``<customs>/addons_zodoo_provided`` and register
+    that path in the project MANIFEST (idempotent)."""
+    from .odoo_config import MANIFEST, current_version, customs_dir
+
+    rel_path = "addons_zodoo_provided"
+    provided_root = customs_dir() / rel_path
+    module_dir = provided_root / RIBBON_MODULE
+
+    if not (module_dir / "__manifest__.py").exists():
+        branch = f"{current_version():.1f}"
+        _fetch_oca_ribbon_module(branch, provided_root)
+
+    manifest = MANIFEST()
+    paths = list(manifest["addons_paths"])
+    if rel_path not in paths:
+        paths.append(rel_path)
+        manifest["addons_paths"] = paths
+        click.secho(
+            f"Added '{rel_path}' to MANIFEST addons_paths.", fg="green"
+        )
+
+
+def _set_ribbon(ctx, config, name, quick):
+    if not quick:
+        _ensure_ribbon_module(config)
+        res = _execute_sql(
+            config.get_odoo_conn(),
+            "SELECT state FROM ir_module_module WHERE name = %s;",
+            params=(RIBBON_MODULE,),
+            fetchone=True,
+        )
+        if not (res and res[0] == "installed"):
+            Commands.invoke(
+                ctx,
+                "update",
+                module=[RIBBON_MODULE],
+                no_dangling_check=True,
+            )
+
+    # upsert so the ribbon text is set even if the parameter row does not
+    # exist yet (e.g. -Q/--quick without a prior install)
+    _execute_sql(
+        config.get_odoo_conn(),
+        """
+        INSERT INTO ir_config_parameter (key, value)
+        VALUES ('ribbon.name', %s)
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+    """,
+        params=(name,),
+    )
+    click.secho(f"Ribbon set to: {name}", fg="green")
+
+
+@talk.command(name="set-ribbon")
 @click.argument("name", required=True)
 @click.option("-Q", "--quick", is_flag=True)
 @pass_config
 @click.pass_context
 def set_ribbon(ctx, config, name, quick):
-    if not quick:
-        SQL = """
-            Select state from ir_module_module where name = 'web_environment_ribbon';
-        """
-        res = _execute_sql(config.get_odoo_conn(), SQL, fetchone=True)
-        if not (res and res[0] == "installed"):
-            Commands.invoke(
-                ctx,
-                "update",
-                module=["web_environment_ribbon"],
-                no_dangling_check=True,
-            )
+    _set_ribbon(ctx, config, name, quick)
 
-    _execute_sql(
-        config.get_odoo_conn(),
-        """
-        UPDATE
-            ir_config_parameter
-        SET
-            value = %s
-        WHERE
-            key = 'ribbon.name';
-    """,
-        params=(name,),
-    )
+
+@cli.command(
+    name="set-ribbon",
+    help=(
+        "Show a ribbon (e.g. 'Neutralized') in the web client. Fetches the OCA "
+        "web_environment_ribbon module, wires it into the MANIFEST addons_paths "
+        "and installs it if missing (-Q/--quick to only set the text)."
+    ),
+)
+@click.argument("name", required=True)
+@click.option("-Q", "--quick", is_flag=True)
+@pass_config
+@click.pass_context
+def set_ribbon_toplevel(ctx, config, name, quick):
+    _set_ribbon(ctx, config, name, quick)
 
 
 @talk.command(
@@ -201,7 +307,9 @@ def recompute_parent_store(ctx, config):
 
 
 @talk.command()
-@click.option("-n", "--last", default=10, help="Show last N connection samples.")
+@click.option(
+    "-n", "--last", default=10, help="Show last N connection samples."
+)
 @pass_config
 def diagnose(config, last):
     """
@@ -220,11 +328,18 @@ def diagnose(config, last):
     container = f"{config.project_name}_cronjobs"
 
     click.secho("=== DB connection samples ===", fg="cyan", bold=True)
-    rc = subprocess.call([
-        "docker", "exec", container,
-        "python3", "/usr/local/bin/diag_maxconn_sampler.py", "show",
-        "-n", str(last),
-    ])
+    rc = subprocess.call(
+        [
+            "docker",
+            "exec",
+            container,
+            "python3",
+            "/usr/local/bin/diag_maxconn_sampler.py",
+            "show",
+            "-n",
+            str(last),
+        ]
+    )
     if rc:
         sys.exit(rc)
 
