@@ -233,7 +233,9 @@ def _set_ribbon(ctx, config, name, quick):
         # copy as odoo-cicd does) so we do not hit the network needlessly.
         try:
             _install_ribbon_module(ctx)
-        except Exception:
+        except (Exception, SystemExit):
+            # includes abort() -> SystemExit ("Missing after installation");
+            # this attempt is best-effort, the re-check below drives the fetch
             pass
         # Still not installed -> the module is nowhere in the addons paths;
         # fetch a version-matched OCA copy, wire it into the MANIFEST and retry.
