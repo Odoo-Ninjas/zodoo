@@ -210,22 +210,36 @@ def _ensure_ribbon_module(config):
         )
 
 
+def _ribbon_installed(config):
+    res = _execute_sql(
+        config.get_odoo_conn(),
+        "SELECT state FROM ir_module_module WHERE name = %s;",
+        params=(RIBBON_MODULE,),
+        fetchone=True,
+    )
+    return bool(res and res[0] == "installed")
+
+
+def _install_ribbon_module(ctx):
+    Commands.invoke(
+        ctx, "update", module=[RIBBON_MODULE], no_dangling_check=True
+    )
+
+
 def _set_ribbon(ctx, config, name, quick):
-    if not quick:
-        _ensure_ribbon_module(config)
-        res = _execute_sql(
-            config.get_odoo_conn(),
-            "SELECT state FROM ir_module_module WHERE name = %s;",
-            params=(RIBBON_MODULE,),
-            fetchone=True,
-        )
-        if not (res and res[0] == "installed"):
-            Commands.invoke(
-                ctx,
-                "update",
-                module=[RIBBON_MODULE],
-                no_dangling_check=True,
-            )
+    if not quick and not _ribbon_installed(config):
+        # First try to install from addons paths that are already available
+        # (module provided via gimera, or an ADDITIONAL_ADDONS_PATHS vendored
+        # copy as odoo-cicd does) so we do not hit the network needlessly.
+        try:
+            _install_ribbon_module(ctx)
+        except Exception:
+            pass
+        # Still not installed -> the module is nowhere in the addons paths;
+        # fetch a version-matched OCA copy, wire it into the MANIFEST and retry.
+        if not _ribbon_installed(config):
+            _ensure_ribbon_module(config)
+            _install_ribbon_module(ctx)
 
     # upsert so the ribbon text is set even if the parameter row does not
     # exist yet (e.g. -Q/--quick without a prior install)
