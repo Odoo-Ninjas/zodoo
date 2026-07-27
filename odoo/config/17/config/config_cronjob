@@ -7,3 +7,9 @@ workers = 0
 #log_level = debug
 log_handler = :ERROR
 log_level = error
+
+[queue_job]
+# Only the dedicated queuejobs role runs the job runner. Without this the
+# runner defaults to root:1 and starts here too, so several runners compete
+# for the same queue_job rows and collide with SerializationFailure.
+channels = root:0

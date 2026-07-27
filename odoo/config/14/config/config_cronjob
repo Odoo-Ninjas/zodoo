@@ -9,3 +9,9 @@ log_level = error
 
 limit_memory_hard = __LIMIT_MEMORY_HARD_CRON__
 limit_memory_soft = __LIMIT_MEMORY_SOFT_CRON__
+
+[queue_job]
+# Only the dedicated queuejobs role runs the job runner. Without this the
+# runner defaults to root:1 and starts here too, so several runners compete
+# for the same queue_job rows and collide with SerializationFailure.
+channels = root:0
