@@ -483,7 +483,7 @@ def test_runbash_dispatches(monkeypatch):
 def test_shell_dispatches_and_propagates_exit_code(monkeypatch):
     _patch_lib_with_docker(
         monkeypatch,
-        shell=lambda cfg, command, queuejobs: 7,
+        shell=lambda cfg, command, queuejobs, debug=False, debug_port=None: 7,
     )
     res = _invoke(mod.shell, FakeConfig(), [])
     assert res.exit_code == 7
