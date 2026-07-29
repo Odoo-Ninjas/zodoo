@@ -87,6 +87,34 @@ def after_compose(config, settings, yml, globals):
 
     _eval_setting_common_filestore(config, settings, globals)
 
+    _apply_cpu_limit(config, yml, settings, globals)
+
+
+def _apply_cpu_limit(config, yml, settings, globals):
+    """Limit CPU cores of the odoo container(s) via CPU_LIMIT_ODOO.
+
+    0 / unset = unlimited. Applied to every service merged from odoo_base
+    (web + legacy split roles) as deploy.resources.limits.cpus, which
+    `docker compose up` honours in non-swarm mode (mirrors the mem-limit
+    pattern already used elsewhere).
+    """
+    try:
+        cpus = float(settings.get("CPU_LIMIT_ODOO") or 0)
+    except (TypeError, ValueError):
+        return
+    if cpus <= 0:
+        return
+    for name in globals["tools"].get_services(config, "odoo_base", yml=yml):
+        service = yml["services"].get(name)
+        if service is None:
+            continue
+        limits = (
+            service.setdefault("deploy", {})
+            .setdefault("resources", {})
+            .setdefault("limits", {})
+        )
+        limits["cpus"] = str(cpus)
+
 
 def store_sha_of_external_deps(deps, PYTHON_VERSION, file):
     v = ""
@@ -785,25 +813,21 @@ def _apply_legacy_split_containers(yml, settings):
 
     # Re-introduce the per-role services that the supervisor commit
     # collapsed into a single container.
+    # NOTE: no healthcheck here. The consolidated healthcheck runs
+    # /odoolib/healthcheck_cronjobs.py, but that script only ships in the
+    # newer (supervisor-based) images. On the pre-supervisor images this
+    # role split targets, the script is absent, so the check always exits
+    # non-zero -> the container is permanently "unhealthy" and the
+    # restart_unhealthy_containers watchdog restarts it every ~1-2 min.
+    # That kills in-flight queue jobs mid-run (leaving "started" zombies)
+    # and stalls the queue. Pre-supervisor cronjobs had no healthcheck;
+    # restore that (matches the web container above).
     _ensure_legacy_role(
         services,
         "odoo_cronjobs",
         env={"IS_ODOO_CRONJOB": "1"},
         labels={"odoo.queuejob_container": "1"},
         restart="on-failure",
-        healthcheck={
-            # /opt/venv/bin/python is python2.7 on debian buster (v11),
-            # but healthcheck_cronjobs.py uses py3 syntax. Use python3
-            # explicitly.
-            "test": [
-                "CMD-SHELL",
-                "/opt/venv/bin/python3 /odoolib/healthcheck_cronjobs.py",
-            ],
-            "interval": "30s",
-            "timeout": "10s",
-            "retries": 1,
-            "start_period": "60s",
-        },
     )
     _ensure_legacy_role(
         services,

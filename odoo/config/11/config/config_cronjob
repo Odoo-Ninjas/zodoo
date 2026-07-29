@@ -4,3 +4,9 @@ max_cron_threads = __ODOO_MAX_CRON_THREADS__
 workers = 0
 log_handler = :DEBUG,openerp:DEBUG,werkzeug:DEBUG,odoo.addons.queue_job:DEBUG
 log_level = debug
+
+[queue_job]
+# Only the dedicated queuejobs role runs the job runner. Without this the
+# runner defaults to root:1 and starts here too, so several runners compete
+# for the same queue_job rows and collide with SerializationFailure.
+channels = root:0

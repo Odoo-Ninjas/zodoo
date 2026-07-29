@@ -9,7 +9,7 @@ if [[ "$RUN_PROXY_PUBLISHED" == "1" ]]; then
 	odoo up -d proxy --no-recreate
 fi
 
-if [[ "$SETUP_PYENV" == "1" ]] && ! pyenv versions --bare | grep -qx "$PROJECTNAME"; then
+if [[ "$SETUP_PYENV" == "1" ]] && ! pyenv versions --bare | grep -qx "zodoo-robot"; then
 	echo "Pyenv not yet initialized. Installing by odoo setup-pyenv"
 	odoo setup-pyenv
 fi

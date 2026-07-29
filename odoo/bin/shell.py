@@ -26,6 +26,42 @@ _ts("prepare_run: done")
 os.environ["PYTHONBREAKPOINT"] = "pudb.set_trace"
 params = sys.argv
 
+# Debug mode: wrap the odoo shell in debugpy and wait for VSCode to attach.
+# Enabled via `odoo odoo-shell --debug` (sets ODOO_SHELL_DEBUG=1 + publishes
+# the debug port on the one-off run container). exec_odoo()'s
+# remote_debug/wait_for_remote add `python -mdebugpy --listen 0.0.0.0:5678
+# --wait-for-client`. A daemon thread polls that in-container port and prints
+# a sentinel once debugpy is actually accepting connections, so the VSCode
+# background preLaunchTask can fire the attach race-free (the port is open
+# before we signal, unlike a plain "about to start" echo).
+_shell_debug = os.environ.get("ODOO_SHELL_DEBUG") == "1"
+if _shell_debug:
+    import socket
+    import threading
+
+    _DEBUGPY_PORT = 5678  # in-container listen port (see tools.__python_exe)
+    _READY_SENTINEL = "ZODOO_DEBUGPY_SHELL_READY"
+
+    def _announce_when_ready():
+        for _ in range(600):  # ~120s
+            try:
+                with socket.create_connection(
+                    ("127.0.0.1", _DEBUGPY_PORT), timeout=1
+                ):
+                    pass
+            except OSError:
+                _time.sleep(0.2)
+                continue
+            print(_READY_SENTINEL, flush=True)
+            return
+        print(f"{_READY_SENTINEL}:TIMEOUT", flush=True)
+
+    threading.Thread(target=_announce_when_ready, daemon=True).start()
+    click.secho(
+        "Shell debug mode: waiting for VSCode to attach debugpy ...",
+        fg="yellow",
+    )
+
 # make path relative to links, so that test is recognized by odoo
 cmd = [
     "--stop-after-init",
@@ -67,6 +103,8 @@ rc, _ = exec_odoo(
     odoo_shell=True,
     stdin=stdin,
     dokill=False,
+    remote_debug=_shell_debug,
+    wait_for_remote=_shell_debug,
 )
 _ts("exec_odoo (odoo-bin shell): done")
 sys.exit(rc)

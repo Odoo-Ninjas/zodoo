@@ -1276,15 +1276,31 @@ def logall(config, machines, follow, lines):
     is_flag=True,
     help=("Dont delay queuejobs / execute queuejob code"),
 )
+@click.option(
+    "--debug",
+    is_flag=True,
+    help=(
+        "Start the shell under debugpy and wait for a remote debugger "
+        "(VSCode) to attach, so breakpoints in addon code are hit. "
+        "Used by the 'zodoo-shell-docker' VSCode launch config."
+    ),
+)
+@click.option(
+    "--debug-port",
+    type=int,
+    help="Host port to publish the in-container debugpy port (5678) on.",
+)
 @pass_config
-def shell(config, command, queuejobs):
+def shell(config, command, queuejobs, debug, debug_port):
     print_prod_env(config)
 
     ensure_project_name(config)
     command = "\n".join(command)
     from .lib_control_with_docker import shell as lib_shell
 
-    rc = lib_shell(config, command, queuejobs)
+    rc = lib_shell(
+        config, command, queuejobs, debug=debug, debug_port=debug_port
+    )
     if rc:
         sys.exit(rc)
 

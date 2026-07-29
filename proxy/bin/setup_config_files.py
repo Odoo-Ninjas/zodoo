@@ -24,7 +24,7 @@ location /mailer {
     proxy_set_header X-Forwarded-Proto $scheme;
     # proxy_set_header X-Forwarded-Path /mailer/;
 
-    error_page 502 503 504 = @fallback;
+    error_page 502 503 504 =503 @fallback;
 }
 """
 
