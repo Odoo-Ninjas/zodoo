@@ -1,0 +1,3 @@
+type: fix
+description: "Odoo 16: der Queuejob-Worker bekommt einen eigenen gevent_port (8073) - vorher kollidierte er mit dem Webserver auf 8072 (Address already in use) und eine der beiden Rollen lief in einen Crashloop"
+breaking: false
