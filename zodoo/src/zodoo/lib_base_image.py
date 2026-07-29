@@ -112,6 +112,37 @@ def _referenced_snippets(dockerfile_text):
     return seen
 
 
+# Odoo's upstream ``requirements.txt`` occasionally pins a version that
+# later gets *yanked* from PyPI (e.g. ``cbor2==5.4.2``). ``pip install`` then
+# aborts with "No matching distribution found", which breaks the base image
+# build for every project on the affected Odoo pin. Bumping the whole Odoo
+# submodule just to pick up upstream's follow-up requirements fix is
+# disproportionate, so we surgically rewrite the known-bad pin to the
+# nearest safe release right where we read the file. The rewritten text is
+# what gets both hashed and installed, so the base image rebuilds
+# automatically once an override lands here.
+#
+# Each entry is ``(package, yanked_version, replacement_version)``. The
+# rewrite only touches an exact ``name==yanked_version`` pin and leaves the
+# rest of the line untouched (environment markers, comments); a version such
+# as ``cbor2==5.4.2.post1`` is deliberately not matched.
+_YANKED_PIN_OVERRIDES = (
+    # cbor2 5.4.2 was yanked from PyPI; upstream Odoo already moved to 5.4.6
+    # for python 3.11, but older pinned Odoo revisions still request 5.4.2.
+    ("cbor2", "5.4.2", "5.4.6"),
+)
+
+
+def _apply_yanked_pin_overrides(text):
+    """Rewrite known-yanked ``name==version`` pins to a safe replacement."""
+    for package, yanked, replacement in _YANKED_PIN_OVERRIDES:
+        pattern = re.compile(
+            r"\b" + re.escape(f"{package}=={yanked}") + r"(?![\w.])"
+        )
+        text = pattern.sub(f"{package}=={replacement}", text)
+    return text
+
+
 def _odoo_framework_requirements_text(config):
     """Return the content of Odoo's upstream ``requirements.txt``.
 
@@ -119,6 +150,9 @@ def _odoo_framework_requirements_text(config):
     submodule). ``config.dirs["odoo_home"]`` is **not** Odoo's source — on
     the host it resolves to the zodoo CLI package directory, whose own
     requirements.txt has nothing to do with Odoo's framework deps.
+
+    Known-yanked pins are rewritten via :data:`_YANKED_PIN_OVERRIDES` so a
+    disappeared upstream release does not break the base image build.
     """
     working = getattr(config, "WORKING_DIR", None)
     if working:
@@ -130,7 +164,7 @@ def _odoo_framework_requirements_text(config):
             odoo_dir = "odoo"
         candidate = Path(working) / odoo_dir / "requirements.txt"
         if candidate.exists():
-            return candidate.read_text()
+            return _apply_yanked_pin_overrides(candidate.read_text())
     return ""
 
 
