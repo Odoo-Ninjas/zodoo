@@ -35,6 +35,18 @@ if [ -z "$REGISTRY_URL" ]; then
   exit 1
 fi
 
+# Docker image references must not carry a URL scheme. A setting like
+# "https://registry.example.com" would produce an invalid tag; fail early
+# with a clear message instead of a cryptic "invalid reference format".
+case "$REGISTRY_URL" in
+  http://*|https://*)
+    echo "ZODOO_REGISTRY_URL must not contain a URL scheme (http:// or https://): '$REGISTRY_URL'" >&2
+    echo "Set it to a bare host[:port][/path], e.g. ZODOO_REGISTRY_URL=registry.zebroo.de" >&2
+    exit 1
+    ;;
+esac
+REGISTRY_URL="${REGISTRY_URL%/}"
+
 ARCH=$(uname -m | sed "s/x86_64/amd64/;s/aarch64/arm64/")
 TAG="${REGISTRY_URL}/zodoo/python:${PYTHON_VERSION}-${ARCH}"
 

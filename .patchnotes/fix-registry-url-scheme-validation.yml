@@ -1,0 +1,3 @@
+type: fix
+description: "ZODOO_REGISTRY_URL mit Schema (https://) wird frueh mit klarer Meldung abgelehnt statt spaeter als kryptisches 'invalid reference format' beim Image-Build"
+breaking: false

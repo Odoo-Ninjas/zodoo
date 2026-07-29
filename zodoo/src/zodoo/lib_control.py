@@ -725,9 +725,17 @@ def build_pythons(ctx, config, versions, force):
         )
         sys.exit(1)
 
-    registry_url = (getattr(config, "ZODOO_REGISTRY_URL", "") or "").rstrip(
-        "/"
-    )
+    registry_url = (getattr(config, "ZODOO_REGISTRY_URL", "") or "").strip()
+    if registry_url.startswith(("https://", "http://")):
+        click.secho(
+            "ZODOO_REGISTRY_URL must not contain a URL scheme "
+            f"(http:// or https://): got {registry_url!r}. "
+            "Use a bare host[:port][/path], "
+            "e.g. ZODOO_REGISTRY_URL=registry.zebroo.de",
+            fg="red",
+        )
+        sys.exit(1)
+    registry_url = registry_url.rstrip("/")
     if not registry_url:
         click.secho(
             "ZODOO_REGISTRY_URL not set (~/.odoo/settings).",
