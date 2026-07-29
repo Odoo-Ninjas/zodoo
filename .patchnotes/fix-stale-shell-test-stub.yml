@@ -1,0 +1,3 @@
+type: fix
+description: "Unit-Test: der Stub fuer lib_control_with_docker.shell nimmt jetzt die debug/debug_port-kwargs an - der Test war seit der Einfuehrung von odoo shell --debug rot und hat alle offenen PRs blockiert"
+breaking: false
