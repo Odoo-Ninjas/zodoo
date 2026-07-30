@@ -569,9 +569,26 @@ def _run_test(
                 )
                 __dcrun(config, params, pass_stdin=data, interactive=True)
             finally:
-                # ensure that the seleniumdriver is stopped
-                Commands.invoke(ctx, "kill", machines=[selenium_service_name])
-                Commands.invoke(ctx, "rm", machines=[selenium_service_name])
+                # Best-effort cleanup: tearing the seleniumdriver down must
+                # never replace the outcome of the test run. It used to — an
+                # error raised in here propagated out of a run whose tests had
+                # all PASSED, so CI reported the leg as failed and the following
+                # retry then started from a half-torn-down project. SystemExit
+                # is caught on purpose: `abort()` (e.g. an unreadable MANIFEST
+                # while the config is loaded for these commands) raises
+                # SystemExit, which a plain `except Exception` would miss.
+                # KeyboardInterrupt deliberately stays uncaught.
+                for _cleanup_cmd in ("kill", "rm"):
+                    try:
+                        Commands.invoke(
+                            ctx, _cleanup_cmd, machines=[selenium_service_name]
+                        )
+                    except (Exception, SystemExit) as ex:
+                        click.secho(
+                            f"Warning: '{_cleanup_cmd}' of seleniumdriver "
+                            f"{selenium_service_name} failed, continuing: {ex}",
+                            fg="yellow",
+                        )
                 click.secho(
                     f"Stopped seleniumdriver {selenium_service_name} container",
                     fg="yellow",

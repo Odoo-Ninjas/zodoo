@@ -98,6 +98,25 @@ def MANIFEST_FILE():
     return _customs_dir.resolve().absolute() / "MANIFEST"
 
 
+# How long to keep retrying a MANIFEST that exists but reads back empty or
+# only partially written. Such a read means another process is rewriting the
+# file right now (rsync from a shared CI cache, git checkout, gimera), so
+# waiting is the correct answer — the previous budget of ~1s was too short for
+# an rsync of a large source tree and turned a transient race into a hard
+# abort. Tunable for slow/loaded machines.
+MANIFEST_READ_TIMEOUT_DEFAULT = 15.0
+
+
+def _manifest_read_timeout():
+    raw = os.environ.get("ZODOO_MANIFEST_READ_TIMEOUT", "")
+    if not raw:
+        return MANIFEST_READ_TIMEOUT_DEFAULT
+    try:
+        return max(0.0, float(raw))
+    except (TypeError, ValueError):
+        return MANIFEST_READ_TIMEOUT_DEFAULT
+
+
 class MANIFEST_CLASS:
     def __init__(self):
         self.path = MANIFEST_FILE()
@@ -118,37 +137,60 @@ class MANIFEST_CLASS:
                 pass
 
     def _get_data(self):
-        # Retry on empty/tiny reads or missing 'addons_paths' — external tools
-        # (rsync, git checkout, gimera) can truncate/rewrite the file, creating
-        # a brief window where the content is empty or lacks critical keys.
+        # External tools (rsync from a shared CI cache, git checkout, gimera)
+        # rewrite the MANIFEST underneath us, so a read can land in a window
+        # where it is empty or only partially written. Two distinct cases, with
+        # deliberately different patience:
+        #
+        #   * unreadable (empty / not yet valid python): definitely a concurrent
+        #     rewrite. Retry with backoff for MANIFEST_READ_TIMEOUT, because
+        #     giving up here aborts the whole command and then cascades into
+        #     confusing follow-up errors elsewhere (a truncated read used to
+        #     abort with the useless "Could not parse " and later surface as
+        #     "somehow dbname is missing" during restore).
+        #   * parseable but missing 'addons_paths': usable already, possibly a
+        #     mid-rewrite snapshot. Only a SHORT grace period — _get_data() runs
+        #     on every __getitem__, so a MANIFEST that legitimately has no
+        #     addons_paths must not pay the full timeout on each access.
+        if self.path is None:
+            return OrderedDict()
+
         res = None
-        content = "{}"
-        for attempt in range(10):
+        content = ""
+        started = time.monotonic()
+        unreadable_deadline = started + _manifest_read_timeout()
+        incomplete_deadline = started + 1.0
+        delay = 0.05
+        while True:
             try:
                 content = self.path.read_text()
+            except FileNotFoundError:
+                # No MANIFEST at all is a legitimate state (e.g. a fresh
+                # project): there is nothing to wait for.
+                return OrderedDict()
             except Exception:
-                content = "{}"
-            if not content or len(content) < 10:
-                time.sleep(0.05)
-                continue
-            try:
-                parsed = OrderedDict(ast.literal_eval(content))
-            except Exception:
-                time.sleep(0.05)
-                continue
-            if "addons_paths" in parsed:
+                content = ""
+
+            parsed = None
+            if content.strip():
+                try:
+                    parsed = OrderedDict(ast.literal_eval(content))
+                except Exception:
+                    parsed = None
+
+            now = time.monotonic()
+            if parsed is not None:
                 res = parsed
+                if "addons_paths" in parsed or now >= incomplete_deadline:
+                    break
+            elif now >= unreadable_deadline:
                 break
-            # addons_paths missing — concurrent rewrite in progress, retry
-            time.sleep(0.1)
+
+            time.sleep(delay)
+            delay = min(delay * 2, 1.0)
 
         if res is None:
-            # addons_paths still absent after retries — parse what we have
-            # (may legitimately raise KeyError downstream for invalid configs)
-            try:
-                res = OrderedDict(ast.literal_eval(content))
-            except Exception:
-                abort(f"Could not parse {content}")
+            abort(self._unreadable_manifest_error(content, started))
 
         system_addons_paths = res.get("addons_paths_system", [])
         if system_addons_paths:
@@ -156,6 +198,29 @@ class MANIFEST_CLASS:
                 "addons_paths", []
             )
         return res
+
+    def _unreadable_manifest_error(self, content, started):
+        """Explain WHY the MANIFEST could not be read.
+
+        The old message was `Could not parse ` — with an empty content the
+        interesting part was missing entirely, which made CI failures very hard
+        to diagnose. Report the path, the size on disk and a slice of what we
+        actually saw.
+        """
+        try:
+            size = self.path.stat().st_size
+        except Exception:
+            size = "unknown"
+        waited = time.monotonic() - started
+        return (
+            f"Could not parse MANIFEST {self.path}\n"
+            f"  size on disk: {size} bytes, retried for {waited:.1f}s\n"
+            f"  content seen: {(content or '')[:200]!r}\n"
+            f"The file was empty or not valid python for the whole retry "
+            f"window. Usually another process (rsync, git checkout, gimera) is "
+            f"rewriting it, or it got truncated. Raise "
+            f"ZODOO_MANIFEST_READ_TIMEOUT (seconds) if this machine is slow."
+        )
 
     def __getitem__(self, key):
         data = self._get_data()
