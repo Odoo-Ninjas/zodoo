@@ -1361,7 +1361,17 @@ def remove_webassets(conn):
 
     queries = []
     if current_version() >= 17.0:
-        queries += ["delete from ir_asset;"]
+        # Do NOT delete ir_asset here. Since Odoo 15 the bundles are assembled
+        # purely from ir.asset records (ir_asset.py::_get_related_assets does a
+        # search on them); they are created from the modules' manifest
+        # 'assets' key at install/update time and are *not* recreated by a
+        # restart or an admin login. Deleting them turns this cache purge into
+        # a broken instance until `odoo update` runs - empty bundles, HTTP 500
+        # on /web/assets/..., no login. The generated bundle attachments are
+        # what has to go, and on 17+ those are addressable by their url.
+        queries += [
+            "delete from ir_attachment where url like '/web/assets/%';"
+        ]
     urls_to_ignore = [
         "/website/static/src/scss/options/user_values.custom.web.assets_common.scss",
         "/website/static/src/scss/options/colors/user_color_palette.custom.web.assets_common.scss",

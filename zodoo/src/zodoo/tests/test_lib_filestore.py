@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -132,6 +133,25 @@ def test_materialize_from_common_rejects_a_real_directory(filestore):
         mod.materialize_from_common(
             db_dir, filestore / mod.COMMON_DIR_NAME, []
         )
+
+
+def test_store_fnames_wraps_an_unreachable_server(monkeypatch):
+    """A host where every instance has its own postgres: the current
+    project's connection cannot reach the other databases. That must be a
+    skippable condition, not a traceback out of the middle of a sweep.
+    """
+    import psycopg2
+
+    def refuse(*args, **kwargs):
+        raise psycopg2.OperationalError("connection refused")
+
+    monkeypatch.setattr(mod, "table_exists", refuse)
+    config = SimpleNamespace(
+        get_odoo_conn=lambda: SimpleNamespace(clone=lambda dbname: None)
+    )
+
+    with pytest.raises(mod.DatabaseUnreachable):
+        mod._store_fnames(config, "some_other_instance")
 
 
 def test_materialize_from_common_ignores_escaping_store_fnames(filestore):
