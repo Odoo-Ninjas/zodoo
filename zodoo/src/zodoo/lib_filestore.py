@@ -169,16 +169,33 @@ def _filestore_dir(config):
     return Path(odoo_files) / "filestore"
 
 
+class DatabaseUnreachable(Exception):
+    """The database of a symlinked filestore cannot be queried right now."""
+
+
 def _store_fnames(config, dbname):
+    """Distinct store_fname values of ``dbname``, or None if it has no
+    ir_attachment table (empty / never initialized database).
+
+    Raises :class:`DatabaseUnreachable` when the postgres server itself
+    cannot be reached - on hosts where every instance runs its own postgres
+    container, the connection parameters of the current project only reach
+    that project's database.
+    """
+    import psycopg2
+
     conn = config.get_odoo_conn().clone(dbname=dbname)
-    if not table_exists(conn, "ir_attachment"):
-        return None
-    rows = _execute_sql(
-        conn,
-        "select distinct store_fname from ir_attachment "
-        "where store_fname is not null",
-        fetchall=True,
-    )
+    try:
+        if not table_exists(conn, "ir_attachment"):
+            return None
+        rows = _execute_sql(
+            conn,
+            "select distinct store_fname from ir_attachment "
+            "where store_fname is not null",
+            fetchall=True,
+        )
+    except psycopg2.OperationalError as ex:
+        raise DatabaseUnreachable(str(ex).strip()) from ex
     return [row[0] for row in rows or []]
 
 
@@ -231,7 +248,12 @@ def dedup(config):
     "--all",
     "all_dbs",
     is_flag=True,
-    help="Unshare every symlinked database, not only this project's.",
+    help=(
+        "Unshare every symlinked database, not only this project's. Only "
+        "reaches databases served by this project's postgres - where each "
+        "instance runs its own postgres container, run the command once per "
+        "project instead; unreachable databases are reported and skipped."
+    ),
 )
 @pass_config
 def unshare(config, all_dbs):
@@ -257,7 +279,16 @@ def unshare(config, all_dbs):
         if not entry.is_symlink():
             click.secho(f"{entry.name}: not a symlink, skipping.")
             continue
-        store_fnames = _store_fnames(config, entry.name)
+        try:
+            store_fnames = _store_fnames(config, entry.name)
+        except DatabaseUnreachable as ex:
+            click.secho(
+                f"{entry.name}: database not reachable ({ex}) - leaving the "
+                "symlink alone. Start the instance, or run the command from "
+                "that project.",
+                fg="yellow",
+            )
+            continue
         if store_fnames is None:
             click.secho(
                 f"{entry.name}: no ir_attachment table (database missing or "
