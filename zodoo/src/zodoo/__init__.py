@@ -40,6 +40,7 @@ from . import lib_barman  # NOQA
 from . import lib_control  # NOQA
 from . import lib_db  # NOQA
 from . import lib_db_snapshots  # NOQA
+from . import lib_filestore  # NOQA
 from . import lib_lang  # NOQA
 from . import lib_module  # NOQA
 from . import lib_setup  # NOQA
