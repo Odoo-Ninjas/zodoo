@@ -473,7 +473,8 @@ def _odoo_sh(ctx, config, filename, params):
             os.chdir(tempfolder)
             if not filename.exists():
                 abort(f"File does not exist: {tempfolder}")
-            subprocess.check_call(["unzip", filename])
+            with zipfile.ZipFile(filename) as archive:
+                archive.extractall(tempfolder)
             sqlfile = tempfolder / "dump.sql"
             filestore = tempfolder / "filestore"
 
