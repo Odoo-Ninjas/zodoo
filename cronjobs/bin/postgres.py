@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import time
 import gzip
+import zipfile
 import shutil
 import psycopg2
 import shlex
@@ -445,17 +446,10 @@ def __get_dump_type(filepath):
     first_line = None
     zipped = False
 
-    try:
-        output = subprocess.check_output(
-            ["unzip", "-q", "-l", filepath],
-            encoding="utf8",
-            stderr=subprocess.DEVNULL,
-        )
-    except Exception:
-        pass
-    else:
-        if "dump.sql" in output:
-            return "odoosh"
+    if zipfile.is_zipfile(filepath):
+        with zipfile.ZipFile(filepath) as archive:
+            if "dump.sql" in archive.namelist():
+                return "odoosh"
 
     try:
         with gzip.open(filepath, "r") as f:
