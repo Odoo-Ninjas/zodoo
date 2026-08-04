@@ -82,9 +82,11 @@ jobs:
           HAS_FEATURE=false
           CHANGELOG_ENTRIES=""
 
-          for f in .patchnotes/*.yml; do
+          # Recursive: notes also live in subfolders (.patchnotes/fix/*.yml).
+          # The delete step below is recursive too — collecting only the top
+          # level silently dropped nested notes from the changelog.
+          while IFS= read -r f; do
             [ -f "$f" ] || continue
-            [[ "$f" == *.template ]] && continue
 
             TYPE=$(grep '^type:' "$f" | head -1 | sed 's/type: *//;s/"//g;s/ *$//')
             DESC=$(grep '^description:' "$f" | head -1 | sed 's/description: *//;s/"//g;s/ *$//')
@@ -107,7 +109,7 @@ jobs:
                 *)       CHANGELOG_ENTRIES="${CHANGELOG_ENTRIES}\n- ${DESC}" ;;
               esac
             fi
-          done
+          done < <(find .patchnotes -name '*.yml' -not -name '*.template' | sort)
 
           if [ "$HAS_BREAKING" = "true" ]; then
             MAJOR=$((MAJOR + 1))
@@ -153,17 +155,31 @@ jobs:
         if: steps.check.outputs.skip == 'false'
         id: tag
         run: |
-          if git rev-parse "v${{ steps.bump.outputs.version }}" >/dev/null 2>&1; then
-            echo "tagged=false" >> "$GITHUB_OUTPUT"
-            echo "Tag v${{ steps.bump.outputs.version }} already exists on remote, skipping."
-            exit 0
+          TAG="v${{ steps.bump.outputs.version }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            if git merge-base --is-ancestor "$TAG" HEAD; then
+              # Release already landed on main, this is a re-run.
+              echo "tagged=false" >> "$GITHUB_OUTPUT"
+              echo "Tag $TAG already exists and is contained in main, nothing to do."
+              exit 0
+            fi
+            # The tag exists but its commit never made it onto main, so every
+            # run recomputes the same version and finds the tag again. Silently
+            # skipping here blocks all further releases behind a green check.
+            echo "::error::Tag $TAG exists but is not an ancestor of main." \
+                 "main is at version $(git show HEAD:VERSION) and its patchnotes" \
+                 "recompute to $TAG. Reconcile main with the tag (apply the" \
+                 "release commit) before further releases can be cut."
+            exit 1
           fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add VERSION CHANGELOG.md .patchnotes/ zodoo/src/setup.cfg zodoo/src/zodoo/version.txt
-          git commit -m "release v${{ steps.bump.outputs.version }}"
-          git tag "v${{ steps.bump.outputs.version }}"
-          git push origin main --tags
+          git commit -m "release $TAG"
+          git tag "$TAG"
+          # --atomic: without it a rejected main (branch protection) still
+          # leaves the tag pushed, which is exactly how the repo got wedged.
+          git push --atomic origin main "$TAG"
           echo "tagged=true" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release

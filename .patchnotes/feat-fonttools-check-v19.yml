@@ -1,3 +1,0 @@
-type: feature
-description: "Odoo 19: check for missing fonttools and offer to add it to requirements.static on reload"
-breaking: false
