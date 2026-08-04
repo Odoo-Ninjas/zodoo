@@ -1,3 +1,0 @@
-type: feature
-description: "Router-vhosts können jetzt auf IP-Bereiche eingeschränkt werden: Feld `allowed_ips` in vhosts.yml (kommagetrennte IPs/CIDRs) rendert `allow …; deny all;` in den server-Block, alle anderen bekommen 403. Zum Prüfen: `odoo router vhost show <domain>` bzw. die gerenderte Datei in `<install_dir>/sites-enabled/<domain>` — der Block steht direkt unter `client_max_body_size`. Die ACME-Location (`/.well-known/acme-challenge/`) bleibt bewusst für alle offen, damit certbot die Zertifikate weiter erneuern kann. Ohne `allowed_ips` ändert sich nichts (vhost bleibt öffentlich)."
-breaking: false

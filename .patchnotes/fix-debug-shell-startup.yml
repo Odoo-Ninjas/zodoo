@@ -1,3 +1,0 @@
-type: fix
-description: "robot: wait for odoo healthcheck before tests; settings: follow symlinks via bashfind; composer: match odoo service by name"
-breaking: false

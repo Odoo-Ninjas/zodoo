@@ -1,3 +1,0 @@
-type: fix
-description: "remove_webassets (odoo setup remove-web-assets, and the restore step unless NO_REMOVE_WEB_ASSETS_AFTER_RESTORE=1) no longer runs `delete from ir_asset` on Odoo >= 17. Since Odoo 15 the bundles are built purely from ir.asset records, which are created from the modules' manifest at install/update time and are not recreated by a restart or an admin login - so the purge left the instance with empty bundles and HTTP 500 on /web/assets/... until `odoo update` ran. Instead the generated bundle attachments are deleted by their url. Plus: `odoo filestore unshare` now skips databases whose postgres cannot be reached instead of aborting the sweep."
-breaking: false

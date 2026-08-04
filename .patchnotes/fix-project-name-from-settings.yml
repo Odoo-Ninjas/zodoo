@@ -1,3 +1,0 @@
-type: fix
-description: "Allow PROJECT_NAME pinned in a settings file to differ from the source directory name (e.g. dir 'ipe' with PROJECT_NAME=odoo_prod) — the directory-name sanity check now treats a settings-defined PROJECT_NAME like an explicit -p override and no longer aborts."
-breaking: false

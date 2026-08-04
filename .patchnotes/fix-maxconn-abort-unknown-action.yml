@@ -1,3 +1,0 @@
-type: fix
-description: "postgres: hard abort when user-pinned max_connections cannot be parsed; supervisor: raise on unknown action"
-breaking: false

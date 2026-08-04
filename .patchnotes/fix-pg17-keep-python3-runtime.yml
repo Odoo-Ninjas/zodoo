@@ -1,3 +1,0 @@
-type: fix
-description: "pg17-Image: python3 bleibt im Runtime-Image erhalten - vorher entfernte autoremove es und der Container lief in einen Crashloop (python3: command not found in run.sh)"
-breaking: false

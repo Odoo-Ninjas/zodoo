@@ -1,3 +1,0 @@
-type: fix
-description: "ODOO_FILES_COMMON=1 now shares the attachment filestore via hardlinks instead of replacing each filestore/<db> by a symlink to filestore/_common. The symlink also shared Odoo's GC checklist, so one database's nightly autovacuum deleted the freshly written attachments of every other instance on the host (missing images, HTTP 500 on /web/assets/... bundles, therefore no login). New commands: `odoo filestore unshare` migrates legacy symlinks without extra disk space, `odoo filestore dedup` re-links per-database filestores into the pool."
-breaking: false

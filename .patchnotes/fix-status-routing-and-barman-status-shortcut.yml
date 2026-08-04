@@ -1,3 +1,0 @@
-type: fix
-description: "odoo status now shows project info; odoo barman-status added as top-level shortcut for barman status"
-breaking: false

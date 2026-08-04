@@ -1,3 +1,0 @@
-type: fix
-description: "Proxy serves the construction/maintenance page with HTTP 503 instead of 200, so monitoring and crawlers no longer mistake a down/updating Odoo for a healthy one. Covers all three paths: the standalone construction server, the in-proxy odoo_update gate (now served inline via lua to bypass proxy_intercept_errors), and the @fallback for backend 502/503/504 (now forced to =503). Adds Retry-After: 30 to the construction page."
-breaking: false

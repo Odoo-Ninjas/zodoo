@@ -1,3 +1,0 @@
-type: feature
-description: "Add per-instance monitoring dashboard service (Grafana + Prometheus + Loki + Alloy + exporters), reachable via proxy under /system"
-breaking: false
