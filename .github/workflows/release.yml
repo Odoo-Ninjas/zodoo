@@ -186,7 +186,13 @@ jobs:
         if: steps.check.outputs.skip == 'false' && steps.tag.outputs.tagged == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Via env, never interpolated into the script: patchnote text is
+          # arbitrary prose. Pasted inline, its backticks ran as command
+          # substitution and '<domain>' parsed as a redirect, so the step
+          # died with "command not found" / "syntax error" — and anything
+          # in a description would execute on the runner.
+          TAG: v${{ steps.bump.outputs.version }}
+          NOTES: ${{ steps.bump.outputs.entries }}
         run: |
-          gh release create "v${{ steps.bump.outputs.version }}" \
-            --title "v${{ steps.bump.outputs.version }}" \
-            --notes "${{ steps.bump.outputs.entries }}"
+          printf '%s\n' "$NOTES" > /tmp/release-notes.md
+          gh release create "$TAG" --title "$TAG" --notes-file /tmp/release-notes.md
