@@ -1770,6 +1770,18 @@ def show_conflicting_modules(config):
 def _exec_update(
     config, params, non_interactive=False, stdout=False, write_to_console=True
 ):
+    from .lib_standard_image import is_standard_image
+    from .lib_standard_image import update as standard_update
+
+    if is_standard_image(config):
+        # Das offizielle Image hat kein /odoolib -- Module werden mit dem
+        # mitgelieferten Odoo-CLI installiert/aktualisiert. params[0] ist
+        # die komma-getrennte Modulliste, die restlichen Flags steuern nur
+        # unser eigenes Update-Skript und haben dort kein Gegenstueck.
+        modules = (params[0] if params else "").split(",")
+        yield standard_update(config, modules, non_interactive)
+        return
+
     if Path("/odoolib/update_modules.py").exists():
         # this indicates the odoo container
         ret = subprocess.run(
