@@ -1,3 +1,0 @@
-type: feature
-description: "Optional barman service for PostgreSQL backups with point-in-time-recovery: continuous WAL streaming (no SSH) + daily full backup via cronjobs, plus `odoo barman backup/list/status/check/recover` CLI. Opt-in via RUN_BARMAN=1, off by default and on DEVMODE."
-breaking: false

@@ -1106,32 +1106,48 @@ def _setup_remote_debugging(config, yml):
 
 def _eval_setting_common_filestore(config, settings, globals):
     """
-    Wenn ODOO_FILES_COMMON=1 gesetzt ist, wird ein gemeinsamer Filestore angelegt.
+    Wenn ODOO_FILES_COMMON=1 gesetzt ist, teilen sich alle Instanzen eines
+    Hosts einen gemeinsamen Filestore-Pool ('_common'), um Plattenplatz zu
+    sparen.
 
-    Ablauf:
-    - In ODOO_FILES wird ein Unterordner '_common' erstellt.
-    - Alle anderen Unterverzeichnisse in ODOO_FILES werden per rsync nach '_common' kopiert.
-    - Danach wird das jeweilige Verzeichnis gelöscht und durch einen Symlink auf '_common' ersetzt.
+    Geteilt wird per Hardlink: jede Datenbank behaelt ihr eigenes Verzeichnis
+    'filestore/<db>', dessen Dateien in den Pool gelinkt sind. Der Inhalt liegt
+    genau einmal auf der Platte, aber jede Instanz hat ihr eigenes
+    'checklist'-Verzeichnis - und genau darauf kommt es an: Odoos
+    'ir.attachment._gc_file_store()' laeuft ueber '<filestore>/checklist' und
+    loescht alles, was es in *seiner* ir_attachment nicht findet. Mit dem
+    frueheren Symlink '<db> -> _common' war diese checklist geteilt, wodurch
+    der naechtliche Autovacuum einer einzelnen Datenbank die frisch
+    geschriebenen Attachments aller anderen Instanzen weggeloescht hat.
 
-    Damit teilen sich alle Instanzen/Branches einen gemeinsamen Filestore, was Speicherplatz spart.
-    Bereits vorhandene Symlinks werden übersprungen.
+    Altbestand: bereits vorhandene Symlinks werden hier nicht angetastet
+    (welche Dateien zu welcher DB gehoeren, weiss nur die DB selbst) -
+    'odoo filestore unshare' migriert sie ohne zusaetzlichen Platzbedarf.
     """
     if settings.get("ODOO_FILES_COMMON") != "1":
         return
 
-    rsync = globals["tools"].rsync
+    from zodoo.lib_filestore import (
+        COMMON_DIR_NAME,
+        dedupe_into_common,
+    )
+
     files_dir = Path(settings["ODOO_FILES"]) / "filestore"
-    common_dir = files_dir / "_common"
+    if not files_dir.exists():
+        return
+    common_dir = files_dir / COMMON_DIR_NAME
     common_dir.mkdir(exist_ok=True, parents=True)
 
     for entry in sorted(files_dir.iterdir()):
-        if entry.name == "_common":
+        if entry.name == COMMON_DIR_NAME or not entry.is_dir():
             continue
-        if not entry.is_dir() or entry.is_symlink():
+        if entry.is_symlink():
+            click.secho(
+                f"Filestore {entry.name} is a symlink to {COMMON_DIR_NAME}: "
+                "one instance's garbage collection can delete the attachments "
+                "of all others. Migrate with `odoo filestore unshare`.",
+                fg="yellow",
+            )
             continue
 
-        rsync(entry, common_dir)
-
-        # Verzeichnis entfernen und durch Symlink auf _common ersetzen
-        shutil.rmtree(entry)
-        entry.symlink_to("_common")
+        dedupe_into_common(entry, common_dir)

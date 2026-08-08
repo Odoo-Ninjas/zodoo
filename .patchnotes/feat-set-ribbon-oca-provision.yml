@@ -1,3 +1,0 @@
-type: feature
-description: 'New top-level `odoo set-ribbon "<text>"` command: fetches the version-matched OCA web_environment_ribbon module, wires its path into the MANIFEST addons_paths, installs it if missing and sets the ribbon text (upsert). Handy to mark neutralized/staging databases. `-Q/--quick` only sets the text.'
-breaking: false

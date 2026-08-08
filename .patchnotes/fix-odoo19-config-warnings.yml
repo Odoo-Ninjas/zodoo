@@ -1,3 +1,0 @@
-type: fix
-description: "Odoo 19: translate_modules und email_from aus der 19er Config entfernt - Odoo 19 kennt beide Optionen so nicht mehr und schrieb bei jedem Start Warnungen ins Log (auch ins update.log)"
-breaking: false

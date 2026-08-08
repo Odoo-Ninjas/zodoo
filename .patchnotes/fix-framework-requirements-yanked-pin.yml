@@ -1,3 +1,0 @@
-type: fix
-description: "Base image build no longer fails when Odoo's upstream requirements.txt pins a version that was later yanked from PyPI (e.g. cbor2==5.4.2). Known-yanked name==version pins are rewritten to a safe release (cbor2 5.4.2 -> 5.4.6) via a small _YANKED_PIN_OVERRIDES table in lib_base_image, so the base rebuilds without bumping the whole Odoo submodule pin."
-breaking: false

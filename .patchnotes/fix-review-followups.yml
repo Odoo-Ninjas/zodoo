@@ -1,3 +1,0 @@
-type: fix
-description: "Review follow-ups: keep DB_MAXCONN in sync with a user-pinned postgres max_connections, never leave it unset on malformed input, drop the non-existent ODOO_QUEUEJOB_CHANNELS (singular) read, ensure the base image on `odoo up --build`, broaden the graceful pg shutdown fallback, surface unconfirmed update-blocking-role stops, and harden run_root_cmd input/stdin handling."
-breaking: false

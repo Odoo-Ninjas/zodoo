@@ -7,6 +7,7 @@ import json
 import importlib.util
 import subprocess
 import shutil
+import zipfile
 from datetime import datetime
 import inquirer
 import os
@@ -127,28 +128,14 @@ def backup_all(ctx, config, filename):
             tmppath / (filename.name + ".zip"), strict=True
         ) as tmpfile:
             folder = _get_filestore_folder(config)
-            with autocleanpaper() as fake_filestore:
-                symlink_file = fake_filestore / "filestore"
-                symlink_file.parent.mkdir(exist_ok=True, parents=True)
-                os.symlink(folder, symlink_file)
-
-                with autocleanpaper(
-                    folder / "zipped.zip", strict=True
-                ) as folderzip:
-                    subprocess.check_call(
-                        ["zip", "-r", folderzip, "filestore"],
-                        cwd=fake_filestore,
+            with zipfile.ZipFile(
+                tmpfile, "w", zipfile.ZIP_DEFLATED, allowZip64=True
+            ) as zipped:
+                for path in sorted(folder.rglob("*")):
+                    zipped.write(
+                        path, Path("filestore") / path.relative_to(folder)
                     )
-                    shutil.move(folderzip, tmpfile)
-            subprocess.check_call(
-                [
-                    "zip",
-                    "-u",
-                    tmpfile,
-                    filepath_db.relative_to(tmppath),
-                ],
-                cwd=tmppath,
-            )
+                zipped.write(filepath_db, filepath_db.relative_to(tmppath))
             shutil.move(tmpfile, filename)
     if config.owner_uid:
         __try_to_set_owner(
@@ -486,7 +473,8 @@ def _odoo_sh(ctx, config, filename, params):
             os.chdir(tempfolder)
             if not filename.exists():
                 abort(f"File does not exist: {tempfolder}")
-            subprocess.check_call(["unzip", filename])
+            with zipfile.ZipFile(filename) as archive:
+                archive.extractall(tempfolder)
             sqlfile = tempfolder / "dump.sql"
             filestore = tempfolder / "filestore"
 
