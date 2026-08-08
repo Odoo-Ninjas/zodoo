@@ -185,10 +185,29 @@ def _status(config):
     )
     if config.PROXY_PORT:
         domains = split_external_domains(EXTERNAL_DOMAIN) or [""]
-        for idx, d in enumerate(domains):
-            url = f"{d}:{config.PROXY_PORT}" if d else f":{config.PROXY_PORT}"
-            click.secho("url: " if idx == 0 else "     ", nl=False)
-            click.secho(url, fg=color, bold=True)
+        base_urls = [
+            f"{d}:{config.PROXY_PORT}" if d else f":{config.PROXY_PORT}"
+            for d in domains
+        ]
+
+        def _urls(label, suffix=""):
+            for idx, url in enumerate(base_urls):
+                prefix = label if idx == 0 else " " * len(label)
+                click.secho(prefix, nl=False)
+                click.secho(f"{url}{suffix}", fg=color, bold=True)
+
+        _urls("url: ")
+
+        # The monitoring dashboard has no host port of its own - it is
+        # served by the proxy under /system and /logs (see
+        # dashboard/proxy/dashboard.conf).
+        if config.RUN_DASHBOARD:
+            _urls("monitoring: ", "/system")
+            _urls("logs: ", "/logs")
+            password = config.DASHBOARD_PASSWORD
+            if password:
+                click.secho("monitoring password: ", nl=False)
+                click.secho(password, fg=color, bold=True)
 
     for key in [
         "DEFAULT_DEV_PASSWORD",
