@@ -1,5 +1,11 @@
 # Changelog
 
+## 7.4.0
+
+
+- **Feature**: `odoo status` now also prints the monitoring URLs: the Grafana dashboard under `<url>/system` and the log view under `<url>/logs`, both on the proxy port. Only shown when RUN_DASHBOARD=1; the dashboard password is printed as well when one is set. To check: run `odoo status` in a project and open the monitoring line in the browser.
+
+
 ## 7.3.1
 
 
