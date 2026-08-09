@@ -1,0 +1,13 @@
+# Ohne diese Datei faellt der Image-Tag auf den globalen Hash zurueck
+# (requirements + git-SHA von ~/.odoo/images). Der bewegt sich bei einer
+# Aenderung an diesem Image erst mit dem Commit - bis dahin liefert die
+# Registry das alte Image aus, und geaenderte Skripte kommen nicht an.
+# Mit registry_tag.yml geht stattdessen der Inhalt dieses Verzeichnisses in
+# den Tag ein (Dockerfile + entrypoint.sh), so wie es sich gehoert.
+#
+# Der Build kennt keine Build-Argumente aus den Settings: was zur Laufzeit
+# konfiguriert wird (Repo, Passphrase, Aufbewahrung), kommt ueber die
+# Umgebung und darf den Tag nicht beeinflussen - sonst baekamen zwei Projekte
+# mit unterschiedlichem Ziel zwei identische Images unter zwei Tags.
+settings: []
+generation: 1

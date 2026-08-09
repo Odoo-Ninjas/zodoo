@@ -7,6 +7,13 @@ JOB_BACKUP_ODOO_DB=odoo backup odoo-db $DB_ODOO_FILEFORMAT --dumptype $DB_ODOO_D
 JOB_BARMAN_BACKUP=odoo barman backup
 CRONJOB_BARMAN_BACKUP=$BARMAN_BACKUP_CRON $JOB_BARMAN_BACKUP
 
+# Taegliches verschluesseltes Offsite-Backup (BorgBackup). No-op solange
+# RUN_OFFSITE=0 - der Befehl steigt dann still aus, damit Projekte ohne
+# Offsite-Ziel nicht jede Nacht einen Cron-Fehler melden. Laeuft nach dem
+# Barman-Basisbackup, damit die frische Basis mitgeht.
+JOB_OFFSITE_BACKUP=odoo offsite backup
+CRONJOB_OFFSITE_BACKUP=$OFFSITE_BACKUP_CRON $JOB_OFFSITE_BACKUP
+
 JOB_DADDY_CLEANUP=odoo daddy-cleanup /host/dumps/$DB_ODOO_SEARCHFORMAT --dont-touch 1
 JOB_KEEP_LAST_FILE_OF_DAY=odoo keep-latest-file-of-day /host/dumps/$DB_ODOO_SEARCHFORMAT --doNt-touch 1
 JOB_VACUUM=odoo psql --sql "vacuum full"

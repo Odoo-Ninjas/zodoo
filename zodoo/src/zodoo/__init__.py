@@ -43,6 +43,7 @@ from . import lib_db_snapshots  # NOQA
 from . import lib_filestore  # NOQA
 from . import lib_lang  # NOQA
 from . import lib_module  # NOQA
+from . import lib_offsite  # NOQA
 from . import lib_setup  # NOQA
 from . import lib_src  # NOQA
 from . import lib_bakery  # NOQA
