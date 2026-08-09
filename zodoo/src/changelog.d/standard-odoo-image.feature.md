@@ -1,0 +1,1 @@
+New `ODOO_STANDARD_IMAGE=1` mode: runs the official `odoo:<version>` image from Docker Hub instead of the locally built one. Commands that require `/odoolib` (shell, debug, lang, tests) abort with a clear message in this mode.
