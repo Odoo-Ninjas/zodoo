@@ -35,6 +35,15 @@ def after_compose(config, settings, yml, globals):
     yml["services"].pop("odoo_base")
     manifest = MANIFEST()
 
+    # Standard-Image-Modus: der odoo-Container ist dann nicht mehr unser
+    # gebautes Image, sondern das offizielle von Docker Hub. Alles danach
+    # (Requirements, Konfig-Generierung, Supervisor-Rollen, Debugging) gilt
+    # nur fuer unser Image -- deshalb hier abbiegen und nicht versuchen,
+    # jeden einzelnen Schritt zu neutralisieren.
+    if _is_standard_image(settings):
+        _apply_standard_odoo_image(config, yml, settings, manifest, globals)
+        return
+
     # Legacy v11/v13: revert the v14+ supervisor consolidation.
     # Why: those Debian Buster images run Python 3.7 and predate the
     # in-container supervisor; they must keep using run.py with one role
@@ -88,6 +97,177 @@ def after_compose(config, settings, yml, globals):
     _eval_setting_common_filestore(config, settings, globals)
 
     _apply_cpu_limit(config, yml, settings, globals)
+
+
+def _is_standard_image(settings):
+    return str(settings.get("ODOO_STANDARD_IMAGE") or "0").strip() in (
+        "1",
+        "true",
+        "True",
+    )
+
+
+# Pfade aus dem MANIFEST, die den vendorten Odoo-Kern meinen. Im
+# Standard-Image bringt das Image den Kern selbst mit; wuerde man den
+# vendorten Kern zusaetzlich in den addons_path haengen, laegen zwei
+# Kopien von base/web im Pfad und Odoo laedt je nach Reihenfolge die
+# falsche.
+_CORE_ADDON_PATHS = ("odoo/addons", "odoo/odoo/addons")
+
+# Filestore im Named Volume statt im Host-Pfad: das offizielle Image laeuft
+# als uid 101 und kaeme in ein vom Host-User angelegtes Verzeichnis nicht
+# hinein.
+_STANDARD_DATA_VOLUME = "odoo-standard-data"
+
+
+def _standard_addons_paths(manifest):
+    """addons_path fuer das offizielle Image: nur die Projekt-Addons."""
+    paths = []
+    for path in manifest.get("addons_paths", []) or []:
+        clean = str(path).strip().strip("/")
+        if not clean or clean in _CORE_ADDON_PATHS:
+            continue
+        paths.append(f"/opt/src/{clean}")
+    return paths
+
+
+def _standard_odoo_conf(config, settings, manifest):
+    """odoo.conf fuer das offizielle Image erzeugen und Host-Pfad liefern.
+
+    Das offizielle Image liest ODOO_RC=/etc/odoo/odoo.conf. Wir schreiben
+    die Datei bei jedem `odoo reload` neu, damit sie den Settings folgt --
+    sie ist generiert und gehoert nicht ins Projekt-Repo.
+    """
+    addons_paths = _standard_addons_paths(manifest)
+    dbname = settings["DBNAME"]
+    # list_db: der DB-Manager legt Datenbanken an und loescht sie. Auf einer
+    # Kundeninstanz mit genau einer DB hat er nichts verloren, solange ihn
+    # niemand ausdruecklich anschaltet.
+    list_db = str(settings.get("ODOO_ENABLE_DB_MANAGER") or "0") == "1"
+    lines = [
+        "[options]",
+        f"admin_passwd = {settings['ODOO_ADMIN_PASSWORD']}",
+        f"db_host = {settings['DB_HOST']}",
+        f"db_port = {settings['DB_PORT']}",
+        f"db_user = {settings['DB_USER']}",
+        f"db_password = {settings['DB_PWD']}",
+        f"db_name = {dbname}",
+        # Ohne dbfilter beantwortet die Instanz Anfragen fuer beliebige
+        # DB-Namen -- mit genau einer DB ist das nur eine Fehlerquelle.
+        f"dbfilter = ^{dbname}$",
+        f"list_db = {'True' if list_db else 'False'}",
+        "data_dir = /var/lib/odoo",
+        # Hinter unserem Proxy: sonst baut Odoo Links mit http/interner
+        # Portnummer und die Mails/Redirects zeigen ins Leere.
+        "proxy_mode = True",
+        f"workers = {int(float(settings.get('ODOO_WORKERS_WEB') or 2))}",
+        f"max_cron_threads = {int(float(settings.get('ODOO_MAX_CRON_THREADS') or 2))}",
+        f"log_level = {settings.get('ODOO_LOG_LEVEL') or 'info'}",
+    ]
+    if addons_paths:
+        lines.append("addons_path = " + ",".join(addons_paths))
+    path = config.dirs["run"] / "standard_odoo.conf"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(lines) + "\n")
+    return path
+
+
+def _apply_standard_odoo_image(config, yml, settings, manifest, globals):
+    """Den odoo-Service durch das offizielle Docker-Hub-Image ersetzen.
+
+    Drumherum bleibt der komplette zodoo-Stack stehen: Proxy, Postgres,
+    Barman und das Monitoring haengen nicht am Odoo-Image -- der
+    postgres_exporter liest die DB, alloy die Docker-Logs, der
+    nginx_exporter den Proxy. Nur was in unser Image hineingebaut ist
+    (Supervisor-Rollen, zodoo-CLI im Container, Warmup) faellt weg; die
+    davon abhaengigen Befehle sind in lib_control gesperrt.
+    """
+    services = yml["services"]
+    # odoo_debug ist unser Image mit anderem Entrypoint -- gibt es hier nicht.
+    services.pop("odoo_debug", None)
+
+    version = settings.get("ODOO_VERSION_INT") or settings["ODOO_VERSION"]
+    image = (settings.get("ODOO_STANDARD_IMAGE_NAME") or "").strip()
+    image = image or f"odoo:{version}"
+
+    conf_path = _standard_odoo_conf(config, settings, manifest)
+    # Hier gehoeren aufgeloeste Pfade hinein, keine ${...}-Platzhalter: die
+    # Variablensubstitution ist gelaufen, bevor dieser Hook drankommt, und
+    # create_directories() im Composer wirft ueber alles, was nicht mit "/"
+    # anfaengt.
+    proxy_dir = config.dirs["images"] / "odoo" / "proxy"
+
+    services["odoo"] = {
+        "image": image,
+        # Der Composer setzt container_name, bevor dieser Hook laeuft --
+        # durch das Ersetzen des Service ginge er verloren und der
+        # Container hiesse <projekt>-odoo-1.
+        "container_name": f"{config.project_name}_odoo",
+        "restart": "unless-stopped",
+        "labels": {
+            # Der Proxy sucht sich seine Backends ueber diese Labels; ohne
+            # sie routet nginx nicht auf den Container.
+            "odoo.web_container": "1",
+            "proxy_config": str(proxy_dir / "odoo.conf"),
+            "proxy_config_chat": str(proxy_dir / "odoo_chat.conf"),
+            "proxy_lua_template": str(proxy_dir / "template.lua"),
+        },
+        "profiles": ["auto"],
+        "environment": {
+            # Der Entrypoint des offiziellen Images setzt daraus die
+            # DB-Verbindung, falls die odoo.conf mal nicht greift.
+            "HOST": settings["DB_HOST"],
+            "PORT": str(settings["DB_PORT"]),
+            "USER": settings["DB_USER"],
+            "PASSWORD": settings["DB_PWD"],
+        },
+        "volumes": [
+            # Projekt-Quellen read-only: das offizielle Image bringt den
+            # Odoo-Kern mit, von hier kommen nur die eigenen Addons.
+            f"{config.WORKING_DIR}:/opt/src:ro",
+            f"{conf_path}:/etc/odoo/odoo.conf:ro",
+            # Named Volume statt ${ODOO_FILES}: das offizielle Image laeuft
+            # als uid 101 und kaeme in ein vom Host-User angelegtes
+            # Verzeichnis nicht hinein.
+            # Lange Syntax: die kurze ("name:/pfad") wuerde von
+            # create_directories() im Composer als Host-Pfad gelesen und
+            # fliegt dort raus -- die Normalisierung ist zu diesem
+            # Zeitpunkt schon gelaufen.
+            {
+                "type": "volume",
+                "source": _STANDARD_DATA_VOLUME,
+                "target": "/var/lib/odoo",
+            },
+        ],
+        "expose": ["8069", "8072"],
+    }
+
+    yml.setdefault("volumes", {}).setdefault(_STANDARD_DATA_VOLUME, None)
+
+    _standard_image_metrics_exporter(yml, settings)
+
+
+def _standard_image_metrics_exporter(yml, settings):
+    """Den Filestore-Mount des Exporters auf das Named Volume umbiegen.
+
+    Sonst misst er ${ODOO_FILES}/filestore/<db> auf dem Host -- ein
+    Verzeichnis, das im Standard-Modus leer bleibt, weil der Filestore im
+    Volume liegt. Die Kachel wuerde dauerhaft 0 B anzeigen.
+    """
+    exporter = yml["services"].get("odoo_metrics_exporter")
+    if exporter is None:
+        return
+    dbname = settings["DBNAME"]
+    exporter["volumes"] = [
+        {
+            "type": "volume",
+            "source": _STANDARD_DATA_VOLUME,
+            "target": "/opt/files",
+            "read_only": True,
+        }
+    ]
+    exporter.setdefault("environment", {})["FILESTORE_ROOT"] = "/opt/files"
+    exporter["environment"]["DBNAME"] = dbname
 
 
 def _apply_cpu_limit(config, yml, settings, globals):

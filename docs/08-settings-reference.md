@@ -74,6 +74,25 @@ Or edit the files directly. Run `odoo reload` after manual edits.
 | `ODOO_QUEUEJOBS_CHANNELS`                  | `root:1` | Queue channel configuration: `root:4,magento2:1`. |
 | `QUEUEJOBS_MAX_AGE_BEFORE_RESTART_MINUTES` | `120`    | Restart queuejob worker if idle for this long.    |
 
+## Standard Odoo Image
+
+| Setting                    | Default | Description                                                                         |
+| -------------------------- | ------- | ----------------------------------------------------------------------------------- |
+| `ODOO_STANDARD_IMAGE`      | `0`     | `1` = run the official `odoo:<version>` image from Docker Hub instead of our build. |
+| `ODOO_STANDARD_IMAGE_NAME` | —       | Override the image reference (default `odoo:${ODOO_VERSION_INT}`).                  |
+
+Everything around Odoo keeps working: proxy, postgres, barman and the whole
+monitoring stack are independent of the Odoo image. What lives _inside_ our
+image is gone, so these commands are unavailable or behave differently:
+
+- `odoo shell` / `odoo debug odoo_debug` / unit tests / `odoo lang` — refused
+  with a clear message (they need `/odoolib`).
+- `odoo update` and `odoo db reset` run through the official Odoo CLI
+  (`odoo -i <mods> -u <mods> --stop-after-init`) in a one-off container.
+- `odoo backup files` does not see the filestore: it lives in the named
+  volume `odoo-standard-data`, not under `${ODOO_FILES}`. The database is
+  fully covered by barman.
+
 ## Registry
 
 | Setting            | Default | Description                                                                       |

@@ -547,6 +547,14 @@ def stop_update_blocking_roles(config):
     """Stop web, queuejobs and cronjobs supervisor children + their
     legacy split-container counterparts. Silently no-ops if the odoo
     container or a given role isn't running. Used by `odoo update`."""
+    from .lib_standard_image import is_standard_image
+
+    if is_standard_image(config):
+        # Kein Supervisor im offiziellen Image -- und vor allem: das
+        # Warmup-Gate wuerde niemand mehr zuruecksetzen (das macht sonst
+        # der web-Role beim Hochlaufen). Der Proxy zeigte dann dauerhaft
+        # die Wartungsseite. Also gar nicht erst setzen.
+        return
     if not _has_in_container_supervisor(config):
         return
     # Gate the proxy *before* we stop web so external clients never
@@ -590,6 +598,14 @@ def stop_update_blocking_roles(config):
 def start_update_blocking_roles(config):
     """Counterpart of stop_update_blocking_roles: brings web, queuejobs,
     cronjobs back up after an update completes."""
+    from .lib_standard_image import is_standard_image
+
+    if is_standard_image(config):
+        # Gegenstueck zu stop_update_blocking_roles: dort wurde nichts
+        # gestoppt, hier ist also auch nichts zu starten. Der laufende
+        # odoo-Container bleibt waehrend des Updates stehen -- das Update
+        # laeuft in einem eigenen `run --rm`-Container.
+        return
     if not _has_in_container_supervisor(config):
         return
     unconfirmed = []
@@ -1304,6 +1320,17 @@ def shell(config, command="", queuejobs=False, debug=False, debug_port=None):
         )
 
     _ts("shell() called (host side)")
+    from .lib_standard_image import abort_if_standard_image
+
+    abort_if_standard_image(
+        config,
+        "odoo shell",
+        hint=(
+            "Ersatz: `odoo psql` fuer SQL, oder direkt im Container "
+            "`docker compose exec odoo odoo shell -c /etc/odoo/odoo.conf "
+            "-d <db>`."
+        ),
+    )
     # Only take the in-container shortcut when we are actually inside the
     # odoo container (where /odoolib exists). _is_in_container() is True for
     # ANY container - e.g. the instanceconsole - which would wrongly try to
