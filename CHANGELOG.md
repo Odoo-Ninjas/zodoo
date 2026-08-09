@@ -1,5 +1,11 @@
 # Changelog
 
+## 7.5.0
+
+
+- **Feature**: Neuer Modus ODOO_STANDARD_IMAGE=1: der odoo-Container laeuft dann mit dem offiziellen odoo:<version>-Image von Docker Hub statt mit unserem gebauten Image. Der restliche Stack (Proxy, Postgres, Barman, Monitoring) bleibt unveraendert. Zum Testen: ODOO_STANDARD_IMAGE=1 setzen, odoo reload + odoo up -d - Odoo muss normal hochkommen; update und db reset laufen ueber das mitgelieferte Odoo-CLI. Befehle, die zwingend /odoolib brauchen (shell, debug, lang, Tests), melden sich mit einer verstaendlichen Meldung ab.
+
+
 ## 7.4.0
 
 
