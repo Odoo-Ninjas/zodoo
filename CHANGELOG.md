@@ -1,5 +1,11 @@
 # Changelog
 
+## 7.5.1
+
+
+- **Fix**: Zwei Dev-Fixes: (1) der SHA-Check im Odoo-Container bricht nicht mehr hart ab, wenn keine CUSTOMS_SHA injiziert wurde (z.B. SHA_IN_DOCKER=0 oder Base-Split-Dev-Builds) - es wird n/a nach /sha geschrieben statt exit -3. (2) Der Robot-Container chownt jetzt auch das echte Home von robot (/opt/robot laut useradd -d), nicht nur /home/robot - sonst konnte der Test-Harness nach dem usermod die robo_params.json bzw. seine temporaeren Suites nicht schreiben. Zum Pruefen: odoo robot run <suite> laeuft wieder durch, und ein Build ohne SHA startet ohne Abbruch.
+
+
 ## 7.5.0
 
 
