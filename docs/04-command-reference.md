@@ -177,6 +177,50 @@ List available backup files.
 
 ---
 
+## Encrypted Offsite Backup
+
+Pushes the Barman catalog and this database's filestore to a remote repository
+using [BorgBackup](https://borgbackup.org) — for example a Hetzner Storage Box,
+which speaks Borg natively on port 23.
+
+Encryption happens **on this machine** before anything leaves it
+(`repokey-blake2`): the storage provider only ever sees ciphertext and cannot
+read or silently alter the backup.
+
+Enable with `RUN_OFFSITE=1` plus `OFFSITE_REPO` and `OFFSITE_PASSPHRASE`, then
+`odoo reload && odoo build offsite`. See `offsite/default.settings` for the
+retention, compression and bandwidth knobs.
+
+> **Keep the passphrase somewhere other than this machine.** Without it the
+> backup cannot be opened — and it is needed precisely when the machine is
+> gone.
+
+### `odoo offsite backup`
+
+Run a backup now. The same command runs nightly via `OFFSITE_BACKUP_CRON`
+(default 04:00, after the Barman base backup) and is a quiet no-op on projects
+without `RUN_OFFSITE=1`.
+
+### `odoo offsite list` / `odoo offsite info`
+
+List the archives in the repository / show repository stats (size,
+deduplication).
+
+### `odoo offsite check`
+
+Verify integrity by re-reading the data. Takes time and costs traffic.
+
+### `odoo offsite prune`
+
+Apply the retention rules now (`OFFSITE_KEEP_DAILY` / `_WEEKLY` / `_MONTHLY`).
+
+### `odoo offsite borg <args...>`
+
+Escape hatch: run an arbitrary `borg` command against the repository, e.g.
+`odoo offsite borg extract ::archive-name`.
+
+---
+
 ## Module Management
 
 ### `odoo update [module...]`

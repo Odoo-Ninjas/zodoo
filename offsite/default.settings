@@ -1,0 +1,46 @@
+RUN_OFFSITE=0
+# Verschluesseltes Offsite-Backup mit BorgBackup.
+#
+# Borg verschluesselt und dedupliziert auf DIESER Maschine, bevor irgendetwas
+# das Netz verlaesst (Modus repokey-blake2: AES-256-CTR + BLAKE2b-MAC). Der
+# Speicheranbieter - z.B. eine Hetzner Storage Box - sieht ausschliesslich
+# Chiffrat und kann die Daten weder lesen noch unbemerkt veraendern.
+#
+# Repository-URL. Hetzner Storage Boxes sprechen Borg direkt auf Port 23:
+#   ssh://u123456@u123456.your-storagebox.de:23/./zodoo/<projekt>
+# Leer = Offsite-Backup ist nicht konfiguriert; `odoo offsite backup` bricht
+# dann mit einer Erklaerung ab, statt still nichts zu tun.
+OFFSITE_REPO=
+# Passphrase des Repository-Schluessels. OHNE SIE SIND DIE BACKUPS VERLOREN -
+# sie muss ausserhalb dieser Maschine hinterlegt sein (im Hosting-Backend am
+# Projekt), sonst ist ein Offsite-Backup wertlos: genau dann, wenn man es
+# braucht, ist die Maschine weg.
+OFFSITE_PASSPHRASE=
+# Der SSH-Key fuer das Repository wird unter $HOST_RUN_DIR/offsite/id_ed25519
+# erwartet (Rechte 0600) und read-only in den Container gehaengt. Der Pfad ist
+# bewusst fest verdrahtet und kein Setting: Settings-Werte werden nicht
+# rekursiv expandiert, ein Pfad mit $HOST_RUN_DIR darin kaeme in der Compose
+# woertlich an.
+# Zeitplan des taeglichen Offsite-Laufs. Absichtlich NACH dem Barman-Basis-
+# backup (BARMAN_BACKUP_CRON, 02:00), damit der Lauf die frische Basis
+# mitnimmt statt der von gestern.
+OFFSITE_BACKUP_CRON=0 4 * * *
+# Aufbewahrung im Offsite-Repository (borg prune).
+OFFSITE_KEEP_DAILY=7
+OFFSITE_KEEP_WEEKLY=4
+OFFSITE_KEEP_MONTHLY=6
+# Kompression. zstd,3 ist der vernuenftige Kompromiss aus Durchsatz und
+# Volumen; `none` fuer bereits komprimierte Quellen, `zstd,10` wenn die
+# Leitung teurer ist als die CPU.
+OFFSITE_COMPRESSION=zstd,3
+# Zusaetzlich die Dump-Dateien aus $DUMPS_PATH mitsichern. Standardmaessig
+# aus: mit Barman ist die Datenbank ueber WAL + Basisbackup schon abgedeckt,
+# und in /host/dumps liegen oft viele alte Staende.
+OFFSITE_INCLUDE_DUMPS=0
+# Bandbreitenbremse in KiB/s fuer den Upload (0 = unbegrenzt). Nuetzlich,
+# wenn das Backup nicht die Leitung des Produktivsystems auffressen soll.
+OFFSITE_UPLOAD_LIMIT=0
+# Offsite-Backup ist ein Produktionsthema und auf Entwicklerkisten nur
+# Ballast - auf DEVMODE-Maschinen wird es abgeschaltet (siehe
+# __after_settings.py). 1 erzwingt es trotzdem, z.B. zum Testen.
+OFFSITE_FORCE_IN_DEVMODE=0
