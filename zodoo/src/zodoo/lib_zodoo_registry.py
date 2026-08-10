@@ -616,7 +616,9 @@ def _docker_login_write_auth(reg):
     with open(docker_cfg_path, "w") as f:
         json.dump(docker_cfg, f, indent=2)
 
-    click.secho(f"Logged in to {reg['url']}", fg="green")
+    # Deliberately not "Logged in": nothing was verified against the registry
+    # here, the credentials were only handed to docker.
+    click.secho(f"Stored registry credentials for {reg['url']}", fg="green")
 
 
 def _docker_login_subprocess(reg):
@@ -654,7 +656,7 @@ def registry_credentials_from_settings(config, registry_url=None):
         # No user settings file (containers, CI) — fall back to the config.
         try:
             value = _read_user_setting(config, key)
-        except Exception:  # noqa: BLE001
+        except (AttributeError, KeyError, TypeError, OSError):
             value = ""
         return value or getattr(config, key, None) or ""
 
@@ -696,6 +698,11 @@ def login_with_settings_credentials(config, registry_url=None):
 _MANIFEST_UNREACHABLE_MARKERS = (
     "unauthorized",
     "authentication required",
+    # Ambiguous on purpose: some registries (Docker Hub, Harbor) answer
+    # "denied" for a repository that does not exist, others only for missing
+    # rights. Counting it as unreachable costs at most a rebuild we would
+    # have done anyway; the other way round we would push into a registry we
+    # have no rights on.
     "denied",
     "no basic auth credentials",
     "forbidden",
@@ -750,24 +757,40 @@ def inspect_registry_manifest(image):
         if isinstance(output, bytes):
             output = output.decode("utf-8", errors="replace")
         return classify_manifest_error(output), output.strip()
-    except (FileNotFoundError, OSError) as ex:
+    except OSError as ex:
         return "unreachable", str(ex)
 
 
-def local_image_exists(image):
-    """True if `image` is already in the local docker store.
+def local_image_exists(image, arch=None):
+    """True if `image` is in the local docker store, `arch` matching.
 
     A `FROM` in a Dockerfile resolves against the local store as well, so an
-    image present locally needs neither a pull nor a rebuild.
+    image present locally needs neither a pull nor a rebuild. The tag alone is
+    no proof of the architecture though — the same tag can have been pulled or
+    built under a different platform, and a wrong-arch base image would poison
+    the whole build. So compare what docker reports.
     """
     try:
-        subprocess.check_output(
-            ["docker", "image", "inspect", image],
+        out = subprocess.check_output(
+            ["docker", "image", "inspect", "-f", "{{.Architecture}}", image],
             stderr=subprocess.STDOUT,
-        )
-        return True
-    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+            encoding="utf-8",
+        ).strip()
+    except (subprocess.CalledProcessError, OSError):
         return False
+    if arch and out and out != arch:
+        click.secho(
+            f"Local {image} is {out}, but this build needs {arch} — "
+            "ignoring the local copy.",
+            fg="yellow",
+        )
+        return False
+    return True
+
+
+# _manifest_exists runs per service and per tag variant, partly from threads —
+# one warning per registry is enough to explain a build full of cache misses.
+_warned_unreachable_registries = set()
 
 
 def _manifest_exists(image):
@@ -776,12 +799,15 @@ def _manifest_exists(image):
     if status == "ok":
         return True
     if status == "unreachable":
-        click.secho(
-            f"Could not ask the registry about {image} "
-            "(treating it as a miss — this costs a rebuild):\n"
-            f"  {output.splitlines()[-1] if output else 'unknown error'}",
-            fg="yellow",
-        )
+        registry = image.split("/", 1)[0]
+        if registry not in _warned_unreachable_registries:
+            _warned_unreachable_registries.add(registry)
+            click.secho(
+                f"Could not ask the registry about {image} "
+                "(treating it as a miss — this costs a rebuild):\n"
+                f"  {output.splitlines()[-1] if output else 'unknown error'}",
+                fg="yellow",
+            )
     return False
 
 

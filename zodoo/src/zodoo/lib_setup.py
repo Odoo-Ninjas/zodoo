@@ -363,6 +363,8 @@ def _restore_stashed_changes(images_dir):
         check=False,
     )
     if result.returncode == 0:
+        # Keep git's own output ("Dropped refs/stash@{0} ...") visible.
+        click.echo((result.stdout or "").strip())
         return
     click.secho(
         "\n========================================\n"

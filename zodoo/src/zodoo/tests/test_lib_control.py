@@ -1130,24 +1130,29 @@ def test_ensure_prebuilt_skips_when_settings_incomplete(tmp_path, monkeypatch):
     assert calls == []
 
 
-def _fake_docker(monkeypatch, lcd, *, manifest, local_image=False):
-    """Fake `docker manifest inspect` / `docker image inspect` / build calls.
+def _fake_docker(
+    monkeypatch, lcd, *, manifest, local_image=False, local_arch="arm64"
+):
+    """Fake the docker calls of the prebuilt-python hook.
 
-    `manifest` is either "ok" or the error output docker would print.
+    `manifest` is "ok" or the error output docker would print — as a str for a
+    constant answer, or as a list to answer successive calls differently (the
+    hook asks again after logging in). `local_image` controls whether
+    `docker image inspect` finds anything, `local_arch` what it reports.
     Returns the recorded check_call commands.
     """
+    answers = [manifest] if isinstance(manifest, str) else list(manifest)
     invoked = []
 
     def fake_check_output(cmd, *a, **k):
         if cmd[:3] == ["docker", "manifest", "inspect"]:
-            if manifest == "ok":
+            answer = answers.pop(0) if len(answers) > 1 else answers[0]
+            if answer == "ok":
                 return b"{}"
-            raise subprocess.CalledProcessError(
-                1, cmd, output=manifest.encode()
-            )
+            raise subprocess.CalledProcessError(1, cmd, output=answer.encode())
         if cmd[:3] == ["docker", "image", "inspect"]:
             if local_image:
-                return b"[{}]"
+                return local_arch
             raise subprocess.CalledProcessError(
                 1, cmd, output=b"No such image"
             )
@@ -1160,48 +1165,51 @@ def _fake_docker(monkeypatch, lcd, *, manifest, local_image=False):
     return invoked
 
 
-def test_ensure_prebuilt_logs_in_before_asking_the_registry(
-    tmp_path, monkeypatch
-):
-    """A host that never ran `docker login` gets a 401 for every query, which
-    looks exactly like a cache miss — so log in first when zodoo has the
-    credentials in its settings."""
-    import zodoo.lib_control_with_docker as lcd
-
-    images = _make_prebuilt_layout(tmp_path)
-    _fake_docker(monkeypatch, lcd, manifest="ok")
-    monkeypatch.setattr(lcd, "_has_registry_credentials", lambda url: False)
-
-    logins = []
+def _patch_login(monkeypatch, *, succeeds=True):
+    """Record login attempts instead of talking to docker."""
     import zodoo.lib_zodoo_registry as lzr
 
+    logins = []
     monkeypatch.setattr(
         lzr,
         "login_with_settings_credentials",
-        lambda config, url=None: logins.append(url) or True,
+        lambda config, url=None: logins.append(url) or succeeds,
     )
+    return logins
+
+
+def test_ensure_prebuilt_logs_in_and_retries_after_a_401(
+    tmp_path, monkeypatch
+):
+    """A host that never ran `docker login` gets a 401 for every query, which
+    looks exactly like a cache miss. Log in with the credentials from the
+    settings and ask again — no rebuild."""
+    import zodoo.lib_control_with_docker as lcd
+
+    images = _make_prebuilt_layout(tmp_path)
+    invoked = _fake_docker(
+        monkeypatch,
+        lcd,
+        manifest=["unauthorized: authentication required", "ok"],
+    )
+    logins = _patch_login(monkeypatch)
 
     lcd._ensure_prebuilt_python_image(_PrebuiltCfg(images), "arm64")
 
     assert logins == ["r.example"]
+    assert invoked == []
 
 
-def test_ensure_prebuilt_skips_login_when_already_authenticated(
+def test_ensure_prebuilt_does_not_log_in_when_the_registry_answers(
     tmp_path, monkeypatch
 ):
+    """No login on a working registry — otherwise every build would rewrite
+    the docker config of hosts that keep their credentials in a helper."""
     import zodoo.lib_control_with_docker as lcd
-    import zodoo.lib_zodoo_registry as lzr
 
     images = _make_prebuilt_layout(tmp_path)
     _fake_docker(monkeypatch, lcd, manifest="ok")
-    monkeypatch.setattr(lcd, "_has_registry_credentials", lambda url: True)
-
-    logins = []
-    monkeypatch.setattr(
-        lzr,
-        "login_with_settings_credentials",
-        lambda config, url=None: logins.append(url) or True,
-    )
+    logins = _patch_login(monkeypatch)
 
     lcd._ensure_prebuilt_python_image(_PrebuiltCfg(images), "arm64")
 
@@ -1223,23 +1231,71 @@ def test_ensure_prebuilt_no_rebuild_when_image_is_in_local_store(
         manifest="unauthorized: authentication required",
         local_image=True,
     )
-    monkeypatch.setattr(lcd, "_has_registry_credentials", lambda url: True)
-    monkeypatch.setattr(
-        lcd, "_ensure_registry_login", lambda config, url: None
-    )
+    _patch_login(monkeypatch, succeeds=False)
 
     lcd._ensure_prebuilt_python_image(_PrebuiltCfg(images), "arm64")
 
-    build_script = str(images / "python_prebuilt" / "build.sh")
-    assert not any(build_script in cmd for cmd in invoked)
-    # An auth problem is no proof that the registry lacks the image, so it
-    # must not be pushed either.
+    # No rebuild, and nothing pushed either: an auth problem is no proof that
+    # the registry lacks the image.
     assert invoked == []
 
 
-def test_ensure_prebuilt_pushes_local_image_on_real_registry_miss(
+def test_ensure_prebuilt_ignores_a_local_image_of_the_wrong_arch(
     tmp_path, monkeypatch
 ):
+    """The tag carries no content hash and the same tag may have been built
+    for another platform — a wrong-arch base would poison the whole build."""
+    import zodoo.lib_control_with_docker as lcd
+
+    images = _make_prebuilt_layout(tmp_path)
+    invoked = _fake_docker(
+        monkeypatch,
+        lcd,
+        manifest="unauthorized: authentication required",
+        local_image=True,
+        local_arch="amd64",
+    )
+    _patch_login(monkeypatch, succeeds=False)
+    monkeypatch.setattr(lcd, "_has_registry_credentials", lambda url: False)
+
+    lcd._ensure_prebuilt_python_image(_PrebuiltCfg(images), "arm64")
+
+    assert invoked == [
+        [str(images / "python_prebuilt" / "build.sh"), "3.13.13"]
+    ]
+
+
+def test_ensure_prebuilt_ignores_local_image_when_building_with_pull(
+    tmp_path, monkeypatch
+):
+    """`--pull` makes BuildKit re-resolve every FROM against the registry, so
+    the local copy would not be used — skipping the build would break it."""
+    import zodoo.lib_control_with_docker as lcd
+
+    images = _make_prebuilt_layout(tmp_path)
+    invoked = _fake_docker(
+        monkeypatch,
+        lcd,
+        manifest="unauthorized: authentication required",
+        local_image=True,
+    )
+    _patch_login(monkeypatch, succeeds=False)
+    monkeypatch.setattr(lcd, "_has_registry_credentials", lambda url: False)
+
+    lcd._ensure_prebuilt_python_image(_PrebuiltCfg(images), "arm64", pull=True)
+
+    assert invoked == [
+        [str(images / "python_prebuilt" / "build.sh"), "3.13.13"]
+    ]
+
+
+def test_ensure_prebuilt_never_pushes_a_local_image_it_did_not_build(
+    tmp_path, monkeypatch
+):
+    """The tag has no content hash, so a local copy may be stale. On a real
+    registry miss the image is rebuilt from current sources (and build.sh
+    pushes that) — the old local copy must not end up in the shared
+    registry."""
     import zodoo.lib_control_with_docker as lcd
 
     images = _make_prebuilt_layout(tmp_path)
@@ -1247,14 +1303,58 @@ def test_ensure_prebuilt_pushes_local_image_on_real_registry_miss(
         monkeypatch, lcd, manifest="manifest unknown", local_image=True
     )
     monkeypatch.setattr(lcd, "_has_registry_credentials", lambda url: True)
-    monkeypatch.setattr(
-        lcd, "_ensure_registry_login", lambda config, url: None
-    )
+    logins = _patch_login(monkeypatch)
 
     lcd._ensure_prebuilt_python_image(_PrebuiltCfg(images), "arm64")
 
     assert invoked == [
-        ["docker", "push", "r.example/zodoo/python:3.13.13-arm64"]
+        [str(images / "python_prebuilt" / "build.sh"), "3.13.13", "--push"]
+    ]
+    assert not any("push" == cmd[0] for cmd in invoked)
+    # A registry that answered "no" needs no login.
+    assert logins == []
+
+
+def test_ensure_prebuilt_builds_local_only_when_registry_unreachable(
+    tmp_path, monkeypatch
+):
+    """No local copy and no usable registry: build, but do not try to push
+    into a registry we could not even talk to — that would turn a slow build
+    into a failed one."""
+    import zodoo.lib_control_with_docker as lcd
+
+    images = _make_prebuilt_layout(tmp_path)
+    invoked = _fake_docker(
+        monkeypatch, lcd, manifest="no basic auth credentials"
+    )
+    _patch_login(monkeypatch, succeeds=False)
+    monkeypatch.setattr(lcd, "_has_registry_credentials", lambda url: True)
+
+    lcd._ensure_prebuilt_python_image(_PrebuiltCfg(images), "arm64")
+
+    assert invoked == [
+        [str(images / "python_prebuilt" / "build.sh"), "3.13.13"]
+    ]
+
+
+def test_ensure_prebuilt_survives_a_failing_login(tmp_path, monkeypatch):
+    """A broken login must not fail the build — the local build path works."""
+    import zodoo.lib_control_with_docker as lcd
+    import zodoo.lib_zodoo_registry as lzr
+
+    images = _make_prebuilt_layout(tmp_path)
+    invoked = _fake_docker(monkeypatch, lcd, manifest="401 unauthorized")
+
+    def boom(config, url=None):
+        raise subprocess.CalledProcessError(1, ["docker", "login"])
+
+    monkeypatch.setattr(lzr, "login_with_settings_credentials", boom)
+    monkeypatch.setattr(lcd, "_has_registry_credentials", lambda url: False)
+
+    lcd._ensure_prebuilt_python_image(_PrebuiltCfg(images), "arm64")
+
+    assert invoked == [
+        [str(images / "python_prebuilt" / "build.sh"), "3.13.13"]
     ]
 
 
@@ -1336,13 +1436,14 @@ def test_ensure_prebuilt_e2e_recovers_from_never_logged_in_host(
 
     lcd._ensure_prebuilt_python_image(cfg, "arm64")
 
+    manifest = "manifest inspect r.example/zodoo/python:3.13.13-arm64"
     calls = (home / "docker-calls.log").read_text().splitlines()
-    assert calls[0].startswith("login r.example -u admin")
-    assert calls[1] == (
-        "manifest inspect r.example/zodoo/python:3.13.13-arm64"
-    )
+    # First query gets the 401, then the login, then the query succeeds.
+    assert calls[0] == manifest
+    assert calls[1].startswith("login r.example -u admin")
+    assert calls[2] == manifest
     # The decisive assertion: no build script, no rebuild.
-    assert len(calls) == 2
+    assert len(calls) == 3
 
 
 @pytest.mark.parametrize(
