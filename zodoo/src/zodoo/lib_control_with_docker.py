@@ -1100,6 +1100,12 @@ def _ensure_prebuilt_python_image(config, arch, pull=False):
         local_image_exists,
     )
 
+    # Whether this host may push is decided by the credentials it had before
+    # we did anything: ZODOO_REGISTRY_USERNAME/PASSWORD have working defaults
+    # (lib_composer._set_defaults), so the login below would otherwise hand
+    # push rights to every CI runner that only wants to read.
+    had_credentials = _has_registry_credentials(registry_url)
+
     status, output = inspect_registry_manifest(image)
     if status == "unreachable" and _ensure_registry_login(
         config, registry_url
@@ -1141,7 +1147,7 @@ def _ensure_prebuilt_python_image(config, arch, pull=False):
     # runners (no creds) would fail here with a 401 even though the
     # build succeeded locally. A registry we could not even talk to is not
     # worth trying to push to either.
-    pushable = status == "missing" and _has_registry_credentials(registry_url)
+    pushable = status == "missing" and had_credentials
     extra_args = ["--push"] if pushable else []
     reason = (
         f"not found in registry: {image}"

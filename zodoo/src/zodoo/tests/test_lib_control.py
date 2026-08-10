@@ -1337,6 +1337,34 @@ def test_ensure_prebuilt_builds_local_only_when_registry_unreachable(
     ]
 
 
+def test_ensure_prebuilt_does_not_push_with_credentials_it_just_created(
+    tmp_path, monkeypatch
+):
+    """ZODOO_REGISTRY_USERNAME/PASSWORD have working defaults, so logging in
+    must not silently turn a read-only CI runner into a pusher. Push rights
+    are decided by what the host had before we touched anything."""
+    import zodoo.lib_control_with_docker as lcd
+
+    images = _make_prebuilt_layout(tmp_path)
+    invoked = _fake_docker(
+        monkeypatch,
+        lcd,
+        manifest=["no basic auth credentials", "manifest unknown"],
+    )
+    # No auths entry before, one after the login the hook performs.
+    creds = iter([False, True, True])
+    monkeypatch.setattr(
+        lcd, "_has_registry_credentials", lambda url: next(creds)
+    )
+    _patch_login(monkeypatch)
+
+    lcd._ensure_prebuilt_python_image(_PrebuiltCfg(images), "arm64")
+
+    assert invoked == [
+        [str(images / "python_prebuilt" / "build.sh"), "3.13.13"]
+    ]
+
+
 def test_ensure_prebuilt_survives_a_failing_login(tmp_path, monkeypatch):
     """A broken login must not fail the build — the local build path works."""
     import zodoo.lib_control_with_docker as lcd
