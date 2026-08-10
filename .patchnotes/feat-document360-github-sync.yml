@@ -1,0 +1,3 @@
+type: docs
+description: "Prep docs/ for Document360's GitHub extension: add required docs/.document360/assets/ media folder and document that docs/ is now the synced source of truth for the hosted docs site."
+breaking: false
