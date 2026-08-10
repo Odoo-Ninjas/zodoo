@@ -342,12 +342,47 @@ def upgrade(ctx, config, no_install):
         _fix_permissions(config, [str(images_dir)])
     finally:
         if stashed:
-            click.secho("Restoring stashed changes...", fg="yellow")
-            subprocess.run(
-                ["git", "stash", "pop"],
-                cwd=config.dirs["images"],
-                check=False,
-            )
+            _restore_stashed_changes(config.dirs["images"])
+
+
+def _restore_stashed_changes(images_dir):
+    """`git stash pop` the local changes and say so when it does not work.
+
+    A local change in ~/.odoo/images (a patched Dockerfile fragment, a tweaked
+    config) can collide with what the upgrade pulled in. `git stash pop` then
+    aborts, and with a silent `check=False` the change looked gone while it was
+    still sitting in the stash. Print what happened and how to get it back.
+    """
+    click.secho("Restoring stashed changes...", fg="yellow")
+    result = subprocess.run(
+        ["git", "stash", "pop"],
+        cwd=images_dir,
+        capture_output=True,
+        encoding="utf-8",
+        text=True,
+        check=False,
+    )
+    if result.returncode == 0:
+        return
+    click.secho(
+        "\n========================================\n"
+        "Your local changes are still in the stash\n"
+        "========================================\n"
+        f"{(result.stdout or '').strip()}\n{(result.stderr or '').strip()}\n"
+        "\n"
+        "The upgrade touched the same files, so git could not put your\n"
+        f"changes back. They are NOT lost — in {images_dir}:\n"
+        "\n"
+        "  git stash list          # your entry is stash@{0}\n"
+        "  git stash show -p       # what it contains\n"
+        "  git stash pop           # retry (resolve the conflict)\n"
+        "  git stash drop          # throw it away if no longer needed\n"
+        "\n"
+        "Local changes in ~/.odoo/images collide with every upgrade. If you\n"
+        "need them permanently, they belong upstream in the zodoo repo.\n"
+        "========================================\n",
+        fg="red",
+    )
 
 
 def _zodoo_devmode(config):

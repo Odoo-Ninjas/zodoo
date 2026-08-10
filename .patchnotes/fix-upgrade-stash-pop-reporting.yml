@@ -1,0 +1,3 @@
+type: fix
+description: "odoo setup upgrade: local changes in ~/.odoo/images no longer look lost. Before pulling, the upgrade stashes local changes and pops them afterwards. If the upgrade touched the same file, the pop aborts — and that failure was swallowed, so a locally patched Dockerfile fragment or config seemed to be gone. The upgrade now prints git's message plus the commands to get the change back (git stash list / show -p / pop / drop) and the hint that permanent local changes belong upstream instead."
+breaking: false
