@@ -1092,14 +1092,41 @@ def _ensure_prebuilt_python_image(config, arch):
         return
 
     image = f"{registry_url}/zodoo/python:{python_version}-{arch}"
-    try:
-        subprocess.check_output(
-            ["docker", "manifest", "inspect", image],
-            stderr=subprocess.STDOUT,
-        )
+
+    from .lib_zodoo_registry import (
+        inspect_registry_manifest,
+        local_image_exists,
+    )
+
+    # Log in first when we know credentials but docker doesn't — otherwise
+    # every registry query comes back 401 and looks like a cache miss.
+    _ensure_registry_login(config, registry_url)
+
+    status, output = inspect_registry_manifest(image)
+    if status == "ok":
         return
-    except subprocess.CalledProcessError:
-        pass
+
+    # Before spending ~12 minutes on a rebuild: the image may simply be
+    # sitting in the local docker store already (FROM resolves against it).
+    if local_image_exists(image):
+        click.secho(
+            f"Prebuilt Python image not available from the registry, but "
+            f"present in the local docker store: {image} — skipping rebuild.",
+            fg="green",
+        )
+        if status == "missing" and _has_registry_credentials(registry_url):
+            _push_local_image(image)
+        return
+
+    if status == "unreachable":
+        click.secho(
+            f"Could not ask the registry whether {image} exists:\n"
+            f"  {output.splitlines()[-1] if output else 'unknown error'}\n"
+            "This is not a cache miss — it is an authentication or network "
+            "problem. Check ZODOO_REGISTRY_USERNAME / ZODOO_REGISTRY_PASSWORD "
+            "in your settings. Building locally now (slow).",
+            fg="red",
+        )
 
     # The image is not in the registry. Build it locally so the
     # subsequent `docker compose build` can FROM-it from the local
@@ -1174,6 +1201,37 @@ def _ensure_base_image_for_build(
         try_pull=not no_zodoo_pull,
         enqueue_push=not no_zodoo_push,
     )
+
+
+def _ensure_registry_login(config, registry_url):
+    """`docker login` to the zodoo registry if that hasn't happened yet.
+
+    zodoo has the credentials in its settings, but docker only knows what is
+    in `~/.docker/config.json`. On a host that was never logged in, every
+    registry query fails with a 401 — indistinguishable from "image not in
+    registry" — so cache hits turn into full rebuilds. Best effort: a failing
+    login must not break the build, the local build path still works.
+    """
+    if _has_registry_credentials(registry_url):
+        return
+    from .lib_zodoo_registry import login_with_settings_credentials
+
+    try:
+        login_with_settings_credentials(config, registry_url)
+    except Exception as ex:  # noqa: BLE001 - never fail the build on this
+        click.secho(
+            f"Could not log in to registry {registry_url}: {ex}", fg="yellow"
+        )
+
+
+def _push_local_image(image):
+    """Push an image that exists locally but is missing in the registry."""
+    click.secho(f"Pushing local {image} to the registry ...", fg="cyan")
+    try:
+        subprocess.check_call(["docker", "push", image])
+        click.secho(f"Pushed {image}", fg="green")
+    except (subprocess.CalledProcessError, OSError) as ex:
+        click.secho(f"Push of {image} failed (ignored): {ex}", fg="yellow")
 
 
 def _has_registry_credentials(registry_url):
