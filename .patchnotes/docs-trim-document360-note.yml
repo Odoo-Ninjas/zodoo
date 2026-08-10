@@ -1,0 +1,3 @@
+type: docs
+description: "docs/README.md: die Beschreibung des Doku-Workflows auf das Wesentliche gekuerzt (Markdown hier pflegen, Medien in docs/.document360/assets/). Die Aussage, dass die Doku-Site bei jedem Push automatisch nachzieht, ist raus - darauf sollte sich niemand verlassen."
+breaking: false
