@@ -16,6 +16,7 @@ spinning up a real docker stack.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -1255,6 +1256,93 @@ def test_ensure_prebuilt_pushes_local_image_on_real_registry_miss(
     assert invoked == [
         ["docker", "push", "r.example/zodoo/python:3.13.13-arm64"]
     ]
+
+
+_FAKE_DOCKER = r"""#!/usr/bin/env python3
+# Fake docker: answers `manifest inspect` with a 401 until `login` ran,
+# mimicking a host that was never logged in to the registry.
+import json
+import os
+import sys
+from pathlib import Path
+
+home = Path(os.environ["HOME"])
+log = home / "docker-calls.log"
+cfg = home / ".docker" / "config.json"
+argv = sys.argv[1:]
+with log.open("a") as fh:
+    fh.write(" ".join(argv) + "\n")
+
+if argv[:1] == ["login"]:
+    sys.stdin.read()
+    cfg.parent.mkdir(parents=True, exist_ok=True)
+    cfg.write_text(json.dumps({"auths": {argv[1]: {"auth": "x"}}}))
+    print("Login Succeeded")
+    sys.exit(0)
+
+if argv[:2] == ["manifest", "inspect"]:
+    if cfg.exists() and "auths" in json.loads(cfg.read_text()):
+        print("{}")
+        sys.exit(0)
+    print("unauthorized: authentication required", file=sys.stderr)
+    sys.exit(1)
+
+if argv[:2] == ["image", "inspect"]:
+    print("Error: No such image", file=sys.stderr)
+    sys.exit(1)
+
+sys.exit(0)
+"""
+
+
+def test_ensure_prebuilt_e2e_recovers_from_never_logged_in_host(
+    tmp_path, monkeypatch
+):
+    """End-to-end through real subprocess calls with a fake `docker`.
+
+    Reproduces the reported case: settings hold the registry credentials,
+    `~/.docker/config.json` has no `auths`, so the registry answers 401. The
+    hook must log in and then see the image, instead of reading the 401 as a
+    cache miss and rebuilding for ~12 minutes.
+    """
+    import zodoo.lib_control_with_docker as lcd
+    import zodoo.lib_zodoo_registry as lzr
+
+    # Pin the login to the `docker login` path so the assertions hold on
+    # macOS too (there zodoo writes ~/.docker/config.json itself, because
+    # the osxkeychain helper refuses to work over SSH).
+    monkeypatch.setattr(lzr.platform, "system", lambda: "Linux")
+
+    images = _make_prebuilt_layout(tmp_path)
+
+    home = tmp_path / "home"
+    home.mkdir()
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake = bin_dir / "docker"
+    fake.write_text(_FAKE_DOCKER)
+    fake.chmod(0o755)
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("PATH", f"{bin_dir}:{os.environ['PATH']}")
+
+    settings = tmp_path / "settings"
+    settings.write_text(
+        "ZODOO_REGISTRY_URL=r.example\n"
+        "ZODOO_REGISTRY_USERNAME=admin\n"
+        "ZODOO_REGISTRY_PASSWORD=secret\n"
+    )
+    cfg = _PrebuiltCfg(images)
+    cfg.files = {"user_settings": settings}
+
+    lcd._ensure_prebuilt_python_image(cfg, "arm64")
+
+    calls = (home / "docker-calls.log").read_text().splitlines()
+    assert calls[0].startswith("login r.example -u admin")
+    assert calls[1] == (
+        "manifest inspect r.example/zodoo/python:3.13.13-arm64"
+    )
+    # The decisive assertion: no build script, no rebuild.
+    assert len(calls) == 2
 
 
 @pytest.mark.parametrize(
