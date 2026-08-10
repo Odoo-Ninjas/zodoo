@@ -15,11 +15,7 @@
 
 Online: https://docs.zebroo.de/docs/zodoo
 
-## Document360 sync
+## Editing
 
-This `docs/` folder is the source of truth for the hosted docs site above, synced via
-Document360's GitHub extension. When a commit touching `docs/` is pushed to `main`,
-Document360 automatically pulls and republishes the changed articles — **edit the
-Markdown here, not in the Document360 editor** (GitHub-synced articles are read-only
-there). Images/media referenced from these docs belong in `docs/.document360/assets/`,
-per Document360's required repo layout.
+This `docs/` folder is the source of truth — edit the Markdown here. Images and
+other media belong in `docs/.document360/assets/`.
