@@ -1349,6 +1349,18 @@ def test_ensure_prebuilt_e2e_recovers_from_never_logged_in_host(
     "output, expected",
     [
         ("manifest unknown: manifest unknown", "missing"),
+        # Verbatim from registry.zebroo.de for a tag that does not exist.
+        (
+            "no such manifest: registry.zebroo.de/zodoo/python:0.0.0-nope",
+            "missing",
+        ),
+        # Verbatim from registry.zebroo.de without credentials — the case
+        # that used to be read as a cache miss.
+        (
+            'Get "https://registry.zebroo.de/v2/zodoo/python/manifests/'
+            '3.13.13-arm64": no basic auth credentials',
+            "unreachable",
+        ),
         (
             "errors:\n denied: requested access to the resource is denied",
             "unreachable",
@@ -1360,7 +1372,10 @@ def test_ensure_prebuilt_e2e_recovers_from_never_logged_in_host(
 )
 def test_classify_manifest_error(output, expected):
     """An unclear failure counts as "unreachable": mistaking it for a cache
-    miss is what costs a needless rebuild."""
+    miss is what costs a needless rebuild.
+
+    The two registry.zebroo.de strings were captured from the live registry
+    (with and without credentials in ~/.docker/config.json)."""
     import zodoo.lib_zodoo_registry as lzr
 
     assert lzr.classify_manifest_error(output) == expected
