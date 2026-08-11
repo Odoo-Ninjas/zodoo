@@ -1,3 +1,11 @@
 services:
   rsync:
     build: ${ODOO_IMAGES}/rsync
+    # Built, never started. The image is used via
+    # `docker run <project>-rsync:latest ...` from the snapshot code
+    # (lib_db_snapshots_postgres_container.py); it only appears here so that
+    # `odoo build` produces it. Without this profile it lands in "auto",
+    # `odoo up -d` starts it, and its entrypoint runs `rsync` without
+    # arguments -> exit 1 -> the crash watchdog restarts it every minute.
+    profiles:
+      - build_only

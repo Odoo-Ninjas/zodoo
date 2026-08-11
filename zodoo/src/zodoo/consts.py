@@ -2,7 +2,27 @@ from .tools import _search_path
 import os
 import subprocess
 
+# Profiles a container can be *started* in. resolve_profiles("all") expands to
+# this list, and up() iterates it — so anything listed here gets started.
 DOCKER_PROFILES = ["manual", "auto"]
+
+# Tool images: built, never run as a service.
+#
+# Deliberately NOT part of DOCKER_PROFILES. The rsync image is only in the
+# compose file so that it gets built; it is used via `docker run
+# <project>-rsync:latest ...` from the snapshot code. Left in the default
+# "auto" profile, `odoo up -d` starts it, its entrypoint runs `rsync` without
+# arguments, and it exits 1 — which the crash watchdog (7.2.0+) reads as a
+# crash and restarts every minute on DEVMODE=0 hosts.
+#
+# Moving it to the existing "manual" profile would fix the start but stop the
+# build, because `odoo build` runs with profile "auto" — and a missing
+# <project>-rsync:latest only shows up when someone restores a snapshot.
+# Hence a profile that the build includes and up does not.
+BUILD_ONLY_PROFILE = "build_only"
+
+# What `odoo build` has to cover: everything that runs, plus the tool images.
+BUILD_PROFILES = ["auto", BUILD_ONLY_PROFILE]
 VERSIONS = [
     7.0,
     8.0,

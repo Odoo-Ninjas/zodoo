@@ -910,8 +910,15 @@ def _build_with_network_retry(config, options, machines, env):
     use_buildx = _is_buildx_available()
 
     def _run(extra_options):
+        from .consts import BUILD_PROFILES
+
         if use_buildx:
-            compose_cmd = __get_cmd(config, profile="auto")
+            # Only the -f paths are taken from this, so the profiles do not
+            # filter anything here: `docker buildx bake` has no concept of
+            # compose profiles and builds every service with a build section.
+            # Verified against docker compose v2 — a profile-gated service
+            # still shows up in bake's default group.
+            compose_cmd = __get_cmd(config, profile=BUILD_PROFILES)
             bake_files = []
             idx = 0
             while idx < len(compose_cmd):
@@ -947,7 +954,9 @@ def _build_with_network_retry(config, options, machines, env):
             )
         else:
             cmd = (
-                __get_cmd(config, profile="auto")
+                # Here the profiles do filter: without BUILD_ONLY_PROFILE
+                # compose would skip the tool images entirely.
+                __get_cmd(config, profile=BUILD_PROFILES)
                 + ["build"]
                 + extra_options
                 + list(machines)
