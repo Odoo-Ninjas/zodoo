@@ -128,6 +128,21 @@ def cli(
     config.set_restrict("docker-compose", restrict_docker_compose)
     config.project_name = project_name
 
+    # Running odoo from a shell that does not own the project tree - a root
+    # shell in /home/odoo/odoo being the usual one - leaves root-owned files
+    # behind that the real user can no longer write. Warn once, here, rather
+    # than letting it surface later as an unrelated-looking permission error.
+    from .tools import warn_if_foreign_owner
+
+    # Only inside an actual project tree. Falling back to the cwd would warn
+    # about any foreign directory someone happens to run `odoo --help` from.
+    try:
+        cwd_root = _get_customs_root(Path(os.getcwd()))
+    except Exception:
+        cwd_root = None
+    if cwd_root:
+        warn_if_foreign_owner(cwd_root)
+
 
 @cli.command()
 @click.option(
