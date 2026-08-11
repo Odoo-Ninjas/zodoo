@@ -1,10 +1,11 @@
-from .fixtures import *  # required for all
+from .fixtures import * # required for all
 import os
 import subprocess
 from ..consts import gitcmd as git
 from ..repo import Repo
 from .tools import _make_remote_repo
 from .tools import clone_and_commit
+from . import temppath
 
 
 def test_git_status(temppath):
@@ -21,14 +22,11 @@ def test_git_status(temppath):
         Repo(repopath).simple_commit_all()
 
     workspace_main = workspace / "main_working"
-    subprocess.check_call(
-        git + ["clone", f"file://{repo_main}", workspace_main]
-    )
+    subprocess.check_call(git + ["clone", f"file://{repo_main}", workspace_main])
     (workspace_main / "file8.txt").write_text("Newfile")
     repo = Repo(workspace_main)
     assert not repo.staged_files
     assert repo.untracked_files
-
 
 def test_reformat_url(temppath):
     from ..tools import get_url_type, reformat_url
@@ -36,6 +34,5 @@ def test_reformat_url(temppath):
     url = "git@github.com:marcwimmer/gimera.git"
     assert get_url_type(url) == "git"
 
-    assert (
-        reformat_url(url, "http") == "https://github.com/marcwimmer/gimera.git"
-    )
+    assert reformat_url(url, "http") == "https://github.com/marcwimmer/gimera.git"
+

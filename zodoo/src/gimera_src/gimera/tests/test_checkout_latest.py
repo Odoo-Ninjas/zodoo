@@ -1,15 +1,21 @@
-from .fixtures import *  # required for all
+from .fixtures import * # required for all
+import uuid
 import yaml
+from contextlib import contextmanager
 from ..repo import Repo
 import os
 import subprocess
+import click
+import inspect
 import os
+from pathlib import Path
 from .tools import gimera_apply
+from . import temppath
 from .tools import _make_remote_repo
 from .tools import clone_and_commit
+from .tools import gimera_commit
 
 from ..consts import gitcmd as git
-
 
 def test_checkout_not_update_if_last_commit_matches_branch_make_branch_be_checked_out(
     temppath,
@@ -42,9 +48,7 @@ def test_checkout_not_update_if_last_commit_matches_branch_make_branch_be_checke
     }
     workspace_main = workspace / "main_working"
     main_repo = Repo(workspace_main)
-    subprocess.check_call(
-        git + ["clone", f"file://{repo_main}", workspace_main]
-    )
+    subprocess.check_call(git + ["clone", f"file://{repo_main}", workspace_main])
     (workspace_main / "gimera.yml").write_text(yaml.dump(repos))
 
     os.chdir(workspace_main)

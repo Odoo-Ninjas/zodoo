@@ -4,6 +4,7 @@ import yaml
 import subprocess
 from ..consts import gitcmd as git
 from ..repo import Repo
+from . import temppath
 from .tools import _make_remote_repo
 from .tools import clone_and_commit
 from .tools import gimera_apply
@@ -35,9 +36,7 @@ def test_switch_submodule_to_integrated_migrate_changes(temppath):
         assert added_file.exists()
         assert not deleted_file.exists()
 
-    workspace = (
-        temppath / "test_switch_submodule_to_integrated_migrate_changes"
-    )
+    workspace = temppath / "test_switch_submodule_to_integrated_migrate_changes"
     workspace.mkdir()
     workspace_main = workspace / "main_working"
 

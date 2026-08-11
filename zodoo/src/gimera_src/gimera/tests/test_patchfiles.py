@@ -1,13 +1,21 @@
-from .fixtures import *  # required for all
+from .fixtures import * # required for all
+import itertools
+import uuid
 import yaml
+from contextlib import contextmanager
 from ..repo import Repo
 import os
 import subprocess
+from pathlib import Path
+import shutil
 import click
+import inspect
 import os
 from .tools import gimera_apply
+from . import temppath
 from .tools import _make_remote_repo
 from .tools import clone_and_commit
+from .tools import gimera_commit
 
 from ..consts import gitcmd as git
 
@@ -31,9 +39,7 @@ def test_common_patchfiles_in_subgimera(temppath):
 
     # Make a repo with a patch file and gimera instruction file to
     # include the local patch files depending on the variable $VERSION
-    with clone_and_commit(
-        remote_main_repo, "branch1", commit=False
-    ) as repopath:
+    with clone_and_commit(remote_main_repo, "branch1", commit=False) as repopath:
         file1 = repopath / "file_is_patch.txt"
         file1.write_text("patchfile")
 
@@ -57,7 +63,9 @@ def test_common_patchfiles_in_subgimera(temppath):
                 "branch": "${branch}",
                 "path": "integrated/sub1",
                 "type": "integrated",
-                "patches": [{"path": "mypatches"}],
+                "patches": [
+                    {"path": "mypatches"}
+                ]
             },
         ],
     }
@@ -89,8 +97,11 @@ def test_common_patchfiles_in_subgimera(temppath):
     assert testfile.exists()
 
     # ignore patchfile now
-    patchfile = list((workspace / "mypatches").rglob("*.patch"))[0]
+    patchfile = list(
+        (workspace / "mypatches").rglob("*.patch")
+    )[0]
     repos["repos"][0]["ignored_patchfiles"] = [patchfile.name]
     (workspace / "gimera.yml").write_text(yaml.dump(repos))
     gimera_apply([], None)
     assert not testfile.exists()
+

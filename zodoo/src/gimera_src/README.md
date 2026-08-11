@@ -5,11 +5,12 @@ but provide auto merge functions of hotfixes from other repositories or inside.
 
 Rule of thumb:
 
-- no data is lost, it is safe to call gimera.
-  If there are staged files, gimera wont continue.
+ * no data is lost, it is safe to call gimera.
+If there are staged files, gimera wont continue.
 
 During run of gimera commits are done for example after pulling submodules or updating
 local paths.
+
 
 ## How to install:
 
@@ -17,6 +18,8 @@ local paths.
 pipx install gimera
 gimera completion  (Follow instructions)
 ```
+
+
 
 ## How to use:
 
@@ -84,7 +87,7 @@ gimera apply
 
 From the example above:
 
-- edit roles2/sub1/file1.txt
+  * edit roles2/sub1/file1.txt
 
 ```bash
 gimera apply
@@ -92,20 +95,28 @@ gimera apply
 
 Then a patch file is created as suggestion in roles2/sub1_patches which you may commit and push.
 
+> **Note:** gimera auto-applies **unified diffs** only (as produced by `git
+> diff` / `git format-patch`). The strip level (`-p1`..`-p4`) and working
+> directory are detected from the patch headers. Context diffs, ed scripts,
+> binary patches and rename-/mode-only diffs (no unified body) are refused
+> rather than applied, as are patches referencing absolute, `..` or paths
+> that resolve outside the sub-repo through a symlink, that write into
+> `.git/`, or that create a symlink.
+
 ### Re-Edit patch file:
 
 ```bash
 gimera edit-patch file1.patch file2.patch
 ```
 
-- by this, you can combine several patch files into one again
+  * by this, you can combine several patch files into one again
+
 
 ## How to fetch only one or more repo:
 
 ```bash
 gimera apply repo_path repo_path2 repo_path3`
 ```
-
 ## How to fetch latest versions:
 
 ```bash
@@ -138,7 +149,6 @@ This way is ok for small sized patches. If patches grow and grow one useful reco
 github workflows to rebase version branches from main automatically again and apply all changes.
 
 This is a sample workflow github:
-
 ```
 name: Deploy fixes to other versions with rebase main
 
@@ -156,11 +166,13 @@ jobs:
       branches: "11.0 12.0 13.0 14.0 15.0 16.0"
 ```
 
+
 # Demo Videos
 
 ## Edit existing patch file and update it
 
 [![Patching Gimera]](https://youtu.be/WQU9db5z9IY)
+
 
 ## gimera commit command
 
@@ -172,28 +184,98 @@ git commit path branch message
 ```
 
 How it works:
+  * a patch file is created
+  * the repo is cloned
+  * patch file is applied
+  * if something conflicts, then it is reported and you have to decide what to do
 
-- a patch file is created
-- the repo is cloned
-- patch file is applied
-- if something conflicts, then it is reported and you have to decide what to do
+## Machine settings: ~/.gimera
+
+Settings that belong to the machine, not to a project. JSON, so it stays easy
+to extend:
+
+```json
+{
+  "no_cache": ["odoo/odoo", "github.com/odoo/enterprise"]
+}
+```
+
+  * `no_cache` - repos that never go into the golden cache. Gimera fetches
+    exactly the needed state instead (`--single-branch --depth=1`). For
+    odoo/odoo that is the difference between a few hundred MB and ~18 GB of
+    history - worth it on build servers and hosting instances, while a
+    developer machine usually wants the cache.
+
+    A short `owner/repo` matches on any host; write `host/owner/repo` if the
+    same name exists on two hosts. Both URL spellings (`git@github.com:...`
+    and `https://github.com/...`) match the same entry.
+
+Unknown keys are ignored, so an older gimera keeps working with a config
+written by a newer one. A broken config aborts instead of being skipped -
+a setting that silently does nothing is worse than none.
+
+The path can be overridden with `GIMERA_CONFIG`.
 
 ## Some environment variables
 
-- GIMERA_NON_THREADED=1 - non threaded fetch
-- GIMERA_IGNORE_FETCH_ERRORS=1 - ignore any fetch error at fetch
-- GIMERA_NO_SHA_UPDATE=1 - no shas updated in gimera file
-- GIMERA_QUIET=1 - rsyncing quiet and git
-- GIMERA_NO_PRECOMMIT=1 - do not execute pre commits
+  * GIMERA_NON_THREADED=1 - non threaded fetch
+  * GIMERA_IGNORE_FETCH_ERRORS=1 - ignore any fetch error at fetch
+  * GIMERA_NO_SHA_UPDATE=1 - no shas updated in gimera file
+  * GIMERA_QUIET=1 - rsyncing quiet and git
+  * GIMERA_NO_PRECOMMIT=1 - do not execute pre commits
+  * GIMERA_NO_CACHE=1 - no golden cache at all (like listing every repo in `no_cache`)
+  * GIMERA_CONFIG=/path/to/config - use another file instead of ~/.gimera
+  * GIMERA_FULL_CLONE=1 - cache the file contents of the whole history too (see below)
+
+## The golden cache holds no old file contents
+
+The cache of an `integrated` repo is cloned with `--filter=blob:none`: gimera
+gets every commit and every tree, but file contents only for the snapshots it
+actually checks out. `git archive <sha>` fetches those on the fly and keeps
+them, so the cache grows along the pins you use instead of along the history.
+
+Measured on odoo/odoo (all branches, bare): **1.2 GB** for the clone and 1.4 GB
+after the first checkout, against ~17 GB unfiltered. A pin bump of 300 commits
+adds about 100 MB. Once a snapshot is in, it needs no network again.
+
+Two things it does not apply to:
+
+  * `submodule` repos keep the complete cache. `git submodule update` clones
+    *out of* the cache, and a partial clone cannot serve that - its upload-pack
+    aborts with "could not fetch ... from promisor remote".
+  * caches that already exist stay as they are. Only new ones are filtered, so
+    nothing gets re-downloaded because of an upgrade. Delete a cache directory
+    to have it come back small.
+
+The remote must allow it (`uploadpack.allowFilter`, on by default at GitHub and
+GitLab). A remote that does not simply sends everything; gimera says so rather
+than letting the disk fill up unexplained. `GIMERA_FULL_CLONE=1` turns the
+filter off everywhere.
+
+## Running tests
+
+Tests run in Docker to ensure a clean, isolated environment (no host cache interference, fast ext4 filesystem).
+
+```bash
+# full test suite
+make test
+
+# only core tests (fast, ~3 min)
+make test-quick
+
+# only snapshot tests (~15 min)
+make test-snapshots
+```
+
+Requires Docker. The image is built automatically on first run.
 
 ## Authors:
-
-- Marc Wimmer (marc@zebroo.de)
+  * Marc Wimmer (marc@zebroo.de)
 
 ## Contributors
+  * Michael Tietz (mtietz@mt-software.de)
+  * Walter Saltzmann
 
-- Michael Tietz (mtietz@mt-software.de)
-- Walter Saltzmann
 
 ## install directly
 
