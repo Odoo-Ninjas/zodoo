@@ -1923,18 +1923,33 @@ def fix_sudo_user_rights(path):
     )
 
 
+def _sudo_vars_apply():
+    """Whether $SUDO_USER/$SUDO_UID describe who we should act as.
+
+    They do when sudo took us *to root*: then the effective user says nothing
+    and the invoking human is the one we mean. They do not with
+    `sudo -u <other>` - there the effective user is exactly who we should be,
+    while SUDO_USER still names whoever called sudo.
+
+    Believing them unconditionally is how `sudo -iu odoo` out of a root shell
+    produced OWNER_UID=0 (SUDO_USER=root): the odoo container then tried
+    `usermod -u 30000 root` on PID 1 and died at startup.
+    """
+    return os.getuid() == 0
+
+
 def whoami(id=False):
-    if os.getenv("SUDO_USER") and id:
+    if _sudo_vars_apply() and os.getenv("SUDO_USER") and id:
         return int(
             subprocess.check_output(
                 ["/usr/bin/id", "-u", os.environ["SUDO_USER"]], encoding="utf8"
             ).strip()
         )
-    elif os.getenv("SUDO_USER") and not id:
+    elif _sudo_vars_apply() and os.getenv("SUDO_USER") and not id:
         return os.getenv("SUDO_USER")
-    elif os.getenv("SUDO_UID") and id:
+    elif _sudo_vars_apply() and os.getenv("SUDO_UID") and id:
         return int(os.getenv("SUDO_UID"))
-    elif os.getenv("SUDO_UID") and not id:
+    elif _sudo_vars_apply() and os.getenv("SUDO_UID") and not id:
         return subprocess.check_output(
             ["/usr/bin/id", "-u", "-n", os.environ["SUDO_UID"]],
             encoding="utf8",
