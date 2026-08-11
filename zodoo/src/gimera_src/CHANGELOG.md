@@ -1,3 +1,12 @@
+# 0.13.0
+
+  * [IMPROVED] The golden cache is no longer mirrored into a second copy on disk. Every repository in `~/.cache/gimera` was kept twice — once as the bare clone that is actually used, and once more as a `.tar` of that same clone, written on every update and only ever read to rebuild the clone it was made from. On a machine with a few large repositories that is tens of gigabytes of duplicate that nobody asked for; one report had it at 16 GB. Restoring now re-clones from the remote instead, which is the same work the tarball path did after an invalidation anyway. A tarball left behind by an older gimera is deleted on the next run, with a note saying how much space that freed — otherwise it would sit there forever with no hint of where it came from. `--clear-zip-cache` still exists so scripts keep working, but it does nothing now and says so.
+# 0.12.2
+
+  * [FIXED] A stale `gimera.lock` left behind by a killed process is recognised and removed again. `FileLock` appends `.lock` to the name it is given, so the file that actually appeared was `gimera.lock.lock`, while `wait_git_lock` watched and cleaned up `gimera.lock` — a name nothing ever creates. Recovery therefore never triggered: after a `SIGKILL` (which runs no `__del__`) the next run on that repository blocked the full hour and then failed with "Timeout occured.". Mutual exclusion itself was never affected, both sides derived the same doubled name. Also fixed: `FileLock.__init__` now sets its attributes before validating its arguments, so `__del__` no longer dies with `AttributeError` on a half-built object (Python swallows that, which on a lock-holding object would mean the lockfile stays behind), and `os.getcwd()` is only consulted for relative names — it raises once the current directory has been deleted.
+# 0.12.1
+
+  * [FIXED] Der Test fuer eine kaputte ~/.gimera erwartete einen SystemExit, obwohl die Testumgebung Abbrueche als Exception meldet (GIMERA_EXCEPTION_THAN_SYSEXIT). Er schlug dadurch in der CI fehl und blockierte das Release.
 # 0.12.0
 
   * [IMPROVED] Golden cache of integrated repos is cloned with `--filter=blob:none`, so it holds the history but only the file contents of the snapshots actually used. On odoo/odoo that is 1.4 GB instead of ~17 GB, and a pin bump of 300 commits adds ~100 MB. Submodule repos keep a full cache (a partial clone cannot serve `git submodule update`), existing caches are left alone, and `GIMERA_FULL_CLONE=1` turns the filter off.
