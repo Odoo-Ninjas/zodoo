@@ -15,6 +15,7 @@ limit_request = 18192
 limit_time_cpu = 60000000
 limit_time_real = 120000000
 list_db = __ENABLE_DB_MANAGER__
+dbfilter = __ODOO_DBFILTER__
 server_wide_modules = __SERVER_WIDE_MODULES__
 proxy_mode = True
 translate_modules = ['all']
