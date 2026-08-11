@@ -3,8 +3,11 @@ Zodoo Registry: Cache build images in a central Docker registry.
 
 Settings:
     ZODOO_REGISTRY_URL=registry.zebroo.de
-    ZODOO_REGISTRY_USERNAME=admin
-    ZODOO_REGISTRY_PASSWORD=zebroo
+    ZODOO_REGISTRY_USERNAME=<your user>
+    ZODOO_REGISTRY_PASSWORD=<your password>
+
+There are no default credentials — every user has their own account (`odoo
+build` offers to request one and writes it to ~/.odoo/settings).
 """
 
 import functools
@@ -224,8 +227,11 @@ def _get_registry_config(config):
                     sys.exit(1)
         else:
             try:
+                # Not "admin" as the default: that account does not exist on
+                # registry.zebroo.de, accepting the default would only produce
+                # a 401 later.
                 username = click.prompt(
-                    "ZODOO_REGISTRY_USERNAME", default="admin"
+                    "ZODOO_REGISTRY_USERNAME", default=getpass.getuser()
                 )
                 password = click.prompt(
                     "ZODOO_REGISTRY_PASSWORD", hide_input=True
@@ -616,7 +622,9 @@ def _docker_login_write_auth(reg):
     with open(docker_cfg_path, "w") as f:
         json.dump(docker_cfg, f, indent=2)
 
-    click.secho(f"Logged in to {reg['url']}", fg="green")
+    # Deliberately not "Logged in": nothing was verified against the registry
+    # here, the credentials were only handed to docker.
+    click.secho(f"Stored registry credentials for {reg['url']}", fg="green")
 
 
 def _docker_login_subprocess(reg):
@@ -641,17 +649,172 @@ def _docker_login_subprocess(reg):
         raise
 
 
-def _manifest_exists(image):
-    """Check if a single image reference exists in the registry."""
+def registry_credentials_from_settings(config, registry_url=None):
+    """Read url/username/password from the settings — never prompts.
+
+    Counterpart to :func:`_get_registry_config`, which may ask questions and
+    write settings. Callers that run in the middle of a build (e.g. the
+    prebuilt-python pre-flight hook) must not prompt, so they use this.
+    Returns None when url, username or password is missing.
+    """
+
+    def _setting(key):
+        # No user settings file (containers, CI) — fall back to the config.
+        try:
+            value = _read_user_setting(config, key)
+        except (AttributeError, KeyError, TypeError, OSError):
+            value = ""
+        return value or getattr(config, key, None) or ""
+
+    url = _validate_registry_url(
+        registry_url or _setting("ZODOO_REGISTRY_URL")
+    )
+    username = _setting("ZODOO_REGISTRY_USERNAME")
+    password = _setting("ZODOO_REGISTRY_PASSWORD")
+    if not url or not username or not password:
+        return None
+    return {
+        "url": url.rstrip("/"),
+        "username": username,
+        "password": password,
+    }
+
+
+def login_with_settings_credentials(config, registry_url=None):
+    """`docker login` using the credentials from the settings.
+
+    zodoo knows ZODOO_REGISTRY_USERNAME/PASSWORD but docker does not: a host
+    that was never logged in answers every registry query with a 401, which
+    looks exactly like "image not in registry" and triggers a full rebuild.
+    Returns True when a login was performed.
+    """
+    reg = registry_credentials_from_settings(config, registry_url)
+    if not reg:
+        return False
+    if platform.system() == "Darwin":
+        _docker_login_write_auth(reg)
+    else:
+        _docker_login_subprocess(reg)
+    return True
+
+
+# A registry that answers "I don't have this" is a cache miss and rebuilding
+# is the right answer. Anything else (401/403, DNS, TLS, refused connection)
+# means we simply could not ask — those must not be mistaken for a miss.
+_MANIFEST_UNREACHABLE_MARKERS = (
+    "unauthorized",
+    "authentication required",
+    # Ambiguous on purpose: some registries (Docker Hub, Harbor) answer
+    # "denied" for a repository that does not exist, others only for missing
+    # rights. Counting it as unreachable costs at most a rebuild we would
+    # have done anyway; the other way round we would push into a registry we
+    # have no rights on.
+    "denied",
+    "no basic auth credentials",
+    "forbidden",
+    "connection refused",
+    "no such host",
+    "timeout",
+    "timed out",
+    "network is unreachable",
+    "temporary failure in name resolution",
+    "certificate",
+    "tls handshake",
+    "server gave http response to https client",
+    "cannot connect to the docker daemon",
+)
+
+_MANIFEST_MISSING_MARKERS = (
+    "manifest unknown",
+    "manifest_unknown",
+    "no such manifest",
+    "not found",
+    "name unknown",
+)
+
+
+def classify_manifest_error(output):
+    """Return "missing" or "unreachable" for a failed `manifest inspect`.
+
+    Defaults to "unreachable" for unknown messages — treating an unclear
+    failure as a cache miss is the expensive mistake (a needless rebuild).
+    """
+    low = (output or "").lower()
+    if any(marker in low for marker in _MANIFEST_UNREACHABLE_MARKERS):
+        return "unreachable"
+    if any(marker in low for marker in _MANIFEST_MISSING_MARKERS):
+        return "missing"
+    return "unreachable"
+
+
+def inspect_registry_manifest(image):
+    """Query the registry for `image`.
+
+    Returns ("ok"|"missing"|"unreachable", output).
+    """
     try:
         subprocess.check_output(
             ["docker", "manifest", "inspect", image],
             stderr=subprocess.STDOUT,
-            encoding="utf-8",
         )
-        return True
-    except subprocess.CalledProcessError:
+        return "ok", ""
+    except subprocess.CalledProcessError as ex:
+        output = ex.output or ""
+        if isinstance(output, bytes):
+            output = output.decode("utf-8", errors="replace")
+        return classify_manifest_error(output), output.strip()
+    except OSError as ex:
+        return "unreachable", str(ex)
+
+
+def local_image_exists(image, arch=None):
+    """True if `image` is in the local docker store, `arch` matching.
+
+    A `FROM` in a Dockerfile resolves against the local store as well, so an
+    image present locally needs neither a pull nor a rebuild. The tag alone is
+    no proof of the architecture though — the same tag can have been pulled or
+    built under a different platform, and a wrong-arch base image would poison
+    the whole build. So compare what docker reports.
+    """
+    try:
+        out = subprocess.check_output(
+            ["docker", "image", "inspect", "-f", "{{.Architecture}}", image],
+            stderr=subprocess.STDOUT,
+            encoding="utf-8",
+        ).strip()
+    except (subprocess.CalledProcessError, OSError):
         return False
+    if arch and out and out != arch:
+        click.secho(
+            f"Local {image} is {out}, but this build needs {arch} — "
+            "ignoring the local copy.",
+            fg="yellow",
+        )
+        return False
+    return True
+
+
+# _manifest_exists runs per service and per tag variant, partly from threads —
+# one warning per registry is enough to explain a build full of cache misses.
+_warned_unreachable_registries = set()
+
+
+def _manifest_exists(image):
+    """Check if a single image reference exists in the registry."""
+    status, output = inspect_registry_manifest(image)
+    if status == "ok":
+        return True
+    if status == "unreachable":
+        registry = image.split("/", 1)[0]
+        if registry not in _warned_unreachable_registries:
+            _warned_unreachable_registries.add(registry)
+            click.secho(
+                f"Could not ask the registry about {image} "
+                "(treating it as a miss — this costs a rebuild):\n"
+                f"  {output.splitlines()[-1] if output else 'unknown error'}",
+                fg="yellow",
+            )
+    return False
 
 
 def _manifest_arch_matches(image):

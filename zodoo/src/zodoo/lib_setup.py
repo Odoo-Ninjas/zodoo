@@ -342,12 +342,98 @@ def upgrade(ctx, config, no_install):
         _fix_permissions(config, [str(images_dir)])
     finally:
         if stashed:
-            click.secho("Restoring stashed changes...", fg="yellow")
-            subprocess.run(
-                ["git", "stash", "pop"],
-                cwd=config.dirs["images"],
-                check=False,
-            )
+            _restore_stashed_changes(config.dirs["images"])
+
+
+def _has_stash_entry(images_dir):
+    """True when `git stash list` still holds at least one entry."""
+    result = subprocess.run(
+        ["git", "stash", "list"],
+        cwd=images_dir,
+        capture_output=True,
+        encoding="utf-8",
+        text=True,
+        check=False,
+    )
+    return result.returncode == 0 and bool((result.stdout or "").strip())
+
+
+def _restore_stashed_changes(images_dir):
+    """`git stash pop` the local changes, and clean up when it collides.
+
+    A local change in ~/.odoo/images (a patched Dockerfile fragment, a tweaked
+    config) can collide with what the upgrade pulled in. `git stash pop` then
+    leaves conflict markers in the working tree — and zodoo *builds* from these
+    files, so the next `odoo build` would bake `<<<<<<< Updated upstream` into
+    an image or fail with a cryptic error. Since a failed pop keeps the stash
+    entry, the safe end state is: working tree back to the upgraded version,
+    local change still in the stash, and a message that says so.
+    """
+    click.secho("Restoring stashed changes...", fg="yellow")
+    result = subprocess.run(
+        ["git", "stash", "pop"],
+        cwd=images_dir,
+        capture_output=True,
+        encoding="utf-8",
+        text=True,
+        check=False,
+    )
+    if result.returncode == 0:
+        # Keep git's own output ("Dropped refs/stash@{0} ...") visible.
+        click.echo((result.stdout or "").strip())
+        return
+
+    git_says = (
+        f"{(result.stdout or '').strip()}\n{(result.stderr or '').strip()}"
+    ).strip()
+
+    if not _has_stash_entry(images_dir):
+        # Should not happen (git keeps the entry on a failed pop), but never
+        # clean up a working tree that holds the only copy of the change.
+        click.secho(
+            "\n========================================\n"
+            "Restoring your local changes failed\n"
+            "========================================\n"
+            f"{git_says}\n"
+            "\n"
+            "There is no stash entry left, so the working tree in\n"
+            f"{images_dir} is the only place your changes may still be.\n"
+            "Resolve this by hand before the next build — the tree may\n"
+            "contain conflict markers, and zodoo builds from these files.\n"
+            "========================================\n",
+            fg="red",
+        )
+        return
+
+    # Conflict markers in a file zodoo builds from are worse than a change
+    # that waits in the stash: back to the upgraded state.
+    subprocess.run(
+        ["git", "reset", "--hard"],
+        cwd=images_dir,
+        capture_output=True,
+        check=False,
+    )
+    click.secho(
+        "\n========================================\n"
+        "Your local changes are still in the stash\n"
+        "========================================\n"
+        f"{git_says}\n"
+        "\n"
+        "The upgrade touched the same files, so git could not put your\n"
+        "changes back. They are NOT lost, and the checkout was reset to the\n"
+        "upgraded version so builds keep working (a half-applied merge with\n"
+        f"conflict markers would break them). In {images_dir}:\n"
+        "\n"
+        "  git stash list          # your entry is stash@{0}\n"
+        "  git stash show -p       # what it contains\n"
+        "  git stash pop           # retry (resolve the conflict by hand)\n"
+        "  git stash drop          # throw it away if no longer needed\n"
+        "\n"
+        "Local changes in ~/.odoo/images collide with every upgrade. If you\n"
+        "need them permanently, they belong upstream in the zodoo repo.\n"
+        "========================================\n",
+        fg="red",
+    )
 
 
 def _zodoo_devmode(config):

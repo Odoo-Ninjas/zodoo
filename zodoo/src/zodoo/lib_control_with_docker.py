@@ -756,7 +756,7 @@ def build(
     _arch = platform.split("/")[-1]
     _arch = _arch_map.get(_arch, _arch)
 
-    _ensure_prebuilt_python_image(config, _arch)
+    _ensure_prebuilt_python_image(config, _arch, pull=pull)
 
     # Build the per-version base image first when one is defined for this
     # Odoo version. The project's compose Dockerfile references the
@@ -1035,7 +1035,7 @@ def _locate_odoo_config_dockerfile(images_dir, odoo_version):
     return None
 
 
-def _ensure_prebuilt_python_image(config, arch):
+def _ensure_prebuilt_python_image(config, arch, pull=False):
     """Auto-build the prebuilt Python image if it's missing in the registry.
 
     Odoo >= 19 builds derive their Python interpreter from
@@ -1046,6 +1046,13 @@ def _ensure_prebuilt_python_image(config, arch):
     This hook checks the registry up-front via ``docker manifest inspect``
     and, on miss, transparently runs ``images/python_prebuilt/build.sh``
     to build & push the image before continuing with the regular build.
+
+    When the registry cannot be asked at all (401 because docker was never
+    logged in, DNS, TLS), it logs in with the credentials from the settings
+    and retries; if it still cannot ask, a local copy of the image is used
+    rather than rebuilding. ``pull`` mirrors ``odoo build --pull``, which
+    makes BuildKit re-resolve every ``FROM`` against the registry — the local
+    copy is then not usable and the shortcut is skipped.
 
     Silently no-ops when:
       - the prebuilt-python infrastructure is not present (older image set),
@@ -1075,48 +1082,93 @@ def _ensure_prebuilt_python_image(config, arch):
         return
 
     python_version = getattr(config, "ODOO_PYTHON_VERSION", None)
-    registry_url = (getattr(config, "ZODOO_REGISTRY_URL", None) or "").strip()
-    # Docker image references must not carry a URL scheme. A setting like
-    # "https://registry.../" would produce an invalid tag and break both
-    # `docker manifest inspect` and the build with a cryptic error, so fail
-    # early with a clear, actionable message instead.
-    if registry_url.startswith(("https://", "http://")):
-        raise click.ClickException(
-            "ZODOO_REGISTRY_URL must not contain a URL scheme "
-            f"(http:// or https://): got {registry_url!r}. "
-            "Set it to a bare host[:port][/path], "
-            "e.g. ZODOO_REGISTRY_URL=registry.zebroo.de"
-        )
-    registry_url = registry_url.rstrip("/")
+    # A URL scheme in the setting would produce an invalid image reference and
+    # break both `docker manifest inspect` and the build with a cryptic error;
+    # _validate_registry_url raises a clear message instead.
+    from .lib_zodoo_registry import _validate_registry_url
+
+    registry_url = _validate_registry_url(
+        getattr(config, "ZODOO_REGISTRY_URL", None)
+    ).rstrip("/")
     if not python_version or not registry_url:
         return
 
     image = f"{registry_url}/zodoo/python:{python_version}-{arch}"
-    try:
-        subprocess.check_output(
-            ["docker", "manifest", "inspect", image],
-            stderr=subprocess.STDOUT,
-        )
-        return
-    except subprocess.CalledProcessError:
-        pass
 
-    # The image is not in the registry. Build it locally so the
-    # subsequent `docker compose build` can FROM-it from the local
-    # daemon. Pushing to the registry is optional — only attempt it if
+    from .lib_zodoo_registry import (
+        inspect_registry_manifest,
+        local_image_exists,
+    )
+
+    # Whether this host may push is decided by the credentials it had before
+    # we did anything. On macOS the login only writes ~/.docker/config.json
+    # without asking the registry (the keychain helper cannot be used over
+    # SSH), so credentials the registry rejects would still look like push
+    # rights here — and `build.sh --push` would abort a build that used to
+    # complete local-only.
+    had_credentials = _has_registry_credentials(registry_url)
+
+    status, output = inspect_registry_manifest(image)
+    if status == "unreachable" and _ensure_registry_login(
+        config, registry_url
+    ):
+        # docker did not know the credentials from our settings yet, so the
+        # query came back 401 — which looks exactly like a cache miss. Now
+        # that we are logged in, ask once more.
+        status, output = inspect_registry_manifest(image)
+
+    if status == "ok":
+        return
+
+    if status == "unreachable":
+        click.secho(
+            f"Could not ask the registry whether {image} exists:\n"
+            f"  {output.splitlines()[-1] if output else 'unknown error'}\n"
+            "This is not a cache miss — it is an authentication or network "
+            "problem. Check ZODOO_REGISTRY_USERNAME / ZODOO_REGISTRY_PASSWORD "
+            "in your settings.",
+            fg="red",
+        )
+        # We could not ask, so we do not know that the image is missing.
+        # If it is in the local store, a FROM resolves against it and there
+        # is nothing to build. Not with --pull though: that makes BuildKit
+        # re-resolve every FROM against the registry, so the local copy
+        # would not be used.
+        if not pull and local_image_exists(image, arch=arch):
+            click.secho(
+                f"Image is in the local docker store: {image} — using that "
+                "instead of rebuilding.",
+                fg="green",
+            )
+            return
+
+    # The image is not in the registry (or we could not ask). Build it
+    # locally so the subsequent `docker compose build` can FROM-it from the
+    # local daemon. Pushing to the registry is optional — only attempt it if
     # we actually have credentials for that registry, otherwise CI
     # runners (no creds) would fail here with a 401 even though the
-    # build succeeded locally.
-    pushable = _has_registry_credentials(registry_url)
+    # build succeeded locally. A registry we could not even talk to is not
+    # worth trying to push to either.
+    pushable = status == "missing" and had_credentials
     extra_args = ["--push"] if pushable else []
+    reason = (
+        f"not found in registry: {image}"
+        if status == "missing"
+        else f"could not be fetched from the registry: {image}"
+    )
     click.secho(
-        f"Prebuilt Python image not found in registry: {image}\n"
+        f"Prebuilt Python image {reason}\n"
         f"Building it now via {script}"
         + (
             " (and pushing to registry)"
             if pushable
-            else " (local-only — "
-            "no registry credentials configured for this host, skipping push)"
+            else " (local-only, skipping push — "
+            + (
+                "the registry did not answer"
+                if status == "unreachable"
+                else "no registry credentials configured for this host"
+            )
+            + ")"
         )
         + " ...",
         fg="yellow",
@@ -1174,6 +1226,31 @@ def _ensure_base_image_for_build(
         try_pull=not no_zodoo_pull,
         enqueue_push=not no_zodoo_push,
     )
+
+
+def _ensure_registry_login(config, registry_url):
+    """`docker login` with the credentials from our settings.
+
+    zodoo has the credentials in its settings, but docker only knows what is
+    in `~/.docker/config.json` (or its credential helper). On a host that was
+    never logged in, every registry query fails with a 401 —
+    indistinguishable from "image not in registry" — so cache hits turn into
+    full rebuilds.
+
+    Called only after a query already failed, so a host that is logged in
+    (via credsStore or otherwise) is never touched. Returns True when a login
+    was performed and the failed query is worth repeating. Best effort: a
+    failing login must not break the build, the local build path still works.
+    """
+    from .lib_zodoo_registry import login_with_settings_credentials
+
+    try:
+        return login_with_settings_credentials(config, registry_url)
+    except (subprocess.CalledProcessError, OSError) as ex:
+        click.secho(
+            f"Could not log in to registry {registry_url}: {ex}", fg="yellow"
+        )
+        return False
 
 
 def _has_registry_credentials(registry_url):

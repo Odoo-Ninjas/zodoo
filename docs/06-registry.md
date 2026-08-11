@@ -15,10 +15,12 @@ odoo setting DOCKER_IMAGE_TAG latest
 
 ```bash
 odoo docker-registry login
-# Default credentials for registry.zebroo.de:
-# User: admin
-# Password: zebroo
 ```
+
+There are no shared default credentials for registry.zebroo.de — every user has
+their own account. `odoo build` asks once and stores user and password in
+`~/.odoo/settings`; ask an admin for push rights at
+https://registry.zebroo.de/admin.
 
 ### 3. Build images
 
