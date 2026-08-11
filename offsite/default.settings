@@ -11,6 +11,11 @@ RUN_OFFSITE=0
 # Leer = Offsite-Backup ist nicht konfiguriert; `odoo offsite backup` bricht
 # dann mit einer Erklaerung ab, statt still nichts zu tun.
 OFFSITE_REPO=
+# Host-Verzeichnis, das als Offsite-Ziel eingehaengt wird (NFS-Platte o.ae.).
+# Nur noetig, wenn OFFSITE_REPO ein Pfad und keine ssh://-Adresse ist; im
+# Container erscheint es unter demselben Pfad, damit OFFSITE_REPO auf beiden
+# Seiten gleich lautet.
+OFFSITE_LOCAL_DIR=
 # Passphrase des Repository-Schluessels. OHNE SIE SIND DIE BACKUPS VERLOREN -
 # sie muss ausserhalb dieser Maschine hinterlegt sein (im Hosting-Backend am
 # Projekt), sonst ist ein Offsite-Backup wertlos: genau dann, wenn man es

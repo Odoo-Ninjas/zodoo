@@ -27,7 +27,36 @@ require_config() {
         "Kein SSH-Key unter $SSH_KEY_SRC (Host: \$OFFSITE_SSH_DIR/id_ed25519)."
 }
 
+# Zwei Arten von Zielen:
+#
+#   ssh://user@host/pfad   ein entfernter Speicher (Storage Box o.ae.).
+#                          Braucht einen Schluessel und borg auf der Gegenseite.
+#   /pfad                  ein eingehaengtes Dateisystem (bei uns die
+#                          NFS-Platte). Borg arbeitet dort direkt, ohne ssh --
+#                          und ohne borg auf der Gegenseite, denn es gibt
+#                          keine.
+#
+# Verschluesselt wird in beiden Faellen gleich, naemlich HIER, bevor etwas
+# den Container verlaesst. Wo die Kiste danach steht, aendert daran nichts:
+# der Speicher sieht Chiffrat, ob er nun per ssh oder per NFS angebunden ist.
+is_remote_repo() {
+    case "${OFFSITE_REPO:-}" in
+        ssh://*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 setup_ssh() {
+    if ! is_remote_repo; then
+        # Lokales Ziel: kein Schluessel noetig. Stattdessen pruefen, ob das
+        # Verzeichnis ueberhaupt da ist -- eine nicht eingehaengte NFS-Platte
+        # sieht sonst aus wie ein leeres Repo, und borg legte munter ein neues
+        # auf der lokalen Platte an. Das faellt erst auf, wenn man es braucht.
+        local dir="${OFFSITE_REPO%/*}"
+        [ -d "$dir" ] || die \
+            "Offsite-Ziel $OFFSITE_REPO liegt nicht in einem vorhandenen Verzeichnis - ist die Platte eingehaengt?"
+        return 0
+    fi
     # Der Key kommt read-only von aussen und traegt womoeglich die Rechte des
     # Host-Users; ssh verweigert alles ausser 0600. Deshalb Kopie statt
     # chmod auf dem Original (das read-only gemountet ist).

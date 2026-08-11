@@ -10,4 +10,4 @@
 # Umgebung und darf den Tag nicht beeinflussen - sonst baekamen zwei Projekte
 # mit unterschiedlichem Ziel zwei identische Images unter zwei Tags.
 settings: []
-generation: 1
+generation: 2
