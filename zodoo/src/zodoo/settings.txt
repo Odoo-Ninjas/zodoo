@@ -4,6 +4,7 @@ HUB_URL						user:password@host:port/paths.. to configure
 REGISTRY=1					Rewrites all build and images urls to HUB_URL. Should be used on production systems to force pull only from registry and block any local buildings.
 POSTGRES_VERSION=17			Choose from 11, 12, 13, 14, 16, 17
 ODOO_ENABLE_DB_MANAGER		Enables the odoo db manager
+ODOO_DBFILTER=^mydb$		Regex, welche Datenbanken die Instanz bedient (odoo.conf dbfilter). Leer = wie bisher, dann entscheidet db_name. Mit ODOO_ENABLE_DB_MANAGER=1 auf .* setzen, sonst sieht der DB-Manager nur die Projekt-DB.
 DEVMODE=1					At restore runs safety scripts to disable cronjobs and mailserver and resets passwords
 DEBUG_BROWSER=chrome|firefox|safari	Sets the browser used when launching the debug session (macOS only). If empty, auto-detects: prefers Chrome, then Firefox, then Safari.
 RUN_PROXY=1					If the built-in nodejs proxy is enabled

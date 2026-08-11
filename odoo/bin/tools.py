@@ -94,6 +94,14 @@ def _replace_params_in_config(
         "__ENABLE_DB_MANAGER__",
         "True" if config["ODOO_ENABLE_DB_MANAGER"] == "1" else "False",
     )
+    # Explicitly, not via the generic __KEY__ loop below: a project whose
+    # settings predate this option would otherwise keep the literal
+    # "__ODOO_DBFILTER__" in its odoo.conf. Empty is the documented default
+    # and means "no dbfilter line in effect", which is what every version
+    # did before this option existed.
+    content = content.replace(
+        "__ODOO_DBFILTER__", (config.get("ODOO_DBFILTER") or "").strip()
+    )
     for key in ["WEB", "QUEUEJOBS", "CRON", "UPDATE", "MIGRATION"]:
         for ttype in ["HARD", "SOFT"]:
             content = content.replace(
