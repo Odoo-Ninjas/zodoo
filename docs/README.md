@@ -18,4 +18,4 @@ Online: https://docs.zebroo.de/docs/zodoo
 ## Editing
 
 This `docs/` folder is the source of truth — edit the Markdown here. Images and
-other media belong in `docs/.document360/assets/`.
+other media belong in `docs/img/`, referenced relatively (`![alt](./img/foo.png)`).

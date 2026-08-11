@@ -1,0 +1,3 @@
+type: docs
+description: "Medienordner der Doku von docs/.document360/assets/ nach docs/img/ umbenannt. Bilder gehoeren jetzt dorthin und werden relativ referenziert (![alt](./img/foo.png)) - das passt zu der Docusaurus-Site, die docs/ nach docs.zebroo.de spiegelt. Der alte Name kam noch von Document360."
+breaking: false
