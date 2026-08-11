@@ -1101,9 +1101,11 @@ def _ensure_prebuilt_python_image(config, arch, pull=False):
     )
 
     # Whether this host may push is decided by the credentials it had before
-    # we did anything: ZODOO_REGISTRY_USERNAME/PASSWORD have working defaults
-    # (lib_composer._set_defaults), so the login below would otherwise hand
-    # push rights to every CI runner that only wants to read.
+    # we did anything. On macOS the login only writes ~/.docker/config.json
+    # without asking the registry (the keychain helper cannot be used over
+    # SSH), so credentials the registry rejects would still look like push
+    # rights here — and `build.sh --push` would abort a build that used to
+    # complete local-only.
     had_credentials = _has_registry_credentials(registry_url)
 
     status, output = inspect_registry_manifest(image)

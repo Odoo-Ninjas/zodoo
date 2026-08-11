@@ -530,8 +530,13 @@ def _set_defaults(config, defaults):
     m = MANIFEST()
     defaults["ODOO_VERSION_INT"] = int(float(m["version"]))
     defaults.setdefault("ZODOO_REGISTRY_URL", "registry.zebroo.de")
-    defaults.setdefault("ZODOO_REGISTRY_USERNAME", "admin")
-    defaults.setdefault("ZODOO_REGISTRY_PASSWORD", "zebroo")
+    # No default username/password: admin/zebroo has not been a valid account
+    # on registry.zebroo.de for a long time (the registry answers 401). As a
+    # default it only did harm — it made every host look as if it had
+    # credentials, so `odoo build` ran a `docker login` that could not
+    # succeed, and the settings suggested a login that was never possible.
+    # Credentials are per user; `odoo build` asks for them once and writes
+    # them to ~/.odoo/settings (see lib_zodoo_registry._get_registry_config).
 
 
 def _do_compose(

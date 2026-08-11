@@ -1340,9 +1340,11 @@ def test_ensure_prebuilt_builds_local_only_when_registry_unreachable(
 def test_ensure_prebuilt_does_not_push_with_credentials_it_just_created(
     tmp_path, monkeypatch
 ):
-    """ZODOO_REGISTRY_USERNAME/PASSWORD have working defaults, so logging in
-    must not silently turn a read-only CI runner into a pusher. Push rights
-    are decided by what the host had before we touched anything."""
+    """On macOS the login writes ~/.docker/config.json without asking the
+    registry, so credentials it rejects would still look like push rights.
+    Push rights are decided by what the host had before we touched
+    anything — otherwise `build.sh --push` aborts a build that used to
+    complete local-only."""
     import zodoo.lib_control_with_docker as lcd
 
     images = _make_prebuilt_layout(tmp_path)

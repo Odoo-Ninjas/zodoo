@@ -3,8 +3,11 @@ Zodoo Registry: Cache build images in a central Docker registry.
 
 Settings:
     ZODOO_REGISTRY_URL=registry.zebroo.de
-    ZODOO_REGISTRY_USERNAME=admin
-    ZODOO_REGISTRY_PASSWORD=zebroo
+    ZODOO_REGISTRY_USERNAME=<your user>
+    ZODOO_REGISTRY_PASSWORD=<your password>
+
+There are no default credentials — every user has their own account (`odoo
+build` offers to request one and writes it to ~/.odoo/settings).
 """
 
 import functools
@@ -224,8 +227,11 @@ def _get_registry_config(config):
                     sys.exit(1)
         else:
             try:
+                # Not "admin" as the default: that account does not exist on
+                # registry.zebroo.de, accepting the default would only produce
+                # a 401 later.
                 username = click.prompt(
-                    "ZODOO_REGISTRY_USERNAME", default="admin"
+                    "ZODOO_REGISTRY_USERNAME", default=getpass.getuser()
                 )
                 password = click.prompt(
                     "ZODOO_REGISTRY_PASSWORD", hide_input=True
