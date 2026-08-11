@@ -1,7 +1,11 @@
 PROJECT_NAME				Pasted into container names, postgres volumes and so on; please keep it as short as possible, as there are limits example docker containername 53 characters at time of writing
 DBNAME						Uses projectname or a configured one
 HUB_URL						user:password@host:port/paths.. to configure
-REGISTRY=1					Rewrites all build and images urls to HUB_URL. Should be used on production systems to force pull only from registry and block any local buildings.
+REGISTRY=1					Rewrites all build and images urls to HUB_URL. Should be used on production systems to force pull only from registry and block any local buildings. Not to be confused with the ZODOO_REGISTRY_* settings below, which only cache build results and never block a local build.
+ZODOO_REGISTRY_URL			Registry used to cache build images, default registry.zebroo.de. Pulling the prebuilt CPython image needs no account; without it a fresh machine compiles CPython itself (~12 min).
+ZODOO_REGISTRY_USERNAME		Only needed to push built images back. `odoo build` offers to request an account once a push is due.
+ZODOO_REGISTRY_PASSWORD		See ZODOO_REGISTRY_USERNAME
+ZODOO_REGISTRY_SUGGESTED=0	Opt out of the zodoo registry completely - no pulls, no push account, no questions
 POSTGRES_VERSION=17			Choose from 11, 12, 13, 14, 16, 17
 ODOO_ENABLE_DB_MANAGER		Enables the odoo db manager
 DEVMODE=1					At restore runs safety scripts to disable cronjobs and mailserver and resets passwords
