@@ -8,6 +8,43 @@ from .tools import whoami
 from .tools import update_setting
 
 
+def _check_owner_uid(settings):
+    """OWNER_UID=0 kills the odoo container - catch it here, not in the container.
+
+    The entrypoint renames the user owning that uid, and for uid 0 that is
+    root, who owns PID 1. `usermod` refuses, the container exits 1, and the
+    message ("user root is currently used by process 1") says nothing about
+    where the 0 came from.
+
+    Known way in: `sudo -iu odoo` out of a root shell leaves SUDO_USER=root.
+    whoami() no longer falls for that, but this guard catches every other
+    route - a hand-edited settings file, a future caller, an inherited
+    environment.
+
+    The official Odoo image does not run our entrypoint, so the uid never
+    gets rewritten there and a 0 stays harmless.
+    """
+    if str(settings.get("ODOO_STANDARD_IMAGE") or "0").strip() in (
+        "1",
+        "True",
+        "true",
+    ):
+        return
+    try:
+        owner_uid = int(str(settings["OWNER_UID"]).strip())
+    except (KeyError, ValueError, TypeError):
+        return
+    if owner_uid != 0:
+        return
+    raise click.ClickException(
+        "OWNER_UID is 0 (root) - the odoo container cannot start with that: "
+        "its entrypoint would rename root, who owns PID 1.\n"
+        "This usually comes from `sudo -iu <user>` out of a root shell, which "
+        "leaves SUDO_USER=root behind. Use `su - <user>` instead, or set "
+        "OWNER_UID explicitly in the settings."
+    )
+
+
 def _get_settings_files(config):
     """
     Returns list of paths or files
@@ -56,6 +93,7 @@ def _export_settings(config, forced_values):
     settings = MyConfigParser(config.files["settings"])
     if "OWNER_UID" not in settings.keys():
         settings["OWNER_UID"] = whoami(id=True)
+    _check_owner_uid(settings)
     settings["DOCKER_GID"] = get_docker_gid()
 
     # forced values:

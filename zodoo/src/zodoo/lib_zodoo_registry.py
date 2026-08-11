@@ -5,9 +5,17 @@ Settings:
     ZODOO_REGISTRY_URL=registry.zebroo.de
     ZODOO_REGISTRY_USERNAME=<your user>
     ZODOO_REGISTRY_PASSWORD=<your password>
+    ZODOO_REGISTRY_SUGGESTED=0   # opt out of the registry entirely
 
-There are no default credentials — every user has their own account (`odoo
-build` offers to request one and writes it to ~/.odoo/settings).
+Reading needs no account: registry.zebroo.de serves the prebuilt CPython
+image (zodoo/python) anonymously, so a fresh machine pulls it instead of
+spending a quarter of an hour compiling one. Everything else stays behind
+basic auth, and that includes /v2/_catalog, whose repository names are
+customer names.
+
+There are no default credentials for pushing — every user has their own
+account. `odoo build` offers to request one at the point where a push is
+actually about to happen, and writes it to ~/.odoo/settings.
 """
 
 import functools
@@ -18,6 +26,7 @@ import os
 import platform
 import re
 import secrets
+import socket
 import string
 import subprocess
 import sys
@@ -88,6 +97,109 @@ def _generate_password(length=20):
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
+def get_registry_url(config):
+    """The registry to read from — never prompts, never writes settings.
+
+    Pulling does not need an account, so the read paths must not drag the
+    user through the account wizard. ZODOO_REGISTRY_URL has a default
+    (zodoo/src/zodoo/defaults), which is what makes a fresh machine find the
+    prebuilt CPython image without any setup at all.
+
+    Returns "" when the registry was switched off via
+    ZODOO_REGISTRY_SUGGESTED=0, so that opt-out keeps working.
+    """
+    try:
+        if _read_user_setting(config, "ZODOO_REGISTRY_SUGGESTED") == "0":
+            return ""
+    except (AttributeError, KeyError, TypeError, OSError):
+        # No user settings file at all (containers, CI): not an opt-out.
+        pass
+    url = _validate_registry_url(
+        _read_user_setting_safe(config, "ZODOO_REGISTRY_URL")
+        or getattr(config, "ZODOO_REGISTRY_URL", None)
+        or ""
+    )
+    return url.rstrip("/")
+
+
+def _read_user_setting_safe(config, key):
+    try:
+        return _read_user_setting(config, key)
+    except (AttributeError, KeyError, TypeError, OSError):
+        return ""
+
+
+# Account names that say nothing about *which* machine is asking. They are
+# service accounts, so the same name turns up on every second host and the
+# first one to register takes it for everybody.
+_GENERIC_USERNAMES = {
+    "admin",
+    "administrator",
+    "debian",
+    "deploy",
+    "docker",
+    "ec2-user",
+    "odoo",
+    "root",
+    "ubuntu",
+    "user",
+}
+
+# Leading hostname labels that describe the role, not the site.
+_ROLE_LABELS = {
+    "app",
+    "erp",
+    "host",
+    "odoo",
+    "server",
+    "srv",
+    "vm",
+    "www",
+}
+
+# Second-level labels that are part of a public suffix rather than a name.
+_SUFFIX_LABELS = {"ac", "co", "com", "gov", "net", "org"}
+
+
+def _site_from_fqdn(fqdn):
+    """Derive a site name from a host's FQDN: odoo.3dm.de -> "3dm".
+
+    Not public-suffix aware beyond a handful of common second levels; this
+    only produces a *default* for a prompt the user can overwrite.
+    Returns "" when nothing sensible is left.
+    """
+    labels = [x for x in (fqdn or "").strip(".").lower().split(".") if x]
+    while labels and labels[0] in _ROLE_LABELS:
+        labels.pop(0)
+    # Need at least name + TLD, otherwise we would hand back the TLD.
+    if len(labels) < 2:
+        return ""
+    if labels[0] in _SUFFIX_LABELS:
+        return ""
+    if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", labels[0]):
+        return ""
+    return labels[0]
+
+
+def _default_registry_username():
+    """Suggest a username that is unlikely to be taken already.
+
+    getpass.getuser() is frequently the service account the daemon runs as
+    ("odoo", "root"), which identifies nobody — "odoo" is registered on
+    registry.zebroo.de long since, so the request comes back 409 and the
+    user has to invent something anyway. Where the account name is generic,
+    fall back to the site the host is named after.
+    """
+    user = getpass.getuser()
+    if user not in _GENERIC_USERNAMES:
+        return user
+    try:
+        fqdn = socket.getfqdn()
+    except OSError:
+        fqdn = ""
+    return _site_from_fqdn(fqdn) or user
+
+
 def _request_registry_user(registry_url, username, password):
     """Request a new user account via the registry admin API."""
     data = json.dumps({"username": username, "password": password}).encode()
@@ -116,7 +228,72 @@ def _request_registry_user(registry_url, username, password):
     return {"error": f"could not connect to {registry_url}"}, 0
 
 
-def _get_registry_config(config):
+def verify_credentials(registry_url, username, password, timeout=10):
+    """Ask the registry whether these credentials are actually accepted.
+
+    ``docker login`` cannot answer that any more. It reports success as soon
+    as the ping endpoint (``/v2/``) does not challenge it, and ``/v2/`` is
+    served anonymously so that credential-less hosts can pull -- so a typo in
+    the password produces "Login Succeeded" and fails much later, at push
+    time, with a 401 that points nowhere.
+
+    ``/v2/_catalog`` is still behind basic auth (its repository names are
+    customer names), which makes it the endpoint that tells the truth.
+
+    Returns True (accepted), False (rejected), or None when the registry
+    could not be reached at all -- an unreachable registry is not a wrong
+    password and must not be reported as one.
+    """
+    import base64
+
+    token = base64.b64encode(f"{username}:{password}".encode()).decode()
+    for scheme in ("https", "http"):
+        req = urllib.request.Request(
+            f"{scheme}://{registry_url}/v2/_catalog",
+            headers={"Authorization": f"Basic {token}"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout):
+                return True
+        except urllib.error.HTTPError as e:
+            if e.code in (401, 403):
+                return False
+            # 404/500/… say nothing about the credentials.
+            return None
+        except urllib.error.URLError:
+            continue
+        except Exception:
+            return None
+    return None
+
+
+def _warn_about_rejected_credentials(url, username, password):
+    """Tell the user now, not at the next push."""
+    accepted = verify_credentials(url, username, password)
+    if accepted is False:
+        click.secho(
+            f"\nThe registry rejected the credentials for '{username}'.\n"
+            "Pulling keeps working (that needs no account), but pushing "
+            "will fail. Check ZODOO_REGISTRY_USERNAME / "
+            "ZODOO_REGISTRY_PASSWORD in ~/.odoo/settings.",
+            fg="red",
+        )
+    elif accepted is None:
+        click.secho(
+            f"Could not reach {url} to check the credentials — "
+            "continuing anyway.",
+            fg="yellow",
+        )
+    return accepted
+
+
+def _get_push_credentials(config):
+    """Credentials for *writing* to the registry, asking for them if needed.
+
+    Only the push paths call this, and those run after a build has already
+    produced an image. Reading goes through :func:`registry_url` and never
+    lands here: a machine that only consumes images is never asked anything.
+    """
     suggested = _read_user_setting(config, "ZODOO_REGISTRY_SUGGESTED")
 
     if suggested == "0":
@@ -132,19 +309,20 @@ def _get_registry_config(config):
             return None
         click.secho(
             "\n========================================\n"
-            "Zodoo Registry Setup\n"
+            "Zodoo Registry: share this build\n"
             "========================================\n"
             "\n"
-            "The zodoo registry caches built Docker images centrally so\n"
-            "that team members don't have to rebuild locally.\n"
+            "This image could be pushed to the zodoo registry so that the\n"
+            "rest of the team does not have to build it again. Pulling\n"
+            "already works without an account; pushing needs one.\n"
             "\n"
-            "Docs: https://docs.zebroo.de/docs/reduce-build-time-and-resources-with-zodoo-registry\n"
+            "Docs: docs/06-registry.md in ~/.odoo/images\n"
             "========================================",
             fg="yellow",
         )
         try:
             use_registry = click.confirm(
-                "Do you want to use the zodoo registry?", default=True
+                "Set up an account to push built images?", default=True
             )
         except (click.Abort, KeyboardInterrupt):
             click.secho(
@@ -153,11 +331,18 @@ def _get_registry_config(config):
             sys.exit(1)
         if not use_registry:
             _write_user_setting(config, "ZODOO_REGISTRY_SUGGESTED", "0")
-            click.secho("Registry disabled. Will not ask again.", fg="yellow")
+            click.secho(
+                "No push account. Pulling keeps working; "
+                "will not ask again.",
+                fg="yellow",
+            )
             return None
 
         url = _validate_registry_url(
-            click.prompt("ZODOO_REGISTRY_URL", default="registry.zebroo.de")
+            click.prompt(
+                "ZODOO_REGISTRY_URL",
+                default=get_registry_url(config) or "registry.zebroo.de",
+            )
         )
 
         try:
@@ -170,7 +355,7 @@ def _get_registry_config(config):
             sys.exit(1)
 
         if request_account:
-            default_user = getpass.getuser()
+            default_user = _default_registry_username()
             try:
                 username = click.prompt(
                     "Choose a username", default=default_user
@@ -231,7 +416,8 @@ def _get_registry_config(config):
                 # registry.zebroo.de, accepting the default would only produce
                 # a 401 later.
                 username = click.prompt(
-                    "ZODOO_REGISTRY_USERNAME", default=getpass.getuser()
+                    "ZODOO_REGISTRY_USERNAME",
+                    default=_default_registry_username(),
                 )
                 password = click.prompt(
                     "ZODOO_REGISTRY_PASSWORD", hide_input=True
@@ -239,6 +425,8 @@ def _get_registry_config(config):
             except (click.Abort, KeyboardInterrupt):
                 click.secho("\nAborted. Registry setup incomplete.", fg="red")
                 sys.exit(1)
+
+        _warn_about_rejected_credentials(url, username, password)
 
         _write_user_setting(config, "ZODOO_REGISTRY_URL", url)
         _write_user_setting(config, "ZODOO_REGISTRY_USERNAME", username)
@@ -284,6 +472,7 @@ def _get_registry_config(config):
         except (click.Abort, KeyboardInterrupt):
             click.secho("\nAborted. Registry setup incomplete.", fg="red")
             sys.exit(1)
+        _warn_about_rejected_credentials(url, username, password)
         _write_user_setting(config, "ZODOO_REGISTRY_URL", url)
         _write_user_setting(config, "ZODOO_REGISTRY_USERNAME", username)
         _write_user_setting(config, "ZODOO_REGISTRY_PASSWORD", password)
@@ -573,14 +762,13 @@ def _local_image_name(config, service_name):
 
 
 def zodoo_registry_login(config):
-    reg = _get_registry_config(config)
-    if not reg or not reg["username"]:
-        return
+    """Hand docker whatever credentials the settings already hold.
 
-    if platform.system() == "Darwin":
-        _docker_login_write_auth(reg)
-    else:
-        _docker_login_subprocess(reg)
+    Deliberately does not ask for an account: the pull paths call this, and
+    pulling the anonymously served images works without one. A machine that
+    never pushes stays unregistered and unbothered.
+    """
+    login_with_settings_credentials(config)
 
 
 def _docker_login_write_auth(reg):
@@ -643,7 +831,12 @@ def _docker_login_subprocess(reg):
             encoding="utf-8",
             stderr=subprocess.STDOUT,
         )
-        click.secho(f"Logged in to {reg['url']}", fg="green")
+        # Not "Logged in": since /v2/ is served anonymously the registry no
+        # longer challenges the ping, so `docker login` reports success for
+        # any password. verify_credentials() is what actually checks.
+        click.secho(
+            f"Stored registry credentials for {reg['url']}", fg="green"
+        )
     except subprocess.CalledProcessError as e:
         click.secho(f"Registry login failed: {e.output}", fg="red")
         raise
@@ -652,7 +845,7 @@ def _docker_login_subprocess(reg):
 def registry_credentials_from_settings(config, registry_url=None):
     """Read url/username/password from the settings — never prompts.
 
-    Counterpart to :func:`_get_registry_config`, which may ask questions and
+    Counterpart to :func:`_get_push_credentials`, which may ask questions and
     write settings. Callers that run in the middle of a build (e.g. the
     prebuilt-python pre-flight hook) must not prompt, so they use this.
     Returns None when url, username or password is missing.
@@ -871,18 +1064,18 @@ def _resolve_registry_image(registry_url, service_name, tag):
 
 def zodoo_image_exists(config, service_name, tag):
     """Check if image exists in registry via docker manifest inspect."""
-    reg = _get_registry_config(config)
-    if not reg:
+    url = get_registry_url(config)
+    if not url:
         return False
-    return _resolve_registry_image(reg["url"], service_name, tag) is not None
+    return _resolve_registry_image(url, service_name, tag) is not None
 
 
 def zodoo_pull_and_tag(config, service_name, tag):
     """Pull image from registry and tag it as local compose image."""
-    reg = _get_registry_config(config)
-    if not reg:
+    url = get_registry_url(config)
+    if not url:
         return False
-    registry_image = _resolve_registry_image(reg["url"], service_name, tag)
+    registry_image = _resolve_registry_image(url, service_name, tag)
     if not registry_image:
         return False
     local_image = _local_image_name(config, service_name)
@@ -901,7 +1094,7 @@ def zodoo_pull_and_tag(config, service_name, tag):
 
 def zodoo_tag_and_push(config, service_name, tag):
     """Tag local image and push to registry."""
-    reg = _get_registry_config(config)
+    reg = _get_push_credentials(config)
     if not reg:
         return
     local_image = _local_image_name(config, service_name)
@@ -931,7 +1124,7 @@ def zodoo_tag_and_push(config, service_name, tag):
                 "  ZODOO_REGISTRY_USERNAME=youruser\n"
                 "  ZODOO_REGISTRY_PASSWORD=yourpassword\n"
                 "\n"
-                "Docs: https://docs.zebroo.de/docs/reduce-build-time-and-resources-with-zodoo-registry\n"
+                "Docs: docs/06-registry.md in ~/.odoo/images\n"
                 "========================================\n",
                 fg="red",
             )
@@ -980,7 +1173,7 @@ def _build_and_push_other_arch(config, service_name, tag):
     """Build for the other architecture via buildx and push (runs as detached process)."""
     arch_name, platform_str = _other_arch()
 
-    reg = _get_registry_config(config)
+    reg = _get_push_credentials(config)
     if not reg:
         return
     registry_image = _registry_image_name(reg["url"], service_name, tag)
@@ -1080,7 +1273,7 @@ def zodoo_push_with_background_arch(
     # with the same arch can pull the correct image.
     arch_specific = _arch_tag(tag)
     if arch_specific:
-        reg = _get_registry_config(config)
+        reg = _get_push_credentials(config)
         if reg:
             local_image = _local_image_name(config, service_name)
             arch_image = _registry_image_name(
@@ -1094,7 +1287,7 @@ def zodoo_push_with_background_arch(
                         f"Push of {arch_image} failed — unauthorized. "
                         "Check your ZODOO_REGISTRY_* settings, "
                         "contact your zodoo administrator, or use your own registry.\n"
-                        "Docs: https://docs.zebroo.de/docs/reduce-build-time-and-resources-with-zodoo-registry",
+                        "Docs: docs/06-registry.md in ~/.odoo/images",
                         fg="red",
                     )
                     return None
@@ -1185,8 +1378,8 @@ def try_pull_from_zodoo_registry(config, machines):
         )
         return []
 
-    reg = _get_registry_config(config)
-    if not reg:
+    url = get_registry_url(config)
+    if not url:
         return []
 
     zodoo_registry_login(config)
@@ -1200,7 +1393,7 @@ def try_pull_from_zodoo_registry(config, machines):
                 fg="yellow",
             )
             return None
-        registry_image = _resolve_registry_image(reg["url"], service_name, tag)
+        registry_image = _resolve_registry_image(url, service_name, tag)
         if registry_image:
             click.secho(
                 f"Image for {service_name} found in zodoo registry ({registry_image})",
@@ -1258,7 +1451,7 @@ def enqueue_registry_uploads(config, machines, suppress_other_platform=False):
         )
         return
 
-    reg = _get_registry_config(config)
+    reg = _get_push_credentials(config)
     if not reg:
         return
 
@@ -1354,8 +1547,8 @@ def try_pull_base_image(config, base_inputs):
     canonical ``odoo_base_<v>_<hash>_<arch>`` tag), False otherwise.
     Silently no-ops when the registry is not configured.
     """
-    reg = _get_registry_config(config)
-    if not reg:
+    url = get_registry_url(config)
+    if not url:
         return False
     from .lib_base_image import _arch
 
@@ -1365,7 +1558,7 @@ def try_pull_base_image(config, base_inputs):
     except (TypeError, ValueError):
         v = base_inputs["odoo_version"]
     registry_image = _base_registry_image_name(
-        reg["url"], v, base_inputs["base_hash"], arch
+        url, v, base_inputs["base_hash"], arch
     )
     local_tag = base_inputs["tag"]
 
@@ -1399,7 +1592,7 @@ def enqueue_base_image_upload(config, base_inputs):
     from .lib_jobqueue import enqueue, spawn_worker
     from .lib_base_image import _arch
 
-    reg = _get_registry_config(config)
+    reg = _get_push_credentials(config)
     if not reg:
         return
 
@@ -1470,7 +1663,7 @@ def push_to_zodoo_registry(config, machines, suppress_other_platform=False):
         )
         return
 
-    reg = _get_registry_config(config)
+    reg = _get_push_credentials(config)
     if not reg:
         return
 

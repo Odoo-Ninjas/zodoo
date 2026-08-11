@@ -35,6 +35,8 @@ def after_compose(config, settings, yml, globals):
     yml["services"].pop("odoo_base")
     manifest = MANIFEST()
 
+    _warn_db_manager_without_dbfilter(settings)
+
     # Standard-Image-Modus: der odoo-Container ist dann nicht mehr unser
     # gebautes Image, sondern das offizielle von Docker Hub. Alles danach
     # (Requirements, Konfig-Generierung, Supervisor-Rollen, Debugging) gilt
@@ -99,6 +101,35 @@ def after_compose(config, settings, yml, globals):
     _apply_cpu_limit(config, yml, settings, globals)
 
 
+def _warn_db_manager_without_dbfilter(settings):
+    """Der DB-Manager kann nur sehen, was der dbfilter durchlaesst.
+
+    Ohne dbfilter benutzt Odoo db_name als Allowlist (odoo/http.py,
+    db_filter()), und db_name ist bei uns die Projekt-DB. Wer den Manager
+    anschaltet, legt damit zwar Datenbanken an, sieht sie aber nicht in der
+    Liste, erreicht sie nicht per HTTP und kann sie auch nicht mehr loeschen
+    -- database.py prueft beim Loeschen gegen dieselbe Liste.
+
+    Nicht automatisch auf .* stellen: das macht aus einem Debug-Schalter
+    still eine Instanz, die auf jeden DB-Namen antwortet. Der Nutzer soll es
+    entscheiden, aber wissen, dass er es entscheiden muss.
+    """
+    if str(settings.get("ODOO_ENABLE_DB_MANAGER") or "0").strip() != "1":
+        return
+    dbfilter = (settings.get("ODOO_DBFILTER") or "").strip()
+    dbname = (settings.get("DBNAME") or "").strip()
+    if dbfilter and dbfilter not in (f"^{dbname}$", dbname):
+        return
+    click.secho(
+        "ODOO_ENABLE_DB_MANAGER=1, aber der dbfilter laesst nur die "
+        f"Projekt-Datenbank '{dbname}' durch. Neu angelegte Datenbanken "
+        "tauchen im Manager nicht auf und lassen sich dort auch nicht mehr "
+        "loeschen. Fuer einen Manager, der alle Datenbanken bedient: "
+        "ODOO_DBFILTER=.*",
+        fg="yellow",
+    )
+
+
 def _is_standard_image(settings):
     return str(settings.get("ODOO_STANDARD_IMAGE") or "0").strip() in (
         "1",
@@ -154,7 +185,8 @@ def _standard_odoo_conf(config, settings, manifest):
         f"db_name = {dbname}",
         # Ohne dbfilter beantwortet die Instanz Anfragen fuer beliebige
         # DB-Namen -- mit genau einer DB ist das nur eine Fehlerquelle.
-        f"dbfilter = ^{dbname}$",
+        # ODOO_DBFILTER hebt das auf, wer den DB-Manager benutzt braucht das.
+        f"dbfilter = {(settings.get('ODOO_DBFILTER') or '').strip() or f'^{dbname}$'}",
         f"list_db = {'True' if list_db else 'False'}",
         "data_dir = /var/lib/odoo",
         # Hinter unserem Proxy: sonst baut Odoo Links mit http/interner
@@ -745,11 +777,19 @@ def _determine_odoo_configuration(
 
     get_services = globals["tools"].get_services
 
+    from zodoo import additional_odoo_config
+
+    # Nothing but the "[options]" header we synthesized above? Then there is
+    # no odoo.config on this machine and the variable would only be noise -
+    # and noise that the container cannot tell from a lost configuration.
+    if not additional_odoo_config.carries_options(config):
+        return
+
     odoo_machines = get_services(config, "odoo_base", yml=yml)
     for odoo_machine in odoo_machines:
         service = yml["services"][odoo_machine]
-        service["environment"]["ADDITIONAL_ODOO_CONFIG"] = "___|||___".join(
-            config.splitlines()
+        service["environment"]["ADDITIONAL_ODOO_CONFIG"] = (
+            additional_odoo_config.encode(config)
         )
 
 

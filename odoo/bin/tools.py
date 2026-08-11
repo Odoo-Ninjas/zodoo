@@ -13,6 +13,7 @@ import subprocess
 
 import configparser
 import os
+from zodoo import additional_odoo_config
 from zodoo import odoo_config
 from zodoo.odoo_config import customs_dir
 from zodoo.odoo_config import get_conn_autoclose
@@ -94,6 +95,14 @@ def _replace_params_in_config(
         "__ENABLE_DB_MANAGER__",
         "True" if config["ODOO_ENABLE_DB_MANAGER"] == "1" else "False",
     )
+    # Explicitly, not via the generic __KEY__ loop below: a project whose
+    # settings predate this option would otherwise keep the literal
+    # "__ODOO_DBFILTER__" in its odoo.conf. Empty is the documented default
+    # and means "no dbfilter line in effect", which is what every version
+    # did before this option existed.
+    content = content.replace(
+        "__ODOO_DBFILTER__", (config.get("ODOO_DBFILTER") or "").strip()
+    )
     for key in ["WEB", "QUEUEJOBS", "CRON", "UPDATE", "MIGRATION"]:
         for ttype in ["HARD", "SOFT"]:
             content = content.replace(
@@ -154,31 +163,24 @@ def make_absolute_upgrade_paths(upgrade_path):
     return res
 
 
-def _apply_additional_odoo_config(content, addition):
+def _warn_if_additional_config_was_dropped(content, parsed):
+    """Say something when ADDITIONAL_ODOO_CONFIG produced no options.
+
+    This used to fail silently: the variable was set, visible in `docker
+    inspect`, and had no effect whatsoever. Whoever put an option into
+    ~/.odoo/odoo.config had no way of noticing except by comparing the
+    rendered config by hand.
     """
-    [options]
-    ...
-
-
-    [queue_job]
-    ...
-
-    [option1]
-    ...
-    """
-    content = list(
-        filter(
-            lambda x: not x.strip().startswith("#"), content.split("___|||___")
-        )
+    if not additional_odoo_config.carries_options(content):
+        return
+    if any(dict(parsed[section]) for section in parsed.sections()):
+        return
+    click.secho(
+        "ADDITIONAL_ODOO_CONFIG is set but no option could be read from it. "
+        "Check ~/.odoo/odoo.config (and odoo.config.<project>) - options must "
+        "sit below a section header such as [options].",
+        fg="red",
     )
-    assert content[0] == "[options]"
-    for i, line in enumerate(content[1:], 1):
-        if line.strip().startswith("["):
-            break
-
-    part1, part2 = "\n".join(content[: i + 1]), "\n".join(content[i + 1 :])
-    content = part1 + "\n" + addition + "\n" + part2
-    return content
 
 
 def _run_autosetup():
@@ -281,10 +283,16 @@ def _replace_variables_in_config_files(local_config):
         # apply configuration coming from environment variable ADDITIONAL_ODOO_CONFIG
         # as there may be options
         if os.getenv("ADDITIONAL_ODOO_CONFIG"):
-            _apply_configuration(
-                config_file_content,
-                _get_config(string=os.environ["ADDITIONAL_ODOO_CONFIG"]),
+            # The host joined the lines to survive the env variable; undo that
+            # before parsing. Handing the joined line to configparser makes it
+            # read "[options]___|||___dbfilter = .*" as a section header and
+            # silently drop everything behind it.
+            additional = additional_odoo_config.decode(
+                os.environ["ADDITIONAL_ODOO_CONFIG"]
             )
+            parsed = _get_config(string=additional)
+            _apply_configuration(config_file_content, parsed)
+            _warn_if_additional_config_was_dropped(additional, parsed)
 
         if config["ODOO_ADMIN_PASSWORD"]:
             config_file_content["options"]["admin_passwd"] = config[
