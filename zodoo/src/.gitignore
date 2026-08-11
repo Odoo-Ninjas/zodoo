@@ -40,3 +40,4 @@ repos
 .vscode
 
 /tmp.*
+.gimera
