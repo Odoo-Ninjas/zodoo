@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import os
 from pathlib import Path
 import click
@@ -25,24 +26,12 @@ def _check_sha_belongs_to_branch(main_repo, repo_yml):
     if not repo_yml.sha:
         return
 
-    with _get_cache_dir(
-        main_repo, repo_yml, no_action_if_not_exist=True
-    ) as cache_dir:
+    with _get_cache_dir(main_repo, repo_yml, no_action_if_not_exist=True) as cache_dir:
         if not cache_dir:
             return
         repo = Repo(cache_dir)
         try:
-            repo.X(
-                *(
-                    git
-                    + [
-                        "merge-base",
-                        "--is-ancestor",
-                        repo_yml.sha,
-                        repo_yml.branch,
-                    ]
-                )
-            )
+            repo.X(*(git + ["merge-base", "--is-ancestor", repo_yml.sha, repo_yml.branch]))
         except Exception:
             if os.getenv("GIMERA_NON_INTERACTIVE") == "1":
                 click.secho(
@@ -83,6 +72,7 @@ def _apply(
     if migrate_changes:
         no_patches = True
 
+
     sub_path = None
     main_repo = _get_main_repo()
     closest_gimera = (
@@ -110,6 +100,22 @@ def _apply(
     )
 
 
+def _commit_recursive_changes(main_repo, repo, effective_path, common_vars):
+    """Commit submodule and gimera.yml changes after recursive apply."""
+    state = get_effective_state(
+        main_repo.path, effective_path / repo.path, common_vars
+    )
+    parent_repo = Repo(state["parent_repo"])
+    relpath = state['parent_repo_relpath']
+    # commit a gitmodule if sha updated
+    if relpath in parent_repo.all_dirty_files:
+        parent_repo.commit_dir_if_dirty(relpath, "gimera: updated submodule")
+    # commit updated gimera if e.g. sha changed
+    gimera_yml = Path(relpath / 'gimera.yml')
+    if gimera_yml in parent_repo.all_dirty_files:
+        parent_repo.commit_dir_if_dirty(gimera_yml, "gimera: updated submodule")
+
+
 def _internal_apply(
     repos,
     update,
@@ -127,6 +133,7 @@ def _internal_apply(
 ):
     common_vars = common_vars or {}
     main_repo = _get_main_repo()
+    effective_path = sub_path or main_repo.path
     config = Config(
         force_type=force_type,
         recursive=recursive,
@@ -134,144 +141,79 @@ def _internal_apply(
         parent_config=parent_config,
     )
     repos = config.get_repos(repos)
-    # update repos in parallel to be faster
     _fetch_repos_in_parallel(
-        main_repo,
-        repos,
-        update=update,
-        minimal_fetch=no_fetch,
-        no_fetch=no_fetch,
+        main_repo, repos, update=update, minimal_fetch=no_fetch, no_fetch=no_fetch
     )
     if sub_path:
         verbose(f"internal apply at sub path: {sub_path}")
-    # does not work in sub repos, because at apply at this point in time
-    # the files are not committed and still dirty
     common_vars.update(config.yaml_config.get("common", {}).get("vars", {}))
     verbose(f"common vars: {common_vars}")
     with main_repo.stay_at_commit(not auto_commit and not sub_path):
+        old_force = os.environ.get("GIMERA_FORCE", "0")
         if migrate_changes:
             relative_sub_path = (
-                sub_path
-                and safe_relative_to(sub_path, main_repo.path)
-                or Path(".")
+                sub_path and safe_relative_to(sub_path, main_repo.path) or Path(".")
             )
             snapshot_recursive(
                 main_repo.path,
-                [
-                    main_repo.path / relative_sub_path / repo.path
-                    for repo in repos
-                ],
+                [main_repo.path / relative_sub_path / repo.path for repo in repos],
             )
+            # After snapshot, force is safe — changes are saved and will be restored
+            os.environ["GIMERA_FORCE"] = "1"
 
         try:
             for repo in repos:
-                verbose(f"applying {repo.path}")
+                click.secho(f"Applying {repo.path} ({repo.type}) ...", fg="cyan")
                 if not update:
                     _check_sha_belongs_to_branch(main_repo, repo)
                 _turn_into_correct_repotype(
-                    sub_path or main_repo.path,
-                    main_repo,
-                    repo,
-                    config,
-                    common_vars,
+                    effective_path, main_repo, repo, config, common_vars,
                 )
                 if repo.type == REPO_TYPE_SUB:
                     _make_sure_subrepo_is_checked_out(
-                        sub_path or main_repo.path,
-                        main_repo,
-                        repo,
-                        common_vars,
+                        effective_path, main_repo, repo, common_vars
                     )
                     _fetch_latest_commit_in_submodule(
-                        sub_path or main_repo.path,
-                        main_repo,
-                        repo,
-                        common_vars,
-                        update=update,
+                        effective_path, main_repo, repo, common_vars, update=update,
                     )
                 elif repo.type == REPO_TYPE_INT:
                     if not no_patches:
-                        make_patches(
-                            sub_path or main_repo.path,
-                            main_repo,
-                            repo,
-                            common_vars,
-                        )
+                        make_patches(effective_path, main_repo, repo, common_vars)
 
                     try:
                         _update_integrated_module(
-                            sub_path or main_repo.path,
-                            main_repo,
-                            repo,
-                            update,
-                            common_vars,
-                            **options,
+                            effective_path, main_repo, repo, update,
+                            common_vars, **options,
                         )
                     except Exception as ex:
-                        msg = f"Error updating integrated submodules for: {repo.path}\n\n{ex}"
-                        _raise_error(msg)
+                        _raise_error(
+                            f"Error updating integrated submodules for: {repo.path}\n\n{ex}"
+                        )
 
                     if not strict:
-                        # fatal: refusing to create/use '.git/modules/addons_connector/modules/addons_robot/aaa' in another submodule's git dir
                         # not submodules inside integrated modules
                         force_type = REPO_TYPE_INT
 
                 if recursive:
                     _apply_subgimera(
-                        main_repo,
-                        repo,
-                        update,
+                        main_repo, repo, update,
                         force_type if not strict else None,
-                        strict=strict,
-                        no_patches=no_patches,
-                        common_vars=common_vars,
-                        parent_config=config,
-                        auto_commit=auto_commit,
-                        sub_path=sub_path,
-                        migrate_changes=False,  # already done
+                        strict=strict, no_patches=no_patches,
+                        common_vars=common_vars, parent_config=config,
+                        auto_commit=auto_commit, sub_path=sub_path,
+                        migrate_changes=False,
                         **options,
                     )
-
-                    # if subgimera is a git submodule and was committed and changed,
-                    # then this parent gimera is dirty; so we also commit the child
                     if auto_commit:
-                        state = get_effective_state(
-                            main_repo.path,
-                            (sub_path or main_repo.path) / repo.path,
-                            common_vars,
+                        _commit_recursive_changes(
+                            main_repo, repo, effective_path, common_vars
                         )
-                        # commit a gitmodule if sha updated
-                        parent_repo = Repo(state["parent_repo"])
-                        # Path(repo.path)
-                        if (
-                            state["parent_repo_relpath"]
-                            in parent_repo.all_dirty_files
-                        ):
-                            parent_repo.commit_dir_if_dirty(
-                                state["parent_repo_relpath"],
-                                "gimera: updated submodule",
-                            )
-                        del parent_repo
-
-                        # commit updated gimera if e.g. sha changed
-                        parent_repo = Repo(state["parent_repo"])
-                        parent_repo_relpath = state["parent_repo_relpath"]
-                        parent_repo_gimera = Path(
-                            parent_repo_relpath / "gimera.yml"
-                        )
-                        if parent_repo_gimera in parent_repo.all_dirty_files:
-                            parent_repo.commit_dir_if_dirty(
-                                parent_repo_gimera, "gimera: updated submodule"
-                            )
-                        del parent_repo
         finally:
             if migrate_changes:
+                os.environ["GIMERA_FORCE"] = old_force
                 snapshot_restore(
                     main_repo.path,
-                    [
-                        main_repo.path / relative_sub_path / repo.path
-                        for repo in repos
-                    ],
+                    [main_repo.path / relative_sub_path / repo.path for repo in repos],
                 )
 
 
@@ -317,8 +259,7 @@ def _apply_subgimera(
 
         dirty_files = list(
             filter(
-                lambda x: safe_relative_to(x, new_sub_path),
-                parent_repo.all_dirty_files,
+                lambda x: safe_relative_to(x, new_sub_path), parent_repo.all_dirty_files
             )
         )
         if dirty_files:
@@ -326,15 +267,7 @@ def _apply_subgimera(
             for f in dirty_files:
                 parent_repo.X(*(git + ["add", f]))
             parent_repo.X(
-                *(
-                    git
-                    + [
-                        "commit",
-                        "--no-verify",
-                        "-m",
-                        f"gimera: updated sub path {repo.path}",
-                    ]
-                )
+                *(git + ["commit", "--no-verify", "-m", f"gimera: updated sub path {repo.path}"])
             )
         # commit submodule updates or changed dirs
     finally:
@@ -355,13 +288,29 @@ def _turn_into_correct_repotype(
 
     """
     verbose(f"turn into correct repotype: {repo_config.path}")
+
+    # A previous interrupted conversion may have left staged files
+    # (e.g. gitlink deletion + new integrated files, or .gitmodules edits).
+    # Commit them to get a clean slate before proceeding — the conversion
+    # will redo the work anyway.
+    parent_repo = Repo(main_repo.path)
+    if parent_repo.staged_files:
+        click.secho(
+            f"Recovering staged files from a previous incomplete "
+            f"conversion of {repo_config.path}",
+            fg="yellow",
+        )
+        parent_repo.X(*(git + [
+            "commit", "-q", "--no-verify", "-m",
+            f"gimera: recover incomplete conversion for {repo_config.path}",
+        ]))
+
     state = get_effective_state(
         main_repo.path, working_dir / repo_config.path, common_vars
     )
     repo = Repo(state["parent_repo"])
     if repo_config.type == REPO_TYPE_INT:
         if state["is_submodule"]:
-            # always delete
             repo.force_remove_submodule(state["parent_repo_relpath"])
     else:
         __add_submodule(

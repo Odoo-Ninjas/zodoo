@@ -4,6 +4,7 @@ import traceback
 import os
 import threading
 import click
+import uuid
 from .submodule import _has_repo_latest_commit
 from .consts import gitcmd as git
 from .repo import Repo
@@ -31,7 +32,7 @@ def _fetch_repos_in_parallel(
         try:
             if repo_yml.url in results["urls"]:
                 return
-            verbose(f"Fetching {repo_yml.url}")
+            click.secho(f"Fetching {repo_yml.url}", fg="cyan")
             results["urls"].add(repo_yml.url)
             with _get_cache_dir(
                 main_repo, repo_yml, no_action_if_not_exist=True
@@ -51,10 +52,7 @@ def _fetch_repos_in_parallel(
                     if do_fetch:
                         with wait_git_lock(cache_dir):
                             _fetch_branch(
-                                repo,
-                                repo_yml,
-                                filter_remote="origin",
-                                no_fetch=False,
+                                repo, repo_yml, filter_remote="origin", no_fetch=False
                             )
 
         except Exception as ex:
@@ -78,9 +76,7 @@ def _fetch_repos_in_parallel(
 
         threads = []
         for index, repo in enumerate(repos):
-            t = threading.Thread(
-                target=_pull_repo, args=(index, main_repo, repo)
-            )
+            t = threading.Thread(target=_pull_repo, args=(index, main_repo, repo))
             t.daemon = True
             threads.append(t)
         [x.start() for x in threads]
@@ -90,9 +86,7 @@ def _fetch_repos_in_parallel(
             raise Exception(results["errors"])
 
 
-def _fetch_branch(
-    repo, repo_yml, no_fetch=False, filter_remote=None, **options
-):
+def _fetch_branch(repo, repo_yml, no_fetch=False, filter_remote=None, **options):
     url = repo_yml.url
 
     fetch_exception = None
@@ -103,11 +97,7 @@ def _fetch_branch(
             try:
                 url = remote.url
                 _set_url_and_fetch(
-                    repo,
-                    repo_yml,
-                    remote.name,
-                    url,
-                    filter_remote=filter_remote,
+                    repo, repo_yml, remote.name, url, filter_remote=filter_remote
                 )
             except Exception as ex:
                 fetch_exception = ex
@@ -143,31 +133,33 @@ def _set_url_and_fetch(
     with wait_git_lock(repo.path):
         try:
             repo.out(*(git + ["fetch", remote_name] + todo_branches))
+            # FETCH_HEAD contains the sha we just fetched — no need for
+            # another network round-trip via git ls-remote.
+            fetched_sha = repo.out(
+                *(git + ["rev-parse", "FETCH_HEAD"])
+            ).strip()
             for branch in todo_branches:
-                remote_sha = (
-                    repo.X(
-                        *(git + ["ls-remote", "origin", branch]), output=True
-                    )
-                    .strip()
-                    .split("\t")[0]
-                )
-                repo.X(
-                    *(git + ["update-ref", f"refs/heads/{branch}", remote_sha])
-                )
+                repo.X(*(git + ["update-ref", f"refs/heads/{branch}", fetched_sha]))
             success = True
         except subprocess.CalledProcessError as ex:
             click.secho(ex.stderr, fg="red")
 
     if success:
-        if not _has_repo_latest_commit(repo, repo_yml.branch):
+        # Verify the local branch now points to the fetched sha (local check only)
+        local_sha = repo.out(
+            *(git + ["rev-parse", repo_yml.branch]), allow_error=True,
+        ).strip()
+        if local_sha != fetched_sha:
             success = False
 
     if not success:
         if trycount == 0:
             click.secho(
-                f"This the absolutely LAST RESORT: deleting now {repo.path} as "
-                "fetching the origin and updating the branches did not update the "
-                "local branches."
+                (
+                    f"This the absolutely LAST RESORT: deleting now {repo.path} as "
+                    "fetching the origin and updating the branches did not update the "
+                    "local branches."
+                )
             )
 
             try_rm_tree(repo.path)

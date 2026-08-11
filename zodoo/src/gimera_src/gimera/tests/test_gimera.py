@@ -1,9 +1,12 @@
 from .fixtures import *  # required for all
+import time
 import uuid
 import yaml
+from contextlib import contextmanager
 from ..repo import Repo
 import os
 import subprocess
+import click
 import inspect
 import os
 from pathlib import Path
@@ -37,60 +40,45 @@ def test_submodule_tree_dirty_files(temppath):
     with clone_and_commit(repo_2, "main") as repopath:
         (repopath / "file1.txt").write_text("This is a new function")
         subprocess.check_call(git + ["add", "file1.txt"], cwd=repopath)
-        subprocess.check_call(
-            git + ["commit", "-am", "file1 added"], cwd=repopath
-        )
+        subprocess.check_call(git + ["commit", "-am", "file1 added"], cwd=repopath)
 
     with clone_and_commit(repo_subsub, "main") as repopath:
         (repopath / "file1.txt").write_text("This is a new function")
         subprocess.check_call(git + ["add", "file1.txt"], cwd=repopath)
-        subprocess.check_call(
-            git + ["commit", "-am", "file1 added"], cwd=repopath
-        )
+        subprocess.check_call(git + ["commit", "-am", "file1 added"], cwd=repopath)
 
     with clone_and_commit(repo_sub, "main") as repopath:
         (repopath / "file1.txt").write_text("This is a new function")
         subprocess.check_call(git + ["add", "file1.txt"], cwd=repopath)
         subprocess.check_call(
-            git + ["submodule", "add", f"file://{repo_subsub}", "subsub"],
-            cwd=repopath,
+            git + ["submodule", "add", f"file://{repo_subsub}", "subsub"], cwd=repopath
         )
-        subprocess.check_call(
-            git + ["commit", "-am", "file1 added"], cwd=repopath
-        )
+        subprocess.check_call(git + ["commit", "-am", "file1 added"], cwd=repopath)
 
     with clone_and_commit(repo_main, "main") as repopath:
         (repopath / "file1.txt").write_text("This is a new function")
         subprocess.check_call(git + ["add", "file1.txt"], cwd=repopath)
         subprocess.check_call(
-            git + ["submodule", "add", f"file://{repo_sub}", "sub"],
-            cwd=repopath,
+            git + ["submodule", "add", f"file://{repo_sub}", "sub"], cwd=repopath
         )
-        subprocess.check_call(
-            git + ["commit", "-am", "file1 added"], cwd=repopath
-        )
+        subprocess.check_call(git + ["commit", "-am", "file1 added"], cwd=repopath)
 
     subprocess.check_output(
         git + ["clone", "file://" + str(repo_main), workspace_main],
         cwd=workspace,
     )
     subprocess.check_call(
-        git + ["submodule", "update", "--init", "--recursive"],
-        cwd=workspace_main,
+        git + ["submodule", "update", "--init", "--recursive"], cwd=workspace_main
     )
     assert (workspace_main / "sub" / "subsub" / "file1.txt").exists()
 
     from ..gitcommands import GitCommands
 
-    assert not GitCommands(
-        workspace_main / "sub" / "subsub"
-    ).dirty_existing_files
+    assert not GitCommands(workspace_main / "sub" / "subsub").dirty_existing_files
     assert not GitCommands(workspace_main / "sub" / "subsub").untracked_files
     assert not GitCommands(workspace_main / "sub" / "subsub").all_dirty_files
     (workspace_main / "sub" / "subsub" / "newfile.txt").write_text("new")
-    assert not GitCommands(
-        workspace_main / "sub" / "subsub"
-    ).dirty_existing_files
+    assert not GitCommands(workspace_main / "sub" / "subsub").dirty_existing_files
     assert GitCommands(workspace_main / "sub" / "subsub").untracked_files
     assert GitCommands(workspace_main / "sub" / "subsub").all_dirty_files
     assert GitCommands(workspace_main / "sub").dirty_existing_files
@@ -100,36 +88,26 @@ def test_submodule_tree_dirty_files(temppath):
     assert not GitCommands(workspace_main).untracked_files
     assert GitCommands(workspace_main).all_dirty_files
     (workspace_main / "sub" / "subsub" / "newfile.txt").unlink()
-    assert not GitCommands(
-        workspace_main / "sub" / "subsub"
-    ).dirty_existing_files
+    assert not GitCommands(workspace_main / "sub" / "subsub").dirty_existing_files
     assert not GitCommands(workspace_main / "sub" / "subsub").untracked_files
     assert not GitCommands(workspace_main / "sub" / "subsub").all_dirty_files
     (workspace_main / "sub" / "newfile.txt").write_text("new")
-    assert not GitCommands(
-        workspace_main / "sub" / "subsub"
-    ).dirty_existing_files
+    assert not GitCommands(workspace_main / "sub" / "subsub").dirty_existing_files
     assert not GitCommands(workspace_main / "sub" / "subsub").untracked_files
     assert not GitCommands(workspace_main / "sub" / "subsub").all_dirty_files
     assert GitCommands(workspace_main).dirty_existing_files
     assert not GitCommands(workspace_main).untracked_files
     assert GitCommands(workspace_main).all_dirty_files
     (workspace_main / "sub" / "newfile.txt").unlink()
-    assert not GitCommands(
-        workspace_main / "sub" / "subsub"
-    ).dirty_existing_files
+    assert not GitCommands(workspace_main / "sub" / "subsub").dirty_existing_files
     assert not GitCommands(workspace_main / "sub" / "subsub").untracked_files
     assert not GitCommands(workspace_main / "sub" / "subsub").all_dirty_files
     (workspace_main / "newfile.txt").write_text("new")
-    assert not GitCommands(
-        workspace_main / "sub" / "subsub"
-    ).dirty_existing_files
+    assert not GitCommands(workspace_main / "sub" / "subsub").dirty_existing_files
     assert not GitCommands(workspace_main / "sub" / "subsub").untracked_files
     assert not GitCommands(workspace_main / "sub" / "subsub").all_dirty_files
     (workspace_main / "newfile.txt").unlink()
-    assert not GitCommands(
-        workspace_main / "sub" / "subsub"
-    ).dirty_existing_files
+    assert not GitCommands(workspace_main / "sub" / "subsub").dirty_existing_files
     assert not GitCommands(workspace_main / "sub" / "subsub").untracked_files
     assert not GitCommands(workspace_main / "sub" / "subsub").all_dirty_files
 
@@ -138,9 +116,7 @@ def test_submodule_tree_dirty_files(temppath):
         git + ["submodule", "add", f"file://{repo_2}", "repo2"],
         cwd=workspace_main / "sub" / "subsub",
     )
-    assert not GitCommands(
-        workspace_main / "sub" / "subsub"
-    ).dirty_existing_files
+    assert not GitCommands(workspace_main / "sub" / "subsub").dirty_existing_files
     assert GitCommands(workspace_main / "sub" / "subsub").untracked_files
     assert GitCommands(workspace_main / "sub" / "subsub").all_dirty_files
 
@@ -165,39 +141,28 @@ def test_cleanup_dirty_submodule(temppath):
     with clone_and_commit(repo_subsub, "main") as repopath:
         (repopath / "file1.txt").write_text("This is a new function")
         subprocess.check_call(git + ["add", "file1.txt"], cwd=repopath)
-        subprocess.check_call(
-            git + ["commit", "-am", "file1 added"], cwd=repopath
-        )
+        subprocess.check_call(git + ["commit", "-am", "file1 added"], cwd=repopath)
 
     with clone_and_commit(repo_sub, "main") as repopath:
         (repopath / "file1.txt").write_text("This is a new function")
         subprocess.check_call(git + ["add", "file1.txt"], cwd=repopath)
         subprocess.check_call(
-            git + ["submodule", "add", f"file://{repo_subsub}", "subsub"],
-            cwd=repopath,
+            git + ["submodule", "add", f"file://{repo_subsub}", "subsub"], cwd=repopath
         )
-        subprocess.check_call(
-            git + ["commit", "-am", "file1 added"], cwd=repopath
-        )
+        subprocess.check_call(git + ["commit", "-am", "file1 added"], cwd=repopath)
 
     with clone_and_commit(repo_main, "main") as repopath:
         (repopath / "file1.txt").write_text("This is a new function")
         subprocess.check_call(git + ["add", "file1.txt"], cwd=repopath)
         subprocess.check_call(
-            git + ["submodule", "add", f"file://{repo_sub}", "sub"],
-            cwd=repopath,
+            git + ["submodule", "add", f"file://{repo_sub}", "sub"], cwd=repopath
         )
-        subprocess.check_call(
-            git + ["commit", "-am", "file1 added"], cwd=repopath
-        )
+        subprocess.check_call(git + ["commit", "-am", "file1 added"], cwd=repopath)
 
     workspace_main = workspace / "main_working"
+    subprocess.check_call(git + ["clone", f"file://{repo_main}", workspace_main])
     subprocess.check_call(
-        git + ["clone", f"file://{repo_main}", workspace_main]
-    )
-    subprocess.check_call(
-        git + ["submodule", "update", "--init", "--recursive"],
-        cwd=workspace_main,
+        git + ["submodule", "update", "--init", "--recursive"], cwd=workspace_main
     )
     assert (workspace_main / "sub" / "subsub" / "file1.txt").exists()
 
@@ -407,12 +372,9 @@ def test_switch_submodule_to_other_url(temppath):
         Repo(repopath).simple_commit_all()
 
     workspace_main = workspace / "main_working"
+    subprocess.check_call(git + ["clone", f"file://{repo_main}", workspace_main])
     subprocess.check_call(
-        git + ["clone", f"file://{repo_main}", workspace_main]
-    )
-    subprocess.check_call(
-        git + ["submodule", "update", "--init", "--recursive"],
-        cwd=workspace_main,
+        git + ["submodule", "update", "--init", "--recursive"], cwd=workspace_main
     )
 
     repos1 = {
@@ -474,12 +436,9 @@ def test_switch_submodule_to_integrated_on_different_branches(temppath):
         Repo(repopath).simple_commit_all()
 
     workspace_main = workspace / "main_working"
+    subprocess.check_call(git + ["clone", f"file://{repo_main}", workspace_main])
     subprocess.check_call(
-        git + ["clone", f"file://{repo_main}", workspace_main]
-    )
-    subprocess.check_call(
-        git + ["submodule", "update", "--init", "--recursive"],
-        cwd=workspace_main,
+        git + ["submodule", "update", "--init", "--recursive"], cwd=workspace_main
     )
 
     repos = {
@@ -501,9 +460,9 @@ def test_switch_submodule_to_integrated_on_different_branches(temppath):
     os.chdir(workspace_main)
     gimera_apply([], None)
     assert (workspace_main / "subby" / "repo1.txt").exists()
-    sha_submodule_step1 = yaml.safe_load(
-        (workspace_main / "gimera.yml").read_text()
-    )["repos"][0]["sha"]
+    sha_submodule_step1 = yaml.safe_load((workspace_main / "gimera.yml").read_text())[
+        "repos"
+    ][0]["sha"]
     assert sha_submodule_step1
 
     main_repo.X(*(git + ["checkout", "-b", "as_integrated"]))
@@ -524,9 +483,9 @@ def test_switch_submodule_to_integrated_on_different_branches(temppath):
         Repo(repopath).simple_commit_all()
 
     os.chdir(workspace_main)
-    assert yaml.safe_load((workspace_main / "gimera.yml").read_text())[
-        "repos"
-    ][0]["sha"]
+    assert yaml.safe_load((workspace_main / "gimera.yml").read_text())["repos"][0][
+        "sha"
+    ]
     gimera_apply([], False)
     assert (workspace_main / "subby" / "repo1.txt").exists()
     assert not (workspace_main / "subby" / "repo2.txt").exists()
@@ -564,9 +523,7 @@ def test_merges(temppath):
         repo.simple_commit_all()
         repo.X(*(git + ["push"]))
 
-    subprocess.check_call(
-        git + ["clone", "--mirror", "--bare", repo_1, repo_1variant]
-    )
+    subprocess.check_call(git + ["clone", "--mirror", "--bare", repo_1, repo_1variant])
     subprocess.check_call(["sync"])
 
     with clone_and_commit(repo_1variant, "main") as repopath_variant:
@@ -579,9 +536,7 @@ def test_merges(temppath):
         variant.X(*(git + ["checkout", "main"]))
 
         variant.X(*(git + ["checkout", "-b", "variant2"]))
-        (repopath_variant / "variant2.txt").write_text(
-            "This is a new function"
-        )
+        (repopath_variant / "variant2.txt").write_text("This is a new function")
         variant.simple_commit_all()
         variant.X(*(git + ["push", "--set-upstream", "origin", "variant2"]))
         variant.X(*(git + ["checkout", "main"]))
@@ -591,12 +546,9 @@ def test_merges(temppath):
         Repo(repopath).simple_commit_all()
 
     workspace_main = workspace / "main_working"
+    subprocess.check_call(git + ["clone", f"file://{repo_main}", workspace_main])
     subprocess.check_call(
-        git + ["clone", f"file://{repo_main}", workspace_main]
-    )
-    subprocess.check_call(
-        git + ["submodule", "update", "--init", "--recursive"],
-        cwd=workspace_main,
+        git + ["submodule", "update", "--init", "--recursive"], cwd=workspace_main
     )
 
     repos = {
@@ -674,53 +626,33 @@ def test_clean_a_submodule_in_submodule(temppath):
     with clone_and_commit(repo_1, "main") as repopath:
         (repopath / "repo1.txt").write_text("This is a new function")
         Repo(repopath).X(
-            *(
-                git
-                + [
-                    "submodule",
-                    "add",
-                    f"file://{repo_2}",
-                    "folder_of_repo2/repo2",
-                ]
-            )
+            *(git + ["submodule", "add", f"file://{repo_2}", "folder_of_repo2/repo2"])
         )
         Repo(repopath).simple_commit_all()
 
     with clone_and_commit(repo_main, "main") as repopath:
         (repopath / "dummy.txt").write_text("This is a new function")
         Repo(repopath).X(
-            *(
-                git
-                + ["submodule", "add", f"file://{repo_1}", "folder_of_repo1"]
-            )
+            *(git + ["submodule", "add", f"file://{repo_1}", "folder_of_repo1"])
         )
         Repo(repopath).simple_commit_all()
 
     workspace_main = workspace / "main_working"
+    subprocess.check_call(git + ["clone", f"file://{repo_main}", workspace_main])
     subprocess.check_call(
-        git + ["clone", f"file://{repo_main}", workspace_main]
-    )
-    subprocess.check_call(
-        git + ["submodule", "update", "--init", "--recursive"],
-        cwd=workspace_main,
+        git + ["submodule", "update", "--init", "--recursive"], cwd=workspace_main
     )
     main_repo = Repo(workspace_main)
     assert (workspace_main / "folder_of_repo1" / "repo1.txt").exists()
     assert (
-        workspace_main
-        / "folder_of_repo1"
-        / "folder_of_repo2"
-        / "repo2"
-        / "repo2.txt"
+        workspace_main / "folder_of_repo1" / "folder_of_repo2" / "repo2" / "repo2.txt"
     ).exists()
 
     submodule_repo1 = main_repo.get_submodule("folder_of_repo1")
     submodule_repo1.force_remove_submodule("folder_of_repo2/repo2")
 
 
-def test_switch_submodule_to_integrated_and_sub_with_gitignoring_main_repo(
-    temppath,
-):
+def test_switch_submodule_to_integrated_and_sub_with_gitignoring_main_repo(temppath):
     workspace = temppath / "workspace_switch_submodule_gitignore"
     workspace.mkdir()
     workspace_main = workspace / "main_working"
@@ -860,9 +792,7 @@ def test_git_submodule_point_to_branch_if_last_commit_matches_tip_point_of_branc
 
     submodule = repo.get_submodule("sub1")
     assert submodule.get_commit() == commit
-    assert (
-        submodule.get_branch() == branch
-    ), "Should now be on the branch, not a sha"
+    assert submodule.get_branch() == branch, "Should now be on the branch, not a sha"
 
 
 def test_2_submodules(temppath):
@@ -941,9 +871,7 @@ def test_2_submodules(temppath):
 
     workspace_main = workspace / "main_working"
     main_repo = Repo(workspace_main)
-    subprocess.check_call(
-        git + ["clone", f"file://{repo_main}", workspace_main]
-    )
+    subprocess.check_call(git + ["clone", f"file://{repo_main}", workspace_main])
     (workspace_main / "gimera.yml").write_text(yaml.dump(repos))
 
     os.chdir(workspace_main)
@@ -957,3 +885,66 @@ def test_2_submodules(temppath):
     submodule_repo2 = main_repo.get_submodule("repo2")
     assert submodule_repo1
     assert submodule_repo2
+
+
+def test_integrated_gitignored_repo_uses_fast_path(temppath):
+    """
+    When an integrated repo's path is listed in .gitignore,
+    gimera apply should still work correctly using the git archive
+    fast path. Verifies that:
+    - files are extracted correctly
+    - patches are applied
+    - sha is updated in gimera.yml
+    """
+    workspace = temppath / "workspace_gitignored_int"
+    workspace.mkdir()
+    workspace_main = workspace / "main_working"
+
+    repo_main = _make_remote_repo(temppath / "mainrepo")
+    repo_sub = _make_remote_repo(temppath / "sub1")
+
+    # Add extra files to the sub repo
+    with clone_and_commit(repo_sub, "branch1") as repopath:
+        (repopath / "module_file.txt").write_text("module content")
+        Repo(repopath).simple_commit_all()
+
+    repos_int = {
+        "repos": [
+            {
+                "url": f"file://{repo_sub}",
+                "branch": "branch1",
+                "path": "sub1",
+                "patches": [],
+                "type": "integrated",
+            },
+        ]
+    }
+
+    subprocess.check_output(
+        git + ["clone", "file://" + str(repo_main), workspace_main],
+        cwd=workspace.parent,
+    )
+    # sub1 is in .gitignore — this triggers the git archive fast path
+    (workspace_main / ".gitignore").write_text("sub1\n")
+    (workspace_main / "gimera.yml").write_text(yaml.dump(repos_int))
+    repo = Repo(workspace_main)
+    repo.simple_commit_all()
+
+    os.chdir(workspace_main)
+    os.environ["GIMERA_NON_INTERACTIVE"] = "1"
+    gimera_apply([], None)
+
+    # Verify files were extracted
+    assert (workspace_main / "sub1" / "file1.txt").exists()
+    assert (workspace_main / "sub1" / "module_file.txt").exists()
+
+    # Verify sha was written to gimera.yml
+    gimera_content = yaml.safe_load(
+        (workspace_main / "gimera.yml").read_text()
+    )
+    assert gimera_content["repos"][0].get("sha"), "SHA should be set after apply"
+
+    # Run again — should be idempotent and still fast
+    gimera_apply([], None)
+    assert (workspace_main / "sub1" / "file1.txt").exists()
+    assert (workspace_main / "sub1" / "module_file.txt").exists()

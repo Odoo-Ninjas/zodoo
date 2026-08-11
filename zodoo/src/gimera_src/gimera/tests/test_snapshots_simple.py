@@ -4,6 +4,7 @@ import yaml
 import subprocess
 from ..consts import gitcmd as git
 from ..repo import Repo
+from . import temppath
 from .tools import _make_remote_repo
 from .tools import clone_and_commit
 from .tools import gimera_apply
@@ -85,14 +86,10 @@ def _test_snapshot_and_restore_simple_add_delete_modify_direct(
     original_content = dirty_file.read_text()
     dirty_file.write_text("i changed the file")
     # add a file
-    added_file = (
-        workspace_main / repos_yaml["repos"][0]["path"] / "newfile.txt"
-    )
+    added_file = workspace_main / repos_yaml["repos"][0]["path"] / "newfile.txt"
     added_file.write_text("new file")
     # delete a file
-    deleted_file = (
-        workspace_main / repos_yaml["repos"][0]["path"] / "dont_look_at_me"
-    )
+    deleted_file = workspace_main / repos_yaml["repos"][0]["path"] / "dont_look_at_me"
     deleted_file.unlink()
 
     os.chdir(workspace_main)

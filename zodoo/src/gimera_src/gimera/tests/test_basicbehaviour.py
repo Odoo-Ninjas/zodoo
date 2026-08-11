@@ -1,16 +1,20 @@
 from .fixtures import *  # required for all
+import time
+import uuid
 import yaml
+from contextlib import contextmanager
 from ..repo import Repo
 import os
 import subprocess
 import click
+import inspect
 import os
+from pathlib import Path
 from .tools import gimera_apply
 from .tools import _make_remote_repo
 from .tools import clone_and_commit
 
 from ..consts import gitcmd as git
-
 
 def test_basicbehaviour(temppath):
     """
@@ -57,9 +61,7 @@ def test_basicbehaviour(temppath):
     subprocess.check_call(git + ["add", "gimera.yml"], cwd=workspace)
     subprocess.check_call(git + ["commit", "-am", "on main"], cwd=workspace)
     subprocess.check_call(git + ["push"], cwd=workspace)
-    (workspace / repos["repos"][1]["patches"][0]).mkdir(
-        exist_ok=True, parents=True
-    )
+    (workspace / repos["repos"][1]["patches"][0]).mkdir(exist_ok=True, parents=True)
     os.chdir(workspace)
     os.environ["GIMERA_NON_THREADED"] = "1"
     gimera_apply([], None)
@@ -73,9 +75,7 @@ def test_basicbehaviour(temppath):
     with clone_and_commit(remote_sub_repo, "branch1") as repopath:
         (repopath / "file2.txt").write_text("This is a new function")
         subprocess.check_call(git + ["add", "file2.txt"], cwd=repopath)
-        subprocess.check_call(
-            git + ["commit", "-am", "file2 added"], cwd=repopath
-        )
+        subprocess.check_call(git + ["commit", "-am", "file2 added"], cwd=repopath)
 
     os.chdir(workspace)
     os.environ["GIMERA_NON_INTERACTIVE"] = "1"
@@ -98,9 +98,7 @@ def test_basicbehaviour(temppath):
     # now lets make a patch for new integrated/sub1/file3.txt and changed integrated/sub1/file2.txt
     os.chdir(workspace)
     os.environ["GIMERA_EXCEPTION_THAN_SYSEXIT"] = "1"
-    (workspace / repos["repos"][1]["patches"][0]).mkdir(
-        exist_ok=True, parents=True
-    )
+    (workspace / repos["repos"][1]["patches"][0]).mkdir(exist_ok=True, parents=True)
     gimera_apply([], update=True)
     assert (workspace / "integrated" / "sub1" / "file3.txt").exists()
 
@@ -108,9 +106,7 @@ def test_basicbehaviour(temppath):
     with clone_and_commit(remote_sub_repo, "branch1") as repopath:
         (repopath / "file5.txt").write_text("This is a new function")
         subprocess.check_call(git + ["add", "file5.txt"], cwd=repopath)
-        subprocess.check_call(
-            git + ["commit", "-am", "file5 added"], cwd=repopath
-        )
+        subprocess.check_call(git + ["commit", "-am", "file5 added"], cwd=repopath)
 
     # should apply patches now
     os.chdir(workspace)
@@ -122,8 +118,7 @@ def test_basicbehaviour(temppath):
     assert (
         "a change"
         in (
-            (workspace / "integrated" / "sub1" / "file3.txt").parent
-            / "file2.txt"
+            (workspace / "integrated" / "sub1" / "file3.txt").parent / "file2.txt"
         ).read_text()
     )
 
@@ -140,3 +135,4 @@ def test_basicbehaviour(temppath):
     assert (workspace / str(patchfile)) not in dirty_files
     assert (workspace / "integrated/sub1/file3.txt") in dirty_files
     assert (workspace / "integrated/sub1/file2.txt") in dirty_files
+

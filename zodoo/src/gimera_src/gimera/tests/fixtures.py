@@ -4,18 +4,25 @@ import pytest
 import os
 import sys
 import shutil
+import tempfile
 from pathlib import Path
 
 
 @pytest.fixture(autouse=True)
-def set_env_vars():
-    os.environ["GIMERA_EXCEPTION_THAN_SYSEXIT"] = "1"
-    os.environ["GIMERA_FORCE"] = "0"
-    os.environ["GIMERA_NON_INTERACTIVE"] = "0"
+def set_env_vars(monkeypatch):
+    # monkeypatch, not plain assignment: these used to leak into the rest of
+    # the worker process. Only the modules that import this file get the
+    # fixture, but os.environ is process-wide, so every test scheduled after
+    # them inherited the settings. test_userconfig expects the default
+    # sys.exit behaviour and therefore failed or passed depending on how
+    # pytest-xdist happened to shard the run - green on a PR, red on main.
+    monkeypatch.setenv("GIMERA_EXCEPTION_THAN_SYSEXIT", "1")
+    monkeypatch.setenv("GIMERA_FORCE", "0")
+    monkeypatch.setenv("GIMERA_NON_INTERACTIVE", "0")
     # otherwise test2 submodules fails; repos are fetched in threads;
     # just happens at tests; perhaps because of pytest - not in real world
     # (test in console)
-    os.environ["GIMERA_NON_THREADED"] = "1"
+    monkeypatch.setenv("GIMERA_NON_THREADED", "1")
 
 
 @pytest.fixture(autouse=True)
@@ -25,9 +32,7 @@ def python():
 
 @pytest.fixture(autouse=True)
 def temppath():
-    dt = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-    path = Path(f"/tmp/gimeratest/{dt}{str(uuid.uuid4())[:5]}")
-    path = Path(f"/tmp/gimeratest")
+    path = Path(f"/tmp/gimeratest/{uuid.uuid4().hex[:8]}").resolve()
     if path.exists():
         shutil.rmtree(path)
     path.mkdir(exist_ok=True, parents=True)

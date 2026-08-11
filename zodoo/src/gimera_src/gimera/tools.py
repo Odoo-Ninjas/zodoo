@@ -1,6 +1,7 @@
 from itertools import islice
 import subprocess
 import yaml
+import tempfile
 import time
 from datetime import datetime
 import shutil
@@ -9,8 +10,10 @@ import os
 from pathlib import Path
 import click
 import sys
+from curses import wrapper
 from contextlib import contextmanager
 from tempfile import TemporaryDirectory
+
 
 
 def is_forced():
@@ -36,7 +39,7 @@ def X(*params, output=False, cwd=None, allow_error=False, env=None):
     params = list(filter(lambda x: x is not None, list(params)))
     env2 = {k: v for k, v in os.environ.items()}
     env2.update(env or {})
-    if params and params[0] == "git" and os.getenv("GIMERA_QUIET") == "1":
+    if params and params[0] == 'git' and os.getenv("GIMERA_QUIET") == "1":
         if any(x in params for x in ["commit", "push"]):
             params.append("--quiet")
     if output:
@@ -217,8 +220,8 @@ def temppath(mkdir=True, reuse_key=None):
     """
     from . import runtime_state
 
-    if reuse_key in runtime_state["temppaths"]:
-        yield runtime_state["temppaths"][reuse_key]
+    if reuse_key in runtime_state['temppaths']:
+        yield runtime_state['temppaths'][reuse_key]
         return
 
     with TemporaryDirectory() as path:
@@ -232,7 +235,7 @@ def temppath(mkdir=True, reuse_key=None):
         if reuse_key is None:
             try_rm_tree(path)
         else:
-            runtime_state["temppaths"][reuse_key] = path
+            runtime_state['temppaths'][reuse_key] = path
 
 
 def path1inpath2(path1, path2):
@@ -309,9 +312,7 @@ def get_nearest_repo(end, start):
     def walk(parent_module, path):
         result["repo"] = parent_module
         for submodule in parent_module.get_submodules():
-            submodulepath = path / safe_relative_to(
-                submodule.path, parent_module.path
-            )
+            submodulepath = path / safe_relative_to(submodule.path, parent_module.path)
             if str(relpath).startswith(str(submodulepath)):
                 walk(submodule, submodulepath)
                 break
@@ -334,22 +335,10 @@ def _make_sure_hidden_gimera_dir(root_dir):
             path.write_text("\n".join(content))
             repo = Repo(root_dir)
             if repo.staged_files:
-                _raise_error(
-                    "No staged files allowed, when changing .gitignore"
-                )
+                _raise_error("No staged files allowed, when changing .gitignore")
             repo.X(*(git + ["add", ".gitignore"]))
             if repo.all_dirty_files:
-                repo.X(
-                    *(
-                        git
-                        + [
-                            "commit",
-                            "--no-verify",
-                            "-m",
-                            "add .gimera to .gitignore",
-                        ]
-                    )
-                )
+                repo.X(*(git + ["commit", "--no-verify", "-m", "add .gimera to .gitignore"]))
     return root_dir / ".gimera"
 
 
@@ -478,7 +467,6 @@ def files_relative_to(files, folder):
         if res:
             yield res
 
-
 def replace_dir_with(source_dir, dest_dir):
     tmppath = Path(str(dest_dir) + "." + str(uuid.uuid4()))
     if dest_dir.exists():
@@ -490,7 +478,6 @@ def replace_dir_with(source_dir, dest_dir):
         if tmppath.exists():
             rmtree(tmppath)
 
-
 def split_every(n, iterable, piece_maker=tuple):
     # thanks odoo
     iterator = iter(iterable)
@@ -498,7 +485,6 @@ def split_every(n, iterable, piece_maker=tuple):
     while piece:
         yield piece
         piece = piece_maker(islice(iterator, n))
-
 
 @contextmanager
 def assert_exception_no_exit():

@@ -4,7 +4,7 @@ import click
 import yaml
 import os
 from contextlib import contextmanager
-from .repo import Repo
+from .repo import Repo, Remote
 from .consts import gitcmd as git
 from .tools import (
     _raise_error,
@@ -14,7 +14,7 @@ from .tools import (
 from .consts import REPO_TYPE_INT, REPO_TYPE_SUB
 
 
-class PatchDir:
+class PatchDir(object):
     def __init__(self, repo_item, path, chdir):
         """
         Internal patches must be applied starting from subfolder.
@@ -57,17 +57,12 @@ class PatchDir:
             "path": str(self._path),
         }
         if self.chdir:
-            d["chdir"] = str(self.chdir)
+            d['chdir'] = str(self.chdir)
         return d
 
-
-class Config:
+class Config(object):
     def __init__(
-        self,
-        force_type=None,
-        recursive=False,
-        common_vars=None,
-        parent_config=None,
+        self, force_type=None, recursive=False, common_vars=None, parent_config=None,
         force_gimera_file=None,
     ):
         self.force_type = force_type
@@ -116,9 +111,7 @@ class Config:
             repoitem.collect_recursive_informations()
 
     def remove(self, path):
-        config = yaml.load(
-            self.config_file.read_text(), Loader=yaml.FullLoader
-        )
+        config = yaml.load(self.config_file.read_text(), Loader=yaml.FullLoader)
         repos = config["repos"]
         repos2 = []
         for repo in repos:
@@ -128,9 +121,7 @@ class Config:
             ):
                 repos2.append(repo)
         config["repos"] = repos2
-        self.config_file.write_text(
-            yaml.dump(config, default_flow_style=False)
-        )
+        self.config_file.write_text(yaml.dump(config, default_flow_style=False))
 
     def _store(self, repo, value):
         """
@@ -138,41 +129,35 @@ class Config:
         """
         main_repo = Repo(self.config_file.parent)
         if main_repo.staged_files:
-            _raise_error(
-                "There mustnt be any staged files when updating gimera.yml"
-            )
+            _raise_error("There mustnt be any staged files when updating gimera.yml")
 
-        if "patches" in value:
-            for path in value["patches"]:
+        if 'patches' in value:
+            for path in value['patches']:
                 if isinstance(path, str):
                     raise Exception("Please use PatchDir object now.")
 
-        config = yaml.load(
-            self.config_file.read_text(), Loader=yaml.FullLoader
-        )
+        config = yaml.load(self.config_file.read_text(), Loader=yaml.FullLoader)
         param_repo = repo
         for repo in config["repos"]:
             if Path(repo["path"]) == param_repo.path:
                 for k, v in value.items():
                     if k == "sha":
                         v = str(v)
-                    elif k == "patches":
+                    elif k == 'patches':
                         v = [x.as_dict() for x in v]
                     repo[k] = v
                 break
         else:
             config["repos"].append(value)
         for k, v in value.items():
-            if k == "patches":
+            if k == 'patches':
                 continue
             try:
                 if getattr(param_repo, k) != v:
                     setattr(param_repo, k, v)
             except AttributeError as ex:
                 raise Exception(f"Cannot set attribute {k}") from ex
-        self.config_file.write_text(
-            yaml.dump(config, default_flow_style=False)
-        )
+        self.config_file.write_text(yaml.dump(config, default_flow_style=False))
         main_repo.please_no_staged_files()
         if self.config_file.resolve() in [
             x.resolve() for x in main_repo.all_dirty_files
@@ -200,18 +185,14 @@ class Config:
             _raise_error(f"Invalid path: {','.join(names)}")
         return res
 
-    class RepoItem:
+    class RepoItem(object):
         def parse_patches(self, patches_section):
             result = []
             for item in patches_section:
                 if isinstance(item, str):
                     item = PatchDir(self, item, None)
                 elif isinstance(item, dict):
-                    item = PatchDir(
-                        self,
-                        Path(item["path"]),
-                        Path(item.get("chdir")) if item.get("chdir") else None,
-                    )
+                    item = PatchDir(self, Path(item["path"]), Path(item.get("chdir")) if item.get("chdir") else None)
                 else:
                     _raise_error(f"Invalid patch definition: {item}")
                 result.append(item)
@@ -226,12 +207,8 @@ class Config:
             self.path = Path(config_section["path"])
             self.branch = self.eval(str(config_section["branch"]))
             self.merges = config_section.get("merges", [])
-            self.patches = self.parse_patches(
-                config_section.get("patches", [])
-            )
-            self.ignored_patchfiles = config_section.get(
-                "ignored_patchfiles", []
-            )
+            self.patches = self.parse_patches(config_section.get("patches", []))
+            self.ignored_patchfiles = config_section.get("ignored_patchfiles", [])
             self.edit_patchfile = config_section.get("edit_patchfile", "")
             self._type = config_section["type"]
             self._url = self.eval(config_section["url"])
@@ -268,9 +245,7 @@ class Config:
                     return True
 
         def collect_recursive_informations(self):
-            gimera_yml = (
-                self.config.config_file.parent / self.path / "gimera.yml"
-            )
+            gimera_yml = self.config.config_file.parent / self.path / "gimera.yml"
             if not gimera_yml.exists():
                 return
             config = yaml.load(gimera_yml.read_text(), Loader=yaml.FullLoader)
@@ -301,10 +276,7 @@ class Config:
         @sha.setter
         def sha(self, value):
             self._sha = value
-            if (
-                not self.freeze_sha
-                and os.getenv("GIMERA_NO_SHA_UPDATE") != "1"
-            ):
+            if not self.freeze_sha and os.getenv("GIMERA_NO_SHA_UPDATE") != "1":
                 self.config._store(self, {"sha": value})
 
         def as_dict(self):

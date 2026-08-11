@@ -1,10 +1,10 @@
 import os
 from pathlib import Path
-from .tools import yieldlist, X, wait_git_lock
+from .tools import safe_relative_to, yieldlist, X, wait_git_lock
 from .consts import gitcmd as git
 
 
-class GitCommands:
+class GitCommands(object):
     def __init__(self, path=None):
         self.path = Path(path or os.getcwd())
         self.path_absolute = self.path.absolute()
@@ -43,13 +43,7 @@ class GitCommands:
             return X(*params, **kwparams)
 
     def out(self, *params, allow_error=False, env=None):
-        return X(
-            *params,
-            output=True,
-            cwd=self.path,
-            allow_error=allow_error,
-            env=env,
-        )
+        return X(*params, output=True, cwd=self.path, allow_error=allow_error, env=env)
 
     def _parse_git_status(self):
         for line in X(
@@ -89,17 +83,32 @@ class GitCommands:
             if modifier[0] == "M" or modifier[1] == "M" or modifier[1] == "D":
                 yield path
 
+    def has_unpushed_commits(self, branch=None):
+        """Check if there are local commits not pushed to origin."""
+        try:
+            if branch is None:
+                branch = self.get_branch()
+            output = self.out(*(git + ["log", "--oneline", f"origin/{branch}..{branch}"]))
+            return bool(output.strip())
+        except Exception:
+            return False
+
     @property
     @yieldlist
     def all_dirty_files(self):
-        return self.untracked_files + self.dirty_existing_files
+        # Single git-status parse instead of calling untracked_files +
+        # dirty_existing_files which would each run git status separately.
+        for modifier, path in self._parse_git_status():
+            if modifier == "??" or modifier[0] == "A":
+                yield path
+            elif modifier[0] == "M" or modifier[1] == "M" or modifier[1] == "D":
+                yield path
 
     @property
     @yieldlist
     def all_dirty_files_absolute(self):
-        res = self.untracked_files + self.dirty_existing_files
-        res = list(map(lambda x: self.path_absolute / x, res))
-        return res
+        for f in self.all_dirty_files:
+            yield self.path_absolute / f
 
     @property
     @yieldlist
@@ -114,16 +123,10 @@ class GitCommands:
         for file in self.untracked_files:
             yield self.path_absolute / file
 
-    @property
-    def dirty(self):
-        return bool(list(self._parse_git_status()))
-
     def is_submodule(self, path):
         path = self._combine(path)
         for line in X(
-            *(git + ["submodule", "status"]),
-            output=True,
-            cwd=self.path_absolute,
+            *(git + ["submodule", "status"]), output=True, cwd=self.path_absolute
         ).splitlines():
             line = line.strip()
             _, _path, _ = line.split(" ", 2)
@@ -152,13 +155,13 @@ class GitCommands:
         """
         res = list(
             set(
-                filter(
-                    lambda x: x not in ["HEAD"],
-                    map(
-                        lambda x: x.strip().split()[-1].split("/")[-1],
-                        self.out(*(git + ["show-ref"])).splitlines(),
-                    ),
-                )
+            filter(
+                lambda x: x not in ["HEAD"],
+                map(
+                    lambda x: x.strip().split()[-1].split("/")[-1],
+                    self.out(*(git + ["show-ref"])).splitlines(),
+                ),
+            )
             )
         )
         return res

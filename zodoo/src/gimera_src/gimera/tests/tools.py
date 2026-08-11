@@ -1,5 +1,6 @@
 import tempfile
 from pathlib import Path
+import os
 import shutil
 from ..consts import gitcmd as git
 import subprocess
@@ -39,9 +40,7 @@ def clone_and_commit(repopath, branch, checkout_options=None, commit=True):
 
 def _make_remote_repo(path):
     path.mkdir(parents=True)
-    subprocess.check_call(
-        ["git", "init", "--bare", "--initial-branch=main"], cwd=path
-    )
+    subprocess.check_call(["git", "init", "--bare", "--initial-branch=main"], cwd=path)
 
     tmp = path.parent / "tmp"
     subprocess.check_call(git + ["clone", f"file://{path}", tmp])

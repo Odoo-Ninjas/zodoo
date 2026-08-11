@@ -1,5 +1,7 @@
 from .fixtures import *  # required for all
+import itertools
 import yaml
+from contextlib import contextmanager
 from ..repo import Repo
 import os
 import subprocess
@@ -7,10 +9,14 @@ import inspect
 import os
 from pathlib import Path
 from .tools import gimera_apply
+from ..tools import rsync
+from . import temppath
 from .tools import _make_remote_repo
 from .tools import clone_and_commit
+from .tools import gimera_commit
 
 from ..consts import gitcmd as git
+import time
 
 current_dir = Path(
     os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
@@ -20,28 +26,19 @@ current_dir = Path(
 def test_snapshot_switch_around_and_check_if_everything_is_there_several_subpaths(
     temppath,
 ):
-    _test_snapshot_switch_around_and_check_if_everything_is_there(
-        temppath, "a/b/sub1"
-    )
+    _test_snapshot_switch_around_and_check_if_everything_is_there(temppath, "a/b/sub1")
 
 
-def test_snapshot_switch_around_and_check_if_everything_is_there_direct_root(
-    temppath,
-):
-    _test_snapshot_switch_around_and_check_if_everything_is_there(
-        temppath, "sub1"
-    )
+def test_snapshot_switch_around_and_check_if_everything_is_there_direct_root(temppath):
+    _test_snapshot_switch_around_and_check_if_everything_is_there(temppath, "sub1")
 
 
-def _test_snapshot_switch_around_and_check_if_everything_is_there(
-    temppath, sub_path
-):
+def _test_snapshot_switch_around_and_check_if_everything_is_there(temppath, sub_path):
     """
     Challenge is, that the logic of snapshots can handle the root paths
     """
     workspace = (
-        temppath
-        / "test_snapshot_switch_around_and_check_if_everything_is_there"
+        temppath / "test_snapshot_switch_around_and_check_if_everything_is_there"
     )
     workspace.mkdir()
     workspace_main = workspace / "main_working"

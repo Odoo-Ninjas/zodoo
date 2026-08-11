@@ -1,4 +1,4 @@
-exclude: ^(webssh/|novnc/|logsio_web/|browser/|static_file_browser/)
+exclude: ^(zodoo/src/gimera_src/|webssh/|novnc/|logsio_web/|browser/|static_file_browser/)
 repos:
   - repo: https://github.com/hadolint/hadolint
     rev: v2.14.0 # Use latest stable tag: https://github.com/hadolint/hadolint/releases

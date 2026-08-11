@@ -5,12 +5,13 @@ import click
 import shutil
 from .gitcommands import GitCommands
 from pathlib import Path
-from .tools import yieldlist, safe_relative_to, _raise_error, rmtree
+from .tools import yieldlist, X, safe_relative_to, _raise_error, rmtree
 from .consts import gitcmd as git
 from contextlib import contextmanager
 from .tools import is_forced
 from .tools import temppath
 from .tools import filter_files_to_folders
+from .tools import split_every
 
 
 class Repo(GitCommands):
@@ -136,6 +137,36 @@ class Repo(GitCommands):
         # https://github.com/jeremysears/scripts/blob/master/bin/git-submodule-rewrite
         self.please_no_staged_files()
 
+        # check for unpushed commits in the submodule
+        fullpath = self.path / path
+        if fullpath.exists() and (fullpath / ".git").exists():
+            try:
+                sub = Repo(fullpath)
+                has_unpushed = sub.has_unpushed_commits()
+            except Exception:
+                has_unpushed = False
+            if has_unpushed:
+                # show what would be lost
+                try:
+                    branch = sub.get_branch()
+                    log = sub.out(*(git + ["log", "--oneline", f"origin/{branch}..{branch}"]))
+                    if log.strip():
+                        click.secho("\nUnpushed commits:", fg="red")
+                        for line in log.strip().splitlines():
+                            click.secho(f"  {line}", fg="red")
+                    stat = sub.out(*(git + ["diff", "--stat", f"origin/{branch}..{branch}"]))
+                    if stat.strip():
+                        click.secho("\nChanges that would be lost:", fg="red")
+                        click.echo(stat)
+                except Exception:
+                    pass
+                if not is_forced():
+                    _raise_error(
+                        f"\nSubmodule at {path} has unpushed local commits. "
+                        f"These changes will be lost! "
+                        f"Push them first, or use --force to override."
+                    )
+
         # if there are dirty files, then abort to not destroy data
         dirty_files = list(
             filter_files_to_folders(
@@ -193,24 +224,11 @@ class Repo(GitCommands):
             self.X(*(git + ["add", "-A", path]))
         if self.lsfiles(fullpath.relative_to(self.path)):
             self.X(*(git + ["add", "-f", "-A", path]))
-        if (
-            self.path_absolute / ".gitmodules"
-        ) in self.all_dirty_files_absolute:
+        if (self.path_absolute / ".gitmodules") in self.all_dirty_files_absolute:
             self.X(*(git + ["add", "-A", ".gitmodules"]))
 
         if self.staged_files:
-            self.X(
-                *(
-                    git
-                    + [
-                        "commit",
-                        "-q",
-                        "--no-verify",
-                        "-m",
-                        f"removed submodule {path}",
-                    ]
-                )
-            )
+            self.X(*(git + ["commit", "-q", "--no-verify", "-m", f"removed submodule {path}"]))
         self.X("rm", "-rf", f".git/modules/{subrepo.rel_path_to_root_repo}")
 
     @property
@@ -236,16 +254,37 @@ class Repo(GitCommands):
 
     @yieldlist
     def get_submodules(self):
-        submodules = self.out(*(git + ["submodule", "status"])).splitlines()
-        # no entry found for x in .gitmodules
+        try:
+            submodules = self.out(*(git + ["submodule", "status"])).splitlines()
+        except subprocess.CalledProcessError as ex:
+            # "no submodule mapping found in .gitmodules for path '...'"
+            # happens when gitlinks (160000) exist in the index but
+            # .gitmodules has no matching entry — e.g. after an
+            # interrupted submodule→integrated conversion.  Fall back to
+            # reading gitlinks directly from the index so callers (like
+            # _turn_into_correct_repotype) can still detect and clean up
+            # orphaned submodules.
+            if "no submodule mapping found" not in (ex.stderr or ""):
+                raise
+            output = self.out(
+                *(git + ["ls-files", "--stage"]), allow_error=True,
+            )
+            for line in (output or "").splitlines():
+                parts = line.split()
+                if parts[0] == "160000":
+                    yield Submodule(
+                        self.next_module_root / parts[3],
+                        self.next_module_root,
+                    )
+            return
+        # Lines starting with "-" mean the submodule is not initialized —
+        # still a registered submodule in .gitmodules/gitlinks, just uninitialized.
+        # Only skip lines where the path itself is invalid ("./").
         for line in submodules:
             splitted = line.strip().split(" ")
-            if line.startswith("-") or splitted[1] == "./":
-                # means, that path does not exist right now; path info is misleading ./
+            if splitted[1] == "./":
                 continue
-            yield Submodule(
-                self.next_module_root / splitted[1], self.next_module_root
-            )
+            yield Submodule(self.next_module_root / splitted[1], self.next_module_root)
 
     def check_ignore(self, path):
         try:
@@ -259,31 +298,30 @@ class Repo(GitCommands):
     def temporary_unignore(self, path):
         backup_gitignore = None
         gitignore_path = self.path / ".gitignore"
-        if gitignore_path.exists():
+        if gitignore_path.exists(): 
             backup_gitignore = gitignore_path.read_text().splitlines()
-
+        
         try:
             # no index: if file is already committed, then there would be no output
-            ignored = self.X(
-                *(git + ["check-ignore", "-v", "--no-index", path]),
-                allow_error=False,
-                output=True,
-            )
+            ignored = self.X(*(git + ["check-ignore", "-v", "--no-index", path]), allow_error=False, output=True)
         except subprocess.CalledProcessError:
             ignored = False
+        modified = False
         if ignored and backup_gitignore:
-            except_lines = [
-                int(x.split(":", 2)[1]) for x in ignored.splitlines()
-            ]
+            except_lines = [int(x.split(":", 2)[1]) for x in ignored.splitlines()]
             tempcontent = list(backup_gitignore)
             for except_line in sorted(except_lines, reverse=True):
                 del tempcontent[except_line - 1]
             gitignore_path.write_text("\n".join(tempcontent) + "\n")
+            modified = True
 
-        yield
-
-        if backup_gitignore:
-            gitignore_path.write_text("\n".join(backup_gitignore) + "\n")
+        try:
+            yield
+        finally:
+            # restore only if we touched the file (a no-op must not rewrite),
+            # and also on exceptions — never leave the .gitignore modified
+            if modified:
+                gitignore_path.write_text("\n".join(backup_gitignore) + "\n")
 
     def _fix_to_remove_subdirectories(self, config):
         # https://stackoverflow.com/questions/4185365/no-submodule-mapping-found-in-gitmodule-for-a-path-thats-not-a-submodule
@@ -328,16 +366,7 @@ class Repo(GitCommands):
                     )
                 self.X(*(git + ["rm", "-f", linepath]))
                 self.X(
-                    *(
-                        git
-                        + [
-                            "commit",
-                            "-q",
-                            "--no-verify",
-                            "-m",
-                            f"removed invalid subrepo: {linepath}",
-                        ]
-                    )
+                    *(git + ["commit", "-q", "--no-verify", "-m", f"removed invalid subrepo: {linepath}"])
                 )
 
     def get_submodule(self, path):
@@ -361,14 +390,7 @@ class Repo(GitCommands):
         self.X(*(git + ["fetch", remote] + ref + ["--prune"]))
 
     def fetchall(self):
-        self.fetch(
-            remote="origin",
-            ref=[
-                "+refs/heads/*:refs/remotes/origin/*",
-                "+refs/tags/*:refs/tags/*",
-                "--prune",
-            ],
-        )
+        self.fetch(remote="origin",ref=["+refs/heads/*:refs/remotes/origin/*","+refs/tags/*:refs/tags/*", "--prune"])
 
     def get_remote(self, name):
         return [x for x in self.remotes if x.name == name][0]
@@ -378,8 +400,7 @@ class Repo(GitCommands):
         # do not fetch; could point to https form which requires authentication
         self.add_remote(remote, exist_ok=True, no_set_url=True, fetch=False)
         self.X(
-            *(git + ["remote", "set-url", name, url]),
-            env={"GIT_TERMINAL_PROMPT": "0"},
+            *(git + ["remote", "set-url", name, url]), env={"GIT_TERMINAL_PROMPT": "0"}
         )
 
     def remove_remote(self, remote):
@@ -416,10 +437,7 @@ class Repo(GitCommands):
                 env={"GIT_TERMINAL_PROMPT": "0"},
             )
         if fetch:
-            self.X(
-                *(git + ["fetch", remote.name]),
-                env={"GIT_TERMINAL_PROMPT": "0"},
-            )
+            self.X(*(git + ["fetch", remote.name]), env={"GIT_TERMINAL_PROMPT": "0"})
 
     def pull(self, remote=None, ref=None, repo_yml=None):
         """
@@ -455,8 +473,7 @@ class Repo(GitCommands):
         if not staged:
             return
         _raise_error(
-            "For the operation there mustnt be "
-            f"any staged files like {staged}"
+            "For the operation there mustnt be " f"any staged files like {staged}"
         )
 
     @property
@@ -469,8 +486,10 @@ class Repo(GitCommands):
             v = result.setdefault(name, repo)
             if str(v.url) != str(url):
                 raise NotImplementedError(
-                    "Different urls for push and fetch for remote {name}\n"
-                    f"{url} != {v}"
+                    (
+                        "Different urls for push and fetch for remote {name}\n"
+                        f"{url} != {v}"
+                    )
                 )
             result[name] = repo
         return result.values()
@@ -502,9 +521,7 @@ class Repo(GitCommands):
                 break
 
     def lsfiles(self, path):
-        files = list(
-            map(Path, self.out(*(git + ["ls-files", path])).splitlines())
-        )
+        files = list(map(Path, self.out(*(git + ["ls-files", path])).splitlines()))
         return files
 
     def commit_dir_if_dirty(self, rel_path, commit_msg, force=False):
@@ -512,9 +529,7 @@ class Repo(GitCommands):
         ammend = False
         if any(
             map(
-                lambda filepath: safe_relative_to(
-                    filepath, self.path / rel_path
-                ),
+                lambda filepath: safe_relative_to(filepath, self.path / rel_path),
                 self.all_dirty_files_absolute,
             )
         ):
@@ -527,13 +542,18 @@ class Repo(GitCommands):
             # submodule which changed files; then after git add it is not added
             if self.staged_files:
                 gitcmd = [
-                    "commit",
-                    "-q",
-                    "--no-verify",
-                    "-m",
-                    commit_msg,
-                ]
-                self.X(*(git + gitcmd))
+                            "commit",
+                            "-q",
+                            "--no-verify",
+                            "-m",
+                            commit_msg,
+                        ]
+                self.X(
+                    *(
+                        git
+                        + gitcmd
+                    )
+                )
                 ammend = True
 
                 self.run_precommit_if_installed(rel_path, ammend=ammend)
@@ -542,21 +562,12 @@ class Repo(GitCommands):
         if os.getenv("GIMERA_NO_PRECOMMIT") == "1":
             return
         if self.is_precommit_used():
-            if not shutil.which("pre-commit"):
-                click.secho(
-                    f"Command 'pre-commit' not found in PATH", fg="yellow"
-                )
+            if not shutil.which('pre-commit'):
+                click.secho(f"Command 'pre-commit' not found in PATH", fg='yellow')
             else:
                 self.X(
                     *tuple(
-                        [
-                            "pre-commit",
-                            "run",
-                            "--from-ref",
-                            "HEAD~1",
-                            "--to-ref",
-                            "HEAD",
-                        ]
+                        ["pre-commit", "run", "--from-ref", "HEAD~1", "--to-ref", "HEAD"]
                     ),
                     allow_error=True,
                 )
@@ -599,9 +610,7 @@ class Repo(GitCommands):
         except subprocess.CalledProcessError as ex:
             rel_path_repo = safe_relative_to(self.path, self.root_repo.path)
             # self._remove_internal_submodule_clone(self.rel_path_to_root_repo / rel_path)
-            self._remove_internal_submodule_clone(
-                rel_path_repo / rel_path.parts[0]
-            )
+            self._remove_internal_submodule_clone(rel_path_repo / rel_path.parts[0])
             if (self.path / rel_path).exists():
                 rmtree(self.path / rel_path)
             self.out(*commands)
@@ -647,12 +656,7 @@ class Repo(GitCommands):
             repo_folder.parent.mkdir(exist_ok=True, parents=True)
             try:
                 repo = Repo(repo_folder)
-                self.X(
-                    *(
-                        git
-                        + ["worktree", "add", "--force", repo_folder, commit]
-                    )
-                )
+                self.X(*(git + ["worktree", "add", "--force", repo_folder, commit]))
                 yield repo
             except Exception as ex:
                 click.secho(f"Error occurred at repo {self.path}", fg="red")
@@ -672,7 +676,7 @@ class Repo(GitCommands):
             shutil.move(gitdir, self.path / ".git")
 
 
-class Remote:
+class Remote(object):
     def __init__(self, repo, name, url):
         self.repo = repo
         self.name = name
@@ -711,12 +715,7 @@ class Submodule(Repo):
             url = Repo(self.parent_path).out(
                 *(
                     git
-                    + [
-                        "config",
-                        "-f",
-                        ".gitmodules",
-                        f"submodule.{self.relpath}.url",
-                    ]
+                    + ["config", "-f", ".gitmodules", f"submodule.{self.relpath}.url"]
                 ),
             )
         except subprocess.CalledProcessError:

@@ -8,6 +8,7 @@ import os
 import uuid
 from datetime import datetime
 import shutil
+from .patches import remove_file_from_patch
 
 to_cleanup = []
 
@@ -82,13 +83,9 @@ def _find_matching_dirs(root_dir, path, filter_paths, cache=None):
 
     def _matches_filter_paths(path, direction):
         if direction == "before":
-            return bool(
-                any(x for x in filter_paths if safe_relative_to(x, path))
-            )
+            return bool(any(x for x in filter_paths if safe_relative_to(x, path)))
         else:
-            return bool(
-                any(x for x in filter_paths if safe_relative_to(path, x))
-            )
+            return bool(any(x for x in filter_paths if safe_relative_to(path, x)))
 
     before = _matches_filter_paths(path, "before")
     after = _matches_filter_paths(path, "after")
@@ -103,9 +100,7 @@ def _find_matching_dirs(root_dir, path, filter_paths, cache=None):
             if sub.is_dir():
                 if sub.name == ".git":
                     continue
-                yield from _find_matching_dirs(
-                    root_dir, sub, filter_paths, cache=cache
-                )
+                yield from _find_matching_dirs(root_dir, sub, filter_paths, cache=cache)
 
 
 def _snapshot_dir(root_dir, path, filter_paths=None):
@@ -138,7 +133,7 @@ def _snapshot_dir(root_dir, path, filter_paths=None):
             cache_file = _get_patch_filepath(root_dir, path)
             cache_file.write_bytes(patch_file_content)
 
-    repos = map(Repo, {x[0].path for x in matching_dirs})
+    repos = map(Repo, set(x[0].path for x in matching_dirs))
     for repo in repos:
         subprocess.check_call((git + ["reset"]), cwd=repo.path)
         subprocess.check_call((git + ["checkout", "."]), cwd=repo.path)
@@ -169,7 +164,7 @@ def _get_token():
 def _get_patch_filepath(root_dir, file_relpath):
     token = _get_token()
     file_relpath = safe_relative_to(file_relpath, root_dir)
-    path = root_dir / ".gimera" / "snapshots" / token / f"{file_relpath}.patch"
+    path = root_dir / '.gimera' / "snapshots" / token / f"{file_relpath}.patch"
     to_cleanup.append(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
