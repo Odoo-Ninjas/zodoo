@@ -13,7 +13,8 @@
 | [09-manifest.md](./09-manifest.md)                     | MANIFEST file format and fields             |
 | [10-troubleshooting.md](./10-troubleshooting.md)       | Common problems and solutions               |
 
-Online: https://docs.zebroo.de/docs/zodoo
+These files are the source of truth. (The former online copy at
+docs.zebroo.de is gone; internal documentation now lives in Odoo Knowledge.)
 
 ## Editing
 

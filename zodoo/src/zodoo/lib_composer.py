@@ -535,8 +535,11 @@ def _set_defaults(config, defaults):
     # default it only did harm — it made every host look as if it had
     # credentials, so `odoo build` ran a `docker login` that could not
     # succeed, and the settings suggested a login that was never possible.
-    # Credentials are per user; `odoo build` asks for them once and writes
-    # them to ~/.odoo/settings (see lib_zodoo_registry._get_registry_config).
+    # Credentials are per user and only needed for pushing; `odoo build`
+    # asks for them once a push is due and writes them to ~/.odoo/settings
+    # (see lib_zodoo_registry._get_push_credentials). Pulling the prebuilt
+    # CPython image is anonymous, which is why the URL default above is
+    # enough to make a fresh machine fast.
 
 
 def _do_compose(

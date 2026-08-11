@@ -489,9 +489,9 @@ def cross_build_base_image(config, inputs):
     Returns the detached log file path on success, ``None`` if skipped
     (no registry, no run.build.odoo).
     """
-    from .lib_zodoo_registry import _get_registry_config, _is_arm
+    from .lib_zodoo_registry import _get_push_credentials, _is_arm
 
-    reg = _get_registry_config(config)
+    reg = _get_push_credentials(config)
     if not reg:
         click.secho(
             "Skipping base cross-build: no zodoo registry configured.",
