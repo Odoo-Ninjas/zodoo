@@ -228,6 +228,65 @@ def _request_registry_user(registry_url, username, password):
     return {"error": f"could not connect to {registry_url}"}, 0
 
 
+def verify_credentials(registry_url, username, password, timeout=10):
+    """Ask the registry whether these credentials are actually accepted.
+
+    ``docker login`` cannot answer that any more. It reports success as soon
+    as the ping endpoint (``/v2/``) does not challenge it, and ``/v2/`` is
+    served anonymously so that credential-less hosts can pull -- so a typo in
+    the password produces "Login Succeeded" and fails much later, at push
+    time, with a 401 that points nowhere.
+
+    ``/v2/_catalog`` is still behind basic auth (its repository names are
+    customer names), which makes it the endpoint that tells the truth.
+
+    Returns True (accepted), False (rejected), or None when the registry
+    could not be reached at all -- an unreachable registry is not a wrong
+    password and must not be reported as one.
+    """
+    import base64
+
+    token = base64.b64encode(f"{username}:{password}".encode()).decode()
+    for scheme in ("https", "http"):
+        req = urllib.request.Request(
+            f"{scheme}://{registry_url}/v2/_catalog",
+            headers={"Authorization": f"Basic {token}"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout):
+                return True
+        except urllib.error.HTTPError as e:
+            if e.code in (401, 403):
+                return False
+            # 404/500/… say nothing about the credentials.
+            return None
+        except urllib.error.URLError:
+            continue
+        except Exception:
+            return None
+    return None
+
+
+def _warn_about_rejected_credentials(url, username, password):
+    """Tell the user now, not at the next push."""
+    accepted = verify_credentials(url, username, password)
+    if accepted is False:
+        click.secho(
+            f"\nThe registry rejected the credentials for '{username}'.\n"
+            "Pulling keeps working (that needs no account), but pushing "
+            "will fail. Check ZODOO_REGISTRY_USERNAME / "
+            "ZODOO_REGISTRY_PASSWORD in ~/.odoo/settings.",
+            fg="red",
+        )
+    elif accepted is None:
+        click.secho(
+            f"Could not reach {url} to check the credentials — "
+            "continuing anyway.",
+            fg="yellow",
+        )
+    return accepted
+
+
 def _get_push_credentials(config):
     """Credentials for *writing* to the registry, asking for them if needed.
 
@@ -367,6 +426,8 @@ def _get_push_credentials(config):
                 click.secho("\nAborted. Registry setup incomplete.", fg="red")
                 sys.exit(1)
 
+        _warn_about_rejected_credentials(url, username, password)
+
         _write_user_setting(config, "ZODOO_REGISTRY_URL", url)
         _write_user_setting(config, "ZODOO_REGISTRY_USERNAME", username)
         _write_user_setting(config, "ZODOO_REGISTRY_PASSWORD", password)
@@ -411,6 +472,7 @@ def _get_push_credentials(config):
         except (click.Abort, KeyboardInterrupt):
             click.secho("\nAborted. Registry setup incomplete.", fg="red")
             sys.exit(1)
+        _warn_about_rejected_credentials(url, username, password)
         _write_user_setting(config, "ZODOO_REGISTRY_URL", url)
         _write_user_setting(config, "ZODOO_REGISTRY_USERNAME", username)
         _write_user_setting(config, "ZODOO_REGISTRY_PASSWORD", password)
@@ -769,7 +831,12 @@ def _docker_login_subprocess(reg):
             encoding="utf-8",
             stderr=subprocess.STDOUT,
         )
-        click.secho(f"Logged in to {reg['url']}", fg="green")
+        # Not "Logged in": since /v2/ is served anonymously the registry no
+        # longer challenges the ping, so `docker login` reports success for
+        # any password. verify_credentials() is what actually checks.
+        click.secho(
+            f"Stored registry credentials for {reg['url']}", fg="green"
+        )
     except subprocess.CalledProcessError as e:
         click.secho(f"Registry login failed: {e.output}", fg="red")
         raise

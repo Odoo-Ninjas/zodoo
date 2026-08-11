@@ -148,6 +148,73 @@ class TestReadPathsDoNotPrompt:
         mod.zodoo_registry_login(_FakeConfig())
 
 
+class TestVerifyCredentials:
+    """`docker login` reports success for any password once /v2/ is served
+    anonymously, so the credentials have to be checked against an endpoint
+    that is still protected."""
+
+    @staticmethod
+    def _patch_urlopen(monkeypatch, behaviour):
+        seen = {}
+
+        def _urlopen(req, timeout=None):
+            seen["url"] = req.full_url
+            seen["auth"] = req.headers.get("Authorization")
+            return behaviour()
+
+        monkeypatch.setattr(mod.urllib.request, "urlopen", _urlopen)
+        return seen
+
+    def test_accepted(self, monkeypatch):
+        class _Resp:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+        seen = self._patch_urlopen(monkeypatch, _Resp)
+
+        assert mod.verify_credentials("reg.example", "u", "p") is True
+        assert seen["url"].endswith("/v2/_catalog"), (
+            "must query an endpoint that is still behind auth — /v2/ itself "
+            "is open and would accept anything"
+        )
+        assert seen["auth"].startswith("Basic ")
+
+    @pytest.mark.parametrize("code", [401, 403])
+    def test_rejected(self, monkeypatch, code):
+        def _raise():
+            raise mod.urllib.error.HTTPError(
+                "u", code, "denied", hdrs=None, fp=None
+            )
+
+        self._patch_urlopen(monkeypatch, _raise)
+
+        assert mod.verify_credentials("reg.example", "u", "p") is False
+
+    def test_unreachable_is_not_a_wrong_password(self, monkeypatch):
+        """Must be distinguishable from a rejection, otherwise a network
+        hiccup tells the user their password is wrong."""
+
+        def _raise():
+            raise mod.urllib.error.URLError("no route")
+
+        self._patch_urlopen(monkeypatch, _raise)
+
+        assert mod.verify_credentials("reg.example", "u", "p") is None
+
+    def test_server_error_says_nothing_about_the_password(self, monkeypatch):
+        def _raise():
+            raise mod.urllib.error.HTTPError(
+                "u", 500, "boom", hdrs=None, fp=None
+            )
+
+        self._patch_urlopen(monkeypatch, _raise)
+
+        assert mod.verify_credentials("reg.example", "u", "p") is None
+
+
 class TestSiteFromFqdn:
     """odoo.3dm.de -> "3dm": the machine's own name is a better account
     name than the service account it happens to run as."""
