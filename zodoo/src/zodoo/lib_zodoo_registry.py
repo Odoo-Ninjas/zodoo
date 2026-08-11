@@ -316,7 +316,7 @@ def _get_push_credentials(config):
             "rest of the team does not have to build it again. Pulling\n"
             "already works without an account; pushing needs one.\n"
             "\n"
-            "Docs: https://docs.zebroo.de/docs/reduce-build-time-and-resources-with-zodoo-registry\n"
+            "Docs: docs/06-registry.md in ~/.odoo/images\n"
             "========================================",
             fg="yellow",
         )
@@ -1124,7 +1124,7 @@ def zodoo_tag_and_push(config, service_name, tag):
                 "  ZODOO_REGISTRY_USERNAME=youruser\n"
                 "  ZODOO_REGISTRY_PASSWORD=yourpassword\n"
                 "\n"
-                "Docs: https://docs.zebroo.de/docs/reduce-build-time-and-resources-with-zodoo-registry\n"
+                "Docs: docs/06-registry.md in ~/.odoo/images\n"
                 "========================================\n",
                 fg="red",
             )
@@ -1287,7 +1287,7 @@ def zodoo_push_with_background_arch(
                         f"Push of {arch_image} failed — unauthorized. "
                         "Check your ZODOO_REGISTRY_* settings, "
                         "contact your zodoo administrator, or use your own registry.\n"
-                        "Docs: https://docs.zebroo.de/docs/reduce-build-time-and-resources-with-zodoo-registry",
+                        "Docs: docs/06-registry.md in ~/.odoo/images",
                         fg="red",
                     )
                     return None
