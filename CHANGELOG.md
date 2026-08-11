@@ -1,5 +1,12 @@
 # Changelog
 
+## 7.5.3
+
+
+- **Docs**: Medienordner der Doku von docs/.document360/assets/ nach docs/img/ umbenannt. Bilder gehoeren jetzt dorthin und werden relativ referenziert (![alt](./img/foo.png)) - das passt zu der Docusaurus-Site, die docs/ nach docs.zebroo.de spiegelt. Der alte Name kam noch von Document360.
+- **Fix**: router_global: certbot und seine Plugins kommen jetzt komplett aus pip statt gemischt aus apt und pip. Vorher wurde das apt-certbot 1.21 durch certbot-dns-ionos (pip) auf 5.x hochgezogen, waehrend nginx- und rfc2136-Plugin bei 1.21 blieben. Das faellt nicht beim Build auf, sondern erst beim Ausstellen eines Zertifikats: 'certbot.errors.Error: Unsupported RSA key length: 1024', weil das alte nginx-Plugin fuer einen frischen 443-Block einen 1024-Bit-Platzhalter anlegt, den die neue cryptography-Version ablehnt. Effekt war ein geholtes, aber nicht eingebautes Zertifikat - der vhost blieb ohne TLS. Zum Testen: Router-Image neu bauen und 'certbot --nginx' fuer eine neue Domain laufen lassen, der 443-Block muss danach mit Zertifikat stehen. Ausserdem ist curl im Image, um sowas von innen pruefen zu koennen.
+
+
 ## 7.5.2
 
 
