@@ -745,11 +745,19 @@ def _determine_odoo_configuration(
 
     get_services = globals["tools"].get_services
 
+    from zodoo import additional_odoo_config
+
+    # Nothing but the "[options]" header we synthesized above? Then there is
+    # no odoo.config on this machine and the variable would only be noise -
+    # and noise that the container cannot tell from a lost configuration.
+    if not additional_odoo_config.carries_options(config):
+        return
+
     odoo_machines = get_services(config, "odoo_base", yml=yml)
     for odoo_machine in odoo_machines:
         service = yml["services"][odoo_machine]
-        service["environment"]["ADDITIONAL_ODOO_CONFIG"] = "___|||___".join(
-            config.splitlines()
+        service["environment"]["ADDITIONAL_ODOO_CONFIG"] = (
+            additional_odoo_config.encode(config)
         )
 
 
