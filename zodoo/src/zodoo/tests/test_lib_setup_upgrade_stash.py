@@ -70,3 +70,39 @@ def test_conflicting_stash_pop_is_reported_and_change_kept(tmp_path, capsys):
     # Not lost: the entry is still there and holds the local change.
     assert "stash@{0}" in _git(repo, "stash", "list")
     assert "^mydb$" in _git(repo, "stash", "show", "-p")
+
+
+def test_conflicting_pop_leaves_no_conflict_markers_behind(tmp_path, capsys):
+    """zodoo builds from the files in ~/.odoo/images, so a half-applied merge
+    is worse than a change waiting in the stash: a failed pop must not leave
+    `<<<<<<< Updated upstream` in a Dockerfile fragment."""
+    repo = _make_repo(tmp_path)
+    (repo / "config_common").write_text("dbfilter = ^mydb$\n")
+    _git(repo, "stash", "--include-untracked")
+    (repo / "config_common").write_text("dbfilter = ^%d$\n")
+    _git(repo, "commit", "--quiet", "-am", "upstream change")
+
+    mod._restore_stashed_changes(repo)
+
+    content = (repo / "config_common").read_text()
+    assert "<<<<<<<" not in content and ">>>>>>>" not in content
+    # The upgraded version is what stays in the tree.
+    assert content == "dbfilter = ^%d$\n"
+    assert _git(repo, "status", "--porcelain").strip() == ""
+    # And the local change is still recoverable.
+    assert "^mydb$" in _git(repo, "stash", "show", "-p")
+
+
+def test_failed_pop_without_stash_entry_keeps_the_tree(tmp_path, capsys):
+    """The one case where cleaning up would destroy the only copy: no stash
+    entry left. Then the tree must stay untouched, whatever it holds."""
+    repo = _make_repo(tmp_path)
+    (repo / "config_common").write_text("locally patched\n")
+
+    # No stash at all -> `git stash pop` fails, and the working tree holds the
+    # only copy of the change.
+    mod._restore_stashed_changes(repo)
+
+    out = capsys.readouterr().out
+    assert "Restoring your local changes failed" in out
+    assert (repo / "config_common").read_text() == "locally patched\n"
