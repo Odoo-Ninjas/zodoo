@@ -2927,3 +2927,65 @@ def public_base_urls(domain, port):
     if not domains:
         return [public_base_url("", port)]
     return [public_base_url(d, port) for d in domains]
+
+
+def _owner_name(uid):
+    try:
+        import pwd
+
+        return pwd.getpwuid(uid).pw_name
+    except (ImportError, KeyError):
+        return str(uid)
+
+
+def warn_if_foreign_owner(path):
+    """Warn when the project tree belongs to a different user than us.
+
+    The classic case is a root shell inside /home/odoo/odoo. Every file the
+    command touches from there ends up owned by root, and the odoo user can
+    no longer write it. The damage surfaces much later and looks unrelated:
+    a build that stops with "permission denied", a git checkout that fails,
+    a container that will not start because its settings file is not
+    readable. By then nobody remembers the one command that was run as the
+    wrong user.
+
+    Related: OWNER_UID=0 (see settings._check_owner_uid), which is the same
+    mistake reaching the container. That one is fatal and therefore aborts;
+    this one is merely very likely wrong, so it warns.
+
+    Returns the message it printed, or None. Never raises - a failing
+    ownership check must not stop a command from running.
+    """
+    if not hasattr(os, "getuid"):  # non-posix
+        return None
+    try:
+        if _is_in_container():
+            # The entrypoint deliberately rewrites uids in there, so a
+            # mismatch is the normal state and says nothing.
+            return None
+        path = Path(path)
+        owner_uid = os.stat(path).st_uid
+        my_uid = os.getuid()
+    except (OSError, ValueError, TypeError):
+        return None
+
+    if owner_uid == my_uid:
+        return None
+
+    owner = _owner_name(owner_uid)
+    me = _owner_name(my_uid)
+    msg = f"{path} belongs to '{owner}' but you are running as '{me}'."
+    if my_uid == 0:
+        msg += (
+            f"\nEverything this command writes will end up owned by root, "
+            f"and '{owner}' will not be able to change it afterwards. "
+            f"Use `su - {owner}` (not `sudo -iu {owner}`, which leaves "
+            "SUDO_USER=root behind and produces OWNER_UID=0)."
+        )
+    else:
+        msg += (
+            f"\nFiles written now may not be readable for '{owner}'. "
+            "Check whether you are in the right account."
+        )
+    click.secho(f"\nWARNING: {msg}\n", fg="red", bold=True)
+    return msg
