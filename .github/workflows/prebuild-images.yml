@@ -44,6 +44,16 @@ on:
     # Montags vor der Arbeitszeit -- so ist der Bestand zu Wochenbeginn frisch.
     - cron: "0 3 * * 1"
 
+# Ein Lauf zur Zeit. Der Merge des Workflows hat gleich drei Laeufe ausgeloest
+# (Push auf main, manueller Start, Release) -- zwei davon bauen dieselben
+# Images und pushen dieselben Tags. Verschwendete CI-Zeit im harmlosen Fall,
+# zwei gleichzeitige Pushes auf denselben Tag im unguenstigen.
+# cancel-in-progress bewusst NICHT: ein abgebrochener Lauf hinterlaesst
+# halb hochgeladene Images, und der naechste faende sie vor.
+concurrency:
+  group: prebuild-images
+  cancel-in-progress: false
+
 jobs:
   prebuild:
     runs-on: ubuntu-latest
