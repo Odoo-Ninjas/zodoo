@@ -1,6 +1,0 @@
-type: internal
-description: >-
-  Der Prebuild-Job laeuft nur noch einmal gleichzeitig. Der Merge hatte
-  drei Laeufe ausgeloest, die dieselben Images bauen und dieselben Tags
-  pushen.
-breaking: false
