@@ -1,0 +1,125 @@
+name: Prebuild generic images
+
+# Baut die projektunabhaengigen Images und schiebt sie in die zodoo-Registry.
+#
+# Warum: eine frisch aufgesetzte Kundenmaschine baut sonst jede Stufe selbst.
+# Gemessen auf einer cpx22 sind das 6:24 von 11:44 Gesamtzeit -- mehr als die
+# Haelfte. Die Tags der allgemeinen Images haengen nur an Odoo-/Postgres-/
+# Python-Version und am Inhalt des Image-Verzeichnisses, sind also fuer ALLE
+# Kunden dieselben. Liegen sie in der Registry, wird daraus ein Pull.
+#
+# Nicht dabei: das Image `odoo`. Sein Tag enthaelt den Hash der
+# requirements.txt.all des Projekts, es ist damit pro Kundenprojekt
+# verschieden und laesst sich hier nicht vorbauen.
+#
+# Warum regelmaessig und nicht einmal: jede Aenderung an einem
+# Image-Verzeichnis erzeugt neue Tags. Ab dann ist der vorgebaute Bestand
+# wertlos und die Maschinen bauen wieder selbst -- ohne dass es auffaellt,
+# denn die Instanzen kommen ja hoch, nur langsamer. Deshalb laeuft der Job bei
+# jeder Aenderung an den Images und zusaetzlich woechentlich.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "postgres/**"
+      - "proxy/**"
+      - "cronjobs/**"
+      - "barman/**"
+      - "rsync/**"
+      - "console/**"
+      - "pgtools/**"
+      - "offsite/**"
+      - "dashboard/**"
+      - "zodoo/src/zodoo/lib_zodoo_registry.py"
+      - ".github/workflows/prebuild-images.yml"
+  workflow_dispatch:
+    inputs:
+      versions:
+        description: "Comma-separated Odoo versions (e.g. 17.0,19.0)"
+        required: false
+        default: "19.0"
+        type: string
+  schedule:
+    # Montags vor der Arbeitszeit -- so ist der Bestand zu Wochenbeginn frisch.
+    - cron: "0 3 * * 1"
+
+jobs:
+  prebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      VERSIONS: ${{ github.event.inputs.versions || '19.0' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pipx and gimera
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pipx
+          pipx install gimera
+
+      - name: Configure git identity (required for odoo init)
+        run: |
+          git config --global user.email "ci@zodoo.test"
+          git config --global user.name "zodoo CI"
+          git config --global init.defaultBranch main
+
+      - name: Install zodoo (this checkout)
+        run: |
+          pipx install -e zodoo/src
+          pipx environment --value PIPX_BIN_DIR >> "$GITHUB_PATH"
+          # Die CLI erwartet die Images unter ~/.odoo/images. Kopie statt
+          # Symlink: zodoo sucht Compose-Dateien mit `find` ohne -L und
+          # ueberspringt verlinkte Baeume.
+          mkdir -p "$HOME/.odoo/images"
+          rsync -a --exclude='.git' "$GITHUB_WORKSPACE/" "$HOME/.odoo/images/"
+
+      - name: Build and push generic images
+        env:
+          REGISTRY_URL: ${{ vars.ZODOO_REGISTRY_URL || 'registry.zebroo.de' }}
+          REGISTRY_USERNAME: ${{ secrets.ZODOO_REGISTRY_USERNAME }}
+          REGISTRY_PASSWORD: ${{ secrets.ZODOO_REGISTRY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${REGISTRY_USERNAME:-}" ] || [ -z "${REGISTRY_PASSWORD:-}" ]; then
+            echo "::error::ZODOO_REGISTRY_USERNAME/PASSWORD fehlen als Secrets."
+            echo "::error::Ohne Push-Zugang waere der Lauf reine Rechenzeit."
+            exit 1
+          fi
+
+          # Nur die projektunabhaengigen Dienste. "odoo" fehlt hier bewusst
+          # (Tag haengt am Projekt), ebenso alles, was ohnehin nicht auf einer
+          # Kundenmaschine laeuft.
+          SERVICES="postgres proxy cronjobs barman rsync console pgtools"
+
+          IFS=',' read -ra VERS <<< "$VERSIONS"
+          for version in "${VERS[@]}"; do
+            version="$(echo "$version" | xargs)"
+            [ -n "$version" ] || continue
+            echo "::group::Odoo $version"
+            project="/tmp/prebuild-${version}"
+            rm -rf "$project"
+            # Ein Wegwerf-Projekt: gebraucht wird nur ein gueltiger
+            # zodoo-Kontext, damit die Tags genauso berechnet werden wie
+            # spaeter auf der Kundenmaschine.
+            odoo -f init "$project" "$version" --ai none
+            cd "$project"
+            odoo setting "ZODOO_REGISTRY_URL=$REGISTRY_URL"
+            odoo setting "ZODOO_REGISTRY_USERNAME=$REGISTRY_USERNAME"
+            odoo setting "ZODOO_REGISTRY_PASSWORD=$REGISTRY_PASSWORD"
+            odoo setting "ZODOO_REGISTRY_SUGGESTED=1"
+            odoo reload
+            # shellcheck disable=SC2086
+            odoo build $SERVICES
+            # shellcheck disable=SC2086
+            odoo zodoo-push $SERVICES
+            cd /
+            rm -rf "$project"
+            echo "::endgroup::"
+          done
