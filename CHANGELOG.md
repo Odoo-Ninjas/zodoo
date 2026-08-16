@@ -1,5 +1,12 @@
 # Changelog
 
+## 8.0.0
+
+
+- **Internal**: |
+- **BREAKING**: | — |
+
+
 ## 7.8.3
 
 
