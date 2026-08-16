@@ -14,11 +14,11 @@ repos:
       - addons_OCA/queue.patches
 
   - path: "addons_tools/anonymize"
-    url: https://github.com/marcwimmer/odoo-anonymize.git
+    url: https://github.com/Odoo-Ninjas/odoo-anonymize.git
     branch: "13.0"
     type: integrated
 
   - path: "addons_tools/cleardb"
-    url: https://github.com/marcwimmer/odoo-cleardb.git
+    url: https://github.com/Odoo-Ninjas/odoo-cleardb.git
     branch: "13.0"
     type: integrated

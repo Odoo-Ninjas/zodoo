@@ -3,7 +3,7 @@ repos:
     path: gimera_src
     sha: ef80c22f5c695081f7fb7e51db9705b34e39fa9b
     type: integrated
-    url: git@github.com:marcwimmer/gimera
+    url: git@github.com:Odoo-Ninjas/gimera
   - branch: master
     path: framework/snippets
     sha: 0663415c8f97616b84039e7c92a17042c98411f3
