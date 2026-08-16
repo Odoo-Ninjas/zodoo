@@ -1,0 +1,25 @@
+type: fix
+description: |
+  Drei Verweise auf Repositories entfernt, die es nicht gibt.
+
+  - `odoo reload` hatte eine Option `--images-url`, deren Hilfetext auf
+    github.com/marcwimmer/odoo verwies. Das Repository existiert nicht, und
+    die Option wurde auch nie ausgewertet: der Wert kam in der Signatur an und
+    wurde dort nie wieder angefasst. Option entfernt.
+  - Die URL in `zodoo/src/setup.cfg` zeigte auf marcwimmer/zodoo. Das Projekt
+    liegt unter Odoo-Ninjas/zodoo.
+  - `robot/.artefacts` beschrieb den Download von Chromedriver und Chrome von
+    github.com/marcwimmer/chromedrivers. Das Repository existiert nicht mehr,
+    die Links liefern 404. Sechs Minuten nach dem Anlegen der Datei wurden die
+    beiden Dateien 2022 direkt nach `robot/artefacts/` eingecheckt und werden
+    seitdem von dort genommen; die Beschreibung las ohnehin niemand mehr.
+    Datei entfernt.
+  - `lib_robot.py` zeigte auf marcwimmer/odoo-robot_utils. Das Repository ist
+    laengst nach Odoo-Ninjas/odoo-robot_utils umgezogen; der Verweis
+    funktionierte nur noch ueber GitHubs Weiterleitung. Auf das echte Ziel
+    gesetzt.
+breaking: true
+breaking_description: |
+  `odoo reload --images-url <url>` bricht jetzt mit einem Fehler ab, statt das
+  Argument stillschweigend zu verwerfen. Wer die Option in einem Skript stehen
+  hat, muss sie streichen - eine Wirkung hatte sie nie.

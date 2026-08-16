@@ -224,9 +224,6 @@ def _release_reload_lock(lock_file):
     "--additional_config_raw",
     help="like ODOO_DEMO=1;RUN_PROXY=0; you can pass internally a 'dict' here, which is converted",
 )
-@click.option(
-    "--images-url", help="default: https://github.com/marcwimmer/odoo"
-)
 @click.option("--no-gimera-apply", is_flag=True)
 @click.option(
     "--docker-compose",
@@ -246,7 +243,6 @@ def do_reload(
     devmode,
     additional_config,
     additional_config_raw,
-    images_url,
     docker_compose,
     no_gimera_apply,
     include_src,

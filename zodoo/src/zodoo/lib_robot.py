@@ -24,7 +24,7 @@ from .tools import _yamldump
 from .tools import atomic_write
 from pathlib import Path
 
-ROBOT_UTILS_GIT = "marcwimmer/odoo-robot_utils"
+ROBOT_UTILS_GIT = "Odoo-Ninjas/odoo-robot_utils"
 SELDRIVER_PREFIX = "seleniumdriver_"
 
 
