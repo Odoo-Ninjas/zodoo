@@ -506,7 +506,7 @@ def anonymize(ctx, config):
         ctx,
         config,
         "anonymize",
-        "https://github.com/marcwimmer/odoo-anonymize.git",
+        "https://github.com/Odoo-Ninjas/odoo-anonymize.git",
     )
 
     Commands.invoke(
@@ -532,7 +532,7 @@ def cleardb(ctx, config, no_vacuum_full):
         ctx,
         config,
         "cleardb",
-        "https://github.com/marcwimmer/odoo-cleardb.git",
+        "https://github.com/Odoo-Ninjas/odoo-cleardb.git",
     )
     str_no_vauum_full = "1" if no_vacuum_full else "0"
 

@@ -24,12 +24,12 @@ repos:
       - patches/addons_OCA/queue
 
   - path: "addons_tools/anonymize"
-    url: https://github.com/marcwimmer/odoo-anonymize.git
+    url: https://github.com/Odoo-Ninjas/odoo-anonymize.git
     branch: ${VERSION}
     type: integrated
 
   - path: "addons_tools/cleardb"
-    url: https://github.com/marcwimmer/odoo-cleardb.git
+    url: https://github.com/Odoo-Ninjas/odoo-cleardb.git
     branch: ${VERSION}
     type: integrated
 
