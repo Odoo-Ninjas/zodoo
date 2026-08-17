@@ -68,3 +68,12 @@ RUN_PROXY=1
 
 The queuejobs role is spawned automatically iff the `queue_job` module
 is installed in the project database — no manual toggle is needed.
+
+That gate is re-checked whenever the role would be (re)started: the
+supervisor refuses a `start`/`restart` for a role whose gate is off, and it
+does not respawn such a role after it exits. So on a project without
+`queue_job`, an `odoo up` / `odoo restart odoo_queuejobs` leaves the role
+stopped instead of arming a respawn loop — the child would only exit again
+("Queue-Jobs shall not run"), and each attempt costs a full config render.
+`odoo kill odoo_queuejobs` stops a running role; the user's stop intent also
+wins over the watchdog.
