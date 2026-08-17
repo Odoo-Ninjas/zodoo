@@ -1992,13 +1992,23 @@ def _sanitize_project_name(name, max_len=50):
       1. Lowercase the name. Docker Compose rejects project names containing
          uppercase letters, so ticket-style directories like
          ``ZO-05216-foo`` must be folded to lowercase.
-      2. Strip underscores (they pad length without adding information).
+      2. Only if that is still too long: strip underscores, which pad length
+         without adding information. Doing this unconditionally renamed every
+         project whose directory contains underscores - a directory
+         ``cicd_3dm_odoo_staging17`` resolved to ``cicd3dmodoostaging17``,
+         which has no ``~/.odoo/run/<project>/settings``. Commands invoked
+         without ``-p`` then silently ran against an unconfigured project
+         (``config.ODOO_FILES`` is None, so e.g. `filestore unshare` aborts
+         with "No filestore at None") while `-p <dirname>` worked. Underscores
+         are valid in Docker Compose project names, so there is no reason to
+         drop them while the name still fits.
       3. If still too long, cut from the centre so both the prefix (which
          encodes the product/repo) and the suffix (which often carries the
          ticket number or branch tag) are preserved.
     """
     name = name.lower()
-    name = name.replace("_", "")
+    if len(name) > max_len:
+        name = name.replace("_", "")
     if len(name) > max_len:
         half = max_len // 2
         name = name[:half] + name[-(max_len - half) :]
