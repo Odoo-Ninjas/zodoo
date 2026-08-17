@@ -213,6 +213,19 @@ class Role:
     def is_alive(self):
         return self.proc is not None and self.proc.poll() is None
 
+    def probe_allows_running(self):
+        """Re-evaluate an `enabled_probe` role gate.
+
+        Returns True for roles without a probe (their gate is a static env
+        var, evaluated once at construction). For probe-gated roles the probe
+        is asked again — the answer can change at runtime (a module gets
+        uninstalled) and a stale True must not keep a role alive that has
+        decided, in its own child process, that it must not run.
+        """
+        if not self.spec.get("enabled_probe"):
+            return True
+        return _is_role_enabled(self.spec)
+
     def reap_if_dead(self):
         """Return True if child has exited since last check."""
         if self.proc is None:
@@ -294,6 +307,21 @@ class Supervisor:
                             role.spawn()
                     continue
                 if role.reap_if_dead() and role.want_running:
+                    # A probe-gated role that has become disabled must not be
+                    # respawned. Without this the queuejobs role turns into a
+                    # spawn loop once something has set want_running (control
+                    # socket `start`, watchdog): the child re-checks the same
+                    # probe, exits cleanly, gets reaped, gets respawned — once
+                    # per second, forever. Each of those starts runs
+                    # prepare_run_shared/kill_odoo and therefore also kills the
+                    # web workers.
+                    if not role.probe_allows_running():
+                        _log(
+                            f"[{role.name}] role gate is off — not "
+                            f"respawning (want_running -> False)"
+                        )
+                        role.want_running = False
+                        continue
                     # Exponential backoff on tight crash loops.
                     since = time.time() - role.last_spawn
                     if since < role.backoff:
@@ -348,6 +376,19 @@ class Supervisor:
                     "error": f"unknown role: {arg}",
                 }
             role = self.roles[arg]
+            if (
+                verb in ("start", "restart")
+                and not role.probe_allows_running()
+            ):
+                # Refuse to start a role whose gate says it must not run —
+                # otherwise `start queuejobs` on a project without the
+                # `queue_job` module arms a permanent respawn loop.
+                return {
+                    "ok": False,
+                    "error": (
+                        f"{arg} is disabled (role gate off) — not started"
+                    ),
+                }
             if verb == "stop":
                 role.want_running = False
                 role.stop()
