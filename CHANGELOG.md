@@ -1,5 +1,11 @@
 # Changelog
 
+## 8.0.2
+
+
+- **Fix**: `odoo init` legt wieder ein Projekt an. Der Befehl wurde von `offsite init` verdeckt, weil AliasedGroup Unterbefehle nach oben zieht und bei gleichem Namen nach Registrierungsreihenfolge entscheidet — der dokumentierte Schnellstart `odoo init ~/projects/my-odoo` brach mit \No such option '--ai'\ ab. `odoo offsite init` bleibt unverändert erreichbar.
+
+
 ## 8.0.1
 
 
