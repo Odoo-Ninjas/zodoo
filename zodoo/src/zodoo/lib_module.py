@@ -466,20 +466,33 @@ def _perform_install(
 
     if not opts.no_restart and config.use_docker and not _is_in_container():
         Commands.invoke(ctx, "restart", machines=["odoo"], no_recreate=True)
-        if config.run_odoocronjobs:
-            Commands.invoke(
-                ctx,
-                "restart",
-                machines=["odoo_cronjobs"],
-                no_recreate=True,
-            )
-        if config.run_queuejobs:
-            Commands.invoke(
-                ctx,
-                "restart",
-                machines=["odoo_queuejobs"],
-                no_recreate=True,
-            )
+        # v14+ runs cronjobs/queuejobs as supervisor roles *inside* the odoo
+        # container, so the restart above already restarted them. Poking the
+        # legacy machine names here would go through the supervisor control
+        # socket and, for a role whose gate is off (no `queue_job` module),
+        # ask for a role that immediately exits again. Only the
+        # pre-supervisor layouts (v11/v13) have real sibling containers.
+        #
+        # The two settings below are also the reason this block was dead
+        # code: `run_odoocronjobs` and `run_queuejobs` are not settings we
+        # ship — the real names are RUN_ODOO_CRONJOBS / RUN_ODOO_QUEUEJOBS.
+        from .lib_control_with_docker import _has_in_container_supervisor
+
+        if not _has_in_container_supervisor(config):
+            if config.run_odoo_cronjobs:
+                Commands.invoke(
+                    ctx,
+                    "restart",
+                    machines=["odoo_cronjobs"],
+                    no_recreate=True,
+                )
+            if config.run_odoo_queuejobs:
+                Commands.invoke(
+                    ctx,
+                    "restart",
+                    machines=["odoo_queuejobs"],
+                    no_recreate=True,
+                )
         Commands.invoke(ctx, "up", daemon=True, no_recreate=True)
 
     Commands.invoke(ctx, "status")
