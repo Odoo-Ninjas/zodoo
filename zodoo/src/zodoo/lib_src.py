@@ -974,3 +974,14 @@ def reset_module_versions(config, ctx):
             fg="yellow",
         )
         m.write_manifest(manifest)
+
+
+# `init` gibt es zweimal: hier (Projekt anlegen) und unter `offsite`
+# (Backup-Repository anlegen). AliasedGroup zieht Unterbefehle nach oben und
+# entscheidet bei gleichem Namen nach Registrierungsreihenfolge -- damit
+# landete `odoo init` beim offsite-Befehl, und der dokumentierte
+# Schnellstart (`odoo init ~/projects/my-odoo`) brach mit
+# "No such option '--ai'" ab. Die ausdrueckliche Anmeldung oben gewinnt,
+# weil get_command zuerst dort nachsieht. Gleiches Muster wie bei `status`
+# in lib_setup.py. `odoo offsite init` bleibt unveraendert erreichbar.
+cli.add_command(init, name="init")

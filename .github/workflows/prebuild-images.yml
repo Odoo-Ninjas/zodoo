@@ -118,7 +118,10 @@ jobs:
             # Ein Wegwerf-Projekt: gebraucht wird nur ein gueltiger
             # zodoo-Kontext, damit die Tags genauso berechnet werden wie
             # spaeter auf der Kundenmaschine.
-            odoo -f init "$project" "$version" --ai none
+            # Ausgeschrieben als "src init": die Kurzform "odoo init" haengt
+            # an der Aufloesung abgekuerzter Befehle, und die kippte schon
+            # einmal auf "offsite init" um. CI soll daran nicht haengen.
+            odoo -f src init "$project" "$version" --ai none
             cd "$project"
             odoo setting "ZODOO_REGISTRY_URL=$REGISTRY_URL"
             odoo setting "ZODOO_REGISTRY_USERNAME=$REGISTRY_USERNAME"
