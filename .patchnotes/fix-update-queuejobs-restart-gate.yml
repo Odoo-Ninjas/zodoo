@@ -1,0 +1,21 @@
+type: fix
+description: >-
+  "odoo update" pokelt nach dem Update nicht mehr an den Rollen cronjobs und
+  queuejobs herum. Seit die drei Prozesse gemeinsam im odoo-Container laufen,
+  hat der Restart des odoo-Containers, der eine Zeile darueber passiert, beide
+  Rollen ohnehin schon neu gestartet; der zusaetzliche Aufruf ging ueber die
+  alten Maschinennamen und damit ueber den Control-Socket des Supervisors. Fuer
+  die queuejobs-Rolle war das schaedlich: auf einem Projekt ohne installiertes
+  Modul queue_job bat der Aufruf um eine Rolle, die sich sofort wieder beendet,
+  und der Supervisor startete sie in einer Endlosschleife neu. Aufgefallen ist
+  das nur, weil die beiden Bedingungen die Settings RUN_QUEUEJOBS und
+  RUN_ODOOCRONJOBS abfragten - Namen, die wir nicht ausliefern (richtig sind
+  RUN_ODOO_QUEUEJOBS und RUN_ODOO_CRONJOBS), der Block lief also meist ins
+  Leere. Neu wird er nur noch fuer die alten Layouts ohne Supervisor (11.0,
+  13.0) ausgefuehrt, dort mit den richtigen Settingnamen.
+  Zum Nachvollziehen: "odoo update <modul>" auf einem 19.0-Projekt ohne
+  queue_job laufen lassen - in der Ausgabe darf keine Zeile
+  "Legacy service name -> supervisor: restart queuejobs" mehr erscheinen, und
+  "docker logs <projekt>_odoo" bleibt frei von wiederkehrenden
+  "[supervisor] [queuejobs] spawn"-Zeilen.
+breaking: false
