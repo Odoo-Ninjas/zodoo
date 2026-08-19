@@ -21,8 +21,13 @@ zodoo_paths:
   - zodoo/src/zodoo/odoo_config.py
   - zodoo/src/zodoo/tools.py
 # Files relative to the project WORKING_DIR whose content affects the build.
+# requirements.static is an *input*, not a generated file: hashing it too means a
+# committed dependency change alters the tag even when the generated files were
+# not refreshed. Without it such a commit keeps the previous tag and every
+# machine silently stays on the old image.
 project_files:
   - requirements.txt.all
+  - requirements.static
 # Glob patterns relative to WORKING_DIR (custom Dockerfiles in the project).
 project_globs:
   - "**/Dockerfile.appendix"

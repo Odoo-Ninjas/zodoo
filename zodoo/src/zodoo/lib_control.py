@@ -40,6 +40,32 @@ def pull(ctx, config):
 
 
 @docker.command(
+    name="requirements-check",
+    help=(
+        "Check whether the generated requirements files still match the "
+        "requirements inputs. These files determine the image tag, so a stale "
+        "one makes every machine keep the previous image."
+    ),
+)
+@click.option(
+    "--fix/--no-fix",
+    default=False,
+    help="Regenerate the files (runs 'odoo reload') instead of only reporting.",
+)
+@pass_config
+def requirements_check(config, fix):
+    from .lib_requirements_guard import ensure_requirements_current
+    from .myconfigparser import MyConfigParser
+
+    ensure_project_name(config)
+    settings = MyConfigParser(config.files["settings"])
+    stale = ensure_requirements_current(config, settings, autofix=fix)
+    if not stale:
+        click.secho("requirements.hash is up to date.", fg="green")
+    sys.exit(1 if (stale and not fix) else 0)
+
+
+@docker.command(
     help="Start containers in dev mode (combines build + up + watch)."
 )
 @click.option("-b", "--build", is_flag=True)
@@ -523,12 +549,18 @@ def build(
     from .lib_zodoo_registry import try_pull_from_zodoo_registry
     from .lib_zodoo_registry import enqueue_registry_uploads
     from .lib_docker_registry import disable_keychain_credential_store
+    from .lib_requirements_guard import ensure_requirements_current
 
     from .myconfigparser import MyConfigParser
 
     settings = MyConfigParser(config.files["settings"])
 
     ensure_project_name(config)
+
+    # The image tag is computed from the generated requirements files, so a
+    # stale one silently builds/pulls the previous image. Refresh before any
+    # tag is derived below.
+    ensure_requirements_current(config, settings)
     disable_keychain_credential_store()
     if plain:
         os.environ["BUILDKIT_PROGRESS"] = "plain"
