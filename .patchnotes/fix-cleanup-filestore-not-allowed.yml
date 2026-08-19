@@ -1,9 +1,0 @@
-type: fix
-description: |
-  `odoo down --cleanup-files` löscht den Filestore der Datenbank jetzt wirklich.
-  Zum Nachstellen: Projekt mit `odoo down --cleanup-files` abräumen und danach
-  in `<data_dir>/filestore/` schauen - vorher blieb dort der Ordner der
-  Datenbank liegen und im Log stand `Failed to remove path ...: not allowed`,
-  jetzt ist er weg. Auf Build-/CI-Rechnern, die pro Lauf eine neue
-  Test-Datenbank anlegen, liefen dadurch die Platten voll.
-breaking: false
