@@ -41,7 +41,20 @@ OFFSITE_COMPRESSION=zstd,3
 # Zusaetzlich die Dump-Dateien aus $DUMPS_PATH mitsichern. Standardmaessig
 # aus: mit Barman ist die Datenbank ueber WAL + Basisbackup schon abgedeckt,
 # und in /host/dumps liegen oft viele alte Staende.
+#
+# Ohne Barman braucht es das gar nicht: `odoo offsite backup` zieht dann von
+# sich aus einen frischen Dump und nimmt genau diesen einen mit - siehe
+# OFFSITE_ALLOW_WITHOUT_DB.
 OFFSITE_INCLUDE_DUMPS=0
+# Notausgang fuer die Vollstaendigkeitspruefung.
+#
+# Der Offsite-Lauf bricht ab, wenn kein Datenbankstand ins Archiv kaeme -
+# weder ueber Barman noch ueber einen Dump. Das ist Absicht: der Filestore ist
+# immer da, die Datenbank nicht, und ein Archiv aus lauter Anhaengen sieht aus
+# wie ein Backup, bis jemand wiederherstellen will. 1 schaltet die Pruefung ab
+# und sichert wissentlich nur die Dateien - nur sinnvoll, wenn die Datenbank
+# nachweislich woanders gesichert wird.
+OFFSITE_ALLOW_WITHOUT_DB=0
 # Bandbreitenbremse in KiB/s fuer den Upload (0 = unbegrenzt). Nuetzlich,
 # wenn das Backup nicht die Leitung des Produktivsystems auffressen soll.
 OFFSITE_UPLOAD_LIMIT=0

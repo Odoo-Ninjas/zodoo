@@ -28,6 +28,11 @@ services:
       OFFSITE_COMPRESSION: $OFFSITE_COMPRESSION
       OFFSITE_UPLOAD_LIMIT: $OFFSITE_UPLOAD_LIMIT
       OFFSITE_INCLUDE_DUMPS: $OFFSITE_INCLUDE_DUMPS
+      OFFSITE_ALLOW_WITHOUT_DB: $OFFSITE_ALLOW_WITHOUT_DB
+      # Wird pro Lauf von `odoo offsite backup` gesetzt (docker compose run -e),
+      # wenn ohne Barman ein frischer Dump gezogen wurde. Hier nur deklariert,
+      # damit die Variable im Container ueberhaupt existiert.
+      OFFSITE_DB_DUMP: ""
       PROJECT_NAME: $PROJECT_NAME
       # Waehlt den Filestore-Unterordner dieser Datenbank aus dem host-weiten
       # Pool aus (siehe entrypoint.sh).

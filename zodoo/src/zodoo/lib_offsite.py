@@ -1,9 +1,18 @@
+from pathlib import Path
+
 import click
 
 from .cli import cli, pass_config
 from .lib_clickhelpers import AliasedGroup
 from .tools import abort
 from .tools import __get_cmd
+
+# Dateiname des Dumps, den der Offsite-Lauf ohne Barman selbst zieht.
+#
+# Fester Name mit Absicht: die Datei wird bei jedem Lauf ueberschrieben,
+# statt sich in DUMPS_PATH zu stapeln. Fuer borg ist das kein Nachteil - es
+# dedupliziert gegen den Stand der Vornacht und legt nur die Differenz ab.
+OFFSITE_DB_DUMP = "offsite-db.dump"
 
 
 @cli.group(
@@ -30,7 +39,11 @@ def _ensure_offsite(config):
         )
 
 
-def _offsite_run(config, args):
+def _truthy(val):
+    return str(val).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _offsite_run(config, args, env=None):
     """Startet den offsite-Container fuer einen einzelnen Lauf.
 
     Der Service liegt im Profil "manual" (kein Dauerlaeufer), deshalb hier
@@ -51,10 +64,61 @@ def _offsite_run(config, args):
         "-T",
         "--name",
         name,
-        "offsite",
     ]
+    for key, value in (env or {}).items():
+        cmd += ["-e", f"{key}={value}"]
+    cmd += ["offsite"]
     cmd += args
     return subprocess.check_call(cmd)
+
+
+def _dump_db_for_offsite(config):
+    """Frischen Datenbank-Dump fuer den Offsite-Lauf ziehen.
+
+    Laeuft Barman, ist die Datenbank ueber WAL + Basisbackup schon im Archiv
+    und hier ist nichts zu tun. Laeuft es nicht, faende der Container nur den
+    Filestore vor - und ein Archiv aus lauter Anhaengen sieht aus wie ein
+    Backup, bis jemand wiederherstellen will.
+
+    Gibt den Dateinamen zurueck, den der Container einsammeln soll.
+    """
+    from .lib_backup import _backup_pgdump
+
+    dumps = Path(config.dumps_path)
+    dumps.mkdir(parents=True, exist_ok=True)
+    final = dumps / OFFSITE_DB_DUMP
+    # Erst daneben schreiben, dann umbenennen: bricht der Dump ab, bleibt der
+    # Stand des Vorlaufs liegen, statt dass beide Staende fehlen.
+    tmp = dumps / (OFFSITE_DB_DUMP + ".new")
+    if tmp.exists():
+        tmp.unlink()
+
+    click.secho(
+        f"offsite: kein Barman aktiv - ziehe einen frischen Dump nach {final}",
+        fg="yellow",
+    )
+    _backup_pgdump(
+        config,
+        tmp,
+        config.DBNAME,
+        config.DB_HOST,
+        config.DB_PORT,
+        config.DB_USER,
+        config.DB_PWD,
+        "custom",
+        # Unkomprimiert (-Z0), und das ist hier kein Versehen: borg vergleicht
+        # den Dump mit dem der Vornacht und legt nur die geaenderten Bloecke ab
+        # - komprimiert wird danach ohnehin ueber OFFSITE_COMPRESSION. Ein
+        # gzip-Dump aendert sich dagegen auf ganzer Laenge und landet jede
+        # Nacht komplett neu im Repository.
+        0,
+        1,
+        False,
+        False,
+        (),
+    )
+    tmp.replace(final)
+    return final.name
 
 
 @offsite.command(
@@ -80,7 +144,17 @@ def offsite_backup(config):
             fg="red",
         )
         return
-    _offsite_run(config, ["backup"])
+
+    # Ohne Barman gibt es keinen Datenbankstand, den der Container einsammeln
+    # koennte - also legen wir ihn hier an. Mit OFFSITE_INCLUDE_DUMPS=1 ist
+    # DUMPS_PATH ohnehin komplett dabei, dann waere es doppelte Arbeit.
+    env = {}
+    if not _truthy(getattr(config, "run_barman", "0")) and not _truthy(
+        getattr(config, "OFFSITE_INCLUDE_DUMPS", "0")
+    ):
+        env["OFFSITE_DB_DUMP"] = _dump_db_for_offsite(config)
+
+    _offsite_run(config, ["backup"], env=env)
 
 
 @offsite.command(

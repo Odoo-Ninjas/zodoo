@@ -23,8 +23,13 @@ require_config() {
         "OFFSITE_REPO ist leer - kein Offsite-Ziel konfiguriert."
     [ -n "${OFFSITE_PASSPHRASE:-}" ] || die \
         "OFFSITE_PASSPHRASE ist leer. Ohne Passphrase kein verschluesseltes Repository."
-    [ -f "$SSH_KEY_SRC" ] || die \
-        "Kein SSH-Key unter $SSH_KEY_SRC (Host: \$OFFSITE_SSH_DIR/id_ed25519)."
+    # Der Schluessel gehoert zum Transport, nicht zum Repository: ein lokales
+    # Ziel (eingehaengte Platte) braucht keinen, und ihn dort zu verlangen
+    # legte jedes Backup ohne entfernten Speicher lahm.
+    if is_remote_repo; then
+        [ -f "$SSH_KEY_SRC" ] || die \
+            "Kein SSH-Key unter $SSH_KEY_SRC (Host: \$OFFSITE_SSH_DIR/id_ed25519)."
+    fi
 }
 
 # Zwei Arten von Zielen:
@@ -144,8 +149,20 @@ do_backup() {
     # Nur Quellen aufnehmen, die es auch gibt: ohne Barman ist /source/barman
     # leer - borg wuerde sonst mit "path does not exist" abbrechen und das
     # gesamte Backup verlieren.
-    local sources=()
-    [ -d /source/barman ] && sources+=(/source/barman)
+    #
+    # have_db haelt fest, ob ueberhaupt ein Datenbankstand im Archiv landet.
+    # Das ist der Kern: Filestore gibt es immer, die Datenbank nicht. Ohne
+    # diese Buchhaltung lief ein Backup ohne Barman und ohne Dump klaglos
+    # durch und sicherte nur die Dateien - der Fehler faellt dann genau dann
+    # auf, wenn man das Backup braucht.
+    local sources=() have_db=0
+
+    # -d allein genuegt nicht: das barman_data-Volume ist auch bei RUN_BARMAN=0
+    # deklariert (siehe docker-compose.yml) und dann ein leeres Verzeichnis.
+    if [ -d /source/barman ] && [ -n "$(ls -A /source/barman 2>/dev/null)" ]; then
+        sources+=(/source/barman)
+        have_db=1
+    fi
 
     # ODOO_FILES ist ein HOST-weiter Pool mit einem Unterordner je Datenbank
     # (filestore/<db>) - auf einem Rechner mit mehreren Instanzen liegen darin
@@ -165,9 +182,32 @@ do_backup() {
     # Zeit ohne zusaetzliche Sicherheit.
     if [ "${OFFSITE_INCLUDE_DUMPS:-0}" = "1" ] && [ -d /source/dumps ]; then
         sources+=(/source/dumps)
+        have_db=1
+    elif [ -n "${OFFSITE_DB_DUMP:-}" ]; then
+        # Laeuft kein Barman, legt `odoo offsite backup` unmittelbar vor
+        # diesem Lauf einen frischen Dump unter diesem Namen ab und reicht
+        # ihn hier durch (siehe lib_offsite.py). Fehlt er trotz Ankuendigung,
+        # ist beim Dumpen etwas schiefgegangen - dann lieber abbrechen als
+        # ein Archiv ohne Datenbank anzulegen, das man fuer vollstaendig haelt.
+        if [ -f "/source/dumps/$OFFSITE_DB_DUMP" ]; then
+            sources+=("/source/dumps/$OFFSITE_DB_DUMP")
+            have_db=1
+        else
+            die "Der angekuendigte Datenbank-Dump /source/dumps/$OFFSITE_DB_DUMP fehlt."
+        fi
     fi
 
     [ ${#sources[@]} -gt 0 ] || die "Keine Backup-Quellen vorhanden."
+
+    # Ein Archiv ohne Datenbank ist kein Backup, sondern eine Falle: es sieht
+    # aus wie eines, bis jemand wiederherstellen will.
+    if [ "$have_db" != "1" ] && [ "${OFFSITE_ALLOW_WITHOUT_DB:-0}" != "1" ]; then
+        die "Kein Datenbankstand im Backup - weder Barman (RUN_BARMAN=1) noch ein Dump.
+Es wuerden nur die Dateien gesichert. Abhilfe: RUN_BARMAN=1 setzen (empfohlen,
+bringt zusaetzlich Point-in-Time-Recovery) oder 'odoo offsite backup' benutzen,
+das ohne Barman selbst einen Dump zieht. Wenn die Datenbank nachweislich
+anderswo gesichert wird, schaltet OFFSITE_ALLOW_WITHOUT_DB=1 diese Pruefung ab."
+    fi
 
     echo "offsite: sichere ${sources[*]} nach $BORG_REPO::$archive"
     borg create \
