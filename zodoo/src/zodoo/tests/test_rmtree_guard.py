@@ -51,11 +51,24 @@ def test_removes_run_directory_of_project(config):
     assert not rundir.exists()
 
 
-def test_refuses_unrelated_path(config, tmp_path):
-    other = tmp_path / "somewhere_else"
-    other.mkdir()
+def test_refuses_unrelated_path(config):
+    # Absichtlich kein tmp_path: der Schutz laesst alles durch, was "/tmp"
+    # im Pfad hat (siehe test_allows_tmp_paths), und pytest legt tmp_path
+    # auf Linux unter /tmp an - der Test wuerde dort also nie ausloesen.
+    # Der Pfad muss nicht existieren, die Pruefung greift vor jedem
+    # Dateisystem-Zugriff.
+    other = Path("/opt/zodoo-does-not-exist/somewhere_else")
 
     with pytest.raises(Exception):
         _rmtree(config, other)
 
-    assert other.exists()
+
+def test_allows_tmp_paths(config, tmp_path):
+    # Dokumentiert die bestehende Ausnahme fuer /tmp: temporaere Pfade
+    # duerfen weg, egal wo sie liegen.
+    scratch = tmp_path / "tmp" / "scratch"
+    scratch.mkdir(parents=True)
+
+    _rmtree(config, scratch)
+
+    assert not scratch.exists()
