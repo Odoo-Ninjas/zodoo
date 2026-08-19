@@ -949,10 +949,14 @@ def __rmtree(config, path):
     if not path.startswith("/"):
         raise Exception(f"Not allowed: {path}")
     if config:
-        if not any(
-            path.startswith(str(config.dirs["odoo_home"]) + x)
-            for x in ["/tmp", "/run/"]
-        ):
+        allowed_prefixes = [
+            str(config.dirs["odoo_home"]) + "/tmp",
+            str(config.dirs["odoo_home"]) + "/run/",
+            # der filestore einer einzelnen datenbank, siehe
+            # _cleanup_local_files
+            str(config.dirs["odoo_data_dir"]).rstrip("/") + "/filestore/",
+        ]
+        if not any(path.startswith(x) for x in allowed_prefixes):
             if any(x in path for x in ["/tmp", ".pyenv"]):
                 pass
             elif str(path) in map(str, config.dirs.values()):
