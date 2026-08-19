@@ -1,0 +1,24 @@
+type: fix
+description: |
+  Ein veralteter requirements.hash fuehrt nicht mehr stillschweigend dazu, dass
+  Maschinen weiter das alte Image ziehen.
+
+  Hintergrund: der Image-Tag wird aus requirements.hash und requirements.txt.all
+  berechnet - beide sind generierte Dateien. Wer requirements.static (oder eine
+  Modul-Abhaengigkeit) aendert und kein "odoo reload" laufen laesst, behaelt
+  denselben Tag, obwohl eine neue Bibliothek gefordert ist. Es kam keine
+  Meldung, und die neue Lib fehlte in jedem Image.
+
+  Was sich fuer den Tester aendert:
+  - "odoo build" prueft das jetzt selbst und regeneriert die Dateien bei Bedarf
+    (per "odoo reload --no-gimera-apply", also ohne Submodule anzufassen).
+  - Neues Kommando "odoo requirements-check" zum Pruefen ohne Build; mit "--fix"
+    wird direkt regeneriert. Exit-Code 1, wenn veraltet - damit auch in CI oder
+    pre-commit nutzbar.
+  - Sind die generierten Dateien nach dem Regenerieren nicht committed, kommt
+    eine Warnung: sonst rechnen alle anderen Maschinen weiter mit dem alten Tag.
+
+  Zum Nachstellen: in einem Projekt eine Zeile in requirements.static ergaenzen,
+  "odoo requirements-check" aufrufen - es muss die Abweichung mit altem und
+  erwartetem Hash melden. Nach "odoo reload" ist die Meldung weg.
+breaking: false
