@@ -1,5 +1,11 @@
 # Changelog
 
+## 8.0.6
+
+
+- **Fix**: Offsite-Backup: die Datenbank ist jetzt garantiert im Archiv - vorher konnte sie lautlos fehlen. Der Borg-Lauf nahm mit, was er vorfand: /source/barman (nur wenn RUN_BARMAN=1) und den Filestore. RUN_BARMAN steht per Default auf 0, also sicherte eine normale Maschine mit RUN_OFFSITE=1 ausschliesslich die Anhaenge und meldete Erfolg. Das faellt erst auf, wenn man wiederherstellen will. Jetzt zieht 'odoo offsite backup' ohne Barman vorab selbst einen frischen Dump (fester Name offsite-db.dump in DUMPS_PATH, wird jeden Lauf ueberschrieben, unkomprimiert damit borg dagegen deduplizieren kann) und reicht ihn dem Container durch; findet der Container weder einen Barman-Stand noch einen Dump, bricht er mit Erklaerung ab, statt ein unvollstaendiges Archiv anzulegen. OFFSITE_ALLOW_WITHOUT_DB=1 schaltet die Pruefung ab, wenn die Datenbank nachweislich woanders gesichert wird. Ausserdem verlangte require_config bisher immer einen SSH-Key, auch bei einem lokalen Repository-Pfad - damit scheiterte jedes Backup auf eine eingehaengte Platte, obwohl setup_ssh dort gar keinen Key benutzt; der Key wird jetzt nur noch fuer ssh://-Ziele gefordert. Zum Testen: auf einer Maschine mit RUN_BARMAN=0 und RUN_OFFSITE=1 'odoo offsite backup' laufen lassen und mit 'odoo offsite list' bzw. 'odoo offsite borg list ::<archiv>' pruefen, dass offsite-db.dump und der Filestore im Archiv stehen.
+
+
 ## 8.0.5
 
 
