@@ -1,3 +1,0 @@
-type: breaking
-description: "Offsite-Backup laeuft auf restic statt BorgBackup; neuer Befehl 'odoo offsite register' meldet die Instanz am Backup-Server an"
-breaking: true

@@ -1,5 +1,11 @@
 # Changelog
 
+## 9.0.0
+
+
+- **BREAKING**: Offsite-Backup laeuft auf restic statt BorgBackup; neuer Befehl 'odoo offsite register' meldet die Instanz am Backup-Server an
+
+
 ## 8.0.6
 
 
