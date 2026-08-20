@@ -180,20 +180,37 @@ List available backup files.
 ## Encrypted Offsite Backup
 
 Pushes the Barman catalog and this database's filestore to a remote repository
-using [BorgBackup](https://borgbackup.org) — for example a Hetzner Storage Box,
-which speaks Borg natively on port 23.
+using [restic](https://restic.net). The usual target is our own backup server
+(`restic-backup`), which runs `rest-server` in **append-only** mode: this
+machine may write but cannot delete anything, so a compromised Odoo host cannot
+destroy the history. A Hetzner Storage Box (`sftp:`) or a mounted filesystem
+work too.
 
-Encryption happens **on this machine** before anything leaves it
-(`repokey-blake2`): the storage provider only ever sees ciphertext and cannot
-read or silently alter the backup.
+Encryption happens **on this machine** before anything leaves it: the storage
+provider only ever sees ciphertext and cannot read or silently alter the backup.
 
-Enable with `RUN_OFFSITE=1` plus `OFFSITE_REPO` and `OFFSITE_PASSPHRASE`, then
-`odoo reload && odoo build offsite`. See `offsite/default.settings` for the
-retention, compression and bandwidth knobs.
+For our backup server, do not wire this up by hand — run `odoo offsite
+register` (see below). Otherwise set `RUN_OFFSITE=1` plus `OFFSITE_REPO` and
+`OFFSITE_PASSPHRASE`, then `odoo reload && odoo build offsite`. See
+`offsite/default.settings` for the retention, compression and bandwidth knobs.
 
 > **Keep the passphrase somewhere other than this machine.** Without it the
 > backup cannot be opened — and it is needed precisely when the machine is
 > gone.
+
+A run **aborts loudly** when no database state would end up in the snapshot —
+neither via Barman nor via a dump. A snapshot of attachments alone looks like a
+backup until someone needs to restore. `OFFSITE_ALLOW_WITHOUT_DB=1` switches
+that check off, and should only be used when the database is provably backed up
+elsewhere.
+
+### `odoo offsite register`
+
+Request a customer area on the backup server. The first call files the request;
+an admin approves it in the server's admin page, and the same call then picks up
+credentials plus the server certificate and writes them into the settings. The
+repo key is shown to the admin **once** — it goes into 1Password there, and the
+backup server does not keep it.
 
 ### `odoo offsite backup`
 
@@ -213,11 +230,14 @@ Verify integrity by re-reading the data. Takes time and costs traffic.
 ### `odoo offsite prune`
 
 Apply the retention rules now (`OFFSITE_KEEP_DAILY` / `_WEEKLY` / `_MONTHLY`).
+Against an append-only target this is refused with an explanation: retention has
+to run on the backup server, and it must actually run there — otherwise the
+repository grows without bound.
 
-### `odoo offsite borg <args...>`
+### `odoo offsite restic <args...>`
 
-Escape hatch: run an arbitrary `borg` command against the repository, e.g.
-`odoo offsite borg extract ::archive-name`.
+Escape hatch: run an arbitrary `restic` command against the repository, e.g.
+`odoo offsite restic snapshots --compact`.
 
 ---
 

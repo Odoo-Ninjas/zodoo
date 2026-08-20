@@ -4,20 +4,21 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 #___SNIPPET_APT_PROXY___
 
-# borgbackup bringt die Verschluesselung mit (repokey-blake2), openssh-client
-# den Transport zur Storage Box. Mehr braucht der Container nicht - er liest
-# nur read-only gemountete Verzeichnisse und schiebt Chiffrat nach draussen.
+# restic bringt Verschluesselung und Deduplizierung mit; openssh-client den
+# Transport zu einem sftp-Ziel (Storage Box). Mehr braucht der Container nicht -
+# er liest nur read-only gemountete Verzeichnisse und schiebt Chiffrat nach
+# draussen.
 RUN #___SNIPPET_APT_INSTALL___ \
-    borgbackup openssh-client ca-certificates tzdata && \
+    restic openssh-client ca-certificates tzdata && \
     apt-get clean -y && \
     rm -rf /var/lib/apt/lists/*
 
-# Borg legt Cache und Repo-Kenner (security dir) hierhin; als Volume gemountet,
-# damit die Deduplizierung ueber Laeufe hinweg funktioniert.
-ENV BORG_BASE_DIR=/var/lib/borg
-ENV BORG_CACHE_DIR=/var/lib/borg/cache
-ENV BORG_SECURITY_DIR=/var/lib/borg/security
-ENV BORG_KEYS_DIR=/var/lib/borg/keys
+# Der restic-Cache (Index der bereits uebertragenen Bloecke) macht den
+# Unterschied zwischen "dedupliziert inkrementell" und "liest jede Nacht alles
+# neu ein" - er wird als Volume gemountet und muss ueber Laeufe hinweg bestehen
+# bleiben.
+ENV RESTIC_CACHE_DIR=/var/lib/restic/cache
+ENV HOME=/var/lib/restic
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod a+x /entrypoint.sh

@@ -1,8 +1,8 @@
 # manage-order: 520
 volumes:
-  # Der Borg-Cache (Chunk-Index) macht den Unterschied zwischen "dedupliziert
-  # inkrementell" und "liest jede Nacht alles neu ein" - er muss ueber Laeufe
-  # hinweg bestehen bleiben.
+  # Der restic-Cache (Index der bereits uebertragenen Bloecke) macht den
+  # Unterschied zwischen "dedupliziert inkrementell" und "liest jede Nacht alles
+  # neu ein" - er muss ueber Laeufe hinweg bestehen bleiben.
   offsite_cache:
   # Auch hier deklariert, nicht nur in barman/docker-compose.yml: bei
   # RUN_BARMAN=0 ist die Barman-Compose gar nicht Teil des Merges, und ein
@@ -22,6 +22,9 @@ services:
     environment:
       OFFSITE_REPO: $OFFSITE_REPO
       OFFSITE_PASSPHRASE: $OFFSITE_PASSPHRASE
+      # Zugang zum Bereich auf dem Backup-Server (rest:-Ziele).
+      OFFSITE_REST_USER: $OFFSITE_REST_USER
+      OFFSITE_REST_PASSWORD: $OFFSITE_REST_PASSWORD
       OFFSITE_KEEP_DAILY: $OFFSITE_KEEP_DAILY
       OFFSITE_KEEP_WEEKLY: $OFFSITE_KEEP_WEEKLY
       OFFSITE_KEEP_MONTHLY: $OFFSITE_KEEP_MONTHLY
@@ -43,7 +46,7 @@ services:
       - barman_data:/source/barman:ro
       - $ODOO_FILES:/source/filestore:ro
       - $DUMPS_PATH:/source/dumps:ro
-      - offsite_cache:/var/lib/borg
+      - offsite_cache:/var/lib/restic
       # Fester Pfad statt Setting: Settings-Werte werden nicht rekursiv
       # expandiert, ein "$HOST_RUN_DIR/offsite" aus default.settings kaeme hier
       # woertlich an und compose wuerde es als Volume-NAMEN lesen.
