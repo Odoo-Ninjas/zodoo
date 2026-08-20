@@ -1,43 +1,63 @@
 RUN_OFFSITE=0
-# Verschluesseltes Offsite-Backup mit BorgBackup.
+# Verschluesseltes Offsite-Backup mit restic.
 #
-# Borg verschluesselt und dedupliziert auf DIESER Maschine, bevor irgendetwas
-# das Netz verlaesst (Modus repokey-blake2: AES-256-CTR + BLAKE2b-MAC). Der
-# Speicheranbieter - z.B. eine Hetzner Storage Box - sieht ausschliesslich
-# Chiffrat und kann die Daten weder lesen noch unbemerkt veraendern.
+# restic verschluesselt und dedupliziert auf DIESER Maschine, bevor irgendetwas
+# das Netz verlaesst. Der Speicherort sieht ausschliesslich Chiffrat und kann
+# die Daten weder lesen noch unbemerkt veraendern.
 #
-# Repository-URL. Hetzner Storage Boxes sprechen Borg direkt auf Port 23:
-#   ssh://u123456@u123456.your-storagebox.de:23/./zodoo/<projekt>
+# Der Regelfall ist unser eigener Backup-Server (restic-backup): dort laeuft
+# rest-server im Modus --append-only, jede Instanz hat einen eigenen Bereich.
+# Diese Maschine darf dort schreiben, aber NICHTS loeschen - eine uebernommene
+# Odoo-Maschine kann die Sicherungen also nicht zerstoeren. Die Aufbewahrung
+# laeuft dafuer serverseitig (siehe OFFSITE_KEEP_*).
+#
+# Den Bereich beantragt man nicht per Hand, sondern mit
+#   odoo offsite register
+# Das fragt einen Kundenbereich an; ein Admin gibt ihn auf dem Backup-Server
+# frei, danach holt derselbe Befehl Zugangsdaten und Serverzertifikat ab und
+# schreibt sie in die Settings.
+#
+# Repository-Adresse. Drei Formen:
+#   rest:https://10.222.0.106:8000/<bereich>/   unser Backup-Server (Regelfall)
+#   sftp:u123456@u123456.your-storagebox.de:23/zodoo/<projekt>   Storage Box
+#   /pfad/auf/eingehaengter/platte
 # Leer = Offsite-Backup ist nicht konfiguriert; `odoo offsite backup` bricht
 # dann mit einer Erklaerung ab, statt still nichts zu tun.
 OFFSITE_REPO=
+# Zugang zum Bereich auf dem Backup-Server (nur bei rest:-Zielen). Er regelt,
+# WER schreiben darf - nicht, wer lesen kann. Das macht die Passphrase.
+# Wird von `odoo offsite register` gesetzt.
+OFFSITE_REST_USER=
+OFFSITE_REST_PASSWORD=
 # Host-Verzeichnis, das als Offsite-Ziel eingehaengt wird (NFS-Platte o.ae.).
-# Nur noetig, wenn OFFSITE_REPO ein Pfad und keine ssh://-Adresse ist; im
+# Nur noetig, wenn OFFSITE_REPO ein Pfad und keine rest:/sftp:-Adresse ist; im
 # Container erscheint es unter demselben Pfad, damit OFFSITE_REPO auf beiden
 # Seiten gleich lautet.
 OFFSITE_LOCAL_DIR=
 # Passphrase des Repository-Schluessels. OHNE SIE SIND DIE BACKUPS VERLOREN -
-# sie muss ausserhalb dieser Maschine hinterlegt sein (im Hosting-Backend am
-# Projekt), sonst ist ein Offsite-Backup wertlos: genau dann, wenn man es
-# braucht, ist die Maschine weg.
+# sie muss ausserhalb dieser Maschine hinterlegt sein (1Password-Vault
+# Infrastructure-Backup bzw. im Hosting-Backend am Projekt), sonst ist ein
+# Offsite-Backup wertlos: genau dann, wenn man es braucht, ist die Maschine weg.
 OFFSITE_PASSPHRASE=
-# Der SSH-Key fuer das Repository wird unter $HOST_RUN_DIR/offsite/id_ed25519
-# erwartet (Rechte 0600) und read-only in den Container gehaengt. Der Pfad ist
-# bewusst fest verdrahtet und kein Setting: Settings-Werte werden nicht
-# rekursiv expandiert, ein Pfad mit $HOST_RUN_DIR darin kaeme in der Compose
-# woertlich an.
+# Fuer sftp-Ziele wird der SSH-Key unter $HOST_RUN_DIR/offsite/id_ed25519
+# erwartet (Rechte 0600) und read-only in den Container gehaengt; das
+# Zertifikat unseres Backup-Servers liegt daneben als rest-server.crt und wird
+# von `odoo offsite register` dort abgelegt. Die Pfade sind bewusst fest
+# verdrahtet und keine Settings: Settings-Werte werden nicht rekursiv
+# expandiert, ein Pfad mit $HOST_RUN_DIR darin kaeme in der Compose woertlich an.
 # Zeitplan des taeglichen Offsite-Laufs. Absichtlich NACH dem Barman-Basis-
 # backup (BARMAN_BACKUP_CRON, 02:00), damit der Lauf die frische Basis
 # mitnimmt statt der von gestern.
 OFFSITE_BACKUP_CRON=0 4 * * *
-# Aufbewahrung im Offsite-Repository (borg prune).
+# Aufbewahrung. Bei append-only-Zielen (unser Backup-Server) kann der Client
+# nicht aufraeumen - diese Werte beschreiben dann, was SERVERSEITIG gelten soll.
+# Bei sftp-/Pfad-Zielen wendet der Lauf sie nach jedem Backup selbst an.
 OFFSITE_KEEP_DAILY=7
 OFFSITE_KEEP_WEEKLY=4
 OFFSITE_KEEP_MONTHLY=6
-# Kompression. zstd,3 ist der vernuenftige Kompromiss aus Durchsatz und
-# Volumen; `none` fuer bereits komprimierte Quellen, `zstd,10` wenn die
-# Leitung teurer ist als die CPU.
-OFFSITE_COMPRESSION=zstd,3
+# Kompression im Repository: auto (Vorgabe, guter Kompromiss), off wenn die
+# Quellen schon komprimiert sind, max wenn die Leitung teurer ist als die CPU.
+OFFSITE_COMPRESSION=auto
 # Zusaetzlich die Dump-Dateien aus $DUMPS_PATH mitsichern. Standardmaessig
 # aus: mit Barman ist die Datenbank ueber WAL + Basisbackup schon abgedeckt,
 # und in /host/dumps liegen oft viele alte Staende.
@@ -50,7 +70,7 @@ OFFSITE_INCLUDE_DUMPS=0
 #
 # Der Offsite-Lauf bricht ab, wenn kein Datenbankstand ins Archiv kaeme -
 # weder ueber Barman noch ueber einen Dump. Das ist Absicht: der Filestore ist
-# immer da, die Datenbank nicht, und ein Archiv aus lauter Anhaengen sieht aus
+# immer da, die Datenbank nicht, und ein Snapshot aus lauter Anhaengen sieht aus
 # wie ein Backup, bis jemand wiederherstellen will. 1 schaltet die Pruefung ab
 # und sichert wissentlich nur die Dateien - nur sinnvoll, wenn die Datenbank
 # nachweislich woanders gesichert wird.
@@ -62,3 +82,5 @@ OFFSITE_UPLOAD_LIMIT=0
 # Ballast - auf DEVMODE-Maschinen wird es abgeschaltet (siehe
 # __after_settings.py). 1 erzwingt es trotzdem, z.B. zum Testen.
 OFFSITE_FORCE_IN_DEVMODE=0
+# Anmeldedienst des Backup-Servers, den `odoo offsite register` anspricht.
+OFFSITE_ENROLL_URL=https://10.222.0.106:8443
