@@ -146,6 +146,30 @@ setting1=value1
 channels=root:4
 ```
 
+## Encrypted Offsite Backup (restic)
+
+Full guide: [11-offsite-backup.md](./11-offsite-backup.md). Against our own
+backup server, do not set these by hand — `odoo offsite register` fills them in.
+
+| Setting                    | Default                     | Description                                                                                                                                                                                                                                              |
+| -------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RUN_OFFSITE`              | `0`                         | Enables the offsite service. On DEVMODE machines it stays off unless `OFFSITE_FORCE_IN_DEVMODE=1`.                                                                                                                                                       |
+| `OFFSITE_REPO`             | _(empty)_                   | Target: `rest:https://host:8000/<area>/` (our backup server), `sftp:user@host:port/path`, or a path on a mounted filesystem. Empty means "not configured" — the backup command then explains itself instead of doing nothing.                            |
+| `OFFSITE_REST_USER`        | _(empty)_                   | Area account on the backup server (`rest:` targets). Governs who may **write**, not who may read.                                                                                                                                                        |
+| `OFFSITE_REST_PASSWORD`    | _(empty)_                   | Password for that account.                                                                                                                                                                                                                               |
+| `OFFSITE_PASSPHRASE`       | _(empty)_                   | Repository key. **Without it the backups are lost** — it must exist outside this machine (1Password / the hosting backend).                                                                                                                              |
+| `OFFSITE_ENROLL_URL`       | `https://10.222.0.106:8443` | Enrollment service that `odoo offsite register` talks to.                                                                                                                                                                                                |
+| `OFFSITE_LOCAL_DIR`        | _(empty)_                   | Host directory mounted into the container — only for path targets, so `OFFSITE_REPO` reads the same on both sides.                                                                                                                                       |
+| `OFFSITE_BACKUP_CRON`      | `0 4 * * *`                 | Nightly run, deliberately after the Barman base backup (02:00).                                                                                                                                                                                          |
+| `OFFSITE_KEEP_DAILY`       | `7`                         | Retention. Against append-only targets these describe what should apply **server-side**; the client cannot prune there.                                                                                                                                  |
+| `OFFSITE_KEEP_WEEKLY`      | `4`                         |                                                                                                                                                                                                                                                          |
+| `OFFSITE_KEEP_MONTHLY`     | `6`                         |                                                                                                                                                                                                                                                          |
+| `OFFSITE_COMPRESSION`      | `auto`                      | `auto`, `off` (already-compressed sources) or `max` (line costs more than CPU).                                                                                                                                                                          |
+| `OFFSITE_INCLUDE_DUMPS`    | `0`                         | Also back up all of `$DUMPS_PATH`. Off by default: with Barman the database is already covered, and the dumps folder often holds many old states.                                                                                                        |
+| `OFFSITE_ALLOW_WITHOUT_DB` | `0`                         | Emergency exit for the completeness check. The run aborts when no database state would be in the snapshot — a snapshot of attachments alone looks like a backup until someone restores. Only set this when the database is provably backed up elsewhere. |
+| `OFFSITE_UPLOAD_LIMIT`     | `0`                         | Upload brake in KiB/s, `0` = unlimited.                                                                                                                                                                                                                  |
+| `OFFSITE_FORCE_IN_DEVMODE` | `0`                         | Run offsite backups on a DEVMODE machine anyway (testing).                                                                                                                                                                                               |
+
 ## Update strategy
 
 | Setting           | Value     | Description                                                     |

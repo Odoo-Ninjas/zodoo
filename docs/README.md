@@ -12,6 +12,7 @@
 | [08-settings-reference.md](./08-settings-reference.md) | All settings explained                      |
 | [09-manifest.md](./09-manifest.md)                     | MANIFEST file format and fields             |
 | [10-troubleshooting.md](./10-troubleshooting.md)       | Common problems and solutions               |
+| [11-offsite-backup.md](./11-offsite-backup.md)         | Encrypted offsite backup with restic        |
 
 These files are the source of truth. (The former online copy at
 docs.zebroo.de is gone; internal documentation now lives in Odoo Knowledge.)

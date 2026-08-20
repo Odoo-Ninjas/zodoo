@@ -10,6 +10,8 @@ Source: https://github.com/Odoo-Ninjas/zodoo
 - Provides a single CLI (`odoo`) for all lifecycle operations
 - Generates `docker-compose.yml` dynamically from a settings file
 - Handles backup/restore, module updates, registry push/pull, debugging
+- Encrypted offsite backup with restic, append-only against our backup
+  server (see [11-offsite-backup.md](./11-offsite-backup.md))
 
 ## Architecture
 
