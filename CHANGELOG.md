@@ -1,5 +1,11 @@
 # Changelog
 
+## 9.0.1
+
+
+- **Docs**: zodoo-Doku zum Offsite-Backup auf restic aktualisiert: neue Seite 11-offsite-backup.md, Settings-Referenz und Overview
+
+
 ## 9.0.0
 
 
