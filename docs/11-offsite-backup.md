@@ -1,0 +1,193 @@
+# Encrypted Offsite Backup (restic)
+
+The `offsite` service pushes an encrypted, deduplicated copy of a project's
+database and filestore off the machine. Encryption happens **here**, before
+anything leaves the container — the storage side only ever sees ciphertext.
+
+Since 2026-08 this runs on [restic](https://restic.net). It replaced
+BorgBackup; there is deliberately only one mechanism, so nobody has to work out
+which of two is active on a given machine.
+
+## The shape of it
+
+```
+Odoo machine                                     backup server
+┌───────────────────────────────┐                ┌──────────────────────────┐
+│ offsite container             │                │ rest-server              │
+│  restic backup                │──── HTTPS ────▶│  --append-only           │
+│  (encrypts + deduplicates)    │   port 8000    │  --private-repos         │
+└───────────────────────────────┘                └───────────┬──────────────┘
+   sources (read-only):                                      │
+     /source/barman     Barman catalog (WAL + base backup)    ▼
+     /source/filestore  this database's filestore      one repository
+     /source/dumps      optional / the fresh dump      per customer area
+```
+
+Three properties matter, and they are the reason for this setup:
+
+- **The storage side cannot read the backup.** restic encrypts on the source
+  machine. Whoever holds the disk — a provider, a foreign NFS export, a stolen
+  drive — sees ciphertext.
+- **The source machine cannot delete the backup.** `rest-server --append-only`
+  accepts writes and refuses removals. A compromised Odoo host can therefore not
+  destroy the history. This is the part a plain NFS mount can never provide, and
+  it is the main reason the target is our own server rather than a share.
+- **One customer cannot see another.** With `--private-repos` every account is
+  confined to the path matching its username; anything else answers 401.
+
+The trade-off of append-only is that **the client can no longer clean up**.
+Retention has to run on the server side, and it has to actually run there — see
+[Retention](#retention).
+
+## Targets
+
+| `OFFSITE_REPO`                               | What it is                                                                                    |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `rest:https://10.222.0.106:8000/<area>/`     | Our backup server. The normal case, append-only, one area per customer.                       |
+| `sftp:u12345@u12345.your-storagebox.de:23/…` | Hetzner Storage Box or any SSH target. Key at `$HOST_RUN_DIR/offsite/id_ed25519` (mode 0600). |
+| `/mnt/somewhere/repo`                        | A mounted filesystem. Also set `OFFSITE_LOCAL_DIR` so the path exists inside the container.   |
+
+For a path target the run refuses to start when the parent directory is
+missing. That is on purpose: an unmounted disk looks exactly like an empty
+repository, and restic would happily create a fresh one on the local disk — which
+is only discovered when the backup is needed.
+
+## Setting it up against our backup server
+
+Do not wire this by hand. The machine asks for an area, a human approves it:
+
+```bash
+odoo offsite register
+```
+
+1. The first call files a request (area name derived from the project name) and
+   remembers request id + pickup token in `$HOST_RUN_DIR/offsite/enroll.json`.
+   No credentials exist yet.
+2. An admin opens the backup server's admin page, checks the name and approves.
+   Access password and repo key are created at that moment.
+3. Both are shown **exactly once**. The admin files them in 1Password and
+   confirms that with a checkbox. **Without that confirmation the machine does
+   not get its credentials** — a repo key that exists only on the source machine
+   is worthless precisely when it is needed.
+4. Run `odoo offsite register` again: it collects credentials and the server
+   certificate, writes them into the settings and sets `RUN_OFFSITE=1`. The
+   server then forgets the repo key.
+
+```bash
+odoo reload && odoo build offsite
+odoo offsite backup          # first run, creates the repository
+```
+
+On first contact there is no server certificate on the machine yet. It is
+fetched, pinned to `$HOST_RUN_DIR/offsite/rest-server.crt` and its fingerprint
+printed — the same trust-on-first-use as `ssh accept-new`. Any later change
+aborts the connection instead of being silently accepted.
+
+**If the machine already has a passphrase** — zCICD and the shop generate one
+per project and keep it in the backend — that passphrase stays the truth and the
+server creates no second key. Two keys for one repository is a trap, not
+redundancy.
+
+## What gets backed up — and the check that must not be lost
+
+A run collects, from read-only mounts:
+
+- `/source/barman` — the Barman catalog (WAL + base backup), only present with
+  `RUN_BARMAN=1`
+- the filestore of **this** database (`filestore/$DBNAME`), not the host-wide
+  pool; on a machine with several instances the pool holds other customers'
+  attachments
+- `/source/dumps` only with `OFFSITE_INCLUDE_DUMPS=1`, or the single fresh dump
+  that `odoo offsite backup` pulls when Barman is off
+
+**The run aborts when no database state would end up in the snapshot.** The
+filestore is always there, the database is not — and a snapshot of nothing but
+attachments looks like a backup until someone tries to restore. This is the
+failure this system had before; it must survive every future refactor.
+
+`OFFSITE_ALLOW_WITHOUT_DB=1` switches the check off. Only use it when the
+database is provably backed up elsewhere.
+
+The recommendation is `RUN_BARMAN=1`: it costs nothing extra (it runs on a disk
+that is already paid for) and adds point-in-time recovery on top.
+
+## Commands
+
+| Command                      | What it does                                                                           |
+| ---------------------------- | -------------------------------------------------------------------------------------- |
+| `odoo offsite register`      | Request a customer area, then pick up credentials after approval.                      |
+| `odoo offsite backup`        | Run a backup now. Same run as the nightly cron; a quiet no-op without `RUN_OFFSITE=1`. |
+| `odoo offsite init`          | Create the repository (the first backup does this anyway).                             |
+| `odoo offsite list`          | List snapshots.                                                                        |
+| `odoo offsite info`          | Repository stats (size, deduplication).                                                |
+| `odoo offsite check`         | Verify integrity by re-reading the data. Takes time and costs traffic.                 |
+| `odoo offsite prune`         | Apply retention. Refused against append-only targets, with an explanation.             |
+| `odoo offsite restic <args>` | Escape hatch: any `restic` command against the repository.                             |
+
+The nightly run is `OFFSITE_BACKUP_CRON` (default 04:00), deliberately after the
+Barman base backup at 02:00 so it picks up the fresh base instead of yesterday's.
+
+## Retention
+
+`OFFSITE_KEEP_DAILY` / `_WEEKLY` / `_MONTHLY` describe what should be kept.
+
+- Against `sftp:` or a path target, the run applies them itself after each backup.
+- Against our backup server (append-only) the client cannot — `odoo offsite
+prune` says so instead of failing silently. Retention runs on the server, in a
+  maintenance window, with a separate access that is not append-only.
+
+This is the point that gets forgotten in append-only setups: without server-side
+retention the repository grows without bound — at our volumes in months, not
+years.
+
+## Restoring
+
+Two things are needed: the repository address and the passphrase. There is no
+separate key file to lose.
+
+```bash
+export RESTIC_REPOSITORY="rest:https://<user>:<password>@10.222.0.106:8000/<area>/"
+export RESTIC_PASSWORD="<passphrase from 1Password>"
+restic --cacert rest-server.crt snapshots
+restic --cacert rest-server.crt restore <snapshot> --target /restore
+```
+
+Then restore the database from the dump or the Barman catalog inside it, and put
+the filestore back into `$ODOO_FILES/filestore/<db>`.
+
+A backup that has never been restored is not a backup. Plan the rehearsal; do
+not wait for the emergency to be the first attempt.
+
+## Keys
+
+| Secret                      | Operational copy                        | Authoritative copy                                     |
+| --------------------------- | --------------------------------------- | ------------------------------------------------------ |
+| `OFFSITE_PASSPHRASE`        | project settings on the machine (0600)  | 1Password — **without it the backup cannot be opened** |
+| `OFFSITE_REST_PASSWORD`     | project settings on the machine         | 1Password (same item)                                  |
+| SSH key for `sftp:` targets | `$HOST_RUN_DIR/offsite/id_ed25519`      | access credential only, not a data key                 |
+| Server certificate          | `$HOST_RUN_DIR/offsite/rest-server.crt` | public, gets distributed                               |
+
+One passphrase **per project** — a single shared one means one leak opens every
+customer. The passphrase has to sit on the source machine because the cron runs
+unattended; that is a deliberate, defensible trade-off, since whoever owns the
+machine already has the live database. The protection is aimed at the storage
+location and at the integrity of the history.
+
+## Troubleshooting
+
+| Symptom                                               | Cause / fix                                                                                                                                         |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OFFSITE_REPO ist leer`                               | No target configured. Run `odoo offsite register`.                                                                                                  |
+| `OFFSITE_REST_USER ist leer`                          | Area credentials missing — the registration never completed.                                                                                        |
+| restic refuses the connection / certificate error     | `rest-server.crt` missing or the server certificate changed. Re-run `register`; if the fingerprint really changed, find out why before trusting it. |
+| `Anmeldedienst … nicht erreichbar`                    | The enrollment service is only reachable over the zebroo VPN. Is this machine in a VPN group with the backup server?                                |
+| Backup aborts with "Kein Datenbankstand im Backup"    | Working as intended. Set `RUN_BARMAN=1`, or use `odoo offsite backup` (pulls a dump itself).                                                        |
+| Stale lock after a crash / reboot                     | The run breaks a hanging lock itself before starting. `rest-server` permits lock removal even in append-only mode.                                  |
+| Offsite target is a path and the run refuses to start | Parent directory missing — the disk is probably not mounted. Do not "fix" this by creating the directory.                                           |
+
+## Related
+
+Internal documentation on the backup server itself (isolation, the enrollment
+service, monitoring, server-side retention, the 1Password vault) lives in Odoo
+Knowledge under _Backup Plan → restic-backup — zentraler Backup-Server
+(append-only)_.
