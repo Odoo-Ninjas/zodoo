@@ -323,6 +323,31 @@ def _perform_recover(ctx, config, backup_id, target_time, target_name):
             fg="red",
         )
     Commands.invoke(ctx, "up", daemon=True, allow_build=True)
+
+    # WAL streaming does NOT resume by itself after a recovery: the timeline
+    # changed, and pg_receivewal is still holding a .partial of the old one, so
+    # the slot stays uninitialised and `receive-wal` refuses to start. Nothing
+    # says so - the instance simply stops archiving WAL, and the next
+    # `barman backup` fails with "Impossible to start the backup".
+    #
+    # Resetting the receive-wal directory drops the stale .partial and creates
+    # one for the new timeline. Without this, the advice printed below would
+    # itself fail.
+    click.secho("Resuming WAL streaming on the new timeline.", fg="yellow")
+    try:
+        _barman_exec(
+            config, ["receive-wal", "--reset", SERVER], interactive=False
+        )
+        _barman_exec(config, ["cron"], interactive=False)
+    except Exception as ex:  # noqa: BLE001
+        click.secho(
+            f"Could not resume WAL streaming automatically ({ex}).\n"
+            "WAL is NOT being archived until this is fixed. Run:\n"
+            f"  odoo barman receive-wal-reset\n"
+            "then `odoo barman check` and take a fresh `odoo barman backup`.",
+            fg="red",
+        )
+
     click.secho(
         "Recovery done. After a PITR the timeline changed - take a fresh "
         "`odoo barman backup` so future backups continue cleanly.",
@@ -484,6 +509,24 @@ def _interactive_select_target(config):
 @pass_config
 def barman_switch_wal(config):
     _barman_exec(config, ["switch-wal", "--force", "--archive", SERVER])
+
+
+@barman.command(
+    name="receive-wal-reset",
+    help=(
+        "Reset the WAL receiver so streaming resumes on the current timeline. "
+        "Needed after a recovery - which `odoo barman recover` now does itself."
+    ),
+)
+@pass_config
+def barman_receive_wal_reset(config):
+    # After a PITR the timeline changes while pg_receivewal still holds a
+    # .partial of the old one, so the replication slot stays uninitialised and
+    # nothing archives WAL any more - silently. This drops the stale file,
+    # creates one for the new timeline and lets barman's cron start the
+    # receiver again.
+    _barman_exec(config, ["receive-wal", "--reset", SERVER], interactive=False)
+    _barman_exec(config, ["cron"], interactive=False)
 
 
 Commands.register(barman_backup)

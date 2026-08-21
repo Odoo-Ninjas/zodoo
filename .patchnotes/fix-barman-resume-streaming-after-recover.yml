@@ -1,0 +1,3 @@
+type: fix
+description: "Nach 'odoo barman recover' lief der WAL-Empfang nicht von allein weiter: die Zeitlinie wechselt, pg_receivewal haelt aber noch eine .partial der alten, der Replikations-Slot bleibt uninitialisiert und es wird stillschweigend kein WAL mehr archiviert - das naechste Basisbackup scheitert dann mit 'Impossible to start the backup'. Der Recover setzt den Empfaenger jetzt selbst zurueck; dafuer gibt es auch den neuen Befehl 'odoo barman receive-wal-reset'. Ausserdem prueft ein neuer Ende-zu-Ende-Test im Bake-Lauf den Update-Guard vollstaendig: gescheitertes Update, Rueckrollen auf den vom Guard selbst gesetzten Safepoint, und dass der WAL-Empfang danach wieder laeuft."
+breaking: false

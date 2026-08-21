@@ -13,6 +13,8 @@ undoes a change against a live stack.
 from __future__ import annotations
 
 import importlib.util
+import json
+import re
 import time
 from pathlib import Path
 
@@ -413,4 +415,140 @@ def test_e2e_pitr_undoes_a_change(barman_project):
     # Promotion check: a write must succeed (not stuck in read-only recovery).
     project.run(
         "psql", "--sql", "CREATE TABLE pitr_promote_check (x int)", timeout=60
+    )
+
+
+def _fail_on_update_module(project):
+    """A module that cannot be updated: it references an xmlid that does not
+    exist, so the data load raises and `odoo update` aborts.
+
+    Deliberately a *data* error rather than a Python syntax error: it fails
+    late, after the update has already started writing, which is exactly the
+    situation the guard exists for.
+    """
+    mod = project.path / "addons_tools" / "guard_broken"
+    (mod / "views").mkdir(parents=True, exist_ok=True)
+    (mod / "__init__.py").write_text("")
+    (mod / "__manifest__.py").write_text(
+        '{"name": "guard_broken", "version": "1.0", "depends": ["base"],'
+        ' "data": ["views/broken.xml"], "installable": True}\n'
+    )
+    (mod / "views" / "broken.xml").write_text(
+        "<odoo>\n"
+        '  <record id="broken_on_purpose" model="ir.ui.view">\n'
+        '    <field name="name">broken</field>\n'
+        '    <field name="model">res.partner</field>\n'
+        '    <field name="inherit_id" ref="base.this_xmlid_does_not_exist"/>\n'
+        '    <field name="arch" type="xml"><xpath expr="//nothing"'
+        ' position="replace"/></field>\n'
+        "  </record>\n"
+        "</odoo>\n"
+    )
+    manifest = project.path / "MANIFEST"
+    data = json.loads(manifest.read_text())
+    if "guard_broken" not in data.get("install", []):
+        data.setdefault("install", []).append("guard_broken")
+    manifest.write_text(json.dumps(data, indent=4))
+    return "guard_broken"
+
+
+@pytest.mark.slow
+@requires_full_stack
+def test_e2e_update_guard_rewinds_a_failed_update(barman_project):
+    """The guard's whole promise: a failed `odoo update` can be undone.
+
+    Distinct from test_e2e_pitr_undoes_a_change, which sets its restore point by
+    hand. Here nobody sets one - the guard has to do it on its own, as part of
+    the update, and the marker has to be usable afterwards. That is the path
+    that runs in production, and it was never covered.
+
+    1. BARMAN_GUARD_UPDATE=1, a base backup exists
+    2. write a row that must survive
+    3. run an update that fails; the guard must announce a safepoint
+    4. write a row that must NOT survive (it happens after the safepoint)
+    5. recover to the announced marker
+    6. the first row is back, the second is gone, the database is writable
+    7. WAL streaming resumes - without that, backups stop silently afterwards
+    """
+    project = barman_project
+    settings = Path.home() / ".odoo" / f"settings.{project.name}"
+    settings.write_text(
+        settings.read_text() + "\nBARMAN_GUARD_UPDATE=1\n"
+    )
+    project.run("reload", timeout=60 * 10)
+    project.run("up", "-d", timeout=60 * 20)
+
+    def _backup_ready():
+        project.run("barman", "check", check=False, timeout=120)
+        return (
+            project.run("barman", "backup", check=False, timeout=600).returncode
+            == 0
+        )
+
+    _retry(
+        _backup_ready,
+        timeout=600,
+        interval=15,
+        what="a base backup to exist (the guard needs something to rewind to)",
+    )
+
+    _sql(project, "DROP TABLE IF EXISTS guard_demo")
+    _sql(project, "CREATE TABLE guard_demo (note text)")
+    _sql(project, "INSERT INTO guard_demo VALUES ('before_update')")
+
+    module = _fail_on_update_module(project)
+    res = project.run(
+        "update", module, "--no-dangling-check", check=False, timeout=60 * 30
+    )
+    assert res.returncode != 0, "the update was supposed to fail"
+
+    out = (res.stdout or "") + (res.stderr or "")
+    markers = re.findall(r"pre_update_\d{14}", out)
+    assert markers, f"the guard announced no safepoint:\n{out[-3000:]}"
+    marker = markers[0]
+
+    # After the safepoint, so it must not survive the rewind.
+    _sql(project, "INSERT INTO guard_demo VALUES ('after_safepoint')")
+    project.run("barman", "switch-wal", check=False, timeout=180)
+    # Give barman's ~30s cron a couple of cycles to move the WAL holding the
+    # safepoint into the catalog before the (one-shot, destructive) recover.
+    time.sleep(75)
+
+    project.run_force(
+        "barman", "recover", "--target-name", marker, timeout=60 * 20
+    )
+
+    _retry(
+        lambda: project.run(
+            "psql", "--sql", "SELECT 1", check=False, timeout=60
+        ).returncode
+        == 0,
+        timeout=300,
+        interval=5,
+        what="postgres to accept connections after the rewind",
+    )
+
+    notes = _sql(project, "SELECT note FROM guard_demo")
+    assert "before_update" in notes, notes
+    assert "after_safepoint" not in notes, notes
+
+    # Writable, i.e. promoted rather than stuck in read-only recovery.
+    _sql(project, "INSERT INTO guard_demo VALUES ('after_rewind')")
+
+    # The module must not be installed - the update failed and was undone.
+    installed = _sql(
+        project,
+        f"SELECT count(*) FROM ir_module_module "
+        f"WHERE name='{module}' AND state='installed'",
+    )
+    assert "0" in installed, installed
+
+    # And the part that was silently broken before: streaming has to be back,
+    # otherwise no WAL is archived from here on and the next backup fails.
+    _retry(
+        lambda: "replication slot: OK"
+        in project.run("barman", "check", check=False, timeout=180).stdout,
+        timeout=300,
+        interval=15,
+        what="WAL streaming to resume after the rewind",
     )
