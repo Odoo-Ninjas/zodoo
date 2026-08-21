@@ -145,11 +145,105 @@ either, and one alarm would arrive where two belong.
 The recommendation is `RUN_BARMAN=1`: it costs nothing extra (it runs on a disk
 that is already paid for) and adds point-in-time recovery on top.
 
+## Write-only filestore backup
+
+The restic path has one property that cannot be configured away: a machine that
+can back up can also **read** its own backup history, because deduplication
+needs the repository index and the index is encrypted (see
+[Keys](#keys)). A compromised Odoo host therefore reaches not just the live
+database but every older state as well.
+
+For the filestore that is avoidable, and cheaply, because Odoo already does the
+hard part: **every attachment is named after the SHA-1 of its content**
+(`filestore/<db>/05/055ffc5c…`). A file is written once and never changes, and
+"same content" is already "same name" — the deduplication is in the naming. So
+"what is missing at the far end?" is a pure name comparison, answerable from a
+**local ledger** without reading the target at all.
+
+Set both of these and the filestore leaves the restic path:
+
+| Setting | What it is |
+| --- | --- |
+| `OFFSITE_WO_URL` | The write-only receiver, e.g. `https://10.222.0.106:8444/<area>/` |
+| `OFFSITE_WO_RECIPIENT` | An **age public key** (`age1…`). Generate with `age-keygen`; the private key belongs in 1Password and nowhere else |
+
+```bash
+odoo offsite filestore     # or automatically as part of `odoo offsite backup`
+```
+
+What the machine can then do, and what it cannot:
+
+| | restic path | write-only path |
+| --- | --- | --- |
+| upload | yes | yes |
+| read what it uploaded | **yes, all of it** | **no** — encrypted to a public key it has no private half of |
+| delete | no (append-only) | no |
+
+When a write-only target is configured it **replaces** the restic `files`
+stream rather than running beside it. Two copies of the same attachments in two
+places is cost without redundancy, and it makes "which one do I restore from?"
+a question during an incident.
+
+### What travels, and what does not
+
+New files go up as **one bundle per run** (`tar` → `gzip` → `age`), not one
+object per file: an instance with a million attachments would otherwise mean a
+million HTTP requests. Alongside it goes a manifest:
+
+```json
+{ "run": "20260821T173222Z", "kind": "filestore",
+  "bundle": "filestore-20260821T173222Z-85914f45a55c.tar.gz.age",
+  "sha256": "85914f45…", "size": 665623,
+  "files_added": 56, "files_total": 56, "ledger_sha256": "8f73c96f…" }
+```
+
+The manifest lists **bundles, never file names**. That is deliberate: a file
+name is the hash of its content, so a name list at the target would let someone
+confirm whether a particular known document is in the backup. Bundle names and
+checksums are enough for the receiving side to notice a missing bundle, which is
+what completeness means here.
+
+### The ledger
+
+`$HOST_RUN_DIR/offsite.state/filestore.ledger` — one file name per line,
+appended only **after** a successful upload. A crash between upload and ledger
+write costs a repeated upload, never a file that is believed safe but never
+arrived.
+
+Losing the ledger (volume wiped, machine rebuilt) means the next run uploads the
+whole filestore again. That is the price of never asking the target what it has;
+it costs traffic, not data.
+
+### Restoring
+
+Needs the age private key from 1Password — this machine cannot do it:
+
+```bash
+age -d -i filestore.age-key -o bundle.tar.gz filestore-<run>-<sum>.tar.gz.age
+tar xzf bundle.tar.gz -C $ODOO_FILES/filestore/<db>/
+```
+
+Unpack every bundle, oldest first. And the filestore checks itself: because each
+name is the SHA-1 of its content, `sha1sum` over the restored tree against the
+file names is a complete integrity check — no manifest, no checksum list, no key
+required.
+
+### The window against the database
+
+WAL/PITR can recover the database to any moment; the filestore is pushed once a
+night. So an attachment created at 14:00 is in the backup once the night has
+passed, not before. The rule that follows: **the filestore must be at least as
+new as the database recovery target.** An older database with a newer filestore
+is always safe (a superset); the other way round, attachments are missing. Run
+the sync more often if the window matters — it is cheap, because it works on
+names.
+
 ## Commands
 
 | Command                      | What it does                                                                           |
 | ---------------------------- | -------------------------------------------------------------------------------------- |
 | `odoo offsite register`      | Request a customer area, then pick up credentials after approval.                      |
+| `odoo offsite filestore`     | Push the filestore to the write-only target. Needs no repository key.                  |
 | `odoo offsite backup`        | Run a backup now. Same run as the nightly cron; a quiet no-op without `RUN_OFFSITE=1`. |
 | `odoo offsite init`          | Create the repository (the first backup does this anyway).                             |
 | `odoo offsite list`          | List snapshots.                                                                        |
