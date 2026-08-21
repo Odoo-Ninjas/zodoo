@@ -97,6 +97,16 @@ jobs:
           ZODOO_PY="$(pipx environment --value PIPX_LOCAL_VENVS)/zodoo/bin/python"
           "$ZODOO_PY" -m pytest -vv -s -m slow zodoo/src/zodoo/tests/test_bake.py
 
+      - name: Run write-only filestore end-to-end test
+        # Proves the point of that path: the second run uploads nothing and the
+        # third uploads exactly the one file added in between. That is a
+        # property of the ledger surviving between container runs, so only a
+        # live stack can show it. Reuses the docker layers built above.
+        run: |
+          ZODOO_PY="$(pipx environment --value PIPX_LOCAL_VENVS)/zodoo/bin/python"
+          "$ZODOO_PY" -m pytest -vv -s -m slow \
+            zodoo/src/zodoo/tests/test_offsite_filestore_e2e.py
+
       - name: Run barman PITR end-to-end test
         # Brings up the optional barman service, takes a base backup + WAL,
         # then recovers to a named restore point and asserts the change was
