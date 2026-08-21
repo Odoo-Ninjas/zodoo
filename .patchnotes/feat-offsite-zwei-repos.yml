@@ -1,0 +1,3 @@
+type: feature
+description: "Offsite-Backup schreibt je Kunde zwei getrennte Repositories (<bereich>/db und <bereich>/files), damit ein ausgefallener Datenbank-Dump nicht mehr hinter einem weiterhin ankommenden Filestore verschwindet; der Lauf bricht jetzt auch ab, wenn der Filestore fehlt oder leer ist (Notausgang OFFSITE_ALLOW_WITHOUT_FILES=1), und Settings-Dateien mit Geheimnissen sind nur noch fuer den Besitzer lesbar. OFFSITE_LAYOUT=flat behaelt das alte Verhalten mit einem Repository."
+breaking: false
