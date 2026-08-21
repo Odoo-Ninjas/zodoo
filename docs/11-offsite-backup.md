@@ -19,9 +19,31 @@ Odoo machine                                     backup server
 └───────────────────────────────┘                └───────────┬──────────────┘
    sources (read-only):                                      │
      /source/barman     Barman catalog (WAL + base backup)    ▼
-     /source/filestore  this database's filestore      one repository
-     /source/dumps      optional / the fresh dump      per customer area
+     /source/filestore  this database's filestore        <area>/db
+     /source/dumps      optional / the fresh dump        <area>/files
 ```
+
+## Two repositories per area
+
+A run writes into **two** repositories under the same customer area:
+
+| Repository      | Contents                                | Snapshot tags |
+| --------------- | --------------------------------------- | ------------- |
+| `<area>/db/`    | Barman catalog, or the database dump    | `zodoo,db`    |
+| `<area>/files/` | the filestore of this database          | `zodoo,files` |
+
+The reason is monitoring, not tidiness. With everything in one repository, an
+arriving filestore hides a database dump that stopped coming: the area looks
+freshly written, and the part that matters is missing. Split, each stream has its
+own age, and the backup server alarms per stream — the mail then says *which*
+half stopped.
+
+Both live in the same area and therefore share access credentials and
+passphrase. It stays **one secret per project**; two passphrases would be two
+things to lose, neither protecting anything the other does not.
+
+`OFFSITE_LAYOUT=flat` restores the old single-repository behaviour. It exists for
+legacy installations that should not be moved, not as a preference.
 
 Three properties matter, and they are the reason for this setup:
 
@@ -108,6 +130,18 @@ failure this system had before; it must survive every future refactor.
 `OFFSITE_ALLOW_WITHOUT_DB=1` switches the check off. Only use it when the
 database is provably backed up elsewhere.
 
+**And the run aborts when no filestore would end up in the snapshot** — for the
+same reason, in the other direction. A database restores fine without
+attachments; it is just incomplete, and in Odoo that shows up the first time
+someone clicks an invoice PDF. An empty or missing filestore directory is what an
+unmounted volume looks like, not what an empty instance looks like, so an empty
+directory does not count as a filestore. `OFFSITE_ALLOW_WITHOUT_FILES=1` is the
+deliberate way out for an instance that genuinely has no attachments yet.
+
+Both streams are attempted even when one fails, and the run then reports which.
+Otherwise a broken database upload would mask that the filestore did not go
+either, and one alarm would arrive where two belong.
+
 The recommendation is `RUN_BARMAN=1`: it costs nothing extra (it runs on a disk
 that is already paid for) and adds point-in-time recovery on top.
 
@@ -122,7 +156,10 @@ that is already paid for) and adds point-in-time recovery on top.
 | `odoo offsite info`          | Repository stats (size, deduplication).                                                |
 | `odoo offsite check`         | Verify integrity by re-reading the data. Takes time and costs traffic.                 |
 | `odoo offsite prune`         | Apply retention. Refused against append-only targets, with an explanation.             |
-| `odoo offsite restic <args>` | Escape hatch: any `restic` command against the repository.                             |
+| `odoo offsite restic <args>` | Escape hatch: any `restic` command. `OFFSITE_STREAM=db\|files` picks the repository (default `db`). |
+
+`list`, `info`, `check` and `init` run over both repositories and label which one
+they are reporting on.
 
 The nightly run is `OFFSITE_BACKUP_CRON` (default 04:00), deliberately after the
 Barman base backup at 02:00 so it picks up the fresh base instead of yesterday's.
@@ -146,14 +183,25 @@ Two things are needed: the repository address and the passphrase. There is no
 separate key file to lose.
 
 ```bash
-export RESTIC_REPOSITORY="rest:https://<user>:<password>@10.222.0.106:8000/<area>/"
 export RESTIC_PASSWORD="<passphrase from 1Password>"
+BASE="rest:https://<user>:<password>@10.222.0.106:8000/<area>"
+
+# the database
+export RESTIC_REPOSITORY="$BASE/db/"
 restic --cacert rest-server.crt snapshots
 restic --cacert rest-server.crt restore <snapshot> --target /restore
+
+# the attachments
+export RESTIC_REPOSITORY="$BASE/files/"
+restic --cacert rest-server.crt restore latest --target /restore
 ```
 
-Then restore the database from the dump or the Barman catalog inside it, and put
-the filestore back into `$ODOO_FILES/filestore/<db>`.
+Same passphrase for both. Then restore the database from the dump or the Barman
+catalog, and put the filestore back into `$ODOO_FILES/filestore/<db>`.
+
+Check the dates of the two snapshots against each other. A filestore much newer
+than the database is harmless; a database much newer than the filestore means
+attachments are missing for everything created in between.
 
 A backup that has never been restored is not a backup. Plan the rehearsal; do
 not wait for the emergency to be the first attempt.

@@ -75,6 +75,18 @@ OFFSITE_INCLUDE_DUMPS=0
 # und sichert wissentlich nur die Dateien - nur sinnvoll, wenn die Datenbank
 # nachweislich woanders gesichert wird.
 OFFSITE_ALLOW_WITHOUT_DB=0
+# Und dieselbe Pruefung in die andere Richtung: der Lauf bricht ab, wenn der
+# Filestore fehlt oder leer ist. Genau so sieht ein Volume aus, das nicht
+# eingehaengt wurde - die Datenbank waere dann gesichert, die Anhaenge nicht,
+# und auffallen wuerde es erst beim Wiederherstellen. 1 nur setzen, wenn die
+# Instanz wirklich noch keine Anhaenge hat.
+OFFSITE_ALLOW_WITHOUT_FILES=0
+# Aufteilung des Bereichs in zwei Repositories: <bereich>/db und
+# <bereich>/files. Damit hat jeder der beiden Teile sein eigenes, auf dem
+# Backup-Server sichtbares Alter - liegt alles in einem Repository, verdeckt
+# ein ankommender Filestore einen ausgefallenen Dump. "flat" ist das alte
+# Verhalten (alles in ein Repository) und nur fuer Altbestand gedacht.
+OFFSITE_LAYOUT=split
 # Bandbreitenbremse in KiB/s fuer den Upload (0 = unbegrenzt). Nuetzlich,
 # wenn das Backup nicht die Leitung des Produktivsystems auffressen soll.
 OFFSITE_UPLOAD_LIMIT=0
