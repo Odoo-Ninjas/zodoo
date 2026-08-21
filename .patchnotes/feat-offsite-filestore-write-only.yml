@@ -1,0 +1,3 @@
+type: feature
+description: "Neuer Weg fuer das Filestore-Backup, bei dem die Odoo-Maschine ihre eigenen Sicherungen NICHT mehr lesen kann. Moeglich, weil Odoo Anhaenge nach dem SHA-1 ihres Inhalts benennt: eine Datei wird einmal geschrieben und nie geaendert, 'was ist neu' ist ein reiner Namensvergleich gegen ein lokales Verzeichnis, und es braucht keinen Repo-Index und keinen Schluessel. Verschluesselt wird gegen einen oeffentlichen age-Schluessel (OFFSITE_WO_RECIPIENT), hochgeladen per PUT an OFFSITE_WO_URL. Neuer Befehl 'odoo offsite filestore'; sind beide Settings gesetzt, ersetzt der Weg den restic-Strom 'files' statt danebenzulaufen."
+breaking: false

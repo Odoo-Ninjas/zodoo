@@ -45,6 +45,39 @@ def _truthy(val):
     return str(val).strip().lower() in ("1", "true", "yes", "on")
 
 
+def _state_dir(config):
+    """Writable host directory for the offsite container's own state.
+
+    Currently the ledger of already-uploaded filestore files. Separate from
+    the read-only $HOST_RUN_DIR/offsite (keys, certificate) on purpose: that
+    one is mounted read-only so a backup run cannot touch credentials.
+    """
+    d = Path(config.HOST_RUN_DIR) / "offsite.state"
+    # If a compose run got here first, docker created the missing bind-mount
+    # source itself - and it guesses, so it may well have created an empty
+    # FILE. The mount then succeeds, /var/lib/offsite-state is a file inside
+    # the container, and the ledger cannot be written. Same trap as /logs in
+    # postgres/run.sh. An empty file here is a docker artefact and nothing
+    # else, so it is safe to replace; anything non-empty we refuse to touch.
+    if d.exists() and not d.is_dir():
+        if d.is_file() and d.stat().st_size == 0:
+            d.unlink()
+        else:
+            abort(
+                f"{d} exists but is not a directory. It has to be the "
+                "directory holding the offsite ledger; move it out of the way."
+            )
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _wo_configured(config):
+    return bool(
+        (getattr(config, "OFFSITE_WO_URL", "") or "").strip()
+        and (getattr(config, "OFFSITE_WO_RECIPIENT", "") or "").strip()
+    )
+
+
 def _offsite_run(config, args, env=None):
     """Start the offsite container for a single run.
 
@@ -55,10 +88,39 @@ def _offsite_run(config, args, env=None):
     import subprocess
 
     _ensure_offsite(config)
+    # The write-only filestore ledger lives here. Created before compose runs:
+    # a bind-mount source that does not exist is created by docker as
+    # root-owned, and the container could then not write its ledger.
+    _state_dir(config)
     # A fixed container name rules out concurrent runs: docker refuses a second
     # container of the same name. The entrypoint relies on that when it breaks a
     # stale lock - without this exclusion it could break the lock of a backup
     # that is still running.
+    name = f"{config.project_name}_offsite_run"
+    cmd = __get_cmd(config, profile="all") + [
+        "run",
+        "--rm",
+        "-T",
+        "--name",
+        name,
+    ]
+    for key, value in (env or {}).items():
+        cmd += ["-e", f"{key}={value}"]
+    cmd += ["offsite"]
+    cmd += args
+    return subprocess.check_call(cmd)
+
+
+def _offsite_run_raw(config, args, env=None):
+    """Run the offsite container without requiring a restic configuration.
+
+    Used by the write-only filestore path, which has neither repository nor
+    passphrase. Same fixed container name, so it cannot run concurrently with
+    a restic backup of the same project.
+    """
+    import subprocess
+
+    _state_dir(config)
     name = f"{config.project_name}_offsite_run"
     cmd = __get_cmd(config, profile="all") + [
         "run",
@@ -157,6 +219,29 @@ def offsite_backup(config):
         env["OFFSITE_DB_DUMP"] = _dump_db_for_offsite(config)
 
     _offsite_run(config, ["backup"], env=env)
+
+
+@offsite.command(
+    name="filestore",
+    help=(
+        "Back up the filestore to the write-only target. Needs no repository "
+        "key: this machine can neither read nor delete what it uploads."
+    ),
+)
+@pass_config
+def offsite_filestore(config):
+    # Deliberately not going through _ensure_offsite(): the write-only path
+    # needs no restic repository and no passphrase, so it must also work on a
+    # machine that has nothing but a write-only target configured.
+    if not _wo_configured(config):
+        abort(
+            "OFFSITE_WO_URL and OFFSITE_WO_RECIPIENT are not both set - no "
+            "write-only target configured.\n"
+            "OFFSITE_WO_RECIPIENT is an age PUBLIC key; generate a keypair "
+            "with 'age-keygen', keep the private key in 1Password."
+        )
+    _state_dir(config)
+    _offsite_run_raw(config, ["filestore"])
 
 
 @offsite.command(

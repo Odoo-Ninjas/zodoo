@@ -165,6 +165,20 @@ restic_() {
     restic "${RESTIC_ARGS[@]}" "$@"
 }
 
+# Write-only filestore backup (no restic, no key on this machine). Sourced
+# rather than exec'd so it can use die()/CA_CERT and be dispatched like the
+# other commands.
+# shellcheck source=filestore-wo.sh
+. /filestore-wo.sh
+
+# Is the write-only path configured? When it is, it replaces the restic
+# filestore stream instead of running next to it - two copies of the same
+# attachments in two places is cost without redundancy, and it would make
+# "which one do I restore from?" a question nobody wants during an incident.
+wo_enabled() {
+    [ -n "${OFFSITE_WO_URL:-}" ] && [ -n "${OFFSITE_WO_RECIPIENT:-}" ]
+}
+
 repo_exists() {
     restic_ cat config >/dev/null 2>&1
 }
@@ -345,8 +359,12 @@ no attachments yet, OFFSITE_ALLOW_WITHOUT_FILES=1 switches this check off."
     local failed=()
     backup_stream db "zodoo,db" ${db_sources[@]+"${db_sources[@]}"} \
         || failed+=("database")
-    backup_stream files "zodoo,files" ${files_sources[@]+"${files_sources[@]}"} \
-        || failed+=("filestore")
+    if wo_enabled; then
+        do_filestore || failed+=("filestore (write-only)")
+    else
+        backup_stream files "zodoo,files" ${files_sources[@]+"${files_sources[@]}"} \
+            || failed+=("filestore")
+    fi
 
     [ ${#failed[@]} -eq 0 ] || die "Backup failed: ${failed[*]}"
 }
@@ -387,6 +405,14 @@ for_each_stream() {
     done
     return $rc
 }
+
+# The write-only filestore path needs no restic configuration at all - no
+# repository, no passphrase. Handle it before require_config so it also works
+# on a machine that has nothing but a write-only target.
+if [ "${1:-}" = "filestore" ]; then
+    do_filestore
+    exit 0
+fi
 
 require_config
 setup_transport

@@ -34,6 +34,8 @@ services:
       OFFSITE_ALLOW_WITHOUT_DB: $OFFSITE_ALLOW_WITHOUT_DB
       OFFSITE_ALLOW_WITHOUT_FILES: $OFFSITE_ALLOW_WITHOUT_FILES
       OFFSITE_LAYOUT: $OFFSITE_LAYOUT
+      OFFSITE_WO_URL: $OFFSITE_WO_URL
+      OFFSITE_WO_RECIPIENT: $OFFSITE_WO_RECIPIENT
       # Set per run by `odoo offsite backup` (docker compose run -e) when a
       # fresh dump was pulled because barman is off. Declared here only so the
       # variable exists inside the container at all.
@@ -50,6 +52,12 @@ services:
       - $ODOO_FILES:/source/filestore:ro
       - $DUMPS_PATH:/source/dumps:ro
       - offsite_cache:/var/lib/restic
+      # The only writable state this container owns: the ledger of which
+      # filestore files have already been uploaded. It must survive runs, and
+      # it must be a host path rather than a volume - losing it means
+      # re-uploading the whole filestore, so it should be visible and
+      # backup-able like any other host state.
+      - $HOST_RUN_DIR/offsite.state:/var/lib/offsite-state
       # A fixed path rather than a setting: settings values are not expanded
       # recursively, so a "$HOST_RUN_DIR/offsite" from default.settings would
       # arrive here literally and compose would read it as a volume NAME.

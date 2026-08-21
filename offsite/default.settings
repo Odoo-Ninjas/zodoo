@@ -88,6 +88,22 @@ OFFSITE_ALLOW_WITHOUT_FILES=0
 # stopped coming. "flat" is the old behaviour (everything in one repository) and
 # is meant for legacy installations only.
 OFFSITE_LAYOUT=split
+# Write-only filestore backup. When both of these are set, the filestore is no
+# longer backed up through restic but pushed to a write-only target: this
+# machine can then neither read nor delete what it uploaded.
+#
+# It works because Odoo names attachments after the SHA-1 of their content -
+# a file is written once, never changes, and "what is new?" is a pure name
+# comparison against a local ledger. No repository index, no key.
+#
+# OFFSITE_WO_URL: the write-only receiver, e.g. https://10.222.0.106:8444/<area>/
+# OFFSITE_WO_RECIPIENT: age PUBLIC key (age1…). Generate with `age-keygen`, keep
+# the private key in 1Password - without it the filestore cannot be restored,
+# and with it on this machine the whole point would be lost.
+#
+# Both empty = off, and the filestore travels through restic as before.
+OFFSITE_WO_URL=
+OFFSITE_WO_RECIPIENT=
 # Upload brake in KiB/s (0 = unlimited). Useful when the backup should not eat
 # the production system's bandwidth.
 OFFSITE_UPLOAD_LIMIT=0

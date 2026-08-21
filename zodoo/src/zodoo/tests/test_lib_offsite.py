@@ -277,3 +277,76 @@ def test_register_delivered_does_not_overwrite_settings(
             monkeypatch,
             [("GET", "/api/status", {"status": "delivered"})],
         )
+
+
+# ---------------------------------------------------------------------------
+# write-only filestore path
+# ---------------------------------------------------------------------------
+def test_wo_configured_needs_both_url_and_recipient():
+    """Half a configuration is worse than none: a URL without a recipient would
+    upload plaintext, a recipient without a URL uploads nowhere."""
+    assert not mod._wo_configured(FakeConfig())
+    assert not mod._wo_configured(
+        FakeConfig(OFFSITE_WO_URL="https://x/y/", OFFSITE_WO_RECIPIENT="")
+    )
+    assert not mod._wo_configured(
+        FakeConfig(OFFSITE_WO_URL="", OFFSITE_WO_RECIPIENT="age1abc")
+    )
+    assert mod._wo_configured(
+        FakeConfig(OFFSITE_WO_URL="https://x/y/", OFFSITE_WO_RECIPIENT="age1abc")
+    )
+
+
+def test_wo_configured_ignores_whitespace_only_values():
+    assert not mod._wo_configured(
+        FakeConfig(OFFSITE_WO_URL="  ", OFFSITE_WO_RECIPIENT="  ")
+    )
+
+
+def test_state_dir_is_created(tmp_path):
+    cfg = FakeConfig()
+    cfg._host_run_dir = tmp_path
+    d = mod._state_dir(cfg)
+    assert d.is_dir()
+    assert d == tmp_path / "offsite.state"
+
+
+def test_state_dir_replaces_the_empty_file_docker_leaves_behind(tmp_path):
+    """A bind-mount source that does not exist yet is created by docker, and it
+    guesses - often as an empty file. The mount then succeeds and the ledger
+    cannot be written, which is a confusing failure far from its cause."""
+    cfg = FakeConfig()
+    cfg._host_run_dir = tmp_path
+    stray = tmp_path / "offsite.state"
+    stray.touch()
+    assert stray.is_file()
+
+    d = mod._state_dir(cfg)
+
+    assert d.is_dir()
+
+
+def test_state_dir_refuses_to_delete_a_non_empty_file(tmp_path):
+    """Only docker's empty artefact is disposable. Anything with content might
+    be somebody's data, so we stop instead of guessing."""
+    cfg = FakeConfig()
+    cfg._host_run_dir = tmp_path
+    stray = tmp_path / "offsite.state"
+    stray.write_text("something someone cares about")
+
+    with pytest.raises(SystemExit):
+        mod._state_dir(cfg)
+
+    assert stray.read_text() == "something someone cares about"
+
+
+def test_filestore_command_aborts_without_a_write_only_target(tmp_path):
+    """It must not fall back to anything: silently doing nothing would look
+    like a successful backup."""
+    cfg = FakeConfig()
+    cfg._host_run_dir = tmp_path
+    ctx = click.Context(mod.offsite_filestore)
+    ctx.obj = cfg
+    with ctx:
+        with pytest.raises(SystemExit):
+            mod.offsite_filestore.callback()
