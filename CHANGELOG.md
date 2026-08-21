@@ -1,5 +1,11 @@
 # Changelog
 
+## 9.2.2
+
+
+- **Internal**: Der write-only Filestore-Weg hat jetzt einen Ende-zu-Ende-Test im Bake-Lauf. Er prueft genau das, was den Weg ausmacht und was ein Unit-Test nicht sehen kann: der zweite Lauf laedt nichts hoch, der dritte genau die eine Datei, die dazwischen entstanden ist. Das Paket wird danach im Container mit dem privaten Schluessel geoeffnet und muss genau diese Datei enthalten.
+
+
 ## 9.2.1
 
 
