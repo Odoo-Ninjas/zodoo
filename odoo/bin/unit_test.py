@@ -31,6 +31,37 @@ else:
 
 prepare_run()
 
+
+def _imported_test_modules(tests_dir):
+    """Names of the test submodules that odoo will actually collect.
+
+    --test-file only looks at the modules imported into the addon's ``tests``
+    package (loader._get_tests_modules does inspect.getmembers(..., ismodule)).
+    A test file that nobody imports in ``tests/__init__.py`` is skipped without
+    a word, and the run then reports success although nothing ran.
+    """
+    import ast
+
+    initfile = tests_dir / "__init__.py"
+    if not initfile.exists():
+        return None
+    try:
+        tree = ast.parse(initfile.read_text())
+    except SyntaxError:
+        return None
+    names = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.level:
+            if node.module:
+                names.add(node.module.split(".")[0])
+            for alias in node.names:
+                names.add(alias.name.split(".")[0])
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                names.add(alias.name.split(".")[-1])
+    return names
+
+
 runs = []
 capture_output = os.getenv("CAPTURE_UNITTEST_OUTPUT") == "1"
 
@@ -47,11 +78,34 @@ for filepath in args.test_file.split(","):
     if not filepath.exists():
         click.secho(f"File not found: {filepath}", fg="red")
         sys.exit(-1)
-    ran_files.append(filepath)
     os.chdir("/opt/src")
     module = Module(filepath)
+    collectable = _imported_test_modules(filepath.parent)
+    if collectable is not None and filepath.stem not in collectable:
+        msg = (
+            f"{filepath.stem} is not imported in {filepath.parent}/__init__.py."
+            " Odoo would skip this file silently and the run would look green."
+            f" Add 'from . import {filepath.stem}' there."
+        )
+        click.secho(msg, fg="red", bold=True)
+        runs.append(
+            {
+                "path": str(filepath.relative_to("/opt/src")),
+                "duration": (datetime.now() - started).total_seconds(),
+                "output": msg,
+                "rc": 2,
+            }
+        )
+        continue
+    ran_files.append(filepath)
     cmd += [
         f"--test-file={filepath.resolve().absolute()}",
+        # let the run say what it did: config_unittest sets a :WARN handler,
+        # which hides both "running tests ..." and the result summary, so a
+        # run that executed nothing looks exactly like a successful one
+        "--log-handler=odoo.service.server:INFO",
+        "--log-handler=odoo.tests:INFO",
+        "--log-handler=odoo.tests.result:INFO",
     ]
     if current_version() <= 11.0:
         cmd += [
