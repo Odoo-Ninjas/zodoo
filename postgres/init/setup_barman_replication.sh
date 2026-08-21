@@ -12,7 +12,8 @@ set -e
 # regular host line, so this widens nothing beyond existing password auth.
 #
 # Runs only on a fresh data dir (initdb phase). Existing clusters that enable
-# Barman later need this line added to pg_hba.conf manually + a reload.
+# Barman later are covered by ensure_barman_pg_hba() in run.sh, which does the
+# same thing on every container start.
 if [ "${RUN_BARMAN:-0}" = "1" ]; then
     method="${POSTGRES_HOST_AUTH_METHOD:-md5}"
     if ! grep -qE '^\s*host\s+replication\s+all\s+all\s' "$PGDATA/pg_hba.conf"; then
