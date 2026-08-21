@@ -32,6 +32,8 @@ services:
       OFFSITE_UPLOAD_LIMIT: $OFFSITE_UPLOAD_LIMIT
       OFFSITE_INCLUDE_DUMPS: $OFFSITE_INCLUDE_DUMPS
       OFFSITE_ALLOW_WITHOUT_DB: $OFFSITE_ALLOW_WITHOUT_DB
+      OFFSITE_ALLOW_WITHOUT_FILES: $OFFSITE_ALLOW_WITHOUT_FILES
+      OFFSITE_LAYOUT: $OFFSITE_LAYOUT
       # Wird pro Lauf von `odoo offsite backup` gesetzt (docker compose run -e),
       # wenn ohne Barman ein frischer Dump gezogen wurde. Hier nur deklariert,
       # damit die Variable im Container ueberhaupt existiert.

@@ -1,5 +1,6 @@
 # used to read and write to settings
 import os
+import stat
 from pathlib import Path
 from .tools import atomic_write
 
@@ -111,8 +112,69 @@ class MyConfigParser:
                 if key not in handled_keys:
                     yield format_line(key, self.configOptions[key])
 
+        # Rechte VOR dem Umbenennen setzen: atomic_write schreibt eine neue
+        # Datei und ersetzt die alte, die Rechte der bisherigen Datei sind danach
+        # weg. Wer erst hinterher chmod-t, hat die Datei einen Moment lang mit
+        # den Rechten der Umask im Verzeichnis liegen - bei einem Geheimnis ist
+        # genau dieser Moment das Problem.
+        prev_mode = None
+        try:
+            prev_mode = stat.S_IMODE(Path(self.fileName).stat().st_mode)
+        except OSError:
+            pass
+
         with atomic_write(self.fileName) as file:
             file.write_text("\n".join(_update_lines()) + "\n")
+            if prev_mode is not None:
+                # Die bisherigen Rechte erhalten - ohne das wuerde jedes
+                # Schreiben sie auf die Umask zuruecksetzen.
+                file.chmod(prev_mode)
+            if self._holds_secret():
+                self._tighten(file)
+
+    # Settings-Werte, bei denen die Datei niemand ausser dem Besitzer lesen
+    # koennen soll. OFFSITE_PASSPHRASE ist der teuerste davon: damit laesst
+    # sich das gesamte Offsite-Backup des Projekts entschluesseln.
+    SECRET_KEY_HINTS = (
+        "PASSPHRASE",
+        "PASSWORD",
+        "SECRET",
+        "TOKEN",
+        "PRIVATE_KEY",
+    )
+
+    def _holds_secret(self):
+        return any(
+            hint in key.upper()
+            for key in self.configOptions
+            for hint in self.SECRET_KEY_HINTS
+        )
+
+    def _tighten(self, path):
+        """Anderen jedes Recht nehmen (0600), wenn ein Geheimnis drinsteht.
+
+        Bisher lagen Settings-Dateien auf dem Default der Umask (haeufig 0644)
+        und waren nur durch die Rechte des Home-Verzeichnisses geschuetzt.
+        Entsteht ein Home mal mit 0755 - auf einer Maschine mit vielen
+        Instanz-Usern durchaus moeglich -, liegt die Backup-Passphrase offen.
+
+        Angefasst wird nur, was unter dem eigenen Home liegt:
+        /etc/odoo/settings ist systemweit und muss fuer alle lesbar bleiben,
+        sonst findet keine andere Instanz mehr ihre Grundeinstellungen.
+        """
+        try:
+            home = Path.home().resolve()
+            try:
+                Path(self.fileName).resolve().parent.relative_to(home)
+            except ValueError:
+                return
+            mode = stat.S_IMODE(path.stat().st_mode)
+            if mode & 0o077:
+                path.chmod(mode & ~0o077)
+        except OSError:
+            # Rechte sind ein Zusatz, kein Grund das Schreiben scheitern zu
+            # lassen - der Wert steht dann schon in der Datei.
+            pass
 
     def __getitem__(self, key):
         for data in (self.configOptions, os.environ):
