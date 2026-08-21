@@ -1,5 +1,11 @@
 # Changelog
 
+## 9.1.1
+
+
+- **Internal**: The offsite files were the only corner of the repo written in German (94 German vs 13 English comment lines, while barman/postgres/cronjobs and the CLI are English throughout). Comments, docstrings, CLI help texts and operator messages of the offsite service are now English, so external contributors can read the reasoning behind the design. No behaviour change.
+
+
 ## 9.1.0
 
 
