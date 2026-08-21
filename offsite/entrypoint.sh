@@ -170,12 +170,14 @@ restic_() {
 # other commands.
 # shellcheck source=filestore-wo.sh
 . /filestore-wo.sh
+# shellcheck source=db-wo.sh
+. /db-wo.sh
 
 # Is the write-only path configured? When it is, it replaces the restic
 # filestore stream instead of running next to it - two copies of the same
 # attachments in two places is cost without redundancy, and it would make
 # "which one do I restore from?" a question nobody wants during an incident.
-wo_enabled() {
+wo_files_enabled() {
     [ -n "${OFFSITE_WO_URL:-}" ] && [ -n "${OFFSITE_WO_RECIPIENT:-}" ]
 }
 
@@ -357,9 +359,13 @@ no attachments yet, OFFSITE_ALLOW_WITHOUT_FILES=1 switches this check off."
     # first one hides that the second did not run either - and one alarm arrives
     # where two belonged.
     local failed=()
-    backup_stream db "zodoo,db" ${db_sources[@]+"${db_sources[@]}"} \
-        || failed+=("database")
-    if wo_enabled; then
+    if wo_db_enabled; then
+        db_with_lock do_db || failed+=("database (write-only)")
+    else
+        backup_stream db "zodoo,db" ${db_sources[@]+"${db_sources[@]}"} \
+            || failed+=("database")
+    fi
+    if wo_files_enabled; then
         do_filestore || failed+=("filestore (write-only)")
     else
         backup_stream files "zodoo,files" ${files_sources[@]+"${files_sources[@]}"} \
@@ -409,10 +415,11 @@ for_each_stream() {
 # The write-only filestore path needs no restic configuration at all - no
 # repository, no passphrase. Handle it before require_config so it also works
 # on a machine that has nothing but a write-only target.
-if [ "${1:-}" = "filestore" ]; then
-    do_filestore
-    exit 0
-fi
+case "${1:-}" in
+    filestore) do_filestore; exit 0 ;;
+    db)        db_with_lock do_db; exit 0 ;;
+    wal)       db_with_lock do_db_wal; exit 0 ;;
+esac
 
 require_config
 setup_transport

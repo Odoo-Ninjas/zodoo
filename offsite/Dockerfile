@@ -22,7 +22,8 @@ ENV HOME=/var/lib/restic
 
 COPY entrypoint.sh /entrypoint.sh
 COPY filestore-wo.sh /filestore-wo.sh
-RUN chmod a+x /entrypoint.sh /filestore-wo.sh
+COPY db-wo.sh /db-wo.sh
+RUN chmod a+x /entrypoint.sh /filestore-wo.sh /db-wo.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["backup"]

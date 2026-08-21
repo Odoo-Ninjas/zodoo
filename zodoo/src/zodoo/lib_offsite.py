@@ -78,6 +78,13 @@ def _wo_configured(config):
     )
 
 
+def _wo_db_configured(config):
+    return bool(
+        (getattr(config, "OFFSITE_WO_URL", "") or "").strip()
+        and (getattr(config, "OFFSITE_WO_DB_RECIPIENT", "") or "").strip()
+    )
+
+
 def _offsite_run(config, args, env=None):
     """Start the offsite container for a single run.
 
@@ -111,17 +118,23 @@ def _offsite_run(config, args, env=None):
     return subprocess.check_call(cmd)
 
 
-def _offsite_run_raw(config, args, env=None):
+def _offsite_run_raw(config, args, env=None, name_suffix="offsite_run"):
     """Run the offsite container without requiring a restic configuration.
 
-    Used by the write-only filestore path, which has neither repository nor
-    passphrase. Same fixed container name, so it cannot run concurrently with
-    a restic backup of the same project.
+    Used by the write-only paths, which have neither repository nor passphrase.
+
+    ``name_suffix`` exists for the minutely WAL job. Everything else shares the
+    fixed container name, which is what rules out concurrent runs - but docker
+    rejects a duplicate name with a hard error, and a job that runs every minute
+    must not fail every minute just because a nightly base backup upload is
+    still going. The WAL job therefore gets its own container name and is
+    serialised inside the container by a lock on the (host-mounted) state
+    directory instead, where a busy lock is a quiet success.
     """
     import subprocess
 
     _state_dir(config)
-    name = f"{config.project_name}_offsite_run"
+    name = f"{config.project_name}_{name_suffix}"
     cmd = __get_cmd(config, profile="all") + [
         "run",
         "--rm",
@@ -242,6 +255,46 @@ def offsite_filestore(config):
         )
     _state_dir(config)
     _offsite_run_raw(config, ["filestore"])
+
+
+@offsite.command(
+    name="db",
+    help=(
+        "Push base backups and WAL to the write-only target. Needs no "
+        "repository key: this machine can neither read nor delete what it "
+        "uploads."
+    ),
+)
+@pass_config
+def offsite_db(config):
+    if not _wo_db_configured(config):
+        abort(
+            "OFFSITE_WO_URL and OFFSITE_WO_DB_RECIPIENT are not both set - no "
+            "write-only database target configured.\n"
+            "OFFSITE_WO_DB_RECIPIENT is an age PUBLIC key; generate a keypair "
+            "with 'age-keygen' and keep the private key in 1Password."
+        )
+    _state_dir(config)
+    _offsite_run_raw(config, ["db"])
+
+
+@offsite.command(
+    name="wal",
+    help=(
+        "Push newly archived WAL segments (runs every minute via "
+        "CRONJOB_OFFSITE_WAL). Quiet no-op when there is nothing new or "
+        "another run holds the lock."
+    ),
+)
+@pass_config
+def offsite_wal(config):
+    # Deliberately silent rather than aborting when unconfigured: this runs
+    # 1440 times a day on every project, and a project without a write-only
+    # database target must not produce a cron failure every minute.
+    if not _wo_db_configured(config):
+        return
+    _state_dir(config)
+    _offsite_run_raw(config, ["wal"], name_suffix="offsite_wal")
 
 
 @offsite.command(
