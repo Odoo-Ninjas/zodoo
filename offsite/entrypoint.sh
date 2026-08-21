@@ -1,32 +1,33 @@
 #!/bin/bash
 #
-# Offsite-Backup mit restic.
+# Offsite backup with restic.
 #
-# Verschluesselt wird hier, im Container, VOR dem Upload: `restic init` legt das
-# Repository an, der Schluessel (OFFSITE_PASSPHRASE) steht mit ihm verschluesselt
-# im Repository selbst. Der Speicherort sieht nur Chiffrat - er kann weder lesen
-# noch unbemerkt manipulieren.
+# Encryption happens HERE, inside the container, BEFORE anything is uploaded:
+# `restic init` creates the repository, and the key (OFFSITE_PASSPHRASE) is
+# stored inside that repository, encrypted with the passphrase. The storage side
+# only ever sees ciphertext - it can neither read the backup nor tamper with it
+# unnoticed.
 #
-# Ziel ist im Regelfall unser eigener Backup-Server (rest-server im Modus
-# --append-only): dieser Container darf dort schreiben, aber NICHTS loeschen.
-# Eine uebernommene Odoo-Maschine kann die Sicherungen damit nicht zerstoeren.
-# Die Aufbewahrung (forget/prune) laeuft deshalb auf dem Backup-Server, nicht
-# hier - siehe do_prune().
+# The normal target is our own backup server (rest-server running with
+# --append-only): this container may write there but may NOT delete anything, so
+# a compromised Odoo machine cannot destroy the backups. Retention
+# (forget/prune) therefore runs on the backup server, not here - see do_prune().
 #
-# Gesichert wird in ZWEI getrennte Repositories unter demselben Bereich:
+# A run writes TWO separate repositories under the same area:
 #
-#   <bereich>/db/     Datenbankstand (Barman-Katalog oder Dump)
-#   <bereich>/files/  Filestore dieser Datenbank
+#   <area>/db/     database state (barman catalog or dump)
+#   <area>/files/  the filestore of this database
 #
-# Der Grund ist die Ueberwachung, nicht die Ordnung: liegt beides in einem
-# Repository, verdeckt ein ankommender Filestore einen ausgefallenen Dump - das
-# Alter des Bereichs sieht frisch aus, der Datenbankstand fehlt trotzdem. Getrennt
-# hat jeder der beiden Stroeme sein eigenes, sichtbares Alter (der Backup-Server
-# alarmiert je Strom). Beide liegen im selben Bereich und teilen damit Zugangsdaten
-# und Passphrase - es bleibt bei einem Geheimnis je Projekt.
+# The reason is monitoring, not tidiness: with both in one repository, an
+# arriving filestore hides a database dump that stopped coming - the age of the
+# area looks fresh while the database state is missing. Split, each stream has
+# its own visible age (the backup server alarms per stream). Both live in the
+# same area and therefore share access credentials and passphrase - it stays one
+# secret per project.
 #
-# OFFSITE_LAYOUT=flat schaltet auf das alte Verhalten (ein Repository fuer alles)
-# zurueck; das ist nur fuer Altbestand da, der nicht umgezogen werden soll.
+# OFFSITE_LAYOUT=flat switches back to the old behaviour (one repository for
+# everything). That exists only for legacy installations that should not be
+# moved.
 #
 set -euo pipefail
 
@@ -40,16 +41,15 @@ die() {
     exit 1
 }
 
-# Drei Arten von Zielen:
+# Three kinds of target:
 #
-#   rest:https://host:8000/bereich/   unser Backup-Server (rest-server). Der
-#                                     Regelfall. Append-only, ein Bereich je
-#                                     Kunde.
-#   sftp:user@host:/pfad              entfernter Speicher (Hetzner Storage Box).
-#   /pfad                             eingehaengtes Dateisystem.
+#   rest:https://host:8000/area/   our backup server (rest-server). The normal
+#                                  case. Append-only, one area per customer.
+#   sftp:user@host:/path           remote storage (Hetzner Storage Box).
+#   /path                          a mounted filesystem.
 #
-# Verschluesselt wird in allen Faellen gleich, naemlich HIER, bevor etwas den
-# Container verlaesst.
+# Encryption is identical in all three cases, namely HERE, before anything
+# leaves the container.
 repo_kind() {
     case "${OFFSITE_REPO:-}" in
         rest:*) echo rest ;;
@@ -61,22 +61,22 @@ repo_kind() {
 
 require_config() {
     [ -n "${OFFSITE_REPO:-}" ] || die \
-        "OFFSITE_REPO ist leer - kein Offsite-Ziel konfiguriert."
+        "OFFSITE_REPO is empty - no offsite target configured."
     [ -n "${OFFSITE_PASSPHRASE:-}" ] || die \
-        "OFFSITE_PASSPHRASE ist leer. Ohne Passphrase kein verschluesseltes Repository."
+        "OFFSITE_PASSPHRASE is empty. No encrypted repository without a passphrase."
     case "$(repo_kind)" in
         rest)
-            # Zugangsdaten des Bereichs. Sie regeln, WER schreiben darf - nicht,
-            # wer lesen kann. Das macht die Passphrase.
+            # Credentials for the area. They govern WHO may write - not who can
+            # read. Reading is governed by the passphrase.
             [ -n "${OFFSITE_REST_USER:-}" ] || die \
-                "OFFSITE_REST_USER ist leer - der Bereich auf dem Backup-Server braucht einen Benutzer.
-Mit 'odoo offsite register' wird ein Bereich angefragt und alles Noetige hinterlegt."
+                "OFFSITE_REST_USER is empty - the area on the backup server needs a user.
+'odoo offsite register' requests an area and stores everything needed."
             [ -n "${OFFSITE_REST_PASSWORD:-}" ] || die \
-                "OFFSITE_REST_PASSWORD ist leer - siehe 'odoo offsite register'."
+                "OFFSITE_REST_PASSWORD is empty - see 'odoo offsite register'."
             ;;
         sftp)
             [ -f "$SSH_KEY_SRC" ] || die \
-                "Kein SSH-Key unter $SSH_KEY_SRC (Host: \$HOST_RUN_DIR/offsite/id_ed25519)."
+                "No SSH key at $SSH_KEY_SRC (host: \$HOST_RUN_DIR/offsite/id_ed25519)."
             ;;
     esac
 }
@@ -84,44 +84,44 @@ Mit 'odoo offsite register' wird ein Bereich angefragt und alles Noetige hinterl
 setup_transport() {
     case "$(repo_kind)" in
         rest)
-            # Benutzer/Passwort gehoeren in die URL, nicht in die Kommandozeile:
-            # restic liest das Repository aus RESTIC_REPOSITORY, und die
-            # Prozessumgebung sieht - anders als die Kommandozeile - nicht jeder
-            # Prozess auf dem Host via /proc.
+            # User and password belong in the URL, not on the command line:
+            # restic reads the repository from RESTIC_REPOSITORY, and unlike the
+            # command line, a process environment is not readable by every
+            # process on the host via /proc.
             local rest="${OFFSITE_REPO#rest:}"
             local scheme="${rest%%://*}"
             local host="${rest#*://}"
             REPO_BASE="rest:${scheme}://${OFFSITE_REST_USER}:${OFFSITE_REST_PASSWORD}@${host}"
-            # Unser Backup-Server hat ein selbst ausgestelltes Zertifikat; das
-            # oeffentliche Zertifikat kommt per 'odoo offsite register' auf die
-            # Maschine. Ohne es wuerde restic die Verbindung ablehnen - zu Recht.
+            # Our backup server uses a self-issued certificate; the public
+            # certificate reaches the machine via 'odoo offsite register'.
+            # Without it restic refuses the connection - rightly so.
             if [ -f "$CA_CERT" ]; then
                 RESTIC_ARGS+=(--cacert "$CA_CERT")
             else
-                echo "offsite: kein Serverzertifikat unter $CA_CERT - restic wird die Verbindung ablehnen. 'odoo offsite register' erneut laufen lassen." >&2
+                echo "offsite: no server certificate at $CA_CERT - restic will refuse the connection. Run 'odoo offsite register' again." >&2
             fi
             ;;
         sftp)
-            # Der Key kommt read-only von aussen und traegt womoeglich die Rechte
-            # des Host-Users; ssh verweigert alles ausser 0600. Deshalb Kopie
-            # statt chmod auf dem Original.
+            # The key arrives read-only from outside and may carry the host
+            # user's permissions; ssh rejects anything but 0600. Hence a copy
+            # rather than chmod on the original.
             install -m 600 /dev/null "$SSH_KEY"
             cat "$SSH_KEY_SRC" > "$SSH_KEY"
             mkdir -p "$(dirname "$KNOWN_HOSTS")"
             touch "$KNOWN_HOSTS"
-            # accept-new: der erste Kontakt pinnt den Hostkey (TOFU), jede
-            # spaetere Aenderung bricht ab. Nicht "no" - das wuerde einen
-            # ausgetauschten Serverschluessel stillschweigend akzeptieren.
+            # accept-new: first contact pins the host key (TOFU), any later
+            # change aborts. Not "no" - that would silently accept a swapped
+            # server key.
             RESTIC_ARGS+=(-o "sftp.args=-i $SSH_KEY -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$KNOWN_HOSTS -o BatchMode=yes")
             REPO_BASE="$OFFSITE_REPO"
             ;;
         local)
-            # Eine nicht eingehaengte Platte sieht aus wie ein leeres Repo, und
-            # restic legte munter ein neues auf der lokalen Platte an. Das faellt
-            # erst auf, wenn man es braucht.
+            # An unmounted disk looks exactly like an empty repo, and restic
+            # would happily create a fresh one on the local disk. That is only
+            # discovered when the backup is needed.
             local dir="${OFFSITE_REPO%/*}"
             [ -d "$dir" ] || die \
-                "Offsite-Ziel $OFFSITE_REPO liegt nicht in einem vorhandenen Verzeichnis - ist die Platte eingehaengt?"
+                "Offsite target $OFFSITE_REPO is not inside an existing directory - is the disk mounted?"
             REPO_BASE="$OFFSITE_REPO"
             ;;
         *)
@@ -130,15 +130,15 @@ setup_transport() {
     esac
 }
 
-# restic liest die Passphrase aus der Umgebung; sie steht damit zwar in der
-# Prozessumgebung dieses Containers, aber nicht in der Kommandozeile.
+# restic reads the passphrase from the environment; it is therefore in this
+# container's process environment, but not on the command line.
 export RESTIC_PASSWORD="${OFFSITE_PASSPHRASE:-}"
 RESTIC_ARGS=()
 LAYOUT="${OFFSITE_LAYOUT:-split}"
 
-# Alle restic-Aufrufe gehen gegen den gerade gewaehlten Strom. REPO_BASE setzt
-# setup_transport (inklusive Zugangsdaten in der URL), use_stream haengt den
-# Unterpfad an.
+# Every restic call runs against the currently selected stream. REPO_BASE is set
+# by setup_transport (credentials included in the URL); use_stream appends the
+# sub-path.
 use_stream() {
     if [ "$LAYOUT" = flat ] || [ -z "${1:-}" ]; then
         export RESTIC_REPOSITORY="$REPO_BASE"
@@ -147,17 +147,17 @@ use_stream() {
     fi
 }
 
-# Ueber welche Stroeme laufen Befehle wie list/info/check? Bei flat ist es der
-# eine namenlose.
+# Which streams do commands like list/info/check iterate over? With flat it is
+# the single unnamed one.
 all_streams() {
     if [ "$LAYOUT" = flat ]; then echo ""; else echo "db files"; fi
 }
 
 stream_label() {
     case "${1:-}" in
-        db)    echo "Datenbank" ;;
-        files) echo "Filestore" ;;
-        *)     echo "Repository" ;;
+        db)    echo "database" ;;
+        files) echo "filestore" ;;
+        *)     echo "repository" ;;
     esac
 }
 
@@ -170,24 +170,24 @@ repo_exists() {
 }
 
 ensure_unlocked() {
-    # Wird ein Lauf hart abgebrochen (Reboot, OOM-Killer, `docker stop`), bleibt
-    # eine Sperre im Repository liegen und jeder weitere Lauf scheitert daran -
-    # also genau so lange, bis jemand von Hand eingreift. Ein Backup, das nach
-    # dem ersten Abbruch nie wieder laeuft, ist wertlos.
+    # When a run is killed hard (reboot, OOM killer, `docker stop`), a lock is
+    # left behind in the repository and every later run fails on it - that is,
+    # until somebody intervenes by hand. A backup that never runs again after
+    # the first abort is worthless.
     #
-    # Aufgebrochen wird nur bei einem echten Sperrfehler und nur hier, VOR dem
-    # eigentlichen Lauf: das Repository gehoert genau einem Projekt, und
-    # gleichzeitige Laeufe schliesst der feste Containername aus (siehe
-    # lib_offsite.py). Ein "Repository existiert nicht" faellt nicht darunter.
+    # The lock is only broken on an actual lock error, and only here, BEFORE the
+    # run itself: the repository belongs to exactly one project, and concurrent
+    # runs are ruled out by the fixed container name (see lib_offsite.py). A
+    # "repository does not exist" error does not qualify.
     #
-    # rest-server erlaubt das Entfernen von Sperren auch im append-only-Modus -
-    # genau dafuer ist die Ausnahme dort vorgesehen.
+    # rest-server permits removing locks even in append-only mode - that is
+    # precisely what the exception there is for.
     local out
     if out=$(restic_ cat config 2>&1); then
         return 0
     fi
     if printf '%s' "$out" | grep -qiE "locked|lock"; then
-        echo "offsite: haengende Sperre im Repository, breche sie auf:" >&2
+        echo "offsite: stale lock in the repository, breaking it:" >&2
         printf '%s\n' "$out" >&2
         restic_ unlock --remove-all || restic_ unlock || true
     fi
@@ -195,25 +195,24 @@ ensure_unlocked() {
 
 do_init() {
     if repo_exists; then
-        echo "offsite: Repository existiert bereits."
+        echo "offsite: repository already exists."
         return 0
     fi
-    echo "offsite: lege verschluesseltes Repository an ..."
-    # Der Schluessel liegt (mit der Passphrase verschluesselt) im Repository.
-    # Damit reichen Repo-Adresse + Passphrase zur Wiederherstellung - es gibt
-    # keine zusaetzliche Schluesseldatei, die man separat verlieren kann.
+    echo "offsite: creating encrypted repository ..."
+    # The key lives inside the repository, encrypted with the passphrase. So
+    # repository address plus passphrase are enough to restore - there is no
+    # extra key file that can be lost separately.
     #
-    # Beide Stroeme eines Bereichs bekommen dieselbe Passphrase. Das ist
-    # Absicht: sie gehoeren zu einem Projekt und werden zusammen
-    # wiederhergestellt - zwei Passphrasen waeren zwei Dinge, die man
-    # verlieren kann, ohne dass eine davon etwas schuetzt, das die andere
-    # nicht schuetzt.
+    # Both streams of an area get the same passphrase. That is deliberate: they
+    # belong to one project and are restored together, and two passphrases would
+    # be two things to lose without either protecting anything the other does
+    # not.
     restic_ init
 }
 
-# Ein Strom: Repository anlegen falls noetig, haengende Sperre aufbrechen,
-# sichern. Meldet Fehler per Rueckgabewert, damit ein kaputter Strom den
-# anderen nicht verschluckt (siehe do_backup).
+# One stream: create the repository if needed, break a stale lock, back up.
+# Reports failure through the return value so that one broken stream does not
+# swallow the other (see do_backup).
 backup_stream() {
     local stream="$1" tags="$2"
     shift 2
@@ -225,10 +224,10 @@ backup_stream() {
     ensure_unlocked
     do_init || return 1
 
-    echo "offsite: [$(stream_label "$stream")] sichere ${sources[*]} nach ${RESTIC_REPOSITORY##*@}"
-    # --host: der Snapshot traegt den Projektnamen, nicht den zufaelligen
-    # Containernamen - sonst sieht die Snapshot-Liste jede Nacht anders aus.
-    # --tag: erlaubt 'restic snapshots --tag db' auf dem Backup-Server.
+    echo "offsite: [$(stream_label "$stream")] backing up ${sources[*]} to ${RESTIC_REPOSITORY##*@}"
+    # --host: the snapshot carries the project name rather than the random
+    # container name - otherwise the snapshot list looks different every night.
+    # --tag: allows 'restic snapshots --tag db' on the backup server.
     restic_ backup \
         --host "${PROJECT_NAME:-zodoo}" \
         --tag "$tags" \
@@ -236,8 +235,8 @@ backup_stream() {
         ${LIMIT_ARGS[@]+"${LIMIT_ARGS[@]}"} \
         "${sources[@]}" || return 1
 
-    # Bei append-only-Zielen raeumt der Backup-Server auf, nicht wir - dann hier
-    # auch keine Meldung darueber jede Nacht.
+    # For append-only targets the backup server cleans up, not us - and then no
+    # message about it here every night either.
     if [ "$(repo_kind)" != "rest" ]; then
         do_prune
     fi
@@ -249,133 +248,133 @@ do_backup() {
         LIMIT_ARGS=(--limit-upload "${OFFSITE_UPLOAD_LIMIT}")
     fi
 
-    # Nur Quellen aufnehmen, die es auch gibt: ohne Barman ist /source/barman
-    # leer - restic wuerde sonst mit "path does not exist" abbrechen und das
-    # gesamte Backup verlieren.
+    # Only include sources that actually exist: without barman /source/barman is
+    # empty, and restic would abort with "path does not exist" and lose the
+    # entire backup.
     #
-    # have_db/have_files halten fest, ob ueberhaupt ein Datenbankstand bzw. ein
-    # Filestore im Archiv landet. Das ist der Kern: keiner der beiden Teile ist
-    # garantiert da, und jeder ist ohne den anderen nur die halbe Wahrheit.
-    # Ohne diese Buchhaltung lief ein Backup ohne Barman und ohne Dump klaglos
-    # durch und sicherte nur die Dateien - der Fehler faellt dann genau dann
-    # auf, wenn man das Backup braucht.
+    # have_db/have_files record whether any database state, respectively any
+    # filestore, ends up in the archive at all. That is the crux: neither part
+    # is guaranteed to be there, and each without the other is only half the
+    # truth. Without this bookkeeping a backup with neither barman nor a dump
+    # ran through without complaint and saved only the files - a mistake that
+    # surfaces exactly when the backup is needed.
     local db_sources=() files_sources=() have_db=0 have_files=0
 
-    # -d allein genuegt nicht: das barman_data-Volume ist auch bei RUN_BARMAN=0
-    # deklariert (siehe docker-compose.yml) und dann ein leeres Verzeichnis.
+    # -d alone is not enough: the barman_data volume is declared even with
+    # RUN_BARMAN=0 (see docker-compose.yml) and is then an empty directory.
     if [ -d /source/barman ] && [ -n "$(ls -A /source/barman 2>/dev/null)" ]; then
         db_sources+=(/source/barman)
         have_db=1
     fi
 
-    # ODOO_FILES ist ein HOST-weiter Pool mit einem Unterordner je Datenbank
-    # (filestore/<db>) - auf einem Rechner mit mehreren Instanzen liegen darin
-    # auch die Anhaenge fremder Datenbanken. Gesichert wird deshalb gezielt der
-    # Ordner dieser Datenbank; nur wenn der (noch) nicht existiert, faellt es
-    # auf den ganzen Pool zurueck.
+    # ODOO_FILES is a HOST-wide pool with one subdirectory per database
+    # (filestore/<db>) - on a machine with several instances it also holds other
+    # databases' attachments. So this database's directory is backed up
+    # specifically; only if that does not exist (yet) do we fall back to the
+    # whole pool.
     #
-    # Ein LEERES Filestore-Verzeichnis zaehlt nicht als Filestore: genau so
-    # sieht ein Mount aus, der nicht da ist.
+    # An EMPTY filestore directory does not count as a filestore: that is
+    # exactly what a mount that is not there looks like.
     if [ -n "${DBNAME:-}" ] && [ -d "/source/filestore/filestore/$DBNAME" ]; then
         files_sources+=("/source/filestore/filestore/$DBNAME")
         [ -n "$(ls -A "/source/filestore/filestore/$DBNAME" 2>/dev/null)" ] && have_files=1
     elif [ -d /source/filestore ] && [ -n "$(ls -A /source/filestore 2>/dev/null)" ]; then
-        echo "offsite: kein filestore/${DBNAME:-?} gefunden - sichere den gesamten Filestore-Pool." >&2
+        echo "offsite: no filestore/${DBNAME:-?} found - backing up the whole filestore pool." >&2
         files_sources+=(/source/filestore)
         have_files=1
     fi
 
-    # Die Dumps sind per Default NICHT dabei: mit Barman ist die Datenbank
-    # ueber WAL + Basisbackup bereits abgedeckt, und /host/dumps sammelt oft
-    # etliche alte Staende - die jede Nacht mitzuschleppen kostet Platz und
-    # Zeit ohne zusaetzliche Sicherheit.
+    # Dumps are NOT included by default: with barman the database is already
+    # covered by WAL plus base backup, and /host/dumps often accumulates many
+    # old states - dragging those along every night costs space and time without
+    # adding safety.
     if [ "${OFFSITE_INCLUDE_DUMPS:-0}" = "1" ] && [ -d /source/dumps ]; then
         db_sources+=(/source/dumps)
         have_db=1
     elif [ -n "${OFFSITE_DB_DUMP:-}" ]; then
-        # Laeuft kein Barman, legt `odoo offsite backup` unmittelbar vor
-        # diesem Lauf einen frischen Dump unter diesem Namen ab und reicht
-        # ihn hier durch (siehe lib_offsite.py). Fehlt er trotz Ankuendigung,
-        # ist beim Dumpen etwas schiefgegangen - dann lieber abbrechen als
-        # ein Archiv ohne Datenbank anzulegen, das man fuer vollstaendig haelt.
+        # With barman off, `odoo offsite backup` writes a fresh dump under this
+        # name immediately before this run and passes it in (see
+        # lib_offsite.py). If it is missing despite being announced, something
+        # went wrong while dumping - and then it is better to abort than to
+        # create an archive without a database that everyone believes to be
+        # complete.
         if [ -f "/source/dumps/$OFFSITE_DB_DUMP" ]; then
             db_sources+=("/source/dumps/$OFFSITE_DB_DUMP")
             have_db=1
         else
-            die "Der angekuendigte Datenbank-Dump /source/dumps/$OFFSITE_DB_DUMP fehlt."
+            die "The announced database dump /source/dumps/$OFFSITE_DB_DUMP is missing."
         fi
     fi
 
-    [ $((${#db_sources[@]} + ${#files_sources[@]})) -gt 0 ] || die "Keine Backup-Quellen vorhanden."
+    [ $((${#db_sources[@]} + ${#files_sources[@]})) -gt 0 ] || die "No backup sources present."
 
-    # Ein Snapshot ohne Datenbank ist kein Backup, sondern eine Falle: er sieht
-    # aus wie eines, bis jemand wiederherstellen will.
+    # A snapshot without the database is not a backup but a trap: it looks like
+    # one until somebody wants to restore.
     if [ "$have_db" != "1" ] && [ "${OFFSITE_ALLOW_WITHOUT_DB:-0}" != "1" ]; then
-        die "Kein Datenbankstand im Backup - weder Barman (RUN_BARMAN=1) noch ein Dump.
-Es wuerden nur die Dateien gesichert. Abhilfe: RUN_BARMAN=1 setzen (empfohlen,
-bringt zusaetzlich Point-in-Time-Recovery) oder 'odoo offsite backup' benutzen,
-das ohne Barman selbst einen Dump zieht. Wenn die Datenbank nachweislich
-anderswo gesichert wird, schaltet OFFSITE_ALLOW_WITHOUT_DB=1 diese Pruefung ab."
+        die "No database state in the backup - neither barman (RUN_BARMAN=1) nor a dump.
+Only the files would be saved. Remedy: set RUN_BARMAN=1 (recommended, it also
+brings point-in-time recovery) or use 'odoo offsite backup', which pulls a dump
+itself when barman is off. If the database is provably backed up elsewhere,
+OFFSITE_ALLOW_WITHOUT_DB=1 switches this check off."
     fi
 
-    # Und die andere Richtung, aus demselben Grund: eine Datenbank ohne
-    # Anhaenge ist wiederherstellbar, aber unvollstaendig - Rechnungs-PDFs,
-    # Bilder und Dokumente fehlen, und in Odoo merkt man das erst beim
-    # Anklicken. Ein leeres oder fehlendes Filestore-Verzeichnis ist der
-    # Normalfall eines nicht eingehaengten Volumes, nicht der einer leeren
-    # Instanz.
+    # And the other direction, for the same reason: a database without its
+    # attachments is restorable but incomplete - invoice PDFs, images and
+    # documents are missing, and in Odoo that only shows up when somebody clicks
+    # one. An empty or missing filestore directory is the normal case for a
+    # volume that was not mounted, not for an empty instance.
     if [ "$have_files" != "1" ] && [ "${OFFSITE_ALLOW_WITHOUT_FILES:-0}" != "1" ]; then
-        die "Kein Filestore im Backup - /source/filestore/filestore/${DBNAME:-?} fehlt
-oder ist leer. Die Datenbank waere gesichert, die Anhaenge nicht; das faellt
-erst beim Wiederherstellen auf. Zu pruefen ist die Einbindung von ODOO_FILES
-(docker-compose des offsite-Dienstes) und ob DBNAME stimmt. Bei einer wirklich
-noch leeren Instanz schaltet OFFSITE_ALLOW_WITHOUT_FILES=1 diese Pruefung ab."
+        die "No filestore in the backup - /source/filestore/filestore/${DBNAME:-?} is
+missing or empty. The database would be saved and the attachments not; that only
+shows up on restore. Check how ODOO_FILES is mounted (docker-compose of the
+offsite service) and whether DBNAME is correct. For an instance that really has
+no attachments yet, OFFSITE_ALLOW_WITHOUT_FILES=1 switches this check off."
     fi
 
     if [ "$LAYOUT" = flat ]; then
-        # Altbestand: ein Repository fuer alles.
+        # Legacy: one repository for everything.
         backup_stream "" zodoo \
             ${db_sources[@]+"${db_sources[@]}"} \
             ${files_sources[@]+"${files_sources[@]}"}
         return
     fi
 
-    # Beide Stroeme werden versucht, auch wenn einer scheitert: sonst
-    # verdeckt ein Fehler im ersten, dass der zweite auch nicht laeuft - und
-    # am Ende steht ein Alarm, wo zwei hingehoerten.
+    # Both streams are attempted even when one fails: otherwise an error in the
+    # first one hides that the second did not run either - and one alarm arrives
+    # where two belonged.
     local failed=()
     backup_stream db "zodoo,db" ${db_sources[@]+"${db_sources[@]}"} \
-        || failed+=("Datenbank")
+        || failed+=("database")
     backup_stream files "zodoo,files" ${files_sources[@]+"${files_sources[@]}"} \
-        || failed+=("Filestore")
+        || failed+=("filestore")
 
-    [ ${#failed[@]} -eq 0 ] || die "Backup fehlgeschlagen: ${failed[*]}"
+    [ ${#failed[@]} -eq 0 ] || die "Backup failed: ${failed[*]}"
 }
 
 do_prune() {
-    # Der Regelfall ist ein append-only-Ziel: dieser Container darf dort
-    # schreiben, aber nichts loeschen. Das ist der ganze Sinn der Uebung - eine
-    # uebernommene Maschine soll die Historie nicht zerstoeren koennen. Also
-    # laeuft die Aufbewahrung serverseitig, und zwar dort auch wirklich: sonst
-    # waechst das Repository unbegrenzt.
+    # The normal case is an append-only target: this container may write there
+    # but may not delete. That is the whole point of the exercise - a
+    # compromised machine must not be able to destroy the history. So retention
+    # runs server-side, and it has to actually run there: otherwise the
+    # repository grows without bound.
     if [ "$(repo_kind)" = "rest" ]; then
         cat >&2 <<'EOF'
-offsite: Dieses Ziel ist append-only - Aufraeumen ist von hier aus nicht
-moeglich und auch nicht gewollt. Die Aufbewahrung laeuft auf dem Backup-Server
-(Wartungsfenster mit dem dortigen Wartungszugang). Die Settings
-OFFSITE_KEEP_DAILY/_WEEKLY/_MONTHLY beschreiben, was dort gelten soll.
+offsite: This target is append-only - cleaning up from here is neither possible
+nor intended. Retention runs on the backup server (in a maintenance window,
+using the maintenance access there). The settings
+OFFSITE_KEEP_DAILY/_WEEKLY/_MONTHLY describe what should apply there.
 EOF
         return 0
     fi
-    echo "offsite: raeume alte Snapshots auf ..."
+    echo "offsite: pruning old snapshots ..."
     restic_ forget --prune \
         --keep-daily "${OFFSITE_KEEP_DAILY:-7}" \
         --keep-weekly "${OFFSITE_KEEP_WEEKLY:-4}" \
         --keep-monthly "${OFFSITE_KEEP_MONTHLY:-6}"
 }
 
-# Lesende Befehle laufen ueber beide Stroeme und schreiben dazu, welcher gerade
-# dran ist - eine Snapshot-Liste ohne diese Angabe waere nicht zu deuten.
+# Read-only commands run over both streams and state which one is being
+# reported - a snapshot list without that would be impossible to interpret.
 for_each_stream() {
     local stream rc=0
     for stream in $(all_streams); do
@@ -395,17 +394,17 @@ setup_transport
 case "${1:-backup}" in
     backup) do_backup ;;
     init)   for_each_stream do_init ;;
-    # Bei append-only genuegt die Erklaerung einmal, nicht je Strom.
+    # With append-only the explanation is needed once, not per stream.
     prune)  if [ "$(repo_kind)" = rest ]; then do_prune; else for_each_stream do_prune; fi ;;
     list)   shift; for_each_stream restic_ snapshots "$@" ;;
     info)   shift; for_each_stream restic_ stats "$@" ;;
     check)  shift; for_each_stream restic_ check --read-data "$@" ;;
-    # Freibrief fuer alles andere. Welcher Strom gemeint ist, sagt
-    # OFFSITE_STREAM (db|files); ohne Angabe der Datenbank-Strom, weil das der
-    # ist, um den es im Ernstfall geht.
+    # Escape hatch for everything else. Which stream is meant comes from
+    # OFFSITE_STREAM (db|files); without it the database stream, because that is
+    # the one that matters in an emergency.
     restic) shift
             use_stream "${OFFSITE_STREAM:-db}"
             ensure_unlocked
             restic_ "$@" ;;
-    *)      die "Unbekannter Befehl: $1" ;;
+    *)      die "Unknown command: $1" ;;
 esac

@@ -1,14 +1,14 @@
-"""Tests fuer zodoo.lib_offsite.
+"""Tests for zodoo.lib_offsite.
 
-Der eigentliche Backup-Lauf steckt im offsite-Container (restic) und wird
-nicht hier geprueft. Was hier zaehlt, sind die Teile auf der Host-Seite, an
-denen ein Fehler teuer ist:
+The backup run itself lives in the offsite container (restic) and is not
+checked here. What matters here are the host-side parts where a mistake is
+expensive:
 
-* die Ableitung des Bereichsnamens (ein ungueltiger Name prallt sonst erst
-  beim Backup-Server ab, und zwar bei jedem Kunden anders),
-* die Anmeldung am Backup-Server (Anfrage stellen, Zustand merken,
-  Zugangsdaten uebernehmen) — inklusive der Faelle, in denen NICHTS in die
-  Settings geschrieben werden darf.
+* deriving the area name (an invalid name would otherwise only bounce off the
+  backup server, and differently for every customer),
+* enrolling against the backup server (filing the request, remembering the
+  state, taking over the credentials) - including the cases where NOTHING may
+  be written into the settings.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from zodoo.click_config import Config
 
 
 class FakeConfig(Config):
-    """Wie in test_lib_backup: an Config vorbei, damit kein Projekt noetig ist."""
+    """As in test_lib_backup: bypass Config so no project is needed."""
 
     def __init__(self, **kwargs):
         self._project_name = kwargs.pop("project_name", "zodoo_unit_test")
@@ -53,14 +53,13 @@ class FakeConfig(Config):
     "projectname,expected",
     [
         ("hpnprod17", "hpnprod17"),
-        # Grossbuchstaben und Punkte kommen in Projektnamen vor, im
-        # Bereichsnamen aber nicht.
+        # Capitals and dots occur in project names, but not in area names.
         ("Logiston_Main", "logiston_main"),
         ("odoo.kunde", "odoo-kunde"),
-        # Ticketnamen fangen mit Buchstaben an, Zahlen-Praefixe nicht: dann
-        # wird vorne ein Buchstabe angestellt, statt den Server abzulehnen.
+        # Ticket names start with a letter, numeric prefixes do not: a letter
+        # is then prepended instead of having the server reject the name.
         ("3dm", "p3dm"),
-        # Doppelte und aeussere Trenner werden eingesammelt.
+        # Duplicate and outer separators are collapsed.
         ("ZO--05123 Kunde ", "zo-05123-kunde"),
     ],
 )
@@ -69,8 +68,8 @@ def test_area_name_derives_valid_names(projectname, expected):
 
 
 def test_area_name_aborts_when_nothing_usable_remains():
-    # Nur Sonderzeichen: daraus laesst sich kein Name bilden. Lieber hier
-    # abbrechen als eine kaputte Anfrage stellen.
+    # Special characters only: no name can be formed from that. Better to
+    # abort here than to file a broken request.
     with pytest.raises(SystemExit):
         mod._area_name(FakeConfig(), "!!!")
 
@@ -100,8 +99,8 @@ def _run_register(config, monkeypatch, answers, name=None, note=""):
         "zodoo.tools.update_setting",
         lambda cfg, key, value, **kw: written.__setitem__(key, value),
     )
-    # pass_config holt die Config aus dem click-Kontext (make_pass_decorator),
-    # deshalb hier ein Kontext mit unserer FakeConfig als obj.
+    # pass_config takes the config from the click context
+    # (make_pass_decorator), hence a context with our FakeConfig as obj.
     ctx = click.Context(mod.offsite_register)
     ctx.obj = config
     with ctx:
@@ -113,7 +112,7 @@ def _run_register(config, monkeypatch, answers, name=None, note=""):
 def config_with_rundir(tmp_path):
     cfg = FakeConfig(project_name="testkunde")
     cfg._host_run_dir = tmp_path
-    # Damit das Zertifikat nicht ueber das Netz geholt wird.
+    # So that the certificate is not fetched over the network.
     (tmp_path / "offsite").mkdir()
     (tmp_path / "offsite" / "rest-server.crt").write_text("PEM")
     return cfg
@@ -214,7 +213,7 @@ def test_register_approved_writes_settings_and_clears_state(
     assert written["OFFSITE_PASSPHRASE"] == "geheim"
     assert written["RUN_OFFSITE"] == "1"
     assert (edir / "rest-server.crt").read_text() == "PEM-NEU"
-    # Die Anfrage ist erledigt und darf nicht als offen liegenbleiben.
+    # The request is done and must not linger as an open one.
     assert not (edir / "enroll.json").exists()
 
 
@@ -266,8 +265,8 @@ def test_register_rejected_aborts_and_drops_state(
 def test_register_delivered_does_not_overwrite_settings(
     config_with_rundir, monkeypatch
 ):
-    # Der Server gibt die Daten nur einmal heraus. Ein zweiter Aufruf darf
-    # nicht mit leeren Werten ueber die Settings gehen.
+    # The server hands the data out exactly once. A second call must not run
+    # over the settings with empty values.
     edir = config_with_rundir._host_run_dir / "offsite"
     (edir / "enroll.json").write_text(
         json.dumps({"area": "testkunde", "request_id": "abc", "token": "tok"})

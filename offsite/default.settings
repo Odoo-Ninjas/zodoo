@@ -1,98 +1,99 @@
 RUN_OFFSITE=0
-# Verschluesseltes Offsite-Backup mit restic.
+# Encrypted offsite backup with restic.
 #
-# restic verschluesselt und dedupliziert auf DIESER Maschine, bevor irgendetwas
-# das Netz verlaesst. Der Speicherort sieht ausschliesslich Chiffrat und kann
-# die Daten weder lesen noch unbemerkt veraendern.
+# restic encrypts and deduplicates on THIS machine, before anything leaves the
+# network. The storage side only ever sees ciphertext and can neither read the
+# data nor change it unnoticed.
 #
-# Der Regelfall ist unser eigener Backup-Server (restic-backup): dort laeuft
-# rest-server im Modus --append-only, jede Instanz hat einen eigenen Bereich.
-# Diese Maschine darf dort schreiben, aber NICHTS loeschen - eine uebernommene
-# Odoo-Maschine kann die Sicherungen also nicht zerstoeren. Die Aufbewahrung
-# laeuft dafuer serverseitig (siehe OFFSITE_KEEP_*).
+# The normal case is our own backup server (restic-backup): rest-server runs
+# there with --append-only, and every instance has its own area. This machine
+# may write there but may NOT delete anything - so a compromised Odoo machine
+# cannot destroy the backups. Retention therefore runs server-side (see
+# OFFSITE_KEEP_*).
 #
-# Den Bereich beantragt man nicht per Hand, sondern mit
+# An area is not wired up by hand but requested with
 #   odoo offsite register
-# Das fragt einen Kundenbereich an; ein Admin gibt ihn auf dem Backup-Server
-# frei, danach holt derselbe Befehl Zugangsdaten und Serverzertifikat ab und
-# schreibt sie in die Settings.
+# That files a request for a customer area; an admin approves it on the backup
+# server, after which the same command collects credentials and the server
+# certificate and writes them into the settings.
 #
-# Repository-Adresse. Drei Formen:
-#   rest:https://10.222.0.106:8000/<bereich>/   unser Backup-Server (Regelfall)
-#   sftp:u123456@u123456.your-storagebox.de:23/zodoo/<projekt>   Storage Box
-#   /pfad/auf/eingehaengter/platte
-# Leer = Offsite-Backup ist nicht konfiguriert; `odoo offsite backup` bricht
-# dann mit einer Erklaerung ab, statt still nichts zu tun.
+# Repository address. Three forms:
+#   rest:https://10.222.0.106:8000/<area>/                       our backup server (normal case)
+#   sftp:u123456@u123456.your-storagebox.de:23/zodoo/<project>   Storage Box
+#   /path/on/a/mounted/disk
+# Empty means offsite backup is not configured; `odoo offsite backup` then
+# aborts with an explanation instead of quietly doing nothing.
 OFFSITE_REPO=
-# Zugang zum Bereich auf dem Backup-Server (nur bei rest:-Zielen). Er regelt,
-# WER schreiben darf - nicht, wer lesen kann. Das macht die Passphrase.
-# Wird von `odoo offsite register` gesetzt.
+# Access to the area on the backup server (rest: targets only). It governs WHO
+# may write - not who can read. Reading is governed by the passphrase.
+# Set by `odoo offsite register`.
 OFFSITE_REST_USER=
 OFFSITE_REST_PASSWORD=
-# Host-Verzeichnis, das als Offsite-Ziel eingehaengt wird (NFS-Platte o.ae.).
-# Nur noetig, wenn OFFSITE_REPO ein Pfad und keine rest:/sftp:-Adresse ist; im
-# Container erscheint es unter demselben Pfad, damit OFFSITE_REPO auf beiden
-# Seiten gleich lautet.
+# Host directory mounted as the offsite target (an NFS disk or similar).
+# Only needed when OFFSITE_REPO is a path rather than a rest:/sftp: address; it
+# appears under the same path inside the container so that OFFSITE_REPO reads
+# identically on both sides.
 OFFSITE_LOCAL_DIR=
-# Passphrase des Repository-Schluessels. OHNE SIE SIND DIE BACKUPS VERLOREN -
-# sie muss ausserhalb dieser Maschine hinterlegt sein (1Password-Vault
-# Infrastructure-Backup bzw. im Hosting-Backend am Projekt), sonst ist ein
-# Offsite-Backup wertlos: genau dann, wenn man es braucht, ist die Maschine weg.
+# Passphrase of the repository key. WITHOUT IT THE BACKUPS ARE LOST - it has to
+# be kept outside this machine (1Password vault Infrastructure-Backup, or on the
+# project in the hosting backend), otherwise an offsite backup is worthless:
+# exactly when it is needed, the machine is gone.
 OFFSITE_PASSPHRASE=
-# Fuer sftp-Ziele wird der SSH-Key unter $HOST_RUN_DIR/offsite/id_ed25519
-# erwartet (Rechte 0600) und read-only in den Container gehaengt; das
-# Zertifikat unseres Backup-Servers liegt daneben als rest-server.crt und wird
-# von `odoo offsite register` dort abgelegt. Die Pfade sind bewusst fest
-# verdrahtet und keine Settings: Settings-Werte werden nicht rekursiv
-# expandiert, ein Pfad mit $HOST_RUN_DIR darin kaeme in der Compose woertlich an.
-# Zeitplan des taeglichen Offsite-Laufs. Absichtlich NACH dem Barman-Basis-
-# backup (BARMAN_BACKUP_CRON, 02:00), damit der Lauf die frische Basis
-# mitnimmt statt der von gestern.
+# For sftp targets the SSH key is expected at $HOST_RUN_DIR/offsite/id_ed25519
+# (mode 0600) and mounted read-only into the container; our backup server's
+# certificate sits next to it as rest-server.crt and is placed there by
+# `odoo offsite register`. Those paths are deliberately hard-wired rather than
+# settings: settings values are not expanded recursively, so a path containing
+# $HOST_RUN_DIR would arrive in the compose file literally.
+# Schedule of the daily offsite run. Deliberately AFTER the barman base backup
+# (BARMAN_BACKUP_CRON, 02:00) so the run picks up the fresh base instead of
+# yesterday's.
 OFFSITE_BACKUP_CRON=0 4 * * *
-# Aufbewahrung. Bei append-only-Zielen (unser Backup-Server) kann der Client
-# nicht aufraeumen - diese Werte beschreiben dann, was SERVERSEITIG gelten soll.
-# Bei sftp-/Pfad-Zielen wendet der Lauf sie nach jedem Backup selbst an.
+# Retention. Against append-only targets (our backup server) the client cannot
+# clean up - these values then describe what should apply SERVER-SIDE. Against
+# sftp or path targets the run applies them itself after each backup.
 OFFSITE_KEEP_DAILY=7
 OFFSITE_KEEP_WEEKLY=4
 OFFSITE_KEEP_MONTHLY=6
-# Kompression im Repository: auto (Vorgabe, guter Kompromiss), off wenn die
-# Quellen schon komprimiert sind, max wenn die Leitung teurer ist als die CPU.
+# Compression inside the repository: auto (the default, a good compromise), off
+# when the sources are already compressed, max when the line costs more than the
+# CPU.
 OFFSITE_COMPRESSION=auto
-# Zusaetzlich die Dump-Dateien aus $DUMPS_PATH mitsichern. Standardmaessig
-# aus: mit Barman ist die Datenbank ueber WAL + Basisbackup schon abgedeckt,
-# und in /host/dumps liegen oft viele alte Staende.
+# Additionally back up the dump files from $DUMPS_PATH. Off by default: with
+# barman the database is already covered by WAL plus base backup, and
+# /host/dumps often holds many old states.
 #
-# Ohne Barman braucht es das gar nicht: `odoo offsite backup` zieht dann von
-# sich aus einen frischen Dump und nimmt genau diesen einen mit - siehe
+# Without barman this is not needed at all: `odoo offsite backup` then pulls a
+# fresh dump itself and takes exactly that one along - see
 # OFFSITE_ALLOW_WITHOUT_DB.
 OFFSITE_INCLUDE_DUMPS=0
-# Notausgang fuer die Vollstaendigkeitspruefung.
+# Emergency exit for the completeness check.
 #
-# Der Offsite-Lauf bricht ab, wenn kein Datenbankstand ins Archiv kaeme -
-# weder ueber Barman noch ueber einen Dump. Das ist Absicht: der Filestore ist
-# immer da, die Datenbank nicht, und ein Snapshot aus lauter Anhaengen sieht aus
-# wie ein Backup, bis jemand wiederherstellen will. 1 schaltet die Pruefung ab
-# und sichert wissentlich nur die Dateien - nur sinnvoll, wenn die Datenbank
-# nachweislich woanders gesichert wird.
+# The offsite run aborts when no database state would end up in the archive -
+# neither via barman nor via a dump. That is deliberate: the filestore is always
+# there, the database is not, and a snapshot of nothing but attachments looks
+# like a backup until somebody wants to restore. 1 switches the check off and
+# knowingly backs up the files only - which only makes sense when the database
+# is provably backed up elsewhere.
 OFFSITE_ALLOW_WITHOUT_DB=0
-# Und dieselbe Pruefung in die andere Richtung: der Lauf bricht ab, wenn der
-# Filestore fehlt oder leer ist. Genau so sieht ein Volume aus, das nicht
-# eingehaengt wurde - die Datenbank waere dann gesichert, die Anhaenge nicht,
-# und auffallen wuerde es erst beim Wiederherstellen. 1 nur setzen, wenn die
-# Instanz wirklich noch keine Anhaenge hat.
+# And the same check in the other direction: the run aborts when the filestore
+# is missing or empty. That is exactly what a volume looks like that was not
+# mounted - the database would be saved and the attachments not, and it would
+# only show up on restore. Set 1 only when the instance really has no
+# attachments yet.
 OFFSITE_ALLOW_WITHOUT_FILES=0
-# Aufteilung des Bereichs in zwei Repositories: <bereich>/db und
-# <bereich>/files. Damit hat jeder der beiden Teile sein eigenes, auf dem
-# Backup-Server sichtbares Alter - liegt alles in einem Repository, verdeckt
-# ein ankommender Filestore einen ausgefallenen Dump. "flat" ist das alte
-# Verhalten (alles in ein Repository) und nur fuer Altbestand gedacht.
+# Splitting the area into two repositories: <area>/db and <area>/files. That
+# gives each of the two parts its own age, visible on the backup server - with
+# everything in one repository an arriving filestore hides a database dump that
+# stopped coming. "flat" is the old behaviour (everything in one repository) and
+# is meant for legacy installations only.
 OFFSITE_LAYOUT=split
-# Bandbreitenbremse in KiB/s fuer den Upload (0 = unbegrenzt). Nuetzlich,
-# wenn das Backup nicht die Leitung des Produktivsystems auffressen soll.
+# Upload brake in KiB/s (0 = unlimited). Useful when the backup should not eat
+# the production system's bandwidth.
 OFFSITE_UPLOAD_LIMIT=0
-# Offsite-Backup ist ein Produktionsthema und auf Entwicklerkisten nur
-# Ballast - auf DEVMODE-Maschinen wird es abgeschaltet (siehe
-# __after_settings.py). 1 erzwingt es trotzdem, z.B. zum Testen.
+# Offsite backup is a production concern and mere ballast on developer boxes -
+# it is switched off on DEVMODE machines (see __after_settings.py). 1 forces it
+# on anyway, e.g. for testing.
 OFFSITE_FORCE_IN_DEVMODE=0
-# Anmeldedienst des Backup-Servers, den `odoo offsite register` anspricht.
+# Enrollment service on the backup server that `odoo offsite register` talks to.
 OFFSITE_ENROLL_URL=https://10.222.0.106:8443

@@ -112,11 +112,11 @@ class MyConfigParser:
                 if key not in handled_keys:
                     yield format_line(key, self.configOptions[key])
 
-        # Rechte VOR dem Umbenennen setzen: atomic_write schreibt eine neue
-        # Datei und ersetzt die alte, die Rechte der bisherigen Datei sind danach
-        # weg. Wer erst hinterher chmod-t, hat die Datei einen Moment lang mit
-        # den Rechten der Umask im Verzeichnis liegen - bei einem Geheimnis ist
-        # genau dieser Moment das Problem.
+        # Set the permissions BEFORE the rename: atomic_write creates a new
+        # file and replaces the old one, so the previous file's permissions are
+        # gone afterwards. Whoever chmods only after the fact leaves the file
+        # sitting there with the umask's permissions for a moment - and with a
+        # secret in it, that moment is the problem.
         prev_mode = None
         try:
             prev_mode = stat.S_IMODE(Path(self.fileName).stat().st_mode)
@@ -126,15 +126,15 @@ class MyConfigParser:
         with atomic_write(self.fileName) as file:
             file.write_text("\n".join(_update_lines()) + "\n")
             if prev_mode is not None:
-                # Die bisherigen Rechte erhalten - ohne das wuerde jedes
-                # Schreiben sie auf die Umask zuruecksetzen.
+                # Preserve the existing permissions - without this, every
+                # write would reset them to the umask.
                 file.chmod(prev_mode)
             if self._holds_secret():
                 self._tighten(file)
 
-    # Settings-Werte, bei denen die Datei niemand ausser dem Besitzer lesen
-    # koennen soll. OFFSITE_PASSPHRASE ist der teuerste davon: damit laesst
-    # sich das gesamte Offsite-Backup des Projekts entschluesseln.
+    # Settings whose file nobody but the owner should be able to read.
+    # OFFSITE_PASSPHRASE is the most expensive of them: it decrypts the
+    # project's entire offsite backup.
     SECRET_KEY_HINTS = (
         "PASSPHRASE",
         "PASSWORD",
@@ -151,16 +151,16 @@ class MyConfigParser:
         )
 
     def _tighten(self, path):
-        """Anderen jedes Recht nehmen (0600), wenn ein Geheimnis drinsteht.
+        """Take every permission away from others (0600) when a secret is in it.
 
-        Bisher lagen Settings-Dateien auf dem Default der Umask (haeufig 0644)
-        und waren nur durch die Rechte des Home-Verzeichnisses geschuetzt.
-        Entsteht ein Home mal mit 0755 - auf einer Maschine mit vielen
-        Instanz-Usern durchaus moeglich -, liegt die Backup-Passphrase offen.
+        Until now settings files landed on the umask's default (often 0644) and
+        were protected only by the permissions of the home directory. If a home
+        is ever created as 0755 - entirely possible on a machine with many
+        instance users - the backup passphrase lies open.
 
-        Angefasst wird nur, was unter dem eigenen Home liegt:
-        /etc/odoo/settings ist systemweit und muss fuer alle lesbar bleiben,
-        sonst findet keine andere Instanz mehr ihre Grundeinstellungen.
+        Only what sits below the own home is touched: /etc/odoo/settings is
+        system-wide and has to stay readable for everyone, otherwise no other
+        instance finds its base settings any more.
         """
         try:
             home = Path.home().resolve()
@@ -172,8 +172,8 @@ class MyConfigParser:
             if mode & 0o077:
                 path.chmod(mode & ~0o077)
         except OSError:
-            # Rechte sind ein Zusatz, kein Grund das Schreiben scheitern zu
-            # lassen - der Wert steht dann schon in der Datei.
+            # Permissions are an extra, not a reason to fail the write - the
+            # value is already in the file at this point.
             pass
 
     def __getitem__(self, key):

@@ -225,11 +225,11 @@ location and at the integrity of the history.
 
 | Symptom                                               | Cause / fix                                                                                                                                         |
 | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OFFSITE_REPO ist leer`                               | No target configured. Run `odoo offsite register`.                                                                                                  |
-| `OFFSITE_REST_USER ist leer`                          | Area credentials missing — the registration never completed.                                                                                        |
+| `OFFSITE_REPO is empty`                               | No target configured. Run `odoo offsite register`.                                                                                                  |
+| `OFFSITE_REST_USER is empty`                          | Area credentials missing — the registration never completed.                                                                                        |
 | restic refuses the connection / certificate error     | `rest-server.crt` missing or the server certificate changed. Re-run `register`; if the fingerprint really changed, find out why before trusting it. |
-| `Anmeldedienst … nicht erreichbar`                    | The enrollment service is only reachable over the zebroo VPN. Is this machine in a VPN group with the backup server?                                |
-| Backup aborts with "Kein Datenbankstand im Backup"    | Working as intended. Set `RUN_BARMAN=1`, or use `odoo offsite backup` (pulls a dump itself).                                                        |
+| `Enrollment service … is unreachable`                    | The enrollment service is only reachable over the zebroo VPN. Is this machine in a VPN group with the backup server?                                |
+| Backup aborts with "no database state in the backup"    | Working as intended. Set `RUN_BARMAN=1`, or use `odoo offsite backup` (pulls a dump itself).                                                        |
 | Stale lock after a crash / reboot                     | The run breaks a hanging lock itself before starting. `rest-server` permits lock removal even in append-only mode.                                  |
 | Offsite target is a path and the run refuses to start | Parent directory missing — the disk is probably not mounted. Do not "fix" this by creating the directory.                                           |
 
