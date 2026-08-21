@@ -1,3 +1,0 @@
-type: fix
-description: "Barman auf einer bestehenden Instanz einschalten fuehrte zu stummem Stillstand: der pg_hba-Eintrag fuer Replikationsverbindungen wurde nur beim Initialisieren einer neuen Datenbank angelegt, also nie bei einem schon vorhandenen Cluster. wal_level passte, der barman-Container lief, aber Streaming und Basisbackup scheiterten - sichtbar nur ueber 'barman check'. Der Eintrag wird jetzt bei jedem Start des Postgres-Containers idempotent sichergestellt."
-breaking: false

@@ -1,5 +1,12 @@
 # Changelog
 
+## 9.2.0
+
+
+- **Feature**: Neuer Weg fuer das Filestore-Backup, bei dem die Odoo-Maschine ihre eigenen Sicherungen NICHT mehr lesen kann. Moeglich, weil Odoo Anhaenge nach dem SHA-1 ihres Inhalts benennt: eine Datei wird einmal geschrieben und nie geaendert, 'was ist neu' ist ein reiner Namensvergleich gegen ein lokales Verzeichnis, und es braucht keinen Repo-Index und keinen Schluessel. Verschluesselt wird gegen einen oeffentlichen age-Schluessel (OFFSITE_WO_RECIPIENT), hochgeladen per PUT an OFFSITE_WO_URL. Neuer Befehl 'odoo offsite filestore'; sind beide Settings gesetzt, ersetzt der Weg den restic-Strom 'files' statt danebenzulaufen.
+- **Fix**: Barman auf einer bestehenden Instanz einschalten fuehrte zu stummem Stillstand: der pg_hba-Eintrag fuer Replikationsverbindungen wurde nur beim Initialisieren einer neuen Datenbank angelegt, also nie bei einem schon vorhandenen Cluster. wal_level passte, der barman-Container lief, aber Streaming und Basisbackup scheiterten - sichtbar nur ueber 'barman check'. Der Eintrag wird jetzt bei jedem Start des Postgres-Containers idempotent sichergestellt.
+
+
 ## 9.1.1
 
 
