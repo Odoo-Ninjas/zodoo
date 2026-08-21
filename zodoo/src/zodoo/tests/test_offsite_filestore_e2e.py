@@ -29,6 +29,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
+import yaml
 
 from .conftest import requires_full_stack
 
@@ -116,28 +117,36 @@ def _gateway_ip(project):
     return gw
 
 
-def _setting(project, key):
-    """Read one effective setting out of the project's settings file."""
-    path = project.home / ".odoo" / f"settings.{project.name}"
-    if not path.exists():
-        pytest.skip(f"no settings file at {path}")
-    for line in path.read_text().splitlines():
-        name, _, value = line.partition("=")
-        if name.strip() == key:
-            return value.strip()
-    return None
-
-
 def _filestore_dir(project) -> Path:
-    """$ODOO_FILES/filestore/<db> on the host."""
-    files = _setting(project, "ODOO_FILES")
-    dbname = _setting(project, "DBNAME") or project.name
-    if not files:
-        pytest.skip("ODOO_FILES is not set in the project settings")
-    d = Path(files).expanduser() / "filestore" / dbname
-    if not d.is_dir():
-        pytest.skip(f"no filestore at {d}")
-    return d
+    """The host directory the offsite container sees as /source/filestore.
+
+    Taken from the generated compose file rather than from a settings lookup:
+    the compose file is what actually decides which host path is mounted, and a
+    settings key that happens to be unset would otherwise turn this test into a
+    silent skip - which reads like a pass.
+    """
+    compose = (
+        project.home / ".odoo" / "run" / project.name / "docker-compose.yml"
+    )
+    assert compose.exists(), f"no generated compose file at {compose}"
+    spec = yaml.safe_load(compose.read_text())
+    volumes = spec["services"]["offsite"]["volumes"]
+    source = None
+    for vol in volumes:
+        if isinstance(vol, str) and ":/source/filestore" in vol:
+            source = vol.split(":", 1)[0]
+            break
+        if isinstance(vol, dict) and vol.get("target") == "/source/filestore":
+            source = vol.get("source")
+            break
+    assert source, f"no /source/filestore mount in {volumes}"
+
+    root = Path(source).expanduser() / "filestore"
+    assert root.is_dir(), f"filestore pool {root} does not exist"
+    # One subdirectory per database; this project has exactly one.
+    candidates = sorted(d for d in root.iterdir() if d.is_dir())
+    assert candidates, f"no database filestore under {root}"
+    return candidates[0]
 
 
 def _decrypt_listing(project, private, bundle: bytes, tmp_path: Path) -> list[str]:
@@ -175,13 +184,15 @@ def _decrypt_listing(project, private, bundle: bytes, tmp_path: Path) -> list[st
     )
 
 
-@pytest.fixture
-def age_keypair(odoo_project_19_running):
+def _make_age_keypair(project):
     """A throwaway keypair, generated in the offsite image.
 
     Generated rather than committed: a private key in the repository is a bad
     habit even when it protects nothing, and the image already ships `age`, so
     there is nothing to install on the runner.
+
+    A plain function rather than a fixture on purpose: the image only exists
+    after `odoo build offsite`, and fixtures run before the test body.
     """
     res = subprocess.run(
         [
@@ -190,7 +201,7 @@ def age_keypair(odoo_project_19_running):
             "--rm",
             "--entrypoint",
             "age-keygen",
-            f"{odoo_project_19_running.name}-offsite",
+            f"{project.name}-offsite",
         ],
         capture_output=True,
         text=True,
@@ -210,19 +221,28 @@ def age_keypair(odoo_project_19_running):
 @pytest.mark.slow
 @requires_full_stack
 def test_filestore_uploads_only_the_delta(
-    odoo_project_19_running, receiver, age_keypair, tmp_path
+    odoo_project_19_running, receiver, tmp_path
 ):
     project = odoo_project_19_running
-    public, private = age_keypair
     port = receiver.server_address[1]
     url = f"http://{_gateway_ip(project)}:{port}/e2etest/"
 
+    # The offsite service has to be part of the compose before its image can be
+    # built, and __after_settings forces RUN_OFFSITE off on DEVMODE machines -
+    # hence the force flag. The write-only path itself needs neither a
+    # repository nor a passphrase.
+    project.run("setting", "RUN_OFFSITE=1", timeout=60)
+    project.run("setting", "OFFSITE_FORCE_IN_DEVMODE=1", timeout=60)
     project.run("setting", f"OFFSITE_WO_URL={url}", timeout=60)
-    project.run("setting", f"OFFSITE_WO_RECIPIENT={public}", timeout=60)
     project.run("setting", "OFFSITE_REST_USER=e2etest", timeout=60)
     project.run("setting", "OFFSITE_REST_PASSWORD=irrelevant-for-the-double", timeout=60)
     project.run("reload", timeout=60 * 10)
     project.run("build", "offsite", timeout=60 * 20)
+
+    # Only now does the image exist, so only now can it generate the keypair.
+    public, private = _make_age_keypair(project)
+    project.run("setting", f"OFFSITE_WO_RECIPIENT={public}", timeout=60)
+    project.run("reload", timeout=60 * 10)
 
     filestore = _filestore_dir(project)
 
