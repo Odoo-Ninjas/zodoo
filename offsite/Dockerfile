@@ -4,19 +4,17 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 #___SNIPPET_APT_PROXY___
 
-# restic bringt Verschluesselung und Deduplizierung mit; openssh-client den
-# Transport zu einem sftp-Ziel (Storage Box). Mehr braucht der Container nicht -
-# er liest nur read-only gemountete Verzeichnisse und schiebt Chiffrat nach
-# draussen.
+# restic provides encryption and deduplication; openssh-client provides the
+# transport to an sftp target (Storage Box). The container needs nothing else -
+# it only reads read-only mounted directories and pushes ciphertext out.
 RUN #___SNIPPET_APT_INSTALL___ \
     restic openssh-client ca-certificates tzdata && \
     apt-get clean -y && \
     rm -rf /var/lib/apt/lists/*
 
-# Der restic-Cache (Index der bereits uebertragenen Bloecke) macht den
-# Unterschied zwischen "dedupliziert inkrementell" und "liest jede Nacht alles
-# neu ein" - er wird als Volume gemountet und muss ueber Laeufe hinweg bestehen
-# bleiben.
+# The restic cache (an index of the blocks already transferred) makes the
+# difference between "deduplicated and incremental" and "reads everything again
+# every night" - it is mounted as a volume and has to survive across runs.
 ENV RESTIC_CACHE_DIR=/var/lib/restic/cache
 ENV HOME=/var/lib/restic
 

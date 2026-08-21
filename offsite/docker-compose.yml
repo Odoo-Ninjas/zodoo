@@ -1,28 +1,28 @@
 # manage-order: 520
 volumes:
-  # Der restic-Cache (Index der bereits uebertragenen Bloecke) macht den
-  # Unterschied zwischen "dedupliziert inkrementell" und "liest jede Nacht alles
-  # neu ein" - er muss ueber Laeufe hinweg bestehen bleiben.
+  # The restic cache (an index of the blocks already transferred) makes the
+  # difference between "deduplicated and incremental" and "reads everything
+  # again every night" - it has to survive across runs.
   offsite_cache:
-  # Auch hier deklariert, nicht nur in barman/docker-compose.yml: bei
-  # RUN_BARMAN=0 ist die Barman-Compose gar nicht Teil des Merges, und ein
-  # Volume-Verweis ins Leere laesst `docker compose config` scheitern. So
-  # bleibt die Quelle bei abgeschaltetem Barman einfach leer.
+  # Declared here as well, not only in barman/docker-compose.yml: with
+  # RUN_BARMAN=0 the barman compose file is not part of the merge at all, and a
+  # volume reference into nothing makes `docker compose config` fail. This way
+  # the source is simply empty when barman is switched off.
   barman_data:
 services:
   offsite:
     build:
       context: $ODOO_IMAGES/offsite
     profiles:
-      # Kein Dauerlaeufer: der Container wird pro Backup einmal gestartet
-      # (`odoo offsite ...` bzw. der naechtliche Cronjob) und beendet sich
-      # wieder. Als "auto"-Service wuerde `odoo up -d` ihn starten und der
-      # sofortige Exit saehe wie ein Absturz aus.
+      # Not a long-running service: the container is started once per backup
+      # (`odoo offsite ...` or the nightly cronjob) and exits again. As an
+      # "auto" service `odoo up -d` would start it and the immediate exit would
+      # look like a crash.
       - manual
     environment:
       OFFSITE_REPO: $OFFSITE_REPO
       OFFSITE_PASSPHRASE: $OFFSITE_PASSPHRASE
-      # Zugang zum Bereich auf dem Backup-Server (rest:-Ziele).
+      # Access to the area on the backup server (rest: targets).
       OFFSITE_REST_USER: $OFFSITE_REST_USER
       OFFSITE_REST_PASSWORD: $OFFSITE_REST_PASSWORD
       OFFSITE_KEEP_DAILY: $OFFSITE_KEEP_DAILY
@@ -34,22 +34,23 @@ services:
       OFFSITE_ALLOW_WITHOUT_DB: $OFFSITE_ALLOW_WITHOUT_DB
       OFFSITE_ALLOW_WITHOUT_FILES: $OFFSITE_ALLOW_WITHOUT_FILES
       OFFSITE_LAYOUT: $OFFSITE_LAYOUT
-      # Wird pro Lauf von `odoo offsite backup` gesetzt (docker compose run -e),
-      # wenn ohne Barman ein frischer Dump gezogen wurde. Hier nur deklariert,
-      # damit die Variable im Container ueberhaupt existiert.
+      # Set per run by `odoo offsite backup` (docker compose run -e) when a
+      # fresh dump was pulled because barman is off. Declared here only so the
+      # variable exists inside the container at all.
       OFFSITE_DB_DUMP: ""
       PROJECT_NAME: $PROJECT_NAME
-      # Waehlt den Filestore-Unterordner dieser Datenbank aus dem host-weiten
-      # Pool aus (siehe entrypoint.sh).
+      # Selects this database's filestore subdirectory out of the host-wide
+      # pool (see entrypoint.sh).
       DBNAME: $DBNAME
     volumes:
-      # Alle Quellen read-only: dieser Container liest Backups, er erzeugt
-      # keine und darf produktive Daten unter keinen Umstaenden anfassen.
+      # All sources read-only: this container reads backups, it does not
+      # produce any, and it must not touch production data under any
+      # circumstances.
       - barman_data:/source/barman:ro
       - $ODOO_FILES:/source/filestore:ro
       - $DUMPS_PATH:/source/dumps:ro
       - offsite_cache:/var/lib/restic
-      # Fester Pfad statt Setting: Settings-Werte werden nicht rekursiv
-      # expandiert, ein "$HOST_RUN_DIR/offsite" aus default.settings kaeme hier
-      # woertlich an und compose wuerde es als Volume-NAMEN lesen.
+      # A fixed path rather than a setting: settings values are not expanded
+      # recursively, so a "$HOST_RUN_DIR/offsite" from default.settings would
+      # arrive here literally and compose would read it as a volume NAME.
       - $HOST_RUN_DIR/offsite:/etc/offsite:ro

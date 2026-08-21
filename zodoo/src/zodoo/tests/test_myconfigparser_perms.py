@@ -1,10 +1,10 @@
-"""Settings-Dateien mit Geheimnissen duerfen nicht fuer andere lesbar sein.
+"""Settings files holding secrets must not be readable by others.
 
-Die Backup-Passphrase (OFFSITE_PASSPHRASE) landet beim Anmelden am
-Backup-Server in einer Settings-Datei. Wer sie hat, kann das gesamte Offsite-
-Backup des Projekts entschluesseln - sie hinter den Rechten des
-Home-Verzeichnisses zu parken reicht nicht, weil ein Home mit 0755 auf einer
-Maschine mit mehreren Instanz-Usern durchaus vorkommt.
+Enrolling against the backup server puts the backup passphrase
+(OFFSITE_PASSPHRASE) into a settings file. Whoever has it can decrypt the
+project's entire offsite backup - parking it behind the permissions of the home
+directory is not enough, because a home with 0755 does occur on a machine with
+several instance users.
 """
 
 import os
@@ -32,8 +32,8 @@ def test_secret_tightens_permissions(tmp_path, monkeypatch):
 
 
 def test_harmless_settings_are_left_alone(tmp_path, monkeypatch):
-    """Kein Geheimnis, keine Verengung - sonst brechen wir Dateien, die
-    absichtlich fuer andere lesbar sind (z.B. gemeinsame Projekt-Settings)."""
+    """No secret, no tightening - otherwise we break files that are readable
+    by others on purpose (e.g. shared project settings)."""
     monkeypatch.setenv("HOME", str(tmp_path))
     path = tmp_path / "settings"
     path.write_text("")
@@ -47,7 +47,7 @@ def test_harmless_settings_are_left_alone(tmp_path, monkeypatch):
 
 
 def test_outside_home_is_not_touched(tmp_path, monkeypatch):
-    """/etc/odoo/settings ist systemweit und muss lesbar bleiben."""
+    """/etc/odoo/settings is system-wide and has to stay readable."""
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
@@ -63,7 +63,7 @@ def test_outside_home_is_not_touched(tmp_path, monkeypatch):
 
 
 def test_already_tight_stays_tight(tmp_path, monkeypatch):
-    """Nie lockern: eine 0400-Datei bleibt 0400."""
+    """Never loosen: a 0400 file stays 0400."""
     monkeypatch.setenv("HOME", str(tmp_path))
     path = tmp_path / "settings"
     path.write_text("")

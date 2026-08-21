@@ -3,11 +3,11 @@ def _truthy(val):
 
 
 def after_settings(settings, config):
-    """Offsite-Backup auf DEVMODE-Maschinen abschalten.
+    """Switch offsite backup off on DEVMODE machines.
 
-    Ein Entwicklerrechner soll nachts nicht ungefragt Daten zu einem externen
-    Speicheranbieter schieben. Wer die Integration lokal testen will, setzt
-    OFFSITE_FORCE_IN_DEVMODE=1.
+    A developer box should not push data to an external storage provider
+    overnight without being asked. Anyone wanting to test the integration
+    locally sets OFFSITE_FORCE_IN_DEVMODE=1.
     """
     if settings.get("DEVMODE") == "1" and not _truthy(
         settings.get("OFFSITE_FORCE_IN_DEVMODE", "0")
