@@ -12,6 +12,7 @@ This avoids accidentally renewing certs on every deploy.
 """
 import inspect
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -27,6 +28,18 @@ if "listen 443 ssl" in content:
     sys.exit(0)
 
 
+def _compose():
+    """The compose CLI this host has.
+
+    Hosts built on Ubuntu 20.04 carry the old standalone docker-compose (v1);
+    newer ones only ship the 'docker compose' plugin. v1 keeps priority so
+    nothing changes where it is still installed.
+    """
+    if shutil.which("docker-compose"):
+        return ["docker-compose"]
+    return ["docker", "compose"]
+
+
 def _has_existing_cert(d):
     return (project_dir / "letsencrypt" / "live" / d).is_dir()
 
@@ -39,7 +52,7 @@ for domain in domain_arg.split(" "):
         # No ACME call: just deploy the existing cert into the nginx
         # config (safe vs Let's Encrypt rate limits).
         subprocess.run([
-            'docker-compose', 'exec', '-T', 'router',
+            *_compose(), 'exec', '-T', 'router',
             'certbot', 'install',
             '--cert-name', domain,
             '--nginx',
@@ -48,7 +61,7 @@ for domain in domain_arg.split(" "):
     else:
         # New domain — request a fresh cert.
         subprocess.run([
-            'docker-compose', 'exec', '-T', 'router',
+            *_compose(), 'exec', '-T', 'router',
             'certbot', '--nginx',
             '-d', domain,
             '--non-interactive',
