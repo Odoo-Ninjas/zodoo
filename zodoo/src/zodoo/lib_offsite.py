@@ -298,6 +298,30 @@ def offsite_wal(config):
 
 
 @offsite.command(
+    name="reset",
+    help=(
+        "Forget what has already been uploaded, so the next run offers "
+        "everything again. Deletes nothing on the receiver."
+    ),
+)
+@click.argument(
+    "what",
+    type=click.Choice(["all", "filestore", "db"]),
+    default="all",
+    required=False,
+)
+@pass_config
+def offsite_reset(config, what):
+    # The ledger is only a memory of what was sent, never the backup itself, so
+    # losing or discarding it is recoverable: the next run asks the receiver
+    # which objects it already has (HEAD) and only sends what is missing. What
+    # this command does NOT do is delete anything on the receiver - this machine
+    # cannot, and should not be able to.
+    _state_dir(config)
+    _offsite_run_raw(config, ["reset", what], name_suffix="offsite_reset")
+
+
+@offsite.command(
     name="init",
     help="Create the repository (the first backup does this anyway).",
 )

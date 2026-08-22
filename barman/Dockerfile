@@ -13,9 +13,13 @@ RUN #___SNIPPET_APT_INSTALL___ \
 # (provides pg_basebackup / pg_receivewal matching the server major version).
 #___SNIPPET_POSTGRES___
 
-# Barman + the streaming/cloud helper commands live in the pgdg repo set up above.
+# Barman + the streaming/cloud helper commands live in the pgdg repo set up
+# above. zstd and lz4 are the decompressors barman hands to `tar` when
+# backup_compression is set: without the binary a compressed base backup fails
+# with "tar (child): zstd: Cannot exec", i.e. no backup at all rather than an
+# uncompressed one.
 RUN #___SNIPPET_APT_INSTALL___ \
-    barman barman-cli && \
+    barman barman-cli zstd lz4 && \
     apt-get clean -y && \
     rm -rf /var/lib/apt/lists/*
 

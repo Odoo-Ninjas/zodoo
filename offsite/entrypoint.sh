@@ -168,6 +168,8 @@ restic_() {
 # Write-only filestore backup (no restic, no key on this machine). Sourced
 # rather than exec'd so it can use die()/CA_CERT and be dispatched like the
 # other commands.
+# shellcheck source=wo-common.sh
+. /wo-common.sh
 # shellcheck source=filestore-wo.sh
 . /filestore-wo.sh
 # shellcheck source=db-wo.sh
@@ -419,6 +421,7 @@ case "${1:-}" in
     filestore) do_filestore; exit 0 ;;
     db)        db_with_lock do_db; exit 0 ;;
     wal)       db_with_lock do_db_wal; exit 0 ;;
+    reset)     shift; wo_reset "${1:-all}"; exit 0 ;;
 esac
 
 require_config

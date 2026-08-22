@@ -311,6 +311,66 @@ every minute while a nightly base backup upload is still going. Serialisation
 happens inside, on a lock in the state directory, where a busy lock is a quiet
 success rather than an error.
 
+### Nothing is spooled to disk
+
+A base backup and the first filestore bundle are **streamed**: `tar | gzip | age`
+goes straight onto the wire. Spooling them to a file first would need their own
+compressed size in scratch space - for a 600 GB database that is ~170 GB, and it
+would land on the container's writable layer, i.e. the system disk.
+
+Streaming means the checksum cannot be known in advance, because `age` is
+deliberately not reproducible (a fresh ephemeral key per encryption). So the
+source hashes what it streams, the receiver hashes what it received, and the two
+are compared - an end-to-end check that costs no disk. Where a file genuinely is
+needed (WAL segments, manifests), the scratch directory sits inside the state
+directory, next to the data rather than on the system disk.
+
+### Repeats and starting over
+
+Before uploading, the source asks the receiver whether the object name is
+already taken (`HEAD`). That makes a repeat cheap: after a crash between upload
+and ledger write, or after a deliberate reset, what is already there is
+recognised and not re-sent.
+
+```bash
+odoo offsite reset            # forget the ledgers; next run offers everything again
+odoo offsite reset db         # only base backups + WAL
+odoo offsite reset filestore  # only the filestore
+```
+
+The reset deletes **nothing** on the receiver - this machine cannot, by design.
+The old ledgers are renamed rather than removed; they are the only record of what
+this machine ever reported.
+
+One subtlety worth knowing: an object that was already there is **not declared
+again** in the new manifest. Its stored ciphertext was produced by an earlier
+encryption and therefore has a different checksum than one computed now -
+declaring our value for those bytes would make the completeness check report a
+mismatch that is not one. It stays declared by the run that uploaded it, and
+manifests are read cumulatively.
+
+`HEAD` answers only whether a *name* is taken - no content, no size. There is
+still no `GET`.
+
+### Local space on the machine
+
+Barman writes base backups into its own catalogue before anything is uploaded, so
+local space is needed for the local retention window. Two settings decide how
+much:
+
+| Setting | Default | Effect |
+| --- | --- | --- |
+| `BARMAN_BACKUP_COMPRESSION` | `zstd` | measured 58.4 MiB → 20.9 MiB on a small test database, i.e. factor ~2.8 |
+| `BARMAN_RETENTION` | `RECOVERY WINDOW OF 2 DAYS` | the history lives offsite now, so the machine only keeps enough to serve the upload and a fast local restore |
+
+Without both, a 600 GB database with daily base backups and a 7-day window needs
+over 4 TB locally. With both it is a few hundred GB.
+
+The barman image ships the `zstd` and `lz4` binaries, because barman hands the
+decompressor to `tar`: without the binary a compressed base backup fails with
+`tar (child): zstd: Cannot exec` - no backup at all rather than an uncompressed
+one.
+
 ### Ledger and restoring
 
 `$HOST_RUN_DIR/offsite.state/wal.ledger` and `base.ledger`, appended only after a

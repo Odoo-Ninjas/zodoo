@@ -85,27 +85,6 @@ barman taken a base backup yet? Without a database state this would upload
 nothing but attachments - see the completeness check in entrypoint.sh."
 }
 
-db_curl() {
-    curl --fail-with-body --silent --show-error \
-        --user "${OFFSITE_REST_USER}:${OFFSITE_REST_PASSWORD}" \
-        ${WO_CACERT[@]+"${WO_CACERT[@]}"} "$@"
-}
-
-# Upload one already-prepared file and echo "<name> <sha256> <size>".
-db_put_object() {
-    local file="$1" name="$2" base="$3"
-    local sum size
-    sum=$(sha256sum "$file" | cut -d' ' -f1)
-    size=$(stat -c %s "$file")
-    # The receiver refuses to overwrite, so a retried run cannot damage what is
-    # already there; the checksum lets it reject a truncated upload without
-    # decrypting anything.
-    db_curl --upload-file "$file" \
-        --header "X-Content-Sha256: $sum" \
-        "$base/objects/$name" > /dev/null
-    echo "$name $sum $size"
-}
-
 # Upload every archived WAL segment that is not in the ledger yet. Fills the
 # global WAL_ENTRIES/NEW_WAL, so both modes can share it.
 db_upload_wal() {
@@ -113,6 +92,7 @@ db_upload_wal() {
     local seg name r
     WAL_ENTRIES=()
     NEW_WAL=0
+    KNOWN_WAL=0
     # Only from wals/. streaming/ holds the segment currently being written as
     # *.partial - incomplete by definition, and uploading it would put a
     # half-written segment under a name that must mean "complete". The name
@@ -123,7 +103,16 @@ db_upload_wal() {
         name=$(basename "$seg")
         grep -qxF "$name" "$WAL_LEDGER" && continue
         gzip -nc "$seg" | age -r "$OFFSITE_WO_DB_RECIPIENT" -o "$work/w.age"
-        r=$(db_put_object "$work/w.age" "wal-${name}.gz.age" "$base")
+        r=$(wo_put_file "$work/w.age" "wal-${name}.gz.age" "$base")
+        if [ -z "$r" ]; then
+            # Schon da: ins Verzeichnis nachtragen, aber nicht als Upload
+            # zaehlen - sonst meldet ein Reset "13 Segmente hochgeladen",
+            # obwohl kein Byte das Haus verlassen hat.
+            echo "$name" >> "$WAL_LEDGER"
+            KNOWN_WAL=$((KNOWN_WAL + 1))
+            rm -f "$work/w.age"
+            continue
+        fi
         WAL_ENTRIES+=("{\"segment\":\"$name\",\"object\":\"$(echo "$r" | cut -d' ' -f1)\",\"sha256\":\"$(echo "$r" | cut -d' ' -f2)\",\"size\":$(echo "$r" | cut -d' ' -f3)}")
         # Extended only after a successful upload: a crash costs a repeated
         # upload, never a segment believed safe that never arrived.
@@ -155,7 +144,7 @@ do_db_wal() {
     [ -f "$CA_CERT" ] && WO_CACERT=(--cacert "$CA_CERT")
     base="${OFFSITE_WO_URL%/}"
     run_id=$(date -u +%Y%m%dT%H%M%SZ)
-    work=$(mktemp -d)
+    work=$(wo_workdir)
     # shellcheck disable=SC2064
     trap "rm -rf '$work'" EXIT
 
@@ -176,7 +165,7 @@ do_db_wal() {
         printf '  "wal_total": %s,\n' "$(wc -l < "$WAL_LEDGER")"
         printf '  "base_total": %s\n}\n' "$(wc -l < "$BASE_LEDGER")"
     } > "$work/manifest.json"
-    db_curl --upload-file "$work/manifest.json" \
+    wo_curl --upload-file "$work/manifest.json" \
         --header "Content-Type: application/json" \
         "$base/manifests/${run_id}-db-wal.json" > /dev/null
     echo "offsite/db: $NEW_WAL WAL segment(s) uploaded"
@@ -194,7 +183,7 @@ do_db() {
     local run_id
     run_id=$(date -u +%Y%m%dT%H%M%SZ)
     local work
-    work=$(mktemp -d)
+    work=$(wo_workdir)
     # shellcheck disable=SC2064  # expand now, not at trap time
     trap "rm -rf '$work'" EXIT
 
@@ -214,12 +203,19 @@ do_db() {
         grep -qxF "$id" "$BASE_LEDGER" && continue
         [ -d "$srv/base/$id" ] || continue
 
-        echo "offsite/db: packing base backup $id"
-        tar -C "$srv/base" -cf - "$id" \
-            | gzip -n \
-            | age -r "$OFFSITE_WO_DB_RECIPIENT" -o "$work/base.age"
+        echo "offsite/db: base backup $id"
+        # Streamed, not spooled: a base backup of a large database would
+        # otherwise need its own compressed size in scratch space before the
+        # first byte goes out.
         local res
-        res=$(db_put_object "$work/base.age" "base-${id}.tar.gz.age" "$base")
+        res=$(wo_put_stream "base-${id}.tar.gz.age" "$base" "$work" -- \
+            bash -c "tar -C '$srv/base' -cf - '$id' | gzip -n | age -r '$OFFSITE_WO_DB_RECIPIENT'")
+        # Empty means it was already there (a repeat after a reset): remember it
+        # locally, but do not declare somebody else's ciphertext as ours.
+        if [ -z "$res" ]; then
+            echo "$id" >> "$BASE_LEDGER"
+            continue
+        fi
         # begin_wal/end_wal/timeline travel in the manifest, in the clear:
         # without them nobody can tell which WAL a base backup needs, and the
         # whole point is that the check works without a key.
@@ -230,14 +226,18 @@ do_db() {
         base_entries+=("{\"id\":\"$id\",\"object\":\"$(echo "$res" | cut -d' ' -f1)\",\"sha256\":\"$(echo "$res" | cut -d' ' -f2)\",\"size\":$(echo "$res" | cut -d' ' -f3),\"begin_wal\":\"$begin\",\"end_wal\":\"$end\",\"timeline\":\"$tl\"}")
         echo "$id" >> "$BASE_LEDGER"
         new_bases=$((new_bases + 1))
-        rm -f "$work/base.age"
     done
 
     # ----------------------------------------------------------------- WAL --
     db_upload_wal "$srv" "$base" "$work"
 
     if [ "$new_bases" -eq 0 ] && [ "$NEW_WAL" -eq 0 ]; then
-        echo "offsite/db: nothing new (base backups and WAL are up to date)."
+        if [ "${KNOWN_WAL:-0}" -gt 0 ]; then
+            echo "offsite/db: nothing to send - $KNOWN_WAL object(s) were" \
+                 "already on the receiver, ledger brought up to date."
+        else
+            echo "offsite/db: nothing new (base backups and WAL are up to date)."
+        fi
         return 0
     fi
 
@@ -256,9 +256,10 @@ do_db() {
         printf '  "base_total": %s\n}\n' "$(wc -l < "$BASE_LEDGER")"
     } > "$work/manifest.json"
 
-    db_curl --upload-file "$work/manifest.json" \
+    wo_curl --upload-file "$work/manifest.json" \
         --header "Content-Type: application/json" \
         "$base/manifests/${run_id}-db.json" > /dev/null
 
-    echo "offsite/db: done - $new_bases base backup(s), $NEW_WAL WAL segment(s)"
+    echo "offsite/db: done - $new_bases base backup(s), $NEW_WAL WAL segment(s)" \
+         "uploaded${KNOWN_WAL:+, $KNOWN_WAL already present}"
 }
