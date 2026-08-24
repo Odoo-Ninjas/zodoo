@@ -74,6 +74,28 @@ missing. That is on purpose: an unmounted disk looks exactly like an empty
 repository, and restic would happily create a fresh one on the local disk — which
 is only discovered when the backup is needed.
 
+## What enrollment hands out
+
+The backup server issues **no repository key**. `odoo offsite register` receives:
+
+| | |
+| --- | --- |
+| `OFFSITE_REST_USER` / `OFFSITE_REST_PASSWORD` | an upload account for this area |
+| `OFFSITE_WO_URL` | the write-only receiver |
+| `OFFSITE_WO_RECIPIENT` / `OFFSITE_WO_DB_RECIPIENT` | the two age **public** keys |
+
+Public means these may sit in a settings file and travel over the wire: they
+encrypt, they decrypt nothing. So a machine set up this way holds **no secret
+that can read its own backup**.
+
+That also makes the handover far less delicate than it used to be. The access
+password is replaceable (`restic-area passwd`) — lose it and you set a new one.
+The only irreplaceable secrets are the **private** age keys, and those are never
+created here: they live in 1Password and nowhere else.
+
+An older backup server that still issues `repo_url` and `repo_key` keeps working —
+`register` takes them if they arrive, and the run then uses restic as before.
+
 ## Setting it up against our backup server
 
 Do not wire this by hand. The machine asks for an area, a human approves it:
@@ -303,6 +325,34 @@ would store a half-written segment under a name that is supposed to mean
 "complete". Only `wals/` is ever read, and `*.partial` is excluded on top of
 that.
 
+### At a hundred instances
+
+Measured on the real backup server, because guessing is worthless here: it writes
+**410 MB/s** to its local disk and **8.5 MB/s** to the NFS store (reads: 70 MB/s),
+consistent across 1M/8M/32M block sizes. That write figure is the ceiling for all
+customers together — 30 GB/hour, 184 GB in a six-hour night.
+
+WAL is irrelevant at that scale (16 KB per segment). Base backups are the whole
+problem: 100 instances × 5 GB compressed = 16 hours, which collides with the next
+night. **Incremental base backups are therefore the condition for a hundred
+instances, not an optimisation.**
+
+It is bandwidth, not locking: 100 concurrent uploads all answered 201, and the
+areas have separate ledgers and locks. They queue on throughput.
+
+Two things follow for the client:
+
+- **Every instance uploaded in the same second**, because they all run
+  `* * * * *`. The WAL job now waits a *stable* offset derived from the project
+  name — stable rather than random, so each machine keeps its own second and runs
+  cannot overtake each other.
+- **One manifest per run does not scale**: hundreds of files per day per area on a
+  busy database, and the completeness check reads the manifests of all areas.
+  Manifests are now one file per day (`<date>-db.jsonl`), one JSON line per run,
+  appended. Appending fits the write-only model — adding yes, changing and
+  deleting no — so earlier lines stay untouchable and "a source may never declare
+  less than before" still holds.
+
 ### Concurrency
 
 The minutely WAL job gets its **own container name**, because docker rejects a
@@ -387,6 +437,33 @@ for f in wal-*.gz.age; do age -d -i db.age-key "$f" | gunzip > "wals/${f#wal-}";
 Then hand the base backup and the WAL to barman (or postgres directly) as a
 normal PITR restore. A decrypted segment must be exactly 16 777 216 bytes — a
 cheap sanity check that needs no barman.
+
+## Switching the restic path off entirely
+
+Once **both** streams are write-only, restic is not used at all — and then a run
+must no longer demand `OFFSITE_REPO` or `OFFSITE_PASSPHRASE`. That is the point of
+arriving here: the passphrase is the most expensive secret in the setup, and
+whoever does not need it should not have to hold it.
+
+```bash
+odoo setting OFFSITE_REPO=
+odoo setting OFFSITE_PASSPHRASE=
+odoo reload
+odoo offsite backup      # runs both write-only streams, nothing else needed
+```
+
+On the backup server the old repositories have to be taken out of monitoring —
+otherwise nobody writes to them any more and the per-stream "no backup for 48 h"
+alarm fires from the next day onwards, for ever:
+
+```bash
+restic-area retire <area>
+```
+
+That **moves** `db/` and `files/` aside (`.retired-db-<ts>`), it does not delete
+them. Deleting would be irreversible, and the old stock is still worth having
+until the write-only path has proven itself over time. The area's access stays —
+the write-only receiver needs it.
 
 ## Commands
 

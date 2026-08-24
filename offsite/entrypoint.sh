@@ -424,6 +424,18 @@ case "${1:-}" in
     reset)     shift; wo_reset "${1:-all}"; exit 0 ;;
 esac
 
+# Gehen BEIDE Stroeme write-only, wird restic ueberhaupt nicht mehr benutzt -
+# dann darf ein Lauf auch keine Repo-Adresse und keine Passphrase verlangen. Das
+# ist der Zustand, auf den wir zugehen: die Passphrase ist das teuerste Geheimnis
+# im Aufbau, und wer sie nicht braucht, soll sie nicht haben muessen.
+if [ "${1:-backup}" = "backup" ] && wo_files_enabled && wo_db_enabled; then
+    failed=()
+    db_with_lock do_db || failed+=("database (write-only)")
+    do_filestore      || failed+=("filestore (write-only)")
+    [ ${#failed[@]} -eq 0 ] || die "Backup failed: ${failed[*]}"
+    exit 0
+fi
+
 require_config
 setup_transport
 

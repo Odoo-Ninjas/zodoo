@@ -181,3 +181,30 @@ wo_reset() {
     echo "offsite: the next run will offer everything again; whatever is
 already on the receiver is recognised and not re-sent."
 }
+
+# Eine Zeile an das Tagesmanifest anhaengen (JSON Lines).
+#
+# Ein Manifest je Lauf waere bei einem minuetlichen WAL-Job hunderte Dateien am
+# Tag und Bereich - und wo-check liest die Manifeste ALLER Bereiche. Bei 100
+# Instanzen sind das ueber ein Jahr Millionen kleiner Dateien. Ein Manifest je
+# Tag macht daraus 365 je Bereich.
+#
+# Angehaengt, nicht ersetzt: frueher geschriebene Zeilen bleiben unantastbar,
+# also gilt die Monotonie-Pruefung weiter.
+wo_append_manifest() {
+    local base="$1" name="$2" line="$3"
+    printf '%s' "$line" | wo_curl --request POST \
+        --header "Content-Type: application/json" \
+        --data-binary @- "$base/manifests/$name" > /dev/null
+}
+
+# Ein STABILER Versatz in Sekunden, aus dem Projektnamen. Ohne das feuern 100
+# Instanzen mit "* * * * *" alle in derselben Sekunde. Stabil statt zufaellig,
+# damit jede Maschine ihre eigene Sekunde behaelt und die Laeufe sich nicht
+# gegenseitig ueberholen.
+wo_stagger() {
+    local max="${1:-45}" key h
+    key="${PROJECT_NAME:-zodoo}"
+    h=$(printf '%s' "$key" | cksum | cut -d' ' -f1)
+    echo $(( h % max ))
+}
