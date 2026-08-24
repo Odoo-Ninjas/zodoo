@@ -1,5 +1,11 @@
 # Changelog
 
+## 9.3.0
+
+
+- **Feature**: Der Datenbankstrom kann write-only: Basisbackups und WAL werden gegen einen oeffentlichen age-Schluessel (OFFSITE_WO_DB_RECIPIENT) verschluesselt hochgeladen, die Maschine kann ihre Sicherungen weder lesen noch loeschen. WAL geht minuetlich (OFFSITE_WAL_CRON), das laufende *.partial nie. Grosse Objekte werden gestreamt statt zwischengespeichert - ein Basisbackup einer 600-GB-Datenbank braucht so keine 170 GB Zwischenplatz. Vor dem Upload wird per HEAD gefragt, ob das Objekt schon da ist; damit ist 'odoo offsite reset' billig (Verzeichnis vergessen, nur Fehlendes senden). Basisbackups werden jetzt mit zstd komprimiert (gemessen Faktor 2,8) und barman haelt lokal nur noch 2 Tage, weil die Historie offsite liegt: statt ueber 4 TB nur noch ein paar hundert GB bei einer 600-GB-Datenbank. Das barman-Image bringt zstd und lz4 mit - ohne die Binaries scheitert ein komprimiertes Basisbackup komplett.
+
+
 ## 9.2.2
 
 
