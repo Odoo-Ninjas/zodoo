@@ -325,6 +325,34 @@ would store a half-written segment under a name that is supposed to mean
 "complete". Only `wals/` is ever read, and `*.partial` is excluded on top of
 that.
 
+### At a hundred instances
+
+Measured on the real backup server, because guessing is worthless here: it writes
+**410 MB/s** to its local disk and **8.5 MB/s** to the NFS store (reads: 70 MB/s),
+consistent across 1M/8M/32M block sizes. That write figure is the ceiling for all
+customers together — 30 GB/hour, 184 GB in a six-hour night.
+
+WAL is irrelevant at that scale (16 KB per segment). Base backups are the whole
+problem: 100 instances × 5 GB compressed = 16 hours, which collides with the next
+night. **Incremental base backups are therefore the condition for a hundred
+instances, not an optimisation.**
+
+It is bandwidth, not locking: 100 concurrent uploads all answered 201, and the
+areas have separate ledgers and locks. They queue on throughput.
+
+Two things follow for the client:
+
+- **Every instance uploaded in the same second**, because they all run
+  `* * * * *`. The WAL job now waits a *stable* offset derived from the project
+  name — stable rather than random, so each machine keeps its own second and runs
+  cannot overtake each other.
+- **One manifest per run does not scale**: hundreds of files per day per area on a
+  busy database, and the completeness check reads the manifests of all areas.
+  Manifests are now one file per day (`<date>-db.jsonl`), one JSON line per run,
+  appended. Appending fits the write-only model — adding yes, changing and
+  deleting no — so earlier lines stay untouchable and "a source may never declare
+  less than before" still holds.
+
 ### Concurrency
 
 The minutely WAL job gets its **own container name**, because docker rejects a

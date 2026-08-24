@@ -138,6 +138,9 @@ db_with_lock() {
 # Minutely mode: WAL only, no base backups.
 do_db_wal() {
     db_require
+    # Versatz gegen den Gleichtakt: ohne ihn laden 100 Instanzen in derselben
+    # Sekunde hoch. Der Wert haengt am Projektnamen, ist also je Maschine fest.
+    sleep "$(wo_stagger 45)"
     local srv base work run_id
     srv=$(db_server_dir)
     WO_CACERT=()
@@ -165,9 +168,8 @@ do_db_wal() {
         printf '  "wal_total": %s,\n' "$(wc -l < "$WAL_LEDGER")"
         printf '  "base_total": %s\n}\n' "$(wc -l < "$BASE_LEDGER")"
     } > "$work/manifest.json"
-    wo_curl --upload-file "$work/manifest.json" \
-        --header "Content-Type: application/json" \
-        "$base/manifests/${run_id}-db-wal.json" > /dev/null
+    wo_append_manifest "$base" "$(date -u +%Y%m%d)-db.jsonl" \
+        "$(tr -d '\n' < "$work/manifest.json")"
     echo "offsite/db: $NEW_WAL WAL segment(s) uploaded"
 }
 
@@ -256,9 +258,8 @@ do_db() {
         printf '  "base_total": %s\n}\n' "$(wc -l < "$BASE_LEDGER")"
     } > "$work/manifest.json"
 
-    wo_curl --upload-file "$work/manifest.json" \
-        --header "Content-Type: application/json" \
-        "$base/manifests/${run_id}-db.json" > /dev/null
+    wo_append_manifest "$base" "$(date -u +%Y%m%d)-db.jsonl" \
+        "$(tr -d '\n' < "$work/manifest.json")"
 
     echo "offsite/db: done - $new_bases base backup(s), $NEW_WAL WAL segment(s)" \
          "uploaded${KNOWN_WAL:+, $KNOWN_WAL already present}"

@@ -151,9 +151,8 @@ do_filestore() {
   "ledger_sha256": "$ledger_sum"
 }
 EOF
-    wo_curl --upload-file "$work/manifest.json" \
-        --header "Content-Type: application/json" \
-        "$base/manifests/$run_id.json" > /dev/null
+    wo_append_manifest "$base" "$(date -u +%Y%m%d)-filestore.jsonl" \
+        "$(tr -d '\n' < "$work/manifest.json")"
 
     echo "offsite/filestore: done - $added files in $name, $total files total"
 }
