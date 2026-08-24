@@ -180,6 +180,51 @@ def test_register_pending_writes_no_settings(config_with_rundir, monkeypatch):
     assert written == {}
 
 
+def test_register_write_only_server_leaves_no_readable_key(
+    config_with_rundir, monkeypatch
+):
+    """The current backup server issues no repository key at all.
+
+    That is the whole point of the write-only path: the machine gets an upload
+    account and two PUBLIC age keys, so it can encrypt and nothing else. If a
+    passphrase ended up in the settings here, the machine could read its own
+    history again and the exercise would be pointless - so this asserts the
+    absence, not just the presence.
+    """
+    edir = config_with_rundir._host_run_dir / "offsite"
+    (edir / "enroll.json").write_text(
+        json.dumps({"area": "testkunde", "request_id": "abc", "token": "tok"})
+    )
+    _, written = _run_register(
+        config_with_rundir,
+        monkeypatch,
+        [
+            (
+                "GET",
+                "/api/status",
+                {
+                    "status": "approved",
+                    "user": "testkunde",
+                    "password": "zugang",
+                    "wo_url": "https://10.222.0.106:8444/testkunde/",
+                    "wo_recipient": "age1filestore",
+                    "wo_db_recipient": "age1database",
+                    "ca_cert": "PEM-NEU",
+                },
+            )
+        ],
+    )
+    assert written["OFFSITE_REST_USER"] == "testkunde"
+    assert written["OFFSITE_REST_PASSWORD"] == "zugang"
+    assert written["OFFSITE_WO_URL"] == "https://10.222.0.106:8444/testkunde/"
+    assert written["OFFSITE_WO_RECIPIENT"] == "age1filestore"
+    assert written["OFFSITE_WO_DB_RECIPIENT"] == "age1database"
+    assert written["RUN_OFFSITE"] == "1"
+    # The two that must NOT appear.
+    assert "OFFSITE_PASSPHRASE" not in written
+    assert "OFFSITE_REPO" not in written
+
+
 def test_register_approved_writes_settings_and_clears_state(
     config_with_rundir, monkeypatch
 ):

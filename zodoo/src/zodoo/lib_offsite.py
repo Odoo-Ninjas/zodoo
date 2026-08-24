@@ -591,9 +591,20 @@ def offsite_register(config, name, note):
         cert.write_text(answer["ca_cert"])
         cert.chmod(0o644)
 
-    update_setting(config, "OFFSITE_REPO", answer["repo_url"])
     update_setting(config, "OFFSITE_REST_USER", answer["user"])
     update_setting(config, "OFFSITE_REST_PASSWORD", answer["password"])
+    # The write-only target and the two PUBLIC age keys. Public means they may
+    # travel and may sit in a settings file: they encrypt, they decrypt nothing.
+    if answer.get("wo_url"):
+        update_setting(config, "OFFSITE_WO_URL", answer["wo_url"])
+    if answer.get("wo_recipient"):
+        update_setting(config, "OFFSITE_WO_RECIPIENT", answer["wo_recipient"])
+    if answer.get("wo_db_recipient"):
+        update_setting(config, "OFFSITE_WO_DB_RECIPIENT", answer["wo_db_recipient"])
+    # A server that still hands out a repository key is the old, restic-based
+    # arrangement - then keep taking it, so an older backup server keeps working.
+    if answer.get("repo_url"):
+        update_setting(config, "OFFSITE_REPO", answer["repo_url"])
     if answer.get("repo_key"):
         update_setting(config, "OFFSITE_PASSPHRASE", answer["repo_key"])
     update_setting(config, "RUN_OFFSITE", "1")
@@ -605,18 +616,23 @@ def offsite_register(config, name, note):
         f"Area '{area}' is set up and stored in the settings.",
         fg="green",
     )
-    if not answer.get("repo_key"):
+    if answer.get("wo_recipient") and answer.get("wo_db_recipient"):
         click.secho(
-            "This machine's existing passphrase was kept (it came from the "
-            "backend, not from the server).",
+            "Write-only: this machine holds no key that could read the backup. "
+            "It encrypts to public keys and can neither read nor delete what it "
+            "uploaded.",
+            fg="green",
+        )
+    elif answer.get("repo_key"):
+        click.secho(
+            "This backup server still issues repository keys (the restic "
+            "arrangement). The key is in 1Password - without it the backup is "
+            "worthless, and this machine can read its own history.",
             fg="yellow",
         )
     click.secho(
         "Next steps:\n"
         "  odoo reload && odoo build offsite\n"
-        "  odoo offsite backup      # first run, creates the repository\n\n"
-        "The repository key is in 1Password (vault Infrastructure-Backup) - "
-        "without it the backup is worthless. The backup server does not know "
-        "it.",
+        "  odoo offsite backup      # first run",
         fg="green",
     )

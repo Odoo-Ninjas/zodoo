@@ -74,6 +74,28 @@ missing. That is on purpose: an unmounted disk looks exactly like an empty
 repository, and restic would happily create a fresh one on the local disk — which
 is only discovered when the backup is needed.
 
+## What enrollment hands out
+
+The backup server issues **no repository key**. `odoo offsite register` receives:
+
+| | |
+| --- | --- |
+| `OFFSITE_REST_USER` / `OFFSITE_REST_PASSWORD` | an upload account for this area |
+| `OFFSITE_WO_URL` | the write-only receiver |
+| `OFFSITE_WO_RECIPIENT` / `OFFSITE_WO_DB_RECIPIENT` | the two age **public** keys |
+
+Public means these may sit in a settings file and travel over the wire: they
+encrypt, they decrypt nothing. So a machine set up this way holds **no secret
+that can read its own backup**.
+
+That also makes the handover far less delicate than it used to be. The access
+password is replaceable (`restic-area passwd`) — lose it and you set a new one.
+The only irreplaceable secrets are the **private** age keys, and those are never
+created here: they live in 1Password and nowhere else.
+
+An older backup server that still issues `repo_url` and `repo_key` keeps working —
+`register` takes them if they arrive, and the run then uses restic as before.
+
 ## Setting it up against our backup server
 
 Do not wire this by hand. The machine asks for an area, a human approves it:
