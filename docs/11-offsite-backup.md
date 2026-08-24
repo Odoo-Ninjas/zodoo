@@ -388,6 +388,33 @@ Then hand the base backup and the WAL to barman (or postgres directly) as a
 normal PITR restore. A decrypted segment must be exactly 16 777 216 bytes — a
 cheap sanity check that needs no barman.
 
+## Switching the restic path off entirely
+
+Once **both** streams are write-only, restic is not used at all — and then a run
+must no longer demand `OFFSITE_REPO` or `OFFSITE_PASSPHRASE`. That is the point of
+arriving here: the passphrase is the most expensive secret in the setup, and
+whoever does not need it should not have to hold it.
+
+```bash
+odoo setting OFFSITE_REPO=
+odoo setting OFFSITE_PASSPHRASE=
+odoo reload
+odoo offsite backup      # runs both write-only streams, nothing else needed
+```
+
+On the backup server the old repositories have to be taken out of monitoring —
+otherwise nobody writes to them any more and the per-stream "no backup for 48 h"
+alarm fires from the next day onwards, for ever:
+
+```bash
+restic-area retire <area>
+```
+
+That **moves** `db/` and `files/` aside (`.retired-db-<ts>`), it does not delete
+them. Deleting would be irreversible, and the old stock is still worth having
+until the write-only path has proven itself over time. The area's access stays —
+the write-only receiver needs it.
+
 ## Commands
 
 | Command                      | What it does                                                                           |

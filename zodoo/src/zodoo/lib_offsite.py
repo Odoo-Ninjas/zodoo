@@ -214,10 +214,19 @@ def offsite_backup(config):
             fg="yellow",
         )
         return
+    # Both streams write-only means restic is not used at all - then a run must
+    # not demand a repository or a passphrase. The passphrase is the most
+    # expensive secret in the whole setup, and whoever does not need it should
+    # not have to hold it.
+    if _wo_configured(config) and _wo_db_configured(config):
+        _state_dir(config)
+        _offsite_run_raw(config, ["backup"])
+        return
+
     if not (config.OFFSITE_REPO or "").strip():
         click.secho(
-            "Offsite backup is enabled but OFFSITE_REPO is empty - "
-            "nothing is being backed up.",
+            "Offsite backup is enabled but neither OFFSITE_REPO nor a complete "
+            "write-only target is configured - nothing is being backed up.",
             fg="red",
         )
         return
