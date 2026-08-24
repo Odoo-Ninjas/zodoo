@@ -1,0 +1,3 @@
+type: fix
+description: "Der minuetliche WAL-Job war auf JEDER Instanz definiert, auch ohne write-only Ziel. Er bricht dann sofort ab, startet aber die CLI - gemessen 0,44 s je Start, also rund 10 Minuten CPU pro Tag und Instanz fuer nichts, bei 100 Instanzen etwa 18 CPU-Stunden taeglich. Ohne konfiguriertes Ziel wird der Job jetzt weggelassen statt leer zu laufen."
+breaking: false
