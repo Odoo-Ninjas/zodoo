@@ -395,3 +395,55 @@ def test_filestore_command_aborts_without_a_write_only_target(tmp_path):
     with ctx:
         with pytest.raises(SystemExit):
             mod.offsite_filestore.callback()
+
+
+# ---------------------------------------------------------------------------
+# offsite/__after_settings.py
+# ---------------------------------------------------------------------------
+def _after_settings():
+    import importlib.util
+    from pathlib import Path as _P
+
+    path = _P(__file__).resolve().parents[4] / "offsite" / "__after_settings.py"
+    spec = importlib.util.spec_from_file_location("offsite_after_settings", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.after_settings
+
+
+def test_wal_cron_is_dropped_when_no_write_only_target():
+    """1440 CLI starts a day for nothing is not free.
+
+    The minutely WAL job only has work when a write-only database target is
+    configured. Measured at 0.44 s per start, leaving it defined costs about ten
+    minutes of CPU per day on every instance that does not use it - and an empty
+    CRONJOB_* value is skipped by the cron daemon, so clearing it removes the job
+    rather than breaking it.
+    """
+    after_settings = _after_settings()
+    settings = {"CRONJOB_OFFSITE_WAL": "* * * * * odoo offsite wal"}
+    after_settings(settings, None)
+    assert settings["CRONJOB_OFFSITE_WAL"] == ""
+
+
+def test_wal_cron_survives_when_the_target_is_configured():
+    after_settings = _after_settings()
+    settings = {
+        "CRONJOB_OFFSITE_WAL": "* * * * * odoo offsite wal",
+        "OFFSITE_WO_URL": "https://backup.invalid:8444/kunde/",
+        "OFFSITE_WO_DB_RECIPIENT": "age1abc",
+    }
+    after_settings(settings, None)
+    assert settings["CRONJOB_OFFSITE_WAL"] == "* * * * * odoo offsite wal"
+
+
+def test_wal_cron_is_dropped_when_only_half_configured():
+    """A URL without a recipient would upload plaintext - so it is not a
+    configuration, and the job has nothing to do."""
+    after_settings = _after_settings()
+    settings = {
+        "CRONJOB_OFFSITE_WAL": "* * * * * odoo offsite wal",
+        "OFFSITE_WO_URL": "https://backup.invalid:8444/kunde/",
+    }
+    after_settings(settings, None)
+    assert settings["CRONJOB_OFFSITE_WAL"] == ""
