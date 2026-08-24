@@ -14,6 +14,14 @@ CRONJOB_BARMAN_BACKUP=$BARMAN_BACKUP_CRON $JOB_BARMAN_BACKUP
 JOB_OFFSITE_BACKUP=odoo offsite backup
 CRONJOB_OFFSITE_BACKUP=$OFFSITE_BACKUP_CRON $JOB_OFFSITE_BACKUP
 
+# WAL-Segmente hochschieben, minuetlich (siehe OFFSITE_WAL_CRON). Ohne
+# write-only Datenbankziel ein stiller Nichtstuer, mit einem verkleinert es das
+# Verlustfenster von einer Nacht auf eine Minute. Laeuft nie doppelt: ein
+# belegtes Lock ist ein ruhiger Erfolg, kein Fehler - sonst gaebe es waehrend
+# eines langen Basisbackup-Uploads jede Minute eine Fehlermeldung.
+JOB_OFFSITE_WAL=odoo offsite wal
+CRONJOB_OFFSITE_WAL=$OFFSITE_WAL_CRON $JOB_OFFSITE_WAL
+
 JOB_DADDY_CLEANUP=odoo daddy-cleanup /host/dumps/$DB_ODOO_SEARCHFORMAT --dont-touch 1
 JOB_KEEP_LAST_FILE_OF_DAY=odoo keep-latest-file-of-day /host/dumps/$DB_ODOO_SEARCHFORMAT --doNt-touch 1
 JOB_VACUUM=odoo psql --sql "vacuum full"

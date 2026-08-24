@@ -1,7 +1,11 @@
 RUN_BARMAN=0
 # Recovery window for point-in-time-recovery. Barman keeps every full backup
 # plus the WAL needed to recover to any point inside this window.
-BARMAN_RETENTION=RECOVERY WINDOW OF 7 DAYS
+# Wie lange barman Basisbackups LOKAL haelt. Absichtlich kurz: die Historie
+# liegt offsite, hier braucht es nur genug, um den Upload zu bedienen und einen
+# schnellen lokalen Rueckgriff zu haben. Jeder zusaetzliche Tag ist eine weitere
+# Vollkopie des Datenverzeichnisses auf der Kundenplatte.
+BARMAN_RETENTION=RECOVERY WINDOW OF 2 DAYS
 # Cron schedule (5 or 6 columns) for the daily full backup. Wired into the
 # zodoo cronjobs daemon via CRONJOB_BARMAN_BACKUP (cronjobs/default.settings).
 BARMAN_BACKUP_CRON=0 2 * * *
@@ -18,6 +22,10 @@ BARMAN_FORCE_IN_DEVMODE=0
 # until the disk fills. This caps it: once exceeded the slot is invalidated
 # (backup continuity breaks, needs a fresh backup) but the PRIMARY stays up.
 # Set to 0 (or empty) for unlimited (postgres default = no cap).
+# Kompression der Basisbackups: none|gzip|lz4|zstd. zstd ist der beste
+# Kompromiss (etwa ein Drittel bis Viertel der Rohgroesse bei geringer CPU-Last)
+# und wird von PG 15+ serverseitig erledigt.
+BARMAN_BACKUP_COMPRESSION=zstd
 BARMAN_MAX_SLOT_WAL_KEEP_SIZE=10GB
 # Safeguard `odoo update`: when 1 (and RUN_BARMAN=1), every update first sets a
 # PITR restore point. If the update fails, the console offers to rewind the DB

@@ -104,6 +104,19 @@ OFFSITE_LAYOUT=split
 # Both empty = off, and the filestore travels through restic as before.
 OFFSITE_WO_URL=
 OFFSITE_WO_RECIPIENT=
+# Derselbe Weg fuer die Datenbank: age-OEFFENTLICHER Schluessel, gegen den
+# Basisbackups und WAL-Segmente verschluesselt werden. Ist er gesetzt, geht der
+# Datenbankstrom nicht mehr durch restic.
+#
+# Bewusst ein ANDERER Schluessel als fuer den Filestore: die beiden haben
+# verschiedenen Wert und werden getrennt gebraucht ("jemand darf den Filestore
+# zurueckspielen, aber nicht die Datenbank"). Privater Teil in 1Password.
+OFFSITE_WO_DB_RECIPIENT=
+# Wie oft die WAL-Segmente hochgeschoben werden. Minuetlich, damit der Verlust
+# bei einem Maschinenausfall eine Minute kostet und nicht eine Nacht. Der Lauf
+# ist billig (nichts Neues = kein Upload) und laeuft nie doppelt (Lock).
+# Das laufende Segment (*.partial) wird nie mitgenommen.
+OFFSITE_WAL_CRON=* * * * *
 # Upload brake in KiB/s (0 = unlimited). Useful when the backup should not eat
 # the production system's bandwidth.
 OFFSITE_UPLOAD_LIMIT=0

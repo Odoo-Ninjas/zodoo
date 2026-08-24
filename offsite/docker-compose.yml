@@ -36,6 +36,7 @@ services:
       OFFSITE_LAYOUT: $OFFSITE_LAYOUT
       OFFSITE_WO_URL: $OFFSITE_WO_URL
       OFFSITE_WO_RECIPIENT: $OFFSITE_WO_RECIPIENT
+      OFFSITE_WO_DB_RECIPIENT: $OFFSITE_WO_DB_RECIPIENT
       # Set per run by `odoo offsite backup` (docker compose run -e) when a
       # fresh dump was pulled because barman is off. Declared here only so the
       # variable exists inside the container at all.

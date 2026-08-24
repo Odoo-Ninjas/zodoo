@@ -90,6 +90,13 @@ odoo build <name> --no-zodoo-pull
 
 Either `rsync -av --exclude='.git' ./ ~/.odoo/images/` or `export ODOO_IMAGES=$(pwd)`.
 
+**Changed a `Dockerfile` or a file it `COPY`s? Run `odoo reload` before `odoo build`.**
+`odoo build` builds from the *generated* Dockerfile under
+`~/.odoo/run/<project>/Dockerfiles/<service>`, which only `odoo reload`
+rewrites. Without the reload the build reports `DONE` from cache and the change
+is silently absent from the image - which then shows up much later as a missing
+file or a missing binary inside the container.
+
 ## Branch / commit / PR workflow
 
 **Always work on a feature branch** — `main` is protected and direct commits are rejected by the release workflow. For every PR:

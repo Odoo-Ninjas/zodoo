@@ -238,12 +238,164 @@ is always safe (a superset); the other way round, attachments are missing. Run
 the sync more often if the window matters — it is cheap, because it works on
 names.
 
+## Write-only database backup (WAL)
+
+The same move as the filestore, for the half that matters more. With
+`RUN_BARMAN=1` the database is captured as **base backups plus WAL segments**,
+and both are immutable: a WAL segment is written once and never changed, a base
+backup directory never changes once barman marks it `DONE`. So there is nothing
+to deduplicate — and therefore no need to read the target, which is what forces
+a readable key onto the machine in the restic path.
+
+| Setting | What it is |
+| --- | --- |
+| `OFFSITE_WO_DB_RECIPIENT` | age **public** key for the database stream. Deliberately a different key from the filestore one |
+| `OFFSITE_WAL_CRON` | how often WAL is pushed. `* * * * *` — every minute |
+
+```bash
+odoo offsite db     # base backups + WAL (after the nightly barman backup)
+odoo offsite wal    # WAL only, every minute via CRONJOB_OFFSITE_WAL
+```
+
+Two modes because they have different rhythms. WAL goes up **every minute**, so
+losing the machine costs a minute of transactions rather than a night. The run is
+cheap: nothing new means no upload, and it is silent, because it runs 1440 times
+a day.
+
+Why a separate key from the filestore: the two have different value and are
+needed separately. "Somebody may restore the filestore but not the database" is
+a real request, and one shared key cannot express it.
+
+### What this buys beyond confidentiality
+
+- **Completeness is checkable without a key.** WAL names are a sequence and the
+  manifest declares, in the clear, which segments belong to which base backup
+  (`begin_wal`/`end_wal`/`timeline`). In a restic repository the file names are
+  encrypted, so only a key holder could ever notice a broken chain. On the
+  backup server `wo-check` verifies: every declared object present and the right
+  size, every base backup's `begin_wal` present, no gap inside a timeline, and
+  manifests that only ever grow — a compromised machine cannot quietly declare
+  less than it did yesterday.
+- **Retention becomes possible without a key.** Whole generations can be dropped
+  by name. An append-only restic repository cannot be pruned at all, because
+  `forget --prune` needs the repo key.
+
+### Sizes, measured
+
+WAL compresses extraordinarily well because a segment is a fixed 16 MiB
+regardless of how much is in it:
+
+| | raw | transferred |
+| --- | --- | --- |
+| quiet WAL segment | 16 MiB | ~16 KB (factor ~1000) |
+| busy WAL segment | 16 MiB | ~630 KB |
+| base backup (small test DB) | 9.6 MB datadir | 5.8 MB |
+
+A base backup is a full copy every time, so **its frequency is the only real
+lever on growth**. WAL volume is the irreducible part — it is the actual write
+volume of the database.
+
+### The *.partial trap
+
+`pg_receivewal` writes the segment currently being filled as
+`streaming/<name>.partial`. It is incomplete by definition, and uploading it
+would store a half-written segment under a name that is supposed to mean
+"complete". Only `wals/` is ever read, and `*.partial` is excluded on top of
+that.
+
+### Concurrency
+
+The minutely WAL job gets its **own container name**, because docker rejects a
+duplicate name with a hard error and a job running every minute must not fail
+every minute while a nightly base backup upload is still going. Serialisation
+happens inside, on a lock in the state directory, where a busy lock is a quiet
+success rather than an error.
+
+### Nothing is spooled to disk
+
+A base backup and the first filestore bundle are **streamed**: `tar | gzip | age`
+goes straight onto the wire. Spooling them to a file first would need their own
+compressed size in scratch space - for a 600 GB database that is ~170 GB, and it
+would land on the container's writable layer, i.e. the system disk.
+
+Streaming means the checksum cannot be known in advance, because `age` is
+deliberately not reproducible (a fresh ephemeral key per encryption). So the
+source hashes what it streams, the receiver hashes what it received, and the two
+are compared - an end-to-end check that costs no disk. Where a file genuinely is
+needed (WAL segments, manifests), the scratch directory sits inside the state
+directory, next to the data rather than on the system disk.
+
+### Repeats and starting over
+
+Before uploading, the source asks the receiver whether the object name is
+already taken (`HEAD`). That makes a repeat cheap: after a crash between upload
+and ledger write, or after a deliberate reset, what is already there is
+recognised and not re-sent.
+
+```bash
+odoo offsite reset            # forget the ledgers; next run offers everything again
+odoo offsite reset db         # only base backups + WAL
+odoo offsite reset filestore  # only the filestore
+```
+
+The reset deletes **nothing** on the receiver - this machine cannot, by design.
+The old ledgers are renamed rather than removed; they are the only record of what
+this machine ever reported.
+
+One subtlety worth knowing: an object that was already there is **not declared
+again** in the new manifest. Its stored ciphertext was produced by an earlier
+encryption and therefore has a different checksum than one computed now -
+declaring our value for those bytes would make the completeness check report a
+mismatch that is not one. It stays declared by the run that uploaded it, and
+manifests are read cumulatively.
+
+`HEAD` answers only whether a *name* is taken - no content, no size. There is
+still no `GET`.
+
+### Local space on the machine
+
+Barman writes base backups into its own catalogue before anything is uploaded, so
+local space is needed for the local retention window. Two settings decide how
+much:
+
+| Setting | Default | Effect |
+| --- | --- | --- |
+| `BARMAN_BACKUP_COMPRESSION` | `zstd` | measured 58.4 MiB → 20.9 MiB on a small test database, i.e. factor ~2.8 |
+| `BARMAN_RETENTION` | `RECOVERY WINDOW OF 2 DAYS` | the history lives offsite now, so the machine only keeps enough to serve the upload and a fast local restore |
+
+Without both, a 600 GB database with daily base backups and a 7-day window needs
+over 4 TB locally. With both it is a few hundred GB.
+
+The barman image ships the `zstd` and `lz4` binaries, because barman hands the
+decompressor to `tar`: without the binary a compressed base backup fails with
+`tar (child): zstd: Cannot exec` - no backup at all rather than an uncompressed
+one.
+
+### Ledger and restoring
+
+`$HOST_RUN_DIR/offsite.state/wal.ledger` and `base.ledger`, appended only after a
+successful upload. Both are written by the container as root, so reading them
+from the host needs `sudo`.
+
+Restoring needs the age private key from 1Password:
+
+```bash
+age -d -i db.age-key -o base.tar.gz base-<id>.tar.gz.age && tar xzf base.tar.gz
+for f in wal-*.gz.age; do age -d -i db.age-key "$f" | gunzip > "wals/${f#wal-}"; done
+```
+
+Then hand the base backup and the WAL to barman (or postgres directly) as a
+normal PITR restore. A decrypted segment must be exactly 16 777 216 bytes — a
+cheap sanity check that needs no barman.
+
 ## Commands
 
 | Command                      | What it does                                                                           |
 | ---------------------------- | -------------------------------------------------------------------------------------- |
 | `odoo offsite register`      | Request a customer area, then pick up credentials after approval.                      |
 | `odoo offsite filestore`     | Push the filestore to the write-only target. Needs no repository key.                  |
+| `odoo offsite db`            | Push base backups + WAL to the write-only target.                                      |
+| `odoo offsite wal`           | Push newly archived WAL only. Runs every minute.                                        |
 | `odoo offsite backup`        | Run a backup now. Same run as the nightly cron; a quiet no-op without `RUN_OFFSITE=1`. |
 | `odoo offsite init`          | Create the repository (the first backup does this anyway).                             |
 | `odoo offsite list`          | List snapshots.                                                                        |

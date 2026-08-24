@@ -12,6 +12,14 @@ streaming_conninfo = host=${DB_HOST} port=${DB_PORT} user=${DB_USER} dbname=post
 # pg_receivewal into a replication slot so nothing is lost between full backups.
 backup_method = postgres
 streaming_archiver = on
+
+# Basisbackups komprimiert ablegen. Ohne das ist jedes Basisbackup eine
+# ungepackte Vollkopie des Datenverzeichnisses: bei einer 600-GB-Datenbank und
+# einem Fenster von sieben Tagen waeren das ueber 4 TB auf der Kundenmaschine.
+# zstd auf der Postgres-Seite (location=server, ab PG 15) spart zusaetzlich die
+# Uebertragung zwischen Postgres und barman.
+backup_compression = ${BARMAN_BACKUP_COMPRESSION}
+backup_compression_location = server
 slot_name = barman
 create_slot = auto
 

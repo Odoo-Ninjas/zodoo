@@ -69,12 +69,6 @@ looks like."
     echo "$root"
 }
 
-wo_curl() {
-    curl --fail-with-body --silent --show-error \
-        --user "${OFFSITE_REST_USER}:${OFFSITE_REST_PASSWORD}" \
-        ${WO_CACERT[@]+"${WO_CACERT[@]}"} "$@"
-}
-
 do_filestore() {
     wo_require
     local root
@@ -87,7 +81,7 @@ do_filestore() {
     local run_id
     run_id=$(date -u +%Y%m%dT%H%M%SZ)
     local work
-    work=$(mktemp -d)
+    work=$(wo_workdir)
     # shellcheck disable=SC2064  # expand $work now, not at trap time
     trap "rm -rf '$work'" EXIT
 
@@ -108,26 +102,31 @@ do_filestore() {
         return 0
     fi
 
-    echo "offsite/filestore: $added new of $total files - packing and encrypting"
+    echo "offsite/filestore: $added new of $total files - streaming"
+    # Streamed, not spooled: the first run of an instance with a large
+    # filestore would otherwise need its own compressed size in scratch space.
+    # The name can no longer contain the checksum (it is only known once the
+    # stream is through), so the run id identifies the bundle - and the
+    # manifest carries the checksum.
+    #
     # -T reads the file list; --no-recursion because the list is already
     # complete and we do not want a re-listed directory to drag in files that
     # are not in it.
-    tar -C "$root" -cf - --no-recursion -T "$work/new" \
-        | gzip -n \
-        | age -r "$OFFSITE_WO_RECIPIENT" -o "$work/bundle"
-
-    local sum size name
-    sum=$(sha256sum "$work/bundle" | cut -d' ' -f1)
-    size=$(stat -c %s "$work/bundle")
-    name="filestore-${run_id}-${sum:0:12}.tar.gz.age"
-
-    echo "offsite/filestore: uploading $name ($size bytes)"
-    # The receiver refuses to overwrite an existing object, so a retried run
-    # cannot damage what is already there. The checksum lets it reject a
-    # truncated upload without being able to decrypt anything.
-    wo_curl --upload-file "$work/bundle" \
-        --header "X-Content-Sha256: $sum" \
-        "$base/objects/$name" > /dev/null
+    local name sum size res
+    name="filestore-${run_id}.tar.gz.age"
+    res=$(wo_put_stream "$name" "$base" "$work" -- \
+        bash -c "tar -C '$root' -cf - --no-recursion -T '$work/new' | gzip -n | age -r '$OFFSITE_WO_RECIPIENT'")
+    if [ -z "$res" ]; then
+        # Already there - a repeat within the same second after a reset. The
+        # files are on the receiver, so record them and leave the declaring to
+        # the run that actually uploaded them.
+        cat "$work/new" >> "$LEDGER"
+        echo "offsite/filestore: $name was already present, ledger updated."
+        return 0
+    fi
+    sum=$(echo "$res" | cut -d' ' -f2)
+    size=$(echo "$res" | cut -d' ' -f3)
+    echo "offsite/filestore: uploaded $name ($size bytes)"
 
     # Only now is the ledger extended: a crash between upload and this line
     # costs a repeated upload of those files in the next bundle, never a file
