@@ -86,6 +86,33 @@ def after_settings(settings, config):
             fg="yellow",
         )
 
+    # Unencrypted backups on somebody else's storage. Worth a red line, not a
+    # comment: with a repo host the data leaves this machine, and without a
+    # passphrase it lands as plain zstd - the manifest is readable text and
+    # every data file unpacks with `zstd -d`. The storage under the backup
+    # server is rented, so "nobody can get at it" is not an argument.
+    #
+    # Said at reload time because it cannot be fixed later: pgBackRest cannot
+    # convert an existing repository, so switching encryption on afterwards
+    # means creating the stanza fresh and starting the history over.
+    if (
+        _truthy(settings.get("RUN_PGBACKREST", "0"))
+        and (settings.get("PGBR_REPO_HOST") or "").strip()
+        and not (settings.get("PGBR_CIPHER_PASS") or "").strip()
+    ):
+        click.secho(
+            "pgbackrest: backups are sent to "
+            f"{settings['PGBR_REPO_HOST']} UNENCRYPTED. Anyone with file "
+            "access there - including the storage provider - can read them "
+            "with `zstd -d`.\n"
+            "  -> get a passphrase with `pgbackrest-area create "
+            f"{_stanza(settings)}` on the backup server, put it in the "
+            "hosting record, then set PGBR_CIPHER_PASS.\n"
+            "This cannot be switched on later: the stanza would have to be "
+            "recreated and the backup history would start over.",
+            fg="red",
+        )
+
     # Barman is gone, and a project that still carries RUN_BARMAN=1 in its
     # settings would otherwise simply stop being backed up without a word -
     # the service no longer exists, so nothing would fail, nothing would log,

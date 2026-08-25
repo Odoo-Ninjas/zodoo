@@ -142,6 +142,31 @@ PGBR_REPO_HOST_TYPE=tls
 # Note this is an IDENTITY, not a decryption key: it proves who may write. It
 # does not open the repository.
 #
+# ---------------------------------------------------------------- encryption --
+#
+# Repository encryption. Empty = OFF, and then the backups lie on the backup
+# server as plain zstd: the manifest is readable text and every data file
+# unpacks with `zstd -d`. That matters because the storage underneath is not
+# ours (NFS from an external provider).
+#
+# WHERE THE PASSPHRASE LIVES: here, on this machine. pgBackRest encrypts
+# CLIENT-SIDE - the backup server only ever stores ciphertext and never learns
+# the passphrase. That is the property worth having: a compromised backup
+# server, or a curious storage provider, gets nothing.
+#
+# One passphrase PER AREA (stanza), issued by `pgbackrest-area create` on the
+# backup server, shown exactly once, then forgotten by the server.
+#
+# TWO THINGS THAT BITE:
+#
+#   * Lose the passphrase and the backup is WORTHLESS. It belongs in 1Password
+#     before the first backup runs - same rule as the old restic repo keys.
+#   * It CANNOT be switched on later. pgBackRest cannot convert an existing
+#     repository; the stanza has to be created fresh and the history starts
+#     over. So decide before real data goes in.
+PGBR_CIPHER_TYPE=aes-256-cbc
+PGBR_CIPHER_PASS=
+#
 # ------------------------------------------------------------------ retention --
 #
 # THESE APPLY TO A LOCAL REPOSITORY ONLY.

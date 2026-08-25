@@ -262,6 +262,61 @@ Two differences from the old barman path worth knowing before the first time:
 
 After a restore the timeline changes, so take a fresh full backup.
 
+## Encryption
+
+Two different questions, two different answers.
+
+**In transit: always.** The connection to a repository host is TLS 1.3 with
+mutual certificates - the instance proves itself with its client certificate,
+the server with its own. A TCP/SNI passthrough in between does not terminate
+it, so the encryption is genuinely end to end.
+
+**At rest: only if you set a passphrase.** Without `PGBR_CIPHER_PASS` the
+repository is plain zstd. The manifest is readable text and every data file
+unpacks with `zstd -d`:
+
+```
+$ head -c 120 .../backup.manifest
+[backup]
+backup-archive-start="00000002000000000000000C"
+backup-label="20260825-195522F"
+
+$ od -c .../pg_data/base/1/1255.zst
+0000000  ( 265   / 375 ...            <- zstd magic, not encryption
+```
+
+With a passphrase, the same files:
+
+```
+0000000   S   a   l   t   e   d   _   _ ...
+```
+
+Manifest, data files and WAL segments alike.
+
+That matters whenever the storage under the backup server is not yours - as
+with a rented NFS share, where "nobody can get at it" is not an argument.
+
+### Where the passphrase lives
+
+**On the Odoo machine, not on the backup server.** The pgBackRest guide is
+explicit that encryption is *always performed client-side*: the backup server
+stores ciphertext and never learns the passphrase. So a compromised backup
+server - or a curious storage provider - gets nothing.
+
+One passphrase **per area**, so one customer's key cannot open another's.
+`pgbackrest-area create <name>` on the backup server issues it, shows it
+**once**, and stores it nowhere, the same discipline the old restic repo keys
+had. It belongs in the hosting record before the first backup runs.
+
+> **Two things that bite.**
+> Lose the passphrase and the backup is worthless - there is no recovery path.
+> And it **cannot be switched on later**: pgBackRest cannot convert an existing
+> repository, so the stanza has to be created fresh and the history starts
+> over. Decide before real data goes in.
+
+`odoo reload` prints a red warning when a repo host is configured without a
+passphrase, because that is the case where unencrypted data leaves the machine.
+
 ## One version, everywhere
 
 pgBackRest requires the **same version on every host that touches a

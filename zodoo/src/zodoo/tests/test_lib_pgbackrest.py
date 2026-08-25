@@ -451,6 +451,50 @@ def test_a_local_repository_always_gets_retention(after_compose, tmp_path):
     assert "repo1-retention-full=14" in _directives(tmp_path)
 
 
+def test_cipher_emitted_in_global_for_both_shapes(after_compose, tmp_path):
+    """Encryption belongs in [global], and to both repository shapes.
+
+    [global] rather than the stanza section because the pgBackRest guide says
+    so: `info` has to be able to read every stanza. And to both shapes because
+    encryption is what makes a repository on somebody else's storage
+    acceptable - which is exactly the repo-host case.
+    """
+    for extra in ({}, {"PGBR_REPO_HOST": "backup.example"}):
+        after_compose(
+            None,
+            _enabled_settings(
+                HOST_RUN_DIR=str(tmp_path),
+                PGBR_CIPHER_PASS="s3cret-passphrase",
+                **extra,
+            ),
+            {"services": {"postgres": {"environment": {}}}},
+            {},
+        )
+        conf = (tmp_path / "pgbackrest" / "pgbackrest.conf").read_text()
+        directives = _directives(tmp_path)
+        assert "repo1-cipher-type=aes-256-cbc" in directives
+        assert "repo1-cipher-pass=s3cret-passphrase" in directives
+        # in [global], not inside the stanza section
+        head = conf.split("[" + _enabled_settings()["PGBR_STANZA"] + "]")[0]
+        assert "repo1-cipher-pass" in head
+
+
+def test_no_cipher_without_a_passphrase(after_compose, tmp_path):
+    """An empty passphrase means OFF, never a made-up default.
+
+    Unlike retention, guessing here would be actively harmful: a passphrase
+    this code invented would be unknown to anybody, and the backups would be
+    unrecoverable while looking encrypted and healthy.
+    """
+    after_compose(
+        None,
+        _enabled_settings(HOST_RUN_DIR=str(tmp_path), PGBR_CIPHER_PASS=""),
+        {"services": {"postgres": {"environment": {}}}},
+        {},
+    )
+    assert not any(d.startswith("repo1-cipher") for d in _directives(tmp_path))
+
+
 def test_retention_archive_only_emitted_when_set(after_compose, tmp_path):
     # Empty means "keep WAL for every retained full backup", i.e. a continuous
     # PITR window. Writing a default here would silently narrow that.

@@ -116,6 +116,34 @@ def _retention_lines(settings):
     return lines
 
 
+def _cipher_lines(settings):
+    """repo1-cipher-*, in [global] on purpose.
+
+    The pgBackRest guide is explicit that encryption settings belong in the
+    global section rather than a stanza section, so that `info` can read every
+    stanza. It is also explicit that encryption is "always performed
+    client-side" - which is the whole point here: the backup server stores
+    ciphertext and never learns the passphrase, so neither a compromised
+    backup server nor the storage provider underneath it can read a backup.
+
+    Empty passphrase = no encryption, and the caller says so loudly when a
+    repo host is configured (see __after_settings.py): that is the case where
+    the data leaves this machine.
+    """
+    passphrase = (settings.get("PGBR_CIPHER_PASS") or "").strip()
+    if not passphrase:
+        return []
+    kind = (settings.get("PGBR_CIPHER_TYPE") or "aes-256-cbc").strip()
+    return [
+        "",
+        "# Client-side encryption. The backup server never sees the",
+        "# passphrase - losing it here makes the backups unreadable, so it",
+        "# belongs in the hosting record before the first backup runs.",
+        f"repo1-cipher-type={kind}",
+        f"repo1-cipher-pass={passphrase}",
+    ]
+
+
 def _repo_section(settings):
     """The [global] lines that say where the repository is and how it is reached.
 
@@ -180,6 +208,7 @@ def _repo_section(settings):
                 "# The PGBR_RETENTION_* settings are therefore ignored",
                 "# in this mode - see docs/12-pgbackrest.md.",
             ]
+        lines += _cipher_lines(settings)
         return "\n".join(lines)
 
     lines += [
@@ -189,6 +218,7 @@ def _repo_section(settings):
     ]
 
     lines += _retention_lines(settings)
+    lines += _cipher_lines(settings)
     return "\n".join(lines)
 
 

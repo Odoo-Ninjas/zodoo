@@ -115,6 +115,17 @@ jobs:
           ZODOO_PY="$(pipx environment --value PIPX_LOCAL_VENVS)/zodoo/bin/python"
           "$ZODOO_PY" -m pytest -vv -s -m slow zodoo/src/zodoo/tests/test_lib_pgbackrest.py
 
+      - name: Run pgbackrest repo-host end-to-end test
+        # The other pgbackrest test uses a local repository. This one brings up
+        # a real `pgbackrest server` as the receiving side - in the project's
+        # OWN image, so the two ends cannot differ in version - and asserts
+        # that full, diff and incr all arrive over TLS with a client
+        # certificate. Reuses the docker layers built above.
+        run: |
+          ZODOO_PY="$(pipx environment --value PIPX_LOCAL_VENVS)/zodoo/bin/python"
+          "$ZODOO_PY" -m pytest -vv -s -m slow \
+            zodoo/src/zodoo/tests/test_pgbackrest_repo_host_e2e.py
+
       - name: Collect docker logs on failure
         if: failure()
         run: |
