@@ -52,11 +52,6 @@ PREGENERATE_CMD = (
 GRACE_SECONDS = 30
 BACKOFF_INITIAL = 1.0
 BACKOFF_MAX = 30.0
-# A role child that exits *successfully* (rc=0) faster than this did no work
-# — it decided in its own process that it must not run (run.py prints e.g.
-# "Cronjobs shall not run. Good-bye!"). Respawning that is a hot loop, so we
-# stop instead. Anything that really works keeps the process alive far longer.
-CLEAN_EXIT_MIN_UPTIME = 10.0
 
 # Watchdog: stdout patterns from a worker role that indicate it has stopped
 # making progress (cron thread crashed, DB connection lost and the loop is
@@ -122,26 +117,32 @@ def _resolve_probe(name):
     raise KeyError(f"unknown role probe: {name}")
 
 
-def _is_role_enabled(spec):
+# Gate states. "unknown" only happens for probe-gated roles whose probe
+# raised — the DB is unreachable (right after an update, while postgres
+# restarts). That is NOT the same as "this role must not run": treating it
+# as a definitive off is how a queuejobs role goes silently missing.
+GATE_ON = "on"
+GATE_OFF = "off"
+GATE_UNKNOWN = "unknown"
+
+
+def _role_gate_state(spec):
     probe_name = spec.get("enabled_probe")
     if probe_name:
         try:
             probe = _PROBES.setdefault(probe_name, _resolve_probe(probe_name))
-            return bool(probe())
+            return GATE_ON if probe() else GATE_OFF
         except Exception as ex:
             _log(f"role probe {probe_name!r} failed: {ex} — disabling role")
-            return False
-    return _env_truthy(spec["enabled_key"])
+            return GATE_UNKNOWN
+    return GATE_ON if _env_truthy(spec["enabled_key"]) else GATE_OFF
 
 
-def _is_clean_early_exit(role, uptime):
-    """True when a role child exited *successfully* without staying up long
-    enough to have done any work — i.e. it evaluated some gate of its own and
-    said "not me" (run.py: "Cronjobs shall not run. Good-bye!"). The
-    documented restart policy is on-failure, so this must not be respawned:
-    it is the hot loop that burned ~50% of a core for days on a staging
-    instance."""
-    return role.last_rc == 0 and uptime < CLEAN_EXIT_MIN_UPTIME
+def _is_role_enabled(spec):
+    """A role runs only on a definitive yes — an unevaluable probe keeps it
+    off (that is the long-standing behaviour), but callers that report back
+    to a human can tell the two apart via `_role_gate_state`."""
+    return _role_gate_state(spec) == GATE_ON
 
 
 class Role:
@@ -152,7 +153,6 @@ class Role:
         self.want_running = _is_role_enabled(spec)
         self.backoff = BACKOFF_INITIAL
         self.last_spawn = 0.0
-        self.last_rc = None
         self.respawn_requested = False
         self._log_thread = None
         self._lock = threading.Lock()
@@ -259,7 +259,6 @@ class Role:
         if rc is None:
             return False
         _log(f"[{self.name}] exited rc={rc}")
-        self.last_rc = rc
         self.proc = None
         return True
 
@@ -347,22 +346,15 @@ class Supervisor:
                         )
                         role.want_running = False
                         continue
+                    # No rc-based "it exited cleanly, so it meant it"
+                    # shortcut here: run.py returns exec_odoo()'s rc instead
+                    # of exiting with it, so EVERY role child exits 0 — a
+                    # crashed odoo-bin (port 8069 still held after a restart,
+                    # an addon raising at import) is indistinguishable from a
+                    # gate refusal. Only the gate above may stop a respawn;
+                    # everything else keeps the backoff loop, which is what
+                    # recovers from those crashes.
                     since = time.time() - role.last_spawn
-                    # Backstop for the same class of bug behind any gate we
-                    # don't know about: the documented policy is "restart:
-                    # on-failure", so a child that exited *successfully*
-                    # without staying up long enough to do work is not a
-                    # crash — it told us it has nothing to do. Respawning it
-                    # is the hot loop; stopping is visible in `odoo status`
-                    # and in the log instead of silently eating a core.
-                    if _is_clean_early_exit(role, since):
-                        _log(
-                            f"[{role.name}] exited cleanly after "
-                            f"{since:.1f}s without doing work — not "
-                            f"respawning (want_running -> False)"
-                        )
-                        role.want_running = False
-                        continue
                     # Exponential backoff on tight crash loops.
                     if since < role.backoff:
                         _log(
@@ -416,23 +408,39 @@ class Supervisor:
                     "error": f"unknown role: {arg}",
                 }
             role = self.roles[arg]
-            if verb in ("start", "restart") and not role.gate_allows_running():
+            if verb in ("start", "restart"):
                 # Refuse to start a role whose gate says it must not run —
                 # otherwise `start queuejobs` on a project without the
                 # `queue_job` module (or `start cronjobs` with
                 # RUN_ODOO_CRONJOBS=0) arms a permanent respawn loop.
-                #
-                # Reported as ok=True: the caller asked for a state that is
-                # already reached ("this role must not run"), so this is a
-                # no-op, not a failure. `odoo update` starts all three roles
-                # unconditionally at the end and would otherwise take the
-                # error as "supervisor cannot do it" and fall back to
-                # compose-level ops on service names that no longer exist.
-                return {
-                    "ok": True,
-                    "noop": True,
-                    "msg": f"{arg} is disabled (role gate off) — not started",
-                }
+                gate = _role_gate_state(role.spec)
+                if gate == GATE_OFF:
+                    # ok=True: the caller asked for a state that is already
+                    # reached ("this role must not run"), so this is a no-op,
+                    # not a failure. `odoo update` starts all three roles
+                    # unconditionally at the end and would otherwise take the
+                    # error as "supervisor cannot do it" and fall back to
+                    # compose-level ops on service names that no longer
+                    # exist.
+                    return {
+                        "ok": True,
+                        "noop": True,
+                        "msg": (
+                            f"{arg} is disabled (role gate off) — "
+                            f"not started"
+                        ),
+                    }
+                if gate == GATE_UNKNOWN:
+                    # Could not evaluate the gate (probe DB unreachable).
+                    # Stays an error so the caller warns instead of silently
+                    # leaving the role dead.
+                    return {
+                        "ok": False,
+                        "error": (
+                            f"{arg}: role gate could not be evaluated — "
+                            f"not started"
+                        ),
+                    }
             if verb == "stop":
                 role.want_running = False
                 role.stop()

@@ -1768,7 +1768,7 @@ def test_start_update_blocking_roles_ups_container_when_it_is_down(
 
     lcd.start_update_blocking_roles(FakeConfig())
 
-    assert dc_calls == [["up", "-d", "--no-recreate", "odoo"]], (
+    assert dc_calls == [["up", "-d", "--no-build", "odoo"]], (
         f"A dead container must be started via compose service `odoo`, "
         f"got {dc_calls!r}"
     )
@@ -1777,6 +1777,54 @@ def test_start_update_blocking_roles_ups_container_when_it_is_down(
         f"supervisor socket that isn't listening yet), got "
         f"{supervisor_calls!r}"
     )
+
+
+def test_start_update_blocking_roles_shouts_when_container_wont_start(
+    monkeypatch, capsys
+):
+    """The failure mode this whole branch exists for is "update reported
+    success while the instance was off" — so a failing start must be loud."""
+    import zodoo.lib_control_with_docker as lcd
+
+    monkeypatch.setattr(
+        lcd, "_has_in_container_supervisor", lambda config: True
+    )
+    monkeypatch.setattr(
+        lcd, "_is_container_running", lambda config, svc: False
+    )
+    monkeypatch.setattr(
+        lcd, "_start_odoo_container", lambda config, why: False
+    )
+    monkeypatch.setattr(
+        lcd, "_declared_compose_services", lambda config: set()
+    )
+
+    lcd.start_update_blocking_roles(FakeConfig())
+
+    out = capsys.readouterr().out
+    assert "instance is DOWN" in out
+
+
+def test_start_odoo_container_starts_postgres_first(monkeypatch):
+    """No `depends_on: postgres` in the generated composes — starting only
+    the odoo container leaves its roles in wait_postgres() forever."""
+    import zodoo.lib_control_with_docker as lcd
+
+    order = []
+    monkeypatch.setattr(
+        lcd, "_start_postgres_before", lambda config: order.append("postgres")
+    )
+    monkeypatch.setattr(
+        lcd, "__dc", lambda config, args, **kw: order.append(args[-1])
+    )
+
+    assert (
+        lcd._start_odoo_container(
+            FakeConfig(run_postgres=True, USE_DOCKER=True), "why"
+        )
+        is True
+    )
+    assert order == ["postgres", "odoo"]
 
 
 def test_supervisor_action_role_start_ups_dead_container(monkeypatch):
@@ -1799,7 +1847,7 @@ def test_supervisor_action_role_start_ups_dead_container(monkeypatch):
     monkeypatch.setattr(lcd.subprocess, "check_call", _boom)
 
     assert lcd._supervisor_action_role(FakeConfig(), "start", "web") is True
-    assert dc_calls == [["up", "-d", "--no-recreate", "odoo"]]
+    assert dc_calls == [["up", "-d", "--no-build", "odoo"]]
 
 
 @pytest.mark.slow

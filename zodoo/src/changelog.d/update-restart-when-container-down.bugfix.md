@@ -8,3 +8,7 @@ the fallback reached for the long-gone `odoo_web` / `odoo_queuejobs` /
 noticed (5 h on a staging instance). If the container is gone, the real
 `odoo` service is started instead; its supervisor spawns web, queuejobs
 and cronjobs by itself.
+Postgres is started first (nothing declares `depends_on: postgres`, so
+the odoo container would otherwise wait for a database that never comes),
+and if the container cannot be started the update says so loudly instead
+of reporting success.

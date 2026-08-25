@@ -63,24 +63,27 @@ class TestGateAllowsRunning:
         assert role.gate_allows_running() is False
 
 
-class TestCleanEarlyExit:
-    """restart: on-failure — a clean, immediate exit is not a crash."""
+class TestGateState:
+    """A probe that cannot be evaluated (DB unreachable while postgres
+    restarts) is not the same answer as "this role must not run"."""
 
-    def test_rc0_right_away_is_clean_early_exit(self):
-        role = _role("cronjobs")
-        role.last_rc = 0
-        assert sup._is_clean_early_exit(role, 0.3) is True
+    def test_env_off_is_a_definitive_off(self, monkeypatch):
+        monkeypatch.setenv("RUN_ODOO_CRONJOBS", "0")
+        assert sup._role_gate_state(sup.ROLES["cronjobs"]) == sup.GATE_OFF
 
-    def test_rc0_after_long_uptime_is_a_crash_to_recover_from(self):
-        role = _role("cronjobs")
-        role.last_rc = 0
-        uptime = sup.CLEAN_EXIT_MIN_UPTIME + 1
-        assert sup._is_clean_early_exit(role, uptime) is False
+    def test_probe_raising_is_unknown(self, monkeypatch):
+        def _boom():
+            raise RuntimeError("db down")
 
-    def test_failure_exit_is_respawned(self):
-        role = _role("cronjobs")
-        role.last_rc = 1
-        assert sup._is_clean_early_exit(role, 0.3) is False
+        monkeypatch.setitem(sup._PROBES, "queue_job_installed", _boom)
+        assert sup._role_gate_state(sup.ROLES["queuejobs"]) == sup.GATE_UNKNOWN
+
+    def test_unknown_still_keeps_the_role_off(self, monkeypatch):
+        def _boom():
+            raise RuntimeError("db down")
+
+        monkeypatch.setitem(sup._PROBES, "queue_job_installed", _boom)
+        assert _role("queuejobs").gate_allows_running() is False
 
 
 class TestControlSocketStart:
@@ -103,6 +106,22 @@ class TestControlSocketStart:
         assert resp["ok"] is True
         assert resp.get("noop") is True
         assert role.want_running is False
+
+    def test_start_with_unevaluable_gate_stays_an_error(self, monkeypatch):
+        """Otherwise a queuejobs role silently never runs after an update:
+        the probe hits a DB that is still coming back up, and a no-op
+        success would hide that from the caller."""
+
+        def _boom():
+            raise RuntimeError("db down")
+
+        monkeypatch.setitem(sup._PROBES, "queue_job_installed", _boom)
+        supervisor = sup.Supervisor.__new__(sup.Supervisor)
+        supervisor.roles = {"queuejobs": _role("queuejobs")}
+
+        resp = supervisor._handle_cmd("start queuejobs")
+        assert resp["ok"] is False
+        assert "could not be evaluated" in resp["error"]
 
 
 class TestMain:

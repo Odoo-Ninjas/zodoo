@@ -448,8 +448,23 @@ def _start_odoo_container(config, why):
     every enabled role by itself.
     """
     click.secho(why, fg="yellow")
+    # Nothing declares `depends_on: postgres` in the generated composes —
+    # that is why `up()` starts postgres explicitly. Without it the odoo
+    # container comes up alone and its roles sit in wait_postgres() forever,
+    # i.e. the instance keeps serving the warming-up page with no error
+    # anywhere. Same reason, same order here.
+    if config.run_postgres and config.USE_DOCKER:
+        try:
+            _start_postgres_before(config)
+        except subprocess.CalledProcessError as e:
+            click.secho(f"Could not start postgres: {e}", fg="red")
+            return False
+    # No `--no-recreate`: the container object may predate an `odoo build` /
+    # `odoo reload`, and starting the stale one would quietly run the update
+    # on the old image. Compose recreates only when the config hash actually
+    # changed. `--no-build` matches what `up()` does by default.
     try:
-        __dc(config, ["up", "-d", "--no-recreate", "odoo"], profile="auto")
+        __dc(config, ["up", "-d", "--no-build", "odoo"], profile="auto")
         return True
     except subprocess.CalledProcessError as e:
         click.secho(
@@ -647,11 +662,23 @@ def start_update_blocking_roles(config):
         # container once and let its supervisor spawn the enabled roles —
         # per-role `docker exec` right after `up -d` would only race the
         # supervisor's control socket.
-        _start_odoo_container(
+        if not _start_odoo_container(
             config,
             "Container is not running after update — starting compose "
             "service odoo (its supervisor spawns web/queuejobs/cronjobs)",
-        )
+        ):
+            # Must be loud: the whole point of this branch is that an update
+            # used to report success while leaving the instance switched
+            # off. The proxy warmup sentinel that stop_update_blocking_roles
+            # set is also still in place, so external clients keep seeing
+            # the maintenance page until someone acts on this.
+            click.secho(
+                "WARNING: could not start the odoo container after the "
+                "update — the instance is DOWN and the proxy still shows "
+                "the maintenance page. Start it with `odoo up -d`.",
+                fg="red",
+                bold=True,
+            )
     else:
         unconfirmed = []
         for role in _UPDATE_BLOCKING_ROLES:
