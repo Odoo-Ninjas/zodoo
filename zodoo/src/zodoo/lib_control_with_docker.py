@@ -437,6 +437,28 @@ def _legacy_role_match(config, machines):
     return legacy, rest
 
 
+def _start_odoo_container(config, why):
+    """Bring the consolidated `odoo` compose service up.
+
+    Used when a role start is requested while the container itself is down:
+    `docker exec` cannot reach a dead container, and the legacy per-role
+    service names (odoo_web, …) are not declared in generated composes any
+    more, so both paths of `_supervisor_action_role` would fail. Starting the
+    real service is the only thing that works — its supervisor then spawns
+    every enabled role by itself.
+    """
+    click.secho(why, fg="yellow")
+    try:
+        __dc(config, ["up", "-d", "--no-recreate", "odoo"], profile="auto")
+        return True
+    except subprocess.CalledProcessError as e:
+        click.secho(
+            f"Could not start compose service odoo: {e}",
+            fg="red",
+        )
+        return False
+
+
 def _supervisor_action_role(config, action, role):
     """Returns True when the action was confirmed (or is a definitional no-op,
     e.g. stopping a role whose container isn't running), False when neither the
@@ -451,6 +473,12 @@ def _supervisor_action_role(config, action, role):
             fg="yellow",
         )
         return True
+    if action == "start" and not _is_container_running(config, "odoo"):
+        return _start_odoo_container(
+            config,
+            f"Container {container} is not running — starting compose "
+            f"service odoo instead of supervisor start {role}",
+        )
     click.secho(
         f"Legacy service name → supervisor: {action} {role} in {container}",
         fg="yellow",
@@ -608,16 +636,33 @@ def start_update_blocking_roles(config):
         return
     if not _has_in_container_supervisor(config):
         return
-    unconfirmed = []
-    for role in _UPDATE_BLOCKING_ROLES:
-        if not _supervisor_action_role(config, "start", role):
-            unconfirmed.append(role)
-    if unconfirmed:
-        click.secho(
-            f"WARNING: could not confirm start of role(s) "
-            f"{', '.join(unconfirmed)} after update.",
-            fg="yellow",
+    if not _is_container_running(config, "odoo"):
+        # The whole container is gone — nothing to talk to. This is the state
+        # an `odoo update` leaves behind when it took the compose project
+        # down first (cicd devmode does a brutal kill) and then took an early
+        # exit ("No module update required"): all three role starts failed,
+        # the compose fallback tried the long-gone odoo_web/odoo_queuejobs/
+        # odoo_cronjobs services, and the instance stayed offline until
+        # somebody noticed (5 h on a 3dm staging instance). Start the
+        # container once and let its supervisor spawn the enabled roles —
+        # per-role `docker exec` right after `up -d` would only race the
+        # supervisor's control socket.
+        _start_odoo_container(
+            config,
+            "Container is not running after update — starting compose "
+            "service odoo (its supervisor spawns web/queuejobs/cronjobs)",
         )
+    else:
+        unconfirmed = []
+        for role in _UPDATE_BLOCKING_ROLES:
+            if not _supervisor_action_role(config, "start", role):
+                unconfirmed.append(role)
+        if unconfirmed:
+            click.secho(
+                f"WARNING: could not confirm start of role(s) "
+                f"{', '.join(unconfirmed)} after update.",
+                fg="yellow",
+            )
     declared = _declared_compose_services(config)
     for svc in ("cronjobs", "cronjobshell", "queuejobs"):
         if svc not in declared:

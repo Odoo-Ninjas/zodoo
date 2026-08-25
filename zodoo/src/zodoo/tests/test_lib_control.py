@@ -1695,6 +1695,7 @@ def test_start_update_blocking_roles_warns_on_unconfirmed(monkeypatch, capsys):
     monkeypatch.setattr(
         lcd, "_has_in_container_supervisor", lambda config: True
     )
+    monkeypatch.setattr(lcd, "_is_container_running", lambda config, svc: True)
     monkeypatch.setattr(
         lcd,
         "_supervisor_action_role",
@@ -1716,6 +1717,7 @@ def test_start_update_blocking_roles_silent_on_success(monkeypatch, capsys):
     monkeypatch.setattr(
         lcd, "_has_in_container_supervisor", lambda config: True
     )
+    monkeypatch.setattr(lcd, "_is_container_running", lambda config, svc: True)
     monkeypatch.setattr(
         lcd, "_supervisor_action_role", lambda config, action, role: True
     )
@@ -1724,6 +1726,80 @@ def test_start_update_blocking_roles_silent_on_success(monkeypatch, capsys):
     )
     lcd.start_update_blocking_roles(FakeConfig())
     assert "could not confirm" not in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------------------
+# start_update_blocking_roles / _supervisor_action_role with a DEAD container
+#
+# `odoo update` stops the roles first, and in a cicd devmode run the whole
+# compose project is killed beforehand. When the update then takes its early
+# exit ("No module update required"), the container is down: every
+# `docker exec … supervisor.py start <role>` fails, the compose fallback
+# reaches for the long-gone odoo_web/odoo_queuejobs/odoo_cronjobs services and
+# the instance stays offline. The container must be started instead.
+# ---------------------------------------------------------------------------
+
+
+def test_start_update_blocking_roles_ups_container_when_it_is_down(
+    monkeypatch,
+):
+    import zodoo.lib_control_with_docker as lcd
+
+    dc_calls = []
+    supervisor_calls = []
+
+    monkeypatch.setattr(
+        lcd, "_has_in_container_supervisor", lambda config: True
+    )
+    monkeypatch.setattr(
+        lcd, "_is_container_running", lambda config, svc: False
+    )
+    monkeypatch.setattr(
+        lcd,
+        "_supervisor_action_role",
+        lambda config, action, role: supervisor_calls.append((action, role)),
+    )
+    monkeypatch.setattr(
+        lcd, "_declared_compose_services", lambda config: set()
+    )
+    monkeypatch.setattr(
+        lcd, "__dc", lambda config, args, **kw: dc_calls.append(args)
+    )
+
+    lcd.start_update_blocking_roles(FakeConfig())
+
+    assert dc_calls == [["up", "-d", "--no-recreate", "odoo"]], (
+        f"A dead container must be started via compose service `odoo`, "
+        f"got {dc_calls!r}"
+    )
+    assert supervisor_calls == [], (
+        f"No `docker exec` into a dead container (and no race against a "
+        f"supervisor socket that isn't listening yet), got "
+        f"{supervisor_calls!r}"
+    )
+
+
+def test_supervisor_action_role_start_ups_dead_container(monkeypatch):
+    """Single-role path (`odoo start odoo_web`) — same rule."""
+    import zodoo.lib_control_with_docker as lcd
+
+    dc_calls = []
+    monkeypatch.setattr(
+        lcd, "_is_container_running", lambda config, svc: False
+    )
+    monkeypatch.setattr(
+        lcd, "__dc", lambda config, args, **kw: dc_calls.append(args)
+    )
+
+    def _boom(*args, **kwargs):
+        raise AssertionError(
+            "docker exec must not be attempted on a dead container"
+        )
+
+    monkeypatch.setattr(lcd.subprocess, "check_call", _boom)
+
+    assert lcd._supervisor_action_role(FakeConfig(), "start", "web") is True
+    assert dc_calls == [["up", "-d", "--no-recreate", "odoo"]]
 
 
 @pytest.mark.slow
