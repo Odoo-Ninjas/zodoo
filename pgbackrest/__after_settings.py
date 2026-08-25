@@ -52,6 +52,30 @@ def after_settings(settings, config):
         # which the daemon cannot parse at all.
         settings["CRONJOB_PGBACKREST_INCR"] = ""
 
+    # With a repo host, retention is not configured here - which is a
+    # deliberate hole and therefore has to be said out loud once. Nothing on
+    # this machine will ever expire a backup, and if the backup server has no
+    # scheduled expire either, the repository grows until the disk is full.
+    # That is the same failure that filled the dump directory with 3.4 TB, so
+    # it gets a message rather than a comment in a file nobody opens.
+    if (
+        _truthy(settings.get("RUN_PGBACKREST", "0"))
+        and (settings.get("PGBACKREST_REPO_HOST") or "").strip()
+    ):
+        click.secho(
+            "pgbackrest: the repository lives on "
+            f"{settings['PGBACKREST_REPO_HOST']}, so retention is configured "
+            "THERE, not here - the machine that manages the disk manages the "
+            "retention.\n"
+            "  -> the backup server needs repo1-retention-* in its own "
+            "pgbackrest.conf and a scheduled `pgbackrest --stanza="
+            f"{(settings.get('PGBACKREST_STANZA') or 'odoo').strip()} expire`."
+            "\n"
+            "The PGBACKREST_RETENTION_* settings are ignored in this mode; "
+            "without an expire on the backup server nothing is ever deleted.",
+            fg="yellow",
+        )
+
     # Barman is gone, and a project that still carries RUN_BARMAN=1 in its
     # settings would otherwise simply stop being backed up without a word -
     # the service no longer exists, so nothing would fail, nothing would log,

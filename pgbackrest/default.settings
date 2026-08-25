@@ -73,9 +73,8 @@ PGBACKREST_REPO_HOST_PORT=8432
 #              all, which is stronger, but the backup server has to be able to
 #              REACH this machine on PGBACKREST_TLS_SERVER_PORT.
 #
-# Retention follows this setting: it is configured on whichever side runs
-# expire. With "here" the values below apply; with "repo-host" they are ignored
-# and belong in the backup server's configuration instead.
+# Retention is NOT affected by this setting. With any repo host it lives on the
+# backup server in both modes - see the retention block below.
 PGBACKREST_BACKUP_FROM=here
 # The port this machine LISTENS on for the repo host. Only used - and only
 # published on the host - with PGBACKREST_BACKUP_FROM=repo-host. Pushing from
@@ -100,6 +99,20 @@ PGBACKREST_REPO_HOST_TYPE=tls
 # does not open the repository.
 #
 # ------------------------------------------------------------------ retention --
+#
+# THESE APPLY TO A LOCAL REPOSITORY ONLY.
+#
+# With PGBACKREST_REPO_HOST set they are ignored, and the rendered
+# configuration leaves them out rather than pretending otherwise. Retention
+# belongs to whoever manages the disk, and that is the backup server: it runs
+# `pgbackrest --stanza=<stanza> expire` from its own cron with its own values.
+# One place, on the machine that actually watches the free space - rather than
+# the same number maintained on every Odoo host and drifting.
+#
+# Practical consequence: without repo1-retention-* the expire step at the end
+# of a backup is a no-op. That is intended here. It is NOT intended for a local
+# repository, where nothing else would ever clean up - so there the values
+# below are always written, falling back to the default when left empty.
 #
 # How many full backups to keep, or - with type=time - over how many days a
 # continuous point-in-time window is maintained.

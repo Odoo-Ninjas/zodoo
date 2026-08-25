@@ -68,7 +68,7 @@ retention is configured.
 | connections | **all outbound** | outbound WAL **plus inbound** on `PGBACKREST_TLS_SERVER_PORT` |
 | open port on this machine | none | yes |
 | can this machine delete backups? | **yes** | no |
-| retention configured | **here** | on the backup server |
+| retention configured | on the backup server | on the backup server |
 
 **`repo-host` is the stronger shape.** This machine holds no repository
 passphrase, has no delete rights, and can only push WAL — stronger than an
@@ -85,24 +85,56 @@ Either way the certificate in `$HOST_RUN_DIR/pgbackrest/cert/` is an
 `tls-server-auth` binds one client certificate to one stanza, so a certificate
 signed by the same CA cannot back up somebody else's instance.
 
+### Retention lives on the backup server
+
+**With any repo host, retention is configured in exactly one place: on the
+backup server.** The rendered configuration on this machine deliberately
+contains no `repo1-retention-*` at all, in both `BACKUP_FROM` modes.
+
+The rule is *the machine that manages the disk manages the retention*. The
+backup server is the one that watches the free space, so it is the one that
+decides what goes. The alternative — the same number maintained on every Odoo
+host — drifts the moment somebody changes one of them.
+
+The mechanism is a property of pgBackRest rather than a trick: **without
+`repo1-retention-*` the expire step at the end of a backup does nothing.** So
+with `BACKUP_FROM=here` the Odoo machine takes the backup and expires nothing,
+and the backup server runs its own scheduled
+
+```bash
+pgbackrest --stanza=<stanza> expire
+```
+
+against its own values. `expire` is a repository-only operation — it needs no
+reachable cluster, which is what makes this work at all.
+
+`PGBACKREST_RETENTION_*` therefore applies **only to a local repository**, where
+there is no other machine to do it. `odoo reload` says so in a yellow line
+whenever a repo host is configured.
+
+> **The one thing to actually check:** if the backup server has no scheduled
+> `expire`, *nothing* expires — the Odoo side no longer does it and the backup
+> server was never asked to. The repository then grows until the disk is full.
+> This is a real trade for having one source of truth, and it is the same
+> failure mode that let a dump directory reach 3.4 TB.
+
 ### Where the protection lives
 
-With `BACKUP_FROM=here` a compromised Odoo machine can run `expire`, or simply
-delete, against the repository on the backup server. That is inherent: expiring
-a backup *is* a delete, and the machine that expires needs the right.
+With `BACKUP_FROM=here` a compromised Odoo machine can delete from the
+repository on the backup server. That is inherent to pushing: the machine that
+writes can unwrite.
 
 This is acceptable when the backup server copies the repository onward to a
 target the Odoo machine cannot reach — a write-only or append-only destination.
-The property has not disappeared, it has moved one layer out. Two things follow
-from that, and both are easy to miss:
+The property has not disappeared, it has moved one layer out. Two consequences
+are easy to miss:
 
-- **The downstream copy's retention is the real guarantee**, not
-  `PGBACKREST_RETENTION_FULL`. pgBackRest expires on the backup server; whatever
-  was already copied onward is outside its reach and is governed by that
-  target's own rules. If the downstream target keeps 90 days and pgbackrest
-  keeps 14, the answer to "how far back can we go" is 90 — but only by
-  restoring from the downstream copy by hand, since the local repository no
-  longer references those backups.
+- **The downstream target's retention is a third, independent policy.**
+  pgBackRest does not know about it and cannot govern it. Whatever was already
+  copied onward is outside the reach of any `expire`. If that target keeps
+  longer than the backup server does, those extra backups are still there but
+  the pgBackRest catalogue no longer references them — restoring from that far
+  back means fetching a base backup plus its WAL range by hand.
 - **The exposure window is the copy interval.** Anything deleted before the
   next onward copy runs was never protected. A copy that runs right after the
   nightly backup is a much smaller window than one that runs weekly.
@@ -181,10 +213,8 @@ own end point.
 
 That is how to keep old states without paying for the gaps between them.
 
-`PGBACKREST_BACKUP_FROM` decides *where* these values belong: they are read by
-whichever machine runs `expire`. With `repo-host` they are ignored here and go
-into the backup server's configuration instead — the rendered configuration
-leaves them out rather than pretending otherwise.
+These apply to a **local repository only**. With a repo host they are ignored
+and the repository's owner decides — see *Retention lives on the backup server*.
 
 ### Expiry is not a separate job
 

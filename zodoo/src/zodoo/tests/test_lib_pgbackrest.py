@@ -325,14 +325,15 @@ def test_no_port_published_without_a_repo_host(after_compose, tmp_path):
     assert "ports" not in yml["services"]["pgbackrest"]
 
 
-def test_pushing_to_a_repo_host_keeps_retention_here(after_compose, tmp_path):
-    """BACKUP_FROM=here: outbound only, and retention comes back to this side.
+def test_pushing_to_a_repo_host_still_leaves_retention_over_there(
+    after_compose, tmp_path
+):
+    """BACKUP_FROM=here: outbound only, and STILL no retention on this side.
 
-    This is the shape to use when the backup server may not reach in. Expire
-    then runs from here, so the retention values have to be in THIS
-    configuration - without them pgbackrest would run expire and delete
-    nothing, forever, which is the failure mode that is invisible until the
-    disk is full.
+    Retention belongs to whoever manages the disk, which is the backup server
+    in both repo-host modes. Emitting it here would mean the same number
+    maintained on every Odoo host, drifting from the one that actually governs
+    the free space. The backup server runs its own scheduled `expire` instead.
     """
     yml = {"services": {"postgres": {"environment": {}}, "pgbackrest": {}}}
     after_compose(
@@ -348,7 +349,7 @@ def test_pushing_to_a_repo_host_keeps_retention_here(after_compose, tmp_path):
     )
     directives = _directives(tmp_path)
     assert "repo1-host=backup.example" in directives
-    assert "repo1-retention-full=30" in directives
+    assert not any(d.startswith("repo1-retention") for d in directives)
     # the repository still lives over there
     assert not any(d.startswith("repo1-path") for d in directives)
     # nothing listens here, so no server certificate and no open port
@@ -370,7 +371,24 @@ def test_backup_from_defaults_to_pushing(after_compose, tmp_path):
     )
     directives = _directives(tmp_path)
     assert not any(d.startswith("tls-server") for d in directives)
-    assert "repo1-retention-full=14" in directives
+
+
+def test_a_local_repository_always_gets_retention(after_compose, tmp_path):
+    """The one case where an empty setting must NOT mean "keep everything".
+
+    With no repo host there is no other machine to run expire, so leaving
+    retention out would mean nothing ever cleans up - pgbackrest says so once
+    in a log line and then keeps every backup forever.
+    """
+    after_compose(
+        None,
+        _enabled_settings(
+            HOST_RUN_DIR=str(tmp_path), PGBACKREST_RETENTION_FULL=""
+        ),
+        {"services": {"postgres": {"environment": {}}}},
+        {},
+    )
+    assert "repo1-retention-full=14" in _directives(tmp_path)
 
 
 def test_retention_archive_only_emitted_when_set(after_compose, tmp_path):

@@ -54,7 +54,9 @@ def _backup_from(settings):
 
 
 def _retention_lines(settings):
-    """repo1-retention-*, for whichever side actually runs expire.
+    """repo1-retention-*, emitted only for a LOCAL repository.
+
+    With a repo host these belong over there - see _repo_section.
 
     Retention is emitted UNCONDITIONALLY, falling back to the documented
     default rather than being left out when the setting is empty.
@@ -105,11 +107,11 @@ def _repo_section(settings):
                             backup server, which runs backup and expire. Not
                             being able to delete is the point of this shape.
 
-    repo host, pushed       repo1-host, and retention comes BACK, because this
-    (BACKUP_FROM=here)      machine is the one running backup and therefore
-                            expire. It has delete rights on the repository;
-                            protection against that has to come from whatever
-                            the backup server copies onward to.
+    repo host, pushed       repo1-host, still no repo1-path and still no
+    (BACKUP_FROM=here)      retention. This machine runs the backup, but the
+                            backup server manages the disk and therefore the
+                            retention, from its own scheduled `expire`. One
+                            place, on the machine that watches the space.
     """
     host = (settings.get("PGBACKREST_REPO_HOST") or "").strip()
     lines = []
@@ -143,16 +145,20 @@ def _repo_section(settings):
                 + (settings.get("PGBACKREST_STANZA") or "odoo").strip(),
             ]
         else:
-            # Pushed from here, so expire runs from here too - and without
-            # these lines it would run and delete nothing, forever.
             lines += [
                 "",
-                "# This machine drives the backup, so it also drives expire.",
-                "# Retention therefore lives here and not on the backup",
-                "# server. Note this means this machine CAN delete from the",
-                "# repository; the protection against that is whatever the",
-                "# backup server copies onward to.",
-            ] + _retention_lines(settings)
+                "# Pushed from here: this machine runs backup, and the expire",
+                "# step at the end of it. Deliberately WITHOUT retention.",
+                "#",
+                "# Retention belongs to whoever manages the disk, and that is",
+                "# the backup server. Without repo1-retention-* the expire",
+                "# step is a no-op, which is exactly right here: the backup",
+                "# server runs `pgbackrest --stanza=... expire` from its own",
+                "# cron, against its own retention values, in one place.",
+                "#",
+                "# The PGBACKREST_RETENTION_* settings are therefore ignored",
+                "# in this mode - see docs/12-pgbackrest.md.",
+            ]
         return "\n".join(lines)
 
     lines += [
