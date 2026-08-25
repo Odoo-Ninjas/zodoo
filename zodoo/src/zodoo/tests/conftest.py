@@ -216,11 +216,11 @@ def odoo_project_19_running(odoo_project_19):
 
 
 @pytest.fixture(scope="session")
-def barman_project(_session_home, tmp_path_factory):
-    """A dedicated, disposable 19.0 project with Barman enabled and running.
+def pgbackrest_project(_session_home, tmp_path_factory):
+    """A dedicated, disposable 19.0 project with pgBackRest enabled and running.
 
-    Separate from ``odoo_project_19`` because Barman recovery is destructive
-    (it stops the stack and overwrites the postgres data volume), so it must
+    Separate from ``odoo_project_19`` because a restore is destructive (it
+    stops the stack and overwrites the postgres data directory), so it must
     not run against a project other tests share. Heavy: a full ``src init`` +
     build + ``db reset`` (docker layers from the other project are reused, so
     the marginal cost is mostly container spin-up).
@@ -228,8 +228,8 @@ def barman_project(_session_home, tmp_path_factory):
     if not (_has_docker() and _has_odoo_cli()):
         pytest.skip("needs docker daemon and 'odoo' CLI on PATH")
 
-    name = "zodoo_pytest_barman"
-    project_dir = tmp_path_factory.mktemp("pytbarman") / name
+    name = "zodoo_pytest_pgbackrest"
+    project_dir = tmp_path_factory.mktemp("pytpgbr") / name
     project_dir.mkdir()
     long_timeout = 60 * 30
 
@@ -240,21 +240,22 @@ def barman_project(_session_home, tmp_path_factory):
     )
     project = OdooProject(name=name, path=project_dir, home=_session_home)
 
-    # Enable Barman before reload so the WAL settings land in postgres and the
-    # barman service is merged into the compose. Force it on despite DEVMODE.
+    # Enable pgBackRest before reload so the archive_command and the shared
+    # mounts land in postgres and the sidecar is merged into the compose.
+    # Force it on despite DEVMODE.
     # Write the per-project settings file directly (same approach as the
     # cronjob E2E test) - `odoo setting KEY VALUE` with a space does NOT write,
     # it needs KEY=VALUE, so file-append is the unambiguous way.
     settings_path = Path.home() / ".odoo" / f"settings.{name}"
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     with settings_path.open("a") as fh:
-        fh.write("\nRUN_BARMAN=1\nBARMAN_FORCE_IN_DEVMODE=1\n")
+        fh.write("\nRUN_PGBACKREST=1\nPGBACKREST_FORCE_IN_DEVMODE=1\n")
 
     project.run("reload", timeout=long_timeout)
     project.run("build", "--no-zodoo-pull", timeout=long_timeout)
     project.run("up", "-d", "postgres", timeout=60 * 20)
     project.run_force("db", "reset", timeout=60 * 20)
-    project.run("up", "-d", timeout=60 * 20)  # brings up barman too
+    project.run("up", "-d", timeout=60 * 20)  # brings up pgbackrest too
 
     try:
         yield project

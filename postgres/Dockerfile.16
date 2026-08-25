@@ -13,7 +13,7 @@ RUN chown -R postgres:postgres /docker-entrypoint-initdb.d && \
 RUN #___SNIPPET_APT_INSTALL___ \
     postgresql-server-dev-16 python-dev build-essential git python3-pip procps sockstat && \
     #___SNIPPET_APT_INSTALL___ \
-    postgresql-16-postgis-3 postgresql-16-pgvector && \
+    postgresql-16-postgis-3 postgresql-16-pgvector pgbackrest && \
     apt-get purge -y git git-core gnupg gnupg2 binutils && \
     (apt-get purge -y libgdal* libarmadillo* libogdi* libasan* libtsan* libubsan* || true) && \
     apt-get purge -y build-essential gcc g++ libpq-dev postgresql-server-dev-16 python-dev && \

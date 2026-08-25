@@ -25,7 +25,7 @@ on:
       - "postgres/**"
       - "proxy/**"
       - "cronjobs/**"
-      - "barman/**"
+      - "pgbackrest/**"
       - "rsync/**"
       - "console/**"
       - "pgtools/**"
@@ -106,7 +106,7 @@ jobs:
           # Nur die projektunabhaengigen Dienste. "odoo" fehlt hier bewusst
           # (Tag haengt am Projekt), ebenso alles, was ohnehin nicht auf einer
           # Kundenmaschine laeuft.
-          SERVICES="postgres proxy cronjobs barman rsync console pgtools"
+          SERVICES="postgres proxy cronjobs pgbackrest rsync console pgtools"
 
           IFS=',' read -ra VERS <<< "$VERSIONS"
           for version in "${VERS[@]}"; do

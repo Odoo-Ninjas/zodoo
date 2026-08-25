@@ -6,11 +6,13 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # restic provides encryption and deduplication; openssh-client provides the
 # transport to an sftp target (Storage Box). age and curl are for the write-only
-# filestore path: age encrypts to a public key (so this machine cannot read its
-# own uploads) and curl does the plain HTTP PUT. The container needs nothing
+# path: age encrypts to a public key (so this machine cannot read its own
+# uploads) and curl does the plain HTTP PUT. jq reads pgbackrest's backup.info,
+# whose entries are JSON - parsing that with sed would be the kind of cleverness
+# that breaks silently on the day a field moves. The container needs nothing
 # else - it only reads read-only mounted directories and pushes ciphertext out.
 RUN #___SNIPPET_APT_INSTALL___ \
-    restic openssh-client ca-certificates tzdata age curl && \
+    restic openssh-client ca-certificates tzdata age curl jq && \
     apt-get clean -y && \
     rm -rf /var/lib/apt/lists/*
 

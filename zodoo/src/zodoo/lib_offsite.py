@@ -7,7 +7,7 @@ from .lib_clickhelpers import AliasedGroup
 from .tools import abort
 from .tools import __get_cmd
 
-# File name of the dump that the offsite run pulls itself when barman is off.
+# File name of the dump that the offsite run pulls itself when pgbackrest is off.
 #
 # A fixed name on purpose: the file is overwritten on every run instead of
 # piling up in DUMPS_PATH. For restic that costs nothing - it deduplicates
@@ -152,7 +152,7 @@ def _offsite_run_raw(config, args, env=None, name_suffix="offsite_run"):
 def _dump_db_for_offsite(config):
     """Pull a fresh database dump for the offsite run.
 
-    With barman running, the database is already in the archive via WAL plus
+    With pgbackrest running, the database is already in the archive via WAL plus
     base backup and there is nothing to do here. Without it, the container would
     find nothing but the filestore - and an archive of nothing but attachments
     looks like a backup until somebody wants to restore.
@@ -171,7 +171,7 @@ def _dump_db_for_offsite(config):
         tmp.unlink()
 
     click.secho(
-        f"offsite: barman is not active - pulling a fresh dump to {final}",
+        f"offsite: pgbackrest is not active - pulling a fresh dump to {final}",
         fg="yellow",
     )
     _backup_pgdump(
@@ -231,11 +231,11 @@ def offsite_backup(config):
         )
         return
 
-    # Without barman there is no database state for the container to pick up -
-    # so we create it here. With OFFSITE_INCLUDE_DUMPS=1 all of DUMPS_PATH is
-    # included anyway, which would make this duplicated work.
+    # Without pgbackrest there is no database state for the container to pick
+    # up - so we create it here. With OFFSITE_INCLUDE_DUMPS=1 all of DUMPS_PATH
+    # is included anyway, which would make this duplicated work.
     env = {}
-    if not _truthy(getattr(config, "run_barman", "0")) and not _truthy(
+    if not _truthy(getattr(config, "run_pgbackrest", "0")) and not _truthy(
         getattr(config, "OFFSITE_INCLUDE_DUMPS", "0")
     ):
         env["OFFSITE_DB_DUMP"] = _dump_db_for_offsite(config)
@@ -339,7 +339,9 @@ def offsite_init(config):
     _offsite_run(config, ["init"])
 
 
-@offsite.command(name="list", help="List the archives in the offsite repository.")
+@offsite.command(
+    name="list", help="List the archives in the offsite repository."
+)
 @pass_config
 def offsite_list(config):
     _offsite_run(config, ["list"])
@@ -600,7 +602,9 @@ def offsite_register(config, name, note):
     if answer.get("wo_recipient"):
         update_setting(config, "OFFSITE_WO_RECIPIENT", answer["wo_recipient"])
     if answer.get("wo_db_recipient"):
-        update_setting(config, "OFFSITE_WO_DB_RECIPIENT", answer["wo_db_recipient"])
+        update_setting(
+            config, "OFFSITE_WO_DB_RECIPIENT", answer["wo_db_recipient"]
+        )
     # A server that still hands out a repository key is the old, restic-based
     # arrangement - then keep taking it, so an older backup server keeps working.
     if answer.get("repo_url"):

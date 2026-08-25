@@ -15,7 +15,7 @@
 #
 # A run writes TWO separate repositories under the same area:
 #
-#   <area>/db/     database state (barman catalog or dump)
+#   <area>/db/     database state (pgbackrest repository or dump)
 #   <area>/files/  the filestore of this database
 #
 # The reason is monitoring, not tidiness: with both in one repository, an
@@ -266,22 +266,22 @@ do_backup() {
         LIMIT_ARGS=(--limit-upload "${OFFSITE_UPLOAD_LIMIT}")
     fi
 
-    # Only include sources that actually exist: without barman /source/barman is
-    # empty, and restic would abort with "path does not exist" and lose the
-    # entire backup.
+    # Only include sources that actually exist: without pgbackrest
+    # /source/pgbackrest is empty, and restic would abort with "path does not
+    # exist" and lose the entire backup.
     #
     # have_db/have_files record whether any database state, respectively any
     # filestore, ends up in the archive at all. That is the crux: neither part
     # is guaranteed to be there, and each without the other is only half the
-    # truth. Without this bookkeeping a backup with neither barman nor a dump
-    # ran through without complaint and saved only the files - a mistake that
-    # surfaces exactly when the backup is needed.
+    # truth. Without this bookkeeping a backup with neither pgbackrest nor a
+    # dump ran through without complaint and saved only the files - a mistake
+    # that surfaces exactly when the backup is needed.
     local db_sources=() files_sources=() have_db=0 have_files=0
 
-    # -d alone is not enough: the barman_data volume is declared even with
-    # RUN_BARMAN=0 (see docker-compose.yml) and is then an empty directory.
-    if [ -d /source/barman ] && [ -n "$(ls -A /source/barman 2>/dev/null)" ]; then
-        db_sources+=(/source/barman)
+    # -d alone is not enough: the pgbackrest_data volume is declared even with
+    # RUN_PGBACKREST=0 (see docker-compose.yml) and is then an empty directory.
+    if [ -d /source/pgbackrest ] && [ -n "$(ls -A /source/pgbackrest 2>/dev/null)" ]; then
+        db_sources+=(/source/pgbackrest)
         have_db=1
     fi
 
@@ -302,7 +302,7 @@ do_backup() {
         have_files=1
     fi
 
-    # Dumps are NOT included by default: with barman the database is already
+    # Dumps are NOT included by default: with pgbackrest the database is already
     # covered by WAL plus base backup, and /host/dumps often accumulates many
     # old states - dragging those along every night costs space and time without
     # adding safety.
@@ -310,7 +310,7 @@ do_backup() {
         db_sources+=(/source/dumps)
         have_db=1
     elif [ -n "${OFFSITE_DB_DUMP:-}" ]; then
-        # With barman off, `odoo offsite backup` writes a fresh dump under this
+        # With pgbackrest off, `odoo offsite backup` writes a fresh dump under this
         # name immediately before this run and passes it in (see
         # lib_offsite.py). If it is missing despite being announced, something
         # went wrong while dumping - and then it is better to abort than to
@@ -329,11 +329,12 @@ do_backup() {
     # A snapshot without the database is not a backup but a trap: it looks like
     # one until somebody wants to restore.
     if [ "$have_db" != "1" ] && [ "${OFFSITE_ALLOW_WITHOUT_DB:-0}" != "1" ]; then
-        die "No database state in the backup - neither barman (RUN_BARMAN=1) nor a dump.
-Only the files would be saved. Remedy: set RUN_BARMAN=1 (recommended, it also
-brings point-in-time recovery) or use 'odoo offsite backup', which pulls a dump
-itself when barman is off. If the database is provably backed up elsewhere,
-OFFSITE_ALLOW_WITHOUT_DB=1 switches this check off."
+        die "No database state in the backup - neither pgbackrest
+(RUN_PGBACKREST=1) nor a dump. Only the files would be saved. Remedy: set
+RUN_PGBACKREST=1 (recommended, it also brings point-in-time recovery) or use
+'odoo offsite backup', which pulls a dump itself when pgbackrest is off. If the
+database is provably backed up elsewhere, OFFSITE_ALLOW_WITHOUT_DB=1 switches
+this check off."
     fi
 
     # And the other direction, for the same reason: a database without its

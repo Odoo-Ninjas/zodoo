@@ -179,7 +179,7 @@ List available backup files.
 
 ## Encrypted Offsite Backup
 
-Pushes the Barman catalog and this database's filestore to a remote repository
+Pushes the pgBackRest repository and this database's filestore to a remote repository
 using [restic](https://restic.net). The usual target is our own backup server
 (`restic-backup`), which runs `rest-server` in **append-only** mode: this
 machine may write but cannot delete anything, so a compromised Odoo host cannot
@@ -199,7 +199,7 @@ register` (see below). Otherwise set `RUN_OFFSITE=1` plus `OFFSITE_REPO` and
 > gone.
 
 A run **aborts loudly** when no database state would end up in the snapshot —
-neither via Barman nor via a dump. A snapshot of attachments alone looks like a
+neither via pgBackRest nor via a dump. A snapshot of attachments alone looks like a
 backup until someone needs to restore. `OFFSITE_ALLOW_WITHOUT_DB=1` switches
 that check off, and should only be used when the database is provably backed up
 elsewhere.
@@ -215,7 +215,7 @@ backup server does not keep it.
 ### `odoo offsite backup`
 
 Run a backup now. The same command runs nightly via `OFFSITE_BACKUP_CRON`
-(default 04:00, after the Barman base backup) and is a quiet no-op on projects
+(default 04:00, after the pgBackRest backup) and is a quiet no-op on projects
 without `RUN_OFFSITE=1`.
 
 ### `odoo offsite list` / `odoo offsite info`

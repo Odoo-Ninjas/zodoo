@@ -1,0 +1,50 @@
+# manage-order: 510
+volumes:
+  # The local repository (base backups + WAL archive). Only used when
+  # PGBACKREST_REPO_HOST is empty; with a repo host the repository lives on the
+  # backup server and this stays almost empty.
+  pgbackrest_data:
+  # Postgres' unix socket directory, shared with the postgres service.
+  #
+  # Not a nicety: pgbackrest has no way to reach postgres over TCP. pg1-host
+  # means "run the pgbackrest process on that remote machine", not "connect
+  # libpq there", so pgbackrest always assumes it sits on the same machine as
+  # the cluster. This volume plus the data volume below are what make that
+  # assumption true inside a compose stack.
+  postgres_socket:
+services:
+  pgbackrest:
+    build:
+      context: $ODOO_IMAGES/pgbackrest
+      args:
+        POSTGRES_VERSION: $POSTGRES_VERSION
+    restart: unless-stopped
+    profiles:
+      - auto
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGBACKREST_STANZA: $PGBACKREST_STANZA
+      PGBACKREST_REPO_HOST: $PGBACKREST_REPO_HOST
+      DB_PORT: $DB_PORT
+      DB_USER: $DB_USER
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      # The data directory, read-write rather than read-only on purpose:
+      # `pgbackrest restore` writes into it, and a restore is the entire point
+      # of taking backups. Backups themselves only read.
+      - odoo_postgres_volume:/var/lib/postgresql/data
+      # See the volume comment above - this is the libpq connection.
+      - postgres_socket:/var/run/postgresql
+      # The local repository.
+      - pgbackrest_data:/var/lib/pgbackrest
+      # Rendered by __after_compose.py, read by BOTH this container and
+      # postgres, so the archive_command and the backup agree on where the
+      # repository is and how it is reached.
+      - $HOST_RUN_DIR/pgbackrest:/etc/pgbackrest:ro
+      # Log directory on the host: when a nightly backup fails, the answer
+      # should be readable without entering a container.
+      - $HOST_RUN_DIR/pgbackrest.logs:/var/log/pgbackrest
+      # Used when exporting a recovered data directory back to the host.
+      - $DUMPS_PATH:/host/dumps

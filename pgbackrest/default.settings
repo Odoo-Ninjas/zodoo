@@ -1,0 +1,147 @@
+RUN_PGBACKREST=0
+# pgBackRest: base backups + WAL archive with point-in-time recovery.
+#
+# Replaces the barman path. The two differ in one fundamental way that shapes
+# everything below:
+#
+#   barman STREAMED the WAL (pg_receivewal against a replication slot). Nothing
+#   had to run inside the postgres container.
+#   pgBackRest ARCHIVES the WAL (archive_command). That command is executed by
+#   the postgres server process itself, so the pgbackrest binary has to exist in
+#   the postgres image and be configured there.
+#
+# What that buys in return:
+#
+#   * incremental backups at PAGE level (8 KiB), not whole-file. A base backup
+#     that changed ten rows costs ten pages.
+#   * expiry is part of the backup run, not a separate job that can be forgotten
+#     (which is exactly how 3.4 TB of dumps accumulated).
+#   * the repository can live on a REPO HOST, so this machine holds no
+#     passphrase and has no delete rights - see PGBACKREST_REPO_HOST.
+#
+# The stanza name. One stanza = one postgres cluster. It ends up in the
+# repository path, so on a shared repo host it must be unique per instance -
+# hence the project name rather than a fixed "odoo".
+PGBACKREST_STANZA=$PROJECT_NAME
+#
+# ---------------------------------------------------------------- repository --
+#
+# Empty = LOCAL repository in the pgbackrest_data volume. That is the
+# development/test setup: everything on one machine, no certificates, no second
+# host. Good enough to take a backup and restore it, and the only mode that
+# works without a backup server.
+#
+# Set = REPO HOST. The repository then lives on that machine and this one talks
+# to it over TLS. This is the production setup, and it is the whole reason to
+# prefer pgBackRest over a client-side-encrypting archive: the cipher passphrase
+# and the delete rights stay on the repo host. A compromised Odoo machine can
+# push WAL and nothing else - it cannot read the history and cannot destroy it.
+PGBACKREST_REPO_HOST=
+PGBACKREST_REPO_HOST_PORT=8432
+# TLS rather than SSH. Both are supported by pgbackrest; TLS is the recommended
+# transport for new setups (no shell account on either side, and markedly less
+# per-operation overhead when many small archive-push calls run all day).
+PGBACKREST_REPO_HOST_TYPE=tls
+# Certificates for the TLS transport. Expected in
+# $HOST_RUN_DIR/pgbackrest/cert/ and mounted read-only into both containers.
+# Paths are hard-wired rather than settings because settings values are not
+# expanded recursively - a "$HOST_RUN_DIR/..." here would arrive literally.
+#
+# NOTE: there is no enrolment command yet. The certificates have to be placed
+# by hand, so the repo-host mode is not turnkey - the local repository below
+# is, and is what the local tests use.
+#   ca.crt      certificate authority of the backup server
+#   client.crt  this machine's certificate
+#   client.key  its private key (mode 0600)
+# Note this is an IDENTITY, not a decryption key: it proves who may write. It
+# does not open the repository.
+#
+# ------------------------------------------------------------------ retention --
+#
+# How many full backups to keep, or - with type=time - over how many days a
+# continuous point-in-time window is maintained.
+#
+# time is the better default: it describes what somebody actually promises a
+# customer ("we can go back 14 days to any second"), while a count silently
+# means something different as soon as the backup schedule changes.
+PGBACKREST_RETENTION_FULL_TYPE=time
+PGBACKREST_RETENTION_FULL=14
+# Differential backups to keep. Empty = governed by the full retention alone.
+PGBACKREST_RETENTION_DIFF=
+# WAL retention. Empty (the default) keeps the WAL needed for a CONTINUOUS
+# window across every retained full backup - point-in-time recovery to any
+# second in the window above.
+#
+# Setting it to a number keeps continuous WAL only for that many recent
+# backups; older ones stay restorable, but only to their own end point. That is
+# the lever when the WAL volume rather than the backups dominates the space:
+# you keep the old states and stop paying for the gaps between them.
+PGBACKREST_RETENTION_ARCHIVE=
+PGBACKREST_RETENTION_ARCHIVE_TYPE=full
+#
+# -------------------------------------------------------------------- schedule --
+#
+# Weekly full, daily differential, and optionally intra-day incrementals.
+#
+# NOT a daily full: at roughly 16 GiB per full for a 45 GiB database that would
+# be 5.8 TiB per year for a single instance. A weekly full plus daily diffs
+# costs a fraction of it and restores just as fast.
+#
+# Sunday for the full because that is the quietest day - the least data changes
+# under the backup, so it is the cheapest and least intrusive slot.
+#
+# Diff rather than incr for the daily rhythm on purpose: a differential depends
+# only on the full, an incremental on its predecessor. A chain of six
+# incrementals has to be read end to end on restore and one damaged link takes
+# all its successors with it. With block-level incrementals a diff costs barely
+# more than an incr.
+PGBACKREST_FULL_CRON=0 2 * * 0
+PGBACKREST_DIFF_CRON=0 2 * * 1-6
+# Intra-day incrementals. Empty = off. Worth switching on for write-heavy
+# instances: it does not improve the recovery POINT (the WAL archive already
+# gives you every second), it shortens the recovery TIME, because less WAL has
+# to be replayed - and that replay is single-threaded.
+PGBACKREST_INCR_CRON=
+#
+# ----------------------------------------------------------------- compression --
+#
+# zst is the best compromise (roughly a third of the raw size at low CPU cost).
+# Alternatives: lz4 (faster, weaker), gz (compatible, slower), none (when the
+# line is free and the CPU is not).
+PGBACKREST_COMPRESS_TYPE=zst
+PGBACKREST_COMPRESS_LEVEL=3
+# Parallel worker processes for backup, restore and archive-push. The single
+# biggest factor in how long a backup takes; 4 is a reasonable default that does
+# not eat a production box alive.
+PGBACKREST_PROCESS_MAX=4
+# Block-level incrementals: within a changed file, store only the changed
+# blocks. This is what makes a differential cheap and it is the main reason
+# pgBackRest beats a chunk-based deduplicating archive on a database - postgres
+# knows exactly which 8 KiB pages changed, so nothing has to be rediscovered by
+# hashing a byte stream.
+PGBACKREST_BLOCK=y
+# Bundle small files into larger objects. A postgres data directory contains
+# thousands of tiny files; without bundling each becomes its own repository
+# object, which is slow on any remote target and outright painful on NFS.
+PGBACKREST_BUNDLE=y
+#
+# ------------------------------------------------------------------ archiving --
+#
+# Asynchronous WAL archiving: the archive_command hands the segment to a spool
+# directory and returns immediately, while background processes push in
+# parallel. Without it a burst of WAL serialises through one process and
+# pg_wal starts growing - the classic way a busy instance fills its disk.
+PGBACKREST_ARCHIVE_ASYNC=y
+PGBACKREST_ARCHIVE_PUSH_QUEUE_MAX=1GB
+#
+# ---------------------------------------------------------------------- misc --
+#
+# Continuous archiving and nightly base backups are a production concern and
+# pure overhead on a developer box, so this is off under DEVMODE (see
+# __after_settings.py). 1 forces it on anyway - which is what you want to test
+# the integration locally.
+PGBACKREST_FORCE_IN_DEVMODE=0
+# Safeguard `odoo update`: when 1 (and RUN_PGBACKREST=1) every update first sets
+# a named restore point. If the update fails, the console offers to rewind the
+# database to that pre-update state.
+PGBACKREST_GUARD_UPDATE=0

@@ -36,7 +36,6 @@ from .cli import cli
 from . import lib_clickhelpers  # NOQA
 from . import lib_composer  # NOQA
 from . import lib_backup  # NOQA
-from . import lib_barman  # NOQA
 from . import lib_control  # NOQA
 from . import lib_db  # NOQA
 from . import lib_db_snapshots  # NOQA
@@ -44,6 +43,7 @@ from . import lib_filestore  # NOQA
 from . import lib_lang  # NOQA
 from . import lib_module  # NOQA
 from . import lib_offsite  # NOQA
+from . import lib_pgbackrest  # NOQA
 from . import lib_setup  # NOQA
 from . import lib_src  # NOQA
 from . import lib_bakery  # NOQA

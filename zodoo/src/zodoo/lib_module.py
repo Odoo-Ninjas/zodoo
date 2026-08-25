@@ -1228,16 +1228,18 @@ def update(
             from .lib_control_with_docker import stop_update_blocking_roles
 
             stop_update_blocking_roles(config)
-            # Writers are stopped now and postgres is up: take a barman PITR
-            # safepoint so a failed update can be rewound (opt-in via
-            # BARMAN_GUARD_UPDATE=1 + RUN_BARMAN=1).
-            from . import lib_barman
+            # Writers are stopped now and postgres is up: set a named
+            # restore point so a failed update can be rewound (opt-in via
+            # PGBACKREST_GUARD_UPDATE=1 + RUN_PGBACKREST=1).
+            from . import lib_pgbackrest
 
-            if lib_barman.guard_update_enabled(config):
-                safepoint_marker = lib_barman.create_update_safepoint(config)
+            if lib_pgbackrest.guard_update_enabled(config):
+                safepoint_marker = lib_pgbackrest.create_update_safepoint(
+                    config
+                )
                 if safepoint_marker:
                     click.secho(
-                        f"Barman update safepoint set: {safepoint_marker}",
+                        f"pgBackRest update safepoint set: {safepoint_marker}",
                         fg="green",
                     )
         manifest = MANIFEST()
@@ -1340,9 +1342,9 @@ def update(
             )
     except Exception:
         if safepoint_marker:
-            from . import lib_barman
+            from . import lib_pgbackrest
 
-            lib_barman.offer_safepoint_rollback(
+            lib_pgbackrest.offer_safepoint_rollback(
                 ctx, config, safepoint_marker, non_interactive
             )
         raise

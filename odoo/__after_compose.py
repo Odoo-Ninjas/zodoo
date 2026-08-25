@@ -208,7 +208,7 @@ def _apply_standard_odoo_image(config, yml, settings, manifest, globals):
     """Den odoo-Service durch das offizielle Docker-Hub-Image ersetzen.
 
     Drumherum bleibt der komplette zodoo-Stack stehen: Proxy, Postgres,
-    Barman und das Monitoring haengen nicht am Odoo-Image -- der
+    pgBackRest und das Monitoring haengen nicht am Odoo-Image -- der
     postgres_exporter liest die DB, alloy die Docker-Logs, der
     nginx_exporter den Proxy. Nur was in unser Image hineingebaut ist
     (Supervisor-Rollen, zodoo-CLI im Container, Warmup) faellt weg; die

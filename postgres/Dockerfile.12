@@ -6,7 +6,7 @@ CMD ["postgres"]
 RUN #___SNIPPET_APT_INSTALL___ \
 postgresql-server-dev-12 python-dev build-essential git python3-pip procps sockstat && \
 #___SNIPPET_APT_INSTALL___ \
-postgresql-12-pgvector
+postgresql-12-pgvector pgbackrest
 
 COPY config* /
 COPY run.sh /run.sh
