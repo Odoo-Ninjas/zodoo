@@ -31,6 +31,17 @@ def _add_volume(service, spec):
     volumes.append(spec)
 
 
+def _tls_port(settings):
+    """The port this machine listens on for the repo host.
+
+    Deliberately its own setting rather than reusing the repo host's port:
+    they are two different listeners on two different machines, in opposite
+    directions. Conflating them means a firewall rule written for one silently
+    describes the other.
+    """
+    return (settings.get("PGBACKREST_TLS_SERVER_PORT") or "8432").strip()
+
+
 def _repo_section(settings):
     """The [global] lines that say where the repository is and how it is reached.
 
@@ -62,8 +73,7 @@ def _repo_section(settings):
             "# which client certificate may act on which stanza - without it",
             "# any certificate signed by the CA could back up any instance.",
             "tls-server-address=0.0.0.0",
-            "tls-server-port="
-            + (settings.get("PGBACKREST_REPO_HOST_PORT") or "8432").strip(),
+            "tls-server-port=" + _tls_port(settings),
             "tls-server-ca-file=/etc/pgbackrest/cert/ca.crt",
             "tls-server-cert-file=/etc/pgbackrest/cert/server.crt",
             "tls-server-key-file=/etc/pgbackrest/cert/server.key",
@@ -226,3 +236,17 @@ def after_compose(config, settings, yml, globals):
 
     yml.setdefault("volumes", {}).setdefault("pgbackrest_spool", None)
     yml.setdefault("volumes", {}).setdefault("postgres_socket", None)
+
+    # --- the inbound side of a repo-host setup --------------------------------
+    # Only with a repo host, and only then: the repo host is the side that runs
+    # `pgbackrest backup` and pulls from the TLS server in the sidecar, so that
+    # server has to be reachable from outside the compose network. A local
+    # repository serves nobody and gets no published port.
+    if (settings.get("PGBACKREST_REPO_HOST") or "").strip():
+        sidecar = yml.get("services", {}).get("pgbackrest")
+        if sidecar is not None:
+            port = _tls_port(settings)
+            mapping = f"{port}:{port}"
+            ports = sidecar.setdefault("ports", [])
+            if mapping not in ports:
+                ports.append(mapping)

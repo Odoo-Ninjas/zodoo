@@ -284,6 +284,45 @@ def test_conf_written_with_repo_host(after_compose, tmp_path):
     assert "tls-server-auth=backup.example=unittest" in directives
 
 
+def test_the_two_tls_ports_are_independent(after_compose, tmp_path):
+    """Outbound (to the repo host) and inbound (from it) are separate ports.
+
+    They are two listeners on two machines in opposite directions. Sharing one
+    setting means a firewall rule written for one silently describes the other,
+    and it makes "put it on 443 because that is all that gets out" impossible.
+    """
+    yml = {
+        "services": {"postgres": {"environment": {}}, "pgbackrest": {}},
+    }
+    after_compose(
+        None,
+        _enabled_settings(
+            HOST_RUN_DIR=str(tmp_path),
+            PGBACKREST_REPO_HOST="backup.example",
+            PGBACKREST_REPO_HOST_PORT="443",
+            PGBACKREST_TLS_SERVER_PORT="9443",
+        ),
+        yml,
+        {},
+    )
+    directives = _directives(tmp_path)
+    assert "repo1-host-port=443" in directives
+    assert "tls-server-port=9443" in directives
+    # the inbound port has to be reachable from outside the compose network,
+    # because the repo host is the side that runs the backup and pulls
+    assert yml["services"]["pgbackrest"]["ports"] == ["9443:9443"]
+
+
+def test_no_port_published_without_a_repo_host(after_compose, tmp_path):
+    # A local repository serves nobody. Opening a port for it would be an
+    # attack surface in exchange for nothing.
+    yml = {
+        "services": {"postgres": {"environment": {}}, "pgbackrest": {}},
+    }
+    after_compose(None, _enabled_settings(HOST_RUN_DIR=str(tmp_path)), yml, {})
+    assert "ports" not in yml["services"]["pgbackrest"]
+
+
 def test_retention_archive_only_emitted_when_set(after_compose, tmp_path):
     # Empty means "keep WAL for every retained full backup", i.e. a continuous
     # PITR window. Writing a default here would silently narrow that.

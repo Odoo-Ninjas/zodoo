@@ -76,6 +76,45 @@ may write, and opens nothing.
 `tls-server-auth` binds one client certificate to one stanza, so a certificate
 signed by the same CA cannot back up somebody else's instance.
 
+### Ports, firewalls, and why this is not HTTPS
+
+The repo-host topology needs **two connections in opposite directions**, which
+is the part worth knowing before writing a firewall rule:
+
+| direction | carries | port setting |
+| --- | --- | --- |
+| this machine → backup server | WAL, continuously (`archive-push`) | `PGBACKREST_REPO_HOST_PORT` |
+| backup server → **this machine** | the base backup — the repo host pulls | `PGBACKREST_TLS_SERVER_PORT` |
+
+The inbound one surprises people. It is not an accident: the repo host runs
+`pgbackrest backup` precisely so that this machine never touches the repository.
+
+Both ports are freely settable, so **443 on either side is fine** and is the
+usual answer to a firewall that only lets 443 out. What it does *not* do is turn
+this into HTTPS:
+
+> pgBackRest speaks **its own protocol inside TLS**, not HTTP inside TLS, and it
+> authenticates with **mutual TLS** — `tls-server-auth` maps a client
+> certificate's CN to a stanza.
+
+So:
+
+- **Port-based firewall** — use 443, done.
+- **L7 reverse proxy that terminates TLS** (nginx `http`, Traefik HTTP router,
+  Cloudflare) — **does not work.** There are no HTTP requests to route, and
+  terminating the TLS discards the client certificate the authorisation is
+  built on.
+- **TCP or SNI passthrough** (nginx `stream`, HAProxy `mode tcp`, Traefik TCP
+  router with `passthrough`) — works, because the bytes are handed through
+  untouched. This is the way to put it on 443 alongside real web traffic.
+
+If an inbound port on the Odoo machines is not acceptable at all, the direction
+can be inverted: run `pgbackrest backup` on the Odoo machine against
+`repo1-host`, and everything becomes outbound. The cost is the whole reason for
+the topology — that machine then has write and delete rights on the repository,
+so a compromise of it can destroy the backup history. Worth doing consciously,
+not by default.
+
 > **Not turnkey yet.** There is no enrolment command. The certificates
 > (`ca.crt`, `server.crt`, `server.key`, `client.crt`, `client.key`) have to be
 > placed in `$HOST_RUN_DIR/pgbackrest/cert/` by hand, and the backup server side

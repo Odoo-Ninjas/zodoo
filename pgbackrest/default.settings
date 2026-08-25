@@ -37,7 +37,31 @@ PGBACKREST_STANZA=$PROJECT_NAME
 # and the delete rights stay on the repo host. A compromised Odoo machine can
 # push WAL and nothing else - it cannot read the history and cannot destroy it.
 PGBACKREST_REPO_HOST=
+#
+# TWO ports, because the repo-host topology needs TWO connections in OPPOSITE
+# directions - which is the thing to know before opening anything in a firewall:
+#
+#   this machine  --> backup server   WAL (archive-push), continuously.
+#                                     Port PGBACKREST_REPO_HOST_PORT, outbound.
+#   backup server --> this machine    the base backup. The repo host is the one
+#                                     that runs `pgbackrest backup` and PULLS.
+#                                     Port PGBACKREST_TLS_SERVER_PORT, INBOUND.
+#
+# The inbound one is what makes the topology worth having: the Odoo machine
+# never holds the repository, so it cannot read or delete the history. It also
+# means an Odoo machine has to be reachable from the backup server - see
+# docs/12-pgbackrest.md for the alternative if that is not acceptable.
+#
+# Both are freely settable (1-65535), so 443 on either side is fine and is the
+# usual answer to a restrictive firewall. But note what this is NOT: pgbackrest
+# speaks its own protocol inside TLS, not HTTP inside TLS. Port 443 gets it
+# through a port-based firewall; it does NOT survive an HTTPS reverse proxy
+# that terminates TLS. Only TCP/SNI passthrough works. Details in the docs.
 PGBACKREST_REPO_HOST_PORT=8432
+# The port this machine LISTENS on for the repo host. Published on the host by
+# __after_compose.py, but only when PGBACKREST_REPO_HOST is set - a local
+# repository has nothing to serve and should not open a port.
+PGBACKREST_TLS_SERVER_PORT=8432
 # TLS rather than SSH. Both are supported by pgbackrest; TLS is the recommended
 # transport for new setups (no shell account on either side, and markedly less
 # per-operation overhead when many small archive-push calls run all day).
