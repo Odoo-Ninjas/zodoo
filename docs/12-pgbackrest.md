@@ -262,6 +262,44 @@ Two differences from the old barman path worth knowing before the first time:
 
 After a restore the timeline changes, so take a fresh full backup.
 
+## One version, everywhere
+
+pgBackRest requires the **same version on every host that touches a
+repository** — client and repository server alike. On a mismatch archiving and
+backups stop:
+
+```
+[ProtocolError] expected value '2.59' for greeting key 'version' but got '2.50'
+```
+
+**The host distribution does not matter.** pgbackrest never runs on the host
+here — it runs in our images, the sidecar (`ubuntu:24.04`) and the postgres
+images (Debian). Ubuntu 20.04, Debian, Arch or RHEL underneath makes no
+difference to what version is in play. Exactly one thing decides it:
+
+```
+PGBR_VERSION=2.59.1
+```
+
+It is a build argument for **both** images, pinned as `pgbackrest=<version>-*`
+— the wildcard because the pgdg package revision is distribution-specific
+(`2.59.1-1.pgdg24.04+1` vs `2.59.1-1.pgdg110+1`) while the upstream version is
+what has to match. Left empty, a project installs unpinned, which is what
+happens on projects without pgBackRest.
+
+The backup server is the one host where pgbackrest **is** installed natively,
+so it has to be upgraded in the same window. There the pgdg apt repository
+supplies the matching build.
+
+`odoo pgbackrest check` reports the version and complains loudly when the two
+containers disagree — which is what happens when `PGBR_VERSION` changed and
+only one image was rebuilt.
+
+> **Upgrading:** change `PGBR_VERSION`, `odoo reload && odoo build postgres
+> pgbackrest`, and `apt install pgbackrest=<version>-*` on the backup server —
+> in one window. The repository format is stable across 2.x, so it is only the
+> binaries.
+
 ## Settings are named `PGBR_*`, never `PGBACKREST_*`
 
 pgBackRest reads its **own** options from the environment with a `PGBACKREST_`

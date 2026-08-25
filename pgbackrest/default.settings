@@ -43,6 +43,31 @@ RUN_PGBACKREST=0
 # hence the project name rather than a fixed "odoo".
 PGBR_STANZA=$PROJECT_NAME
 #
+# ------------------------------------------------------------------ version --
+#
+# THE most important operational setting here, and the least obvious.
+#
+# pgBackRest requires the SAME version on every host that talks to a
+# repository. Client and repo server alike. On a mismatch archiving and
+# backups simply stop:
+#
+#   [ProtocolError] expected value '2.59' for greeting key 'version'
+#                   but got '2.50'
+#
+# Unpinned, each image build picks up whatever pgdg publishes that day, so two
+# images built weeks apart already disagree - and it only surfaces against the
+# backup server, at 2 a.m., on the machine nobody rebuilt.
+#
+# The host distribution is irrelevant, which is the good news: pgbackrest never
+# runs on the host. It runs in our images - the sidecar (ubuntu:24.04) and the
+# postgres images (debian) - so an Ubuntu 20.04, Arch or RHEL host makes no
+# difference. Only THIS number decides.
+#
+# Upgrading: change it here, rebuild, and upgrade the backup server in the same
+# window. The repository format is stable across 2.x, so it is only the
+# binaries.
+PGBR_VERSION=2.59.1
+#
 # ---------------------------------------------------------------- repository --
 #
 # Empty = LOCAL repository in the pgbackrest_data volume. That is the

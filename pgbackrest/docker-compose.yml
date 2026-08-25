@@ -24,6 +24,7 @@ services:
       context: $ODOO_IMAGES/pgbackrest
       args:
         POSTGRES_VERSION: $POSTGRES_VERSION
+        PGBR_VERSION: $PGBR_VERSION
     restart: unless-stopped
     profiles:
       - auto

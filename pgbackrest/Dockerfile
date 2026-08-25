@@ -1,5 +1,19 @@
 FROM ubuntu:24.04
 
+# The pgBackRest version, pinned. Not cosmetic: pgbackrest requires the SAME
+# version on every host that talks to a repository - client and repo server
+# alike. On a mismatch WAL archiving and backups stop with
+#
+#   [ProtocolError] expected value '2.x' for greeting key 'version' but got '2.y'
+#
+# Unpinned, two images built a few weeks apart already differ, and the failure
+# only shows up against the backup server. The pin is a "-*" suffix because
+# the pgdg package revision is distribution-specific (2.59.1-1.pgdg24.04+1 vs
+# 2.59.1-1.pgdg110+1) while the upstream version is what has to match.
+#
+# Empty means unpinned, which is what a project without pgBackRest gets.
+ARG PGBR_VERSION=
+
 ARG POSTGRES_VERSION=17
 ENV POSTGRES_VERSION=$POSTGRES_VERSION
 ENV DEBIAN_FRONTEND=noninteractive
@@ -19,7 +33,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
 # (2.46+) and the TLS server mode (2.37+) are exactly the two features this
 # integration is built on, and Ubuntu ships a version too old for both.
 RUN #___SNIPPET_APT_INSTALL___ \
-    pgbackrest && \
+    "pgbackrest${PGBR_VERSION:+=${PGBR_VERSION}-*}" && \
     apt-get clean -y && \
     rm -rf /var/lib/apt/lists/*
 

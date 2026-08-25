@@ -181,7 +181,63 @@ def pgbackrest_info(config):
 )
 @pass_config
 def pgbackrest_check(config):
+    _check_versions_match(config)
     _pgbr(config, ["check"])
+
+
+def _binary_version(config, service):
+    """`pgbackrest version` as seen from one of our two containers.
+
+    Not via _pgbr_capture: that one always targets the sidecar and adds a
+    --stanza, and the point here is to ask each container separately.
+    """
+    cmd = __get_cmd(config) + [
+        "exec",
+        "-T",
+        service,
+        "pgbackrest",
+        "version",
+    ]
+    try:
+        raw = subprocess.check_output(
+            cmd, encoding="utf-8", stderr=subprocess.DEVNULL
+        )
+    except (subprocess.CalledProcessError, OSError):
+        return None
+    m = re.search(r"pgBackRest\s+([0-9][0-9.]*)", raw)
+    return m.group(1) if m else None
+
+
+def _check_versions_match(config):
+    """The sidecar and postgres must carry the SAME pgbackrest.
+
+    pgbackrest speaks a versioned protocol and refuses to talk across a
+    mismatch - archiving and backups stop with
+
+        [ProtocolError] expected value '2.59' for greeting key 'version'
+                        but got '2.50'
+
+    The two binaries are installed into two different images from two
+    different base distributions, so they can drift apart the moment one is
+    rebuilt and the other is not. Saying it here, in the command whose whole
+    job is "are the backups worth anything", beats discovering it at 2 a.m.
+
+    Only a warning: a mismatch between OUR two containers is usually harmless
+    for a local repository, and pgbackrest itself refuses clearly where it is
+    not. What this catches is the silent half - the rebuild nobody redid.
+    """
+    sidecar = _binary_version(config, "pgbackrest")
+    pg = _binary_version(config, "postgres")
+    if sidecar and pg and sidecar != pg:
+        click.secho(
+            f"pgbackrest versions differ: sidecar {sidecar}, postgres {pg}.\n"
+            "  -> `odoo reload && odoo build postgres pgbackrest`.\n"
+            "Both images pin PGBR_VERSION; one of them was not rebuilt after "
+            "it changed.",
+            fg="red",
+        )
+    elif sidecar:
+        click.secho(f"pgbackrest {sidecar} (sidecar and postgres agree)")
 
 
 @pgbackrest.command(
