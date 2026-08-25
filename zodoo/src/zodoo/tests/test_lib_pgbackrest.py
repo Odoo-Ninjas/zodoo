@@ -256,11 +256,11 @@ def test_conf_written_with_local_repo(after_compose, tmp_path):
 
 
 def test_conf_written_with_repo_host(after_compose, tmp_path):
-    """With a repo host there must be NO repo1-path and NO retention.
+    """When the repo host PULLS there must be no repo1-path and no retention.
 
     Both belong to the machine that owns the storage. Emitting them here would
     not just be noise - it would suggest this machine can expire backups, which
-    is precisely the ability the topology exists to withhold.
+    is precisely the ability this shape exists to withhold.
     """
     after_compose(
         None,
@@ -269,6 +269,7 @@ def test_conf_written_with_repo_host(after_compose, tmp_path):
             PGBACKREST_REPO_HOST="backup.example",
             PGBACKREST_REPO_HOST_TYPE="tls",
             PGBACKREST_REPO_HOST_PORT="8432",
+            PGBACKREST_BACKUP_FROM="repo-host",
         ),
         {"services": {"postgres": {"environment": {}}}},
         {},
@@ -301,6 +302,7 @@ def test_the_two_tls_ports_are_independent(after_compose, tmp_path):
             PGBACKREST_REPO_HOST="backup.example",
             PGBACKREST_REPO_HOST_PORT="443",
             PGBACKREST_TLS_SERVER_PORT="9443",
+            PGBACKREST_BACKUP_FROM="repo-host",
         ),
         yml,
         {},
@@ -321,6 +323,54 @@ def test_no_port_published_without_a_repo_host(after_compose, tmp_path):
     }
     after_compose(None, _enabled_settings(HOST_RUN_DIR=str(tmp_path)), yml, {})
     assert "ports" not in yml["services"]["pgbackrest"]
+
+
+def test_pushing_to_a_repo_host_keeps_retention_here(after_compose, tmp_path):
+    """BACKUP_FROM=here: outbound only, and retention comes back to this side.
+
+    This is the shape to use when the backup server may not reach in. Expire
+    then runs from here, so the retention values have to be in THIS
+    configuration - without them pgbackrest would run expire and delete
+    nothing, forever, which is the failure mode that is invisible until the
+    disk is full.
+    """
+    yml = {"services": {"postgres": {"environment": {}}, "pgbackrest": {}}}
+    after_compose(
+        None,
+        _enabled_settings(
+            HOST_RUN_DIR=str(tmp_path),
+            PGBACKREST_REPO_HOST="backup.example",
+            PGBACKREST_BACKUP_FROM="here",
+            PGBACKREST_RETENTION_FULL="30",
+        ),
+        yml,
+        {},
+    )
+    directives = _directives(tmp_path)
+    assert "repo1-host=backup.example" in directives
+    assert "repo1-retention-full=30" in directives
+    # the repository still lives over there
+    assert not any(d.startswith("repo1-path") for d in directives)
+    # nothing listens here, so no server certificate and no open port
+    assert not any(d.startswith("tls-server") for d in directives)
+    assert "ports" not in yml["services"]["pgbackrest"]
+
+
+def test_backup_from_defaults_to_pushing(after_compose, tmp_path):
+    # An unset value must not silently produce the shape that needs an inbound
+    # port - that one would simply never connect, and only at backup time.
+    after_compose(
+        None,
+        _enabled_settings(
+            HOST_RUN_DIR=str(tmp_path),
+            PGBACKREST_REPO_HOST="backup.example",
+        ),
+        {"services": {"postgres": {"environment": {}}}},
+        {},
+    )
+    directives = _directives(tmp_path)
+    assert not any(d.startswith("tls-server") for d in directives)
+    assert "repo1-retention-full=14" in directives
 
 
 def test_retention_archive_only_emitted_when_set(after_compose, tmp_path):

@@ -27,6 +27,7 @@ services:
     environment:
       PGBACKREST_STANZA: $PGBACKREST_STANZA
       PGBACKREST_REPO_HOST: $PGBACKREST_REPO_HOST
+      PGBACKREST_BACKUP_FROM: $PGBACKREST_BACKUP_FROM
       DB_PORT: $DB_PORT
       DB_USER: $DB_USER
       PGDATA: /var/lib/postgresql/data/pgdata

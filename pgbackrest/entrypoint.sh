@@ -35,6 +35,7 @@ set -e
 : "${PGDATA:=/var/lib/postgresql/data/pgdata}"
 : "${PGBACKREST_STANZA:=odoo}"
 : "${PGBACKREST_REPO_HOST:=}"
+: "${PGBACKREST_BACKUP_FROM:=here}"
 
 CONF=/etc/pgbackrest/pgbackrest.conf
 
@@ -63,13 +64,12 @@ until gosu pgbackrest pg_isready -h /var/run/postgresql -p "${DB_PORT}" \
 done
 echo "pgbackrest: postgres is up"
 
-if [ -n "$PGBACKREST_REPO_HOST" ]; then
-    # ------------------------------------------------------------ repo host --
-    # Deliberately NO stanza-create here. With a remote repository the stanza,
-    # the backups and the expiry all live on the repo host and are driven from
-    # there; this side only ever answers. Creating a stanza from here would
-    # need write access to the repository, which is exactly what this topology
-    # is designed to withhold.
+if [ -n "$PGBACKREST_REPO_HOST" ] && [ "$PGBACKREST_BACKUP_FROM" = "repo-host" ]; then
+    # ----------------------------------------------------- repo host, pulled --
+    # Deliberately NO stanza-create here. With the repo host driving, the
+    # stanza, the backups and the expiry all live over there; this side only
+    # ever answers. Creating a stanza from here would need write access to the
+    # repository, which is exactly what this shape is designed to withhold.
     for f in ca.crt server.crt server.key; do
         [ -f "/etc/pgbackrest/cert/$f" ] || pgbr_die \
             "TLS material /etc/pgbackrest/cert/$f is missing. It belongs in
@@ -84,12 +84,31 @@ repository."
     exec gosu pgbackrest pgbackrest server
 fi
 
-# ---------------------------------------------------------------- local repo --
+# ------------------------------------------------- pushed from this machine --
+# Either the repository is local, or it is on the backup server and we push to
+# it. Both cases are the same from here: this side drives the backup, so it
+# creates the stanza and later expires it.
+if [ -n "$PGBACKREST_REPO_HOST" ]; then
+    # Only the client certificate is needed when pushing - nothing listens
+    # here, so there is no server certificate to present.
+    for f in ca.crt client.crt client.key; do
+        [ -f "/etc/pgbackrest/cert/$f" ] || pgbr_die \
+            "TLS material /etc/pgbackrest/cert/$f is missing. It belongs in
+\$HOST_RUN_DIR/pgbackrest/cert/ (ca.crt, client.crt, client.key; the key mode
+0600) and is issued by the backup server.
+
+There is no enrolment command yet - the certificates are placed by hand for
+now. Until that exists, leave PGBACKREST_REPO_HOST empty to use the local
+repository."
+    done
+    echo "pgbackrest: pushing to repo host ${PGBACKREST_REPO_HOST} (TLS, outbound only)"
+fi
+
 # Idempotent: stanza-create on a repository that already has this stanza is an
 # error, stanza-upgrade is the right call after a postgres major upgrade, and
 # neither is worth aborting the container over - `odoo pgbackrest check` is
 # where a real problem should surface, with a readable message.
-echo "pgbackrest: ensuring stanza '${PGBACKREST_STANZA}' in the local repository"
+echo "pgbackrest: ensuring stanza '${PGBACKREST_STANZA}'"
 gosu pgbackrest pgbackrest --stanza="${PGBACKREST_STANZA}" stanza-create 2>/dev/null \
     || gosu pgbackrest pgbackrest --stanza="${PGBACKREST_STANZA}" stanza-upgrade 2>/dev/null \
     || true
@@ -104,5 +123,5 @@ gosu pgbackrest pgbackrest --stanza="${PGBACKREST_STANZA}" check || \
 # Nothing to serve in local mode, but the container has to stay alive so
 # `docker compose exec` works - that is how every `odoo pgbackrest ...` command
 # reaches the binary.
-echo "pgbackrest: ready (local repository)"
+echo "pgbackrest: ready"
 exec tail -f /dev/null

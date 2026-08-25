@@ -43,14 +43,14 @@ PGBACKREST_REPO_HOST=
 #
 #   this machine  --> backup server   WAL (archive-push), continuously.
 #                                     Port PGBACKREST_REPO_HOST_PORT, outbound.
-#   backup server --> this machine    the base backup. The repo host is the one
-#                                     that runs `pgbackrest backup` and PULLS.
-#                                     Port PGBACKREST_TLS_SERVER_PORT, INBOUND.
+#   backup server --> this machine    the base backup, but ONLY with
+#                                     PGBACKREST_BACKUP_FROM=repo-host. Port
+#                                     PGBACKREST_TLS_SERVER_PORT, INBOUND.
+#                                     With the default (=here) this direction
+#                                     does not exist and everything is outbound.
 #
-# The inbound one is what makes the topology worth having: the Odoo machine
-# never holds the repository, so it cannot read or delete the history. It also
-# means an Odoo machine has to be reachable from the backup server - see
-# docs/12-pgbackrest.md for the alternative if that is not acceptable.
+# See PGBACKREST_BACKUP_FROM below for which of the two you get and what each
+# one costs.
 #
 # Both are freely settable (1-65535), so 443 on either side is fine and is the
 # usual answer to a restrictive firewall. But note what this is NOT: pgbackrest
@@ -58,9 +58,28 @@ PGBACKREST_REPO_HOST=
 # through a port-based firewall; it does NOT survive an HTTPS reverse proxy
 # that terminates TLS. Only TCP/SNI passthrough works. Details in the docs.
 PGBACKREST_REPO_HOST_PORT=8432
-# The port this machine LISTENS on for the repo host. Published on the host by
-# __after_compose.py, but only when PGBACKREST_REPO_HOST is set - a local
-# repository has nothing to serve and should not open a port.
+#
+# WHICH machine runs `pgbackrest backup` - and with it `expire`. Only relevant
+# when PGBACKREST_REPO_HOST is set.
+#
+#   here       This machine pushes. EVERY connection is outbound, nothing has
+#              to be reachable from the backup server, and no port is opened.
+#              The cost: this machine can delete from the repository, because
+#              expiring a backup is a delete. Fine when the backup server
+#              copies the repository onward to a write-only target - the
+#              protection then lives one layer further out.
+#
+#   repo-host  The backup server pulls. This machine holds no delete rights at
+#              all, which is stronger, but the backup server has to be able to
+#              REACH this machine on PGBACKREST_TLS_SERVER_PORT.
+#
+# Retention follows this setting: it is configured on whichever side runs
+# expire. With "here" the values below apply; with "repo-host" they are ignored
+# and belong in the backup server's configuration instead.
+PGBACKREST_BACKUP_FROM=here
+# The port this machine LISTENS on for the repo host. Only used - and only
+# published on the host - with PGBACKREST_BACKUP_FROM=repo-host. Pushing from
+# here has nothing to serve and should not open a port.
 PGBACKREST_TLS_SERVER_PORT=8432
 # TLS rather than SSH. Both are supported by pgbackrest; TLS is the recommended
 # transport for new setups (no shell account on either side, and markedly less

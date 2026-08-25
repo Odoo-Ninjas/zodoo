@@ -42,61 +42,31 @@ def _tls_port(settings):
     return (settings.get("PGBACKREST_TLS_SERVER_PORT") or "8432").strip()
 
 
-def _repo_section(settings):
-    """The [global] lines that say where the repository is and how it is reached.
+def _backup_from(settings):
+    """Which machine runs `pgbackrest backup` - and therefore `expire`.
 
-    The two modes are not a changed value but a different shape, which is why
-    this is assembled here rather than being a placeholder in the template:
-
-    local     repo1-path, and this machine owns the storage.
-    repo host repo1-host plus TLS material, and deliberately NO repo1-path -
-              the path exists on the backup server. Retention lives there too:
-              expiring a backup means deleting from the repository, and not
-              being able to do that is the entire point of the topology.
+    Only meaningful with a repo host. "here" keeps every connection outbound;
+    "repo-host" needs an inbound port but withholds delete rights from this
+    machine. See docs/12-pgbackrest.md.
     """
-    host = (settings.get("PGBACKREST_REPO_HOST") or "").strip()
+    val = (settings.get("PGBACKREST_BACKUP_FROM") or "here").strip().lower()
+    return "repo-host" if val == "repo-host" else "here"
+
+
+def _retention_lines(settings):
+    """repo1-retention-*, for whichever side actually runs expire.
+
+    Retention is emitted UNCONDITIONALLY, falling back to the documented
+    default rather than being left out when the setting is empty.
+
+    This matters more than it looks: pgbackrest without repo1-retention-full
+    never expires anything. It says so once, in a log line nobody reads, and
+    then quietly keeps every backup forever. That is exactly how the dump
+    directory grew to 3.4 TB - a cleanup that was configured but never
+    effective. An empty setting therefore means "use the default", never
+    "keep everything".
+    """
     lines = []
-
-    if host:
-        lines += [
-            f"repo1-host={host}",
-            "repo1-host-type="
-            + (settings.get("PGBACKREST_REPO_HOST_TYPE") or "tls").strip(),
-            "repo1-host-port="
-            + (settings.get("PGBACKREST_REPO_HOST_PORT") or "8432").strip(),
-            "repo1-host-ca-file=/etc/pgbackrest/cert/ca.crt",
-            "repo1-host-cert-file=/etc/pgbackrest/cert/client.crt",
-            "repo1-host-key-file=/etc/pgbackrest/cert/client.key",
-            "",
-            "# This machine answers the repo host over TLS; the repo host is",
-            "# the side that starts a backup and pulls. tls-server-auth names",
-            "# which client certificate may act on which stanza - without it",
-            "# any certificate signed by the CA could back up any instance.",
-            "tls-server-address=0.0.0.0",
-            "tls-server-port=" + _tls_port(settings),
-            "tls-server-ca-file=/etc/pgbackrest/cert/ca.crt",
-            "tls-server-cert-file=/etc/pgbackrest/cert/server.crt",
-            "tls-server-key-file=/etc/pgbackrest/cert/server.key",
-            f"tls-server-auth={host}="
-            + (settings.get("PGBACKREST_STANZA") or "odoo").strip(),
-        ]
-        return "\n".join(lines)
-
-    lines += [
-        "repo1-path=/var/lib/pgbackrest",
-        "repo1-block=" + (settings.get("PGBACKREST_BLOCK") or "y").strip(),
-        "repo1-bundle=" + (settings.get("PGBACKREST_BUNDLE") or "y").strip(),
-    ]
-
-    # Retention is emitted UNCONDITIONALLY, falling back to the documented
-    # default rather than being left out when the setting is empty.
-    #
-    # This matters more than it looks: pgbackrest without repo1-retention-full
-    # never expires anything. It says so once, in a log line nobody reads, and
-    # then quietly keeps every backup forever. That is exactly how the dump
-    # directory grew to 3.4 TB - a cleanup that was configured but never
-    # effective. An empty setting therefore means "use the default", never
-    # "keep everything".
     full_type = (
         settings.get("PGBACKREST_RETENTION_FULL_TYPE") or "time"
     ).strip()
@@ -119,7 +89,79 @@ def _repo_section(settings):
                 settings.get("PGBACKREST_RETENTION_ARCHIVE_TYPE") or "full"
             ).strip()
         )
+    return lines
 
+
+def _repo_section(settings):
+    """The [global] lines that say where the repository is and how it is reached.
+
+    Three shapes, not one with changed values - which is why this is assembled
+    here rather than being a placeholder in the template:
+
+    local repository        repo1-path; this machine owns the storage.
+
+    repo host, pulled       repo1-host plus TLS material, and deliberately NO
+    (BACKUP_FROM=repo-host) repo1-path and NO retention. Both belong to the
+                            backup server, which runs backup and expire. Not
+                            being able to delete is the point of this shape.
+
+    repo host, pushed       repo1-host, and retention comes BACK, because this
+    (BACKUP_FROM=here)      machine is the one running backup and therefore
+                            expire. It has delete rights on the repository;
+                            protection against that has to come from whatever
+                            the backup server copies onward to.
+    """
+    host = (settings.get("PGBACKREST_REPO_HOST") or "").strip()
+    lines = []
+
+    if host:
+        pulled = _backup_from(settings) == "repo-host"
+        lines += [
+            f"repo1-host={host}",
+            "repo1-host-type="
+            + (settings.get("PGBACKREST_REPO_HOST_TYPE") or "tls").strip(),
+            "repo1-host-port="
+            + (settings.get("PGBACKREST_REPO_HOST_PORT") or "8432").strip(),
+            "repo1-host-ca-file=/etc/pgbackrest/cert/ca.crt",
+            "repo1-host-cert-file=/etc/pgbackrest/cert/client.crt",
+            "repo1-host-key-file=/etc/pgbackrest/cert/client.key",
+        ]
+        if pulled:
+            lines += [
+                "",
+                "# This machine answers the repo host over TLS; the repo host",
+                "# is the side that starts a backup and pulls. tls-server-auth",
+                "# names which client certificate may act on which stanza -",
+                "# without it any certificate signed by the CA could back up",
+                "# any instance.",
+                "tls-server-address=0.0.0.0",
+                "tls-server-port=" + _tls_port(settings),
+                "tls-server-ca-file=/etc/pgbackrest/cert/ca.crt",
+                "tls-server-cert-file=/etc/pgbackrest/cert/server.crt",
+                "tls-server-key-file=/etc/pgbackrest/cert/server.key",
+                f"tls-server-auth={host}="
+                + (settings.get("PGBACKREST_STANZA") or "odoo").strip(),
+            ]
+        else:
+            # Pushed from here, so expire runs from here too - and without
+            # these lines it would run and delete nothing, forever.
+            lines += [
+                "",
+                "# This machine drives the backup, so it also drives expire.",
+                "# Retention therefore lives here and not on the backup",
+                "# server. Note this means this machine CAN delete from the",
+                "# repository; the protection against that is whatever the",
+                "# backup server copies onward to.",
+            ] + _retention_lines(settings)
+        return "\n".join(lines)
+
+    lines += [
+        "repo1-path=/var/lib/pgbackrest",
+        "repo1-block=" + (settings.get("PGBACKREST_BLOCK") or "y").strip(),
+        "repo1-bundle=" + (settings.get("PGBACKREST_BUNDLE") or "y").strip(),
+    ]
+
+    lines += _retention_lines(settings)
     return "\n".join(lines)
 
 
@@ -238,11 +280,13 @@ def after_compose(config, settings, yml, globals):
     yml.setdefault("volumes", {}).setdefault("postgres_socket", None)
 
     # --- the inbound side of a repo-host setup --------------------------------
-    # Only with a repo host, and only then: the repo host is the side that runs
+    # Only when the repo host PULLS: it is then the side that runs
     # `pgbackrest backup` and pulls from the TLS server in the sidecar, so that
     # server has to be reachable from outside the compose network. A local
     # repository serves nobody and gets no published port.
-    if (settings.get("PGBACKREST_REPO_HOST") or "").strip():
+    if (settings.get("PGBACKREST_REPO_HOST") or "").strip() and _backup_from(
+        settings
+    ) == "repo-host":
         sidecar = yml.get("services", {}).get("pgbackrest")
         if sidecar is not None:
             port = _tls_port(settings)
