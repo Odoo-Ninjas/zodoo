@@ -2,6 +2,16 @@ def _truthy(val):
     return str(val).strip().lower() in ("1", "true", "yes", "on")
 
 
+def _stanza(settings):
+    """PGBR_STANZA with $PROJECT_NAME resolved - see __after_compose."""
+    raw = (settings.get("PGBR_STANZA") or "").strip()
+    project = (settings.get("PROJECT_NAME") or "").strip()
+    if project:
+        for placeholder in ("${PROJECT_NAME}", "$PROJECT_NAME"):
+            raw = raw.replace(placeholder, project)
+    return raw.strip() or project or "odoo"
+
+
 def after_settings(settings, config):
     """Guard rails for the pgBackRest integration.
 
@@ -15,7 +25,7 @@ def after_settings(settings, config):
     # even merged into the compose, so postgres keeps its stock configuration
     # and never gets an archive_command. Opt back in to test the integration.
     if settings.get("DEVMODE") == "1" and not _truthy(
-        settings.get("PGBACKREST_FORCE_IN_DEVMODE", "0")
+        settings.get("PGBR_FORCE_IN_DEVMODE", "0")
     ):
         settings["RUN_PGBACKREST"] = "0"
 
@@ -46,7 +56,7 @@ def after_settings(settings, config):
             "CRONJOB_PGBACKREST_INCR",
         ):
             settings[key] = ""
-    elif not (settings.get("PGBACKREST_INCR_CRON") or "").strip():
+    elif not (settings.get("PGBR_INCR_CRON") or "").strip():
         # Intra-day incrementals are opt-in. Without a schedule the entry would
         # otherwise be a bare command with no cron expression in front of it,
         # which the daemon cannot parse at all.
@@ -60,18 +70,18 @@ def after_settings(settings, config):
     # it gets a message rather than a comment in a file nobody opens.
     if (
         _truthy(settings.get("RUN_PGBACKREST", "0"))
-        and (settings.get("PGBACKREST_REPO_HOST") or "").strip()
+        and (settings.get("PGBR_REPO_HOST") or "").strip()
     ):
         click.secho(
             "pgbackrest: the repository lives on "
-            f"{settings['PGBACKREST_REPO_HOST']}, so retention is configured "
+            f"{settings['PGBR_REPO_HOST']}, so retention is configured "
             "THERE, not here - the machine that manages the disk manages the "
             "retention.\n"
             "  -> the backup server needs repo1-retention-* in its own "
             "pgbackrest.conf and a scheduled `pgbackrest --stanza="
-            f"{(settings.get('PGBACKREST_STANZA') or 'odoo').strip()} expire`."
+            f"{_stanza(settings)} expire`."
             "\n"
-            "The PGBACKREST_RETENTION_* settings are ignored in this mode; "
+            "The PGBR_RETENTION_* settings are ignored in this mode; "
             "without an expire on the backup server nothing is ever deleted.",
             fg="yellow",
         )

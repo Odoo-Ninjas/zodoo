@@ -15,7 +15,7 @@
 # truth - and it exists before postgres starts, so the archive_command cannot
 # fire into a missing configuration on the very first boot.
 #
-# Two modes, decided by PGBACKREST_REPO_HOST:
+# Two modes, decided by PGBR_REPO_HOST:
 #
 #   local repo   The repository lives in this container's volume. This machine
 #                owns the backups, which is fine for development and testing
@@ -31,11 +31,11 @@
 set -e
 
 : "${DB_PORT:=5432}"
-: "${DB_USER:=odoo}"
+: "${DB_USER:=postgres}"
 : "${PGDATA:=/var/lib/postgresql/data/pgdata}"
-: "${PGBACKREST_STANZA:=odoo}"
-: "${PGBACKREST_REPO_HOST:=}"
-: "${PGBACKREST_BACKUP_FROM:=here}"
+: "${PGBR_STANZA:=odoo}"
+: "${PGBR_REPO_HOST:=}"
+: "${PGBR_BACKUP_FROM:=here}"
 
 CONF=/etc/pgbackrest/pgbackrest.conf
 
@@ -64,7 +64,7 @@ until gosu pgbackrest pg_isready -h /var/run/postgresql -p "${DB_PORT}" \
 done
 echo "pgbackrest: postgres is up"
 
-if [ -n "$PGBACKREST_REPO_HOST" ] && [ "$PGBACKREST_BACKUP_FROM" = "repo-host" ]; then
+if [ -n "$PGBR_REPO_HOST" ] && [ "$PGBR_BACKUP_FROM" = "repo-host" ]; then
     # ----------------------------------------------------- repo host, pulled --
     # Deliberately NO stanza-create here. With the repo host driving, the
     # stanza, the backups and the expiry all live over there; this side only
@@ -77,10 +77,10 @@ if [ -n "$PGBACKREST_REPO_HOST" ] && [ "$PGBACKREST_BACKUP_FROM" = "repo-host" ]
 client.key; the keys mode 0600) and is issued by the backup server.
 
 There is no enrolment command yet - the certificates are placed by hand for
-now. Until that exists, leave PGBACKREST_REPO_HOST empty to use the local
+now. Until that exists, leave PGBR_REPO_HOST empty to use the local
 repository."
     done
-    echo "pgbackrest: serving for repo host ${PGBACKREST_REPO_HOST} (TLS)"
+    echo "pgbackrest: serving for repo host ${PGBR_REPO_HOST} (TLS)"
     exec gosu pgbackrest pgbackrest server
 fi
 
@@ -88,7 +88,7 @@ fi
 # Either the repository is local, or it is on the backup server and we push to
 # it. Both cases are the same from here: this side drives the backup, so it
 # creates the stanza and later expires it.
-if [ -n "$PGBACKREST_REPO_HOST" ]; then
+if [ -n "$PGBR_REPO_HOST" ]; then
     # Only the client certificate is needed when pushing - nothing listens
     # here, so there is no server certificate to present.
     for f in ca.crt client.crt client.key; do
@@ -98,25 +98,25 @@ if [ -n "$PGBACKREST_REPO_HOST" ]; then
 0600) and is issued by the backup server.
 
 There is no enrolment command yet - the certificates are placed by hand for
-now. Until that exists, leave PGBACKREST_REPO_HOST empty to use the local
+now. Until that exists, leave PGBR_REPO_HOST empty to use the local
 repository."
     done
-    echo "pgbackrest: pushing to repo host ${PGBACKREST_REPO_HOST} (TLS, outbound only)"
+    echo "pgbackrest: pushing to repo host ${PGBR_REPO_HOST} (TLS, outbound only)"
 fi
 
 # Idempotent: stanza-create on a repository that already has this stanza is an
 # error, stanza-upgrade is the right call after a postgres major upgrade, and
 # neither is worth aborting the container over - `odoo pgbackrest check` is
 # where a real problem should surface, with a readable message.
-echo "pgbackrest: ensuring stanza '${PGBACKREST_STANZA}'"
-gosu pgbackrest pgbackrest --stanza="${PGBACKREST_STANZA}" stanza-create 2>/dev/null \
-    || gosu pgbackrest pgbackrest --stanza="${PGBACKREST_STANZA}" stanza-upgrade 2>/dev/null \
+echo "pgbackrest: ensuring stanza '${PGBR_STANZA}'"
+gosu pgbackrest pgbackrest --stanza="${PGBR_STANZA}" stanza-create 2>/dev/null \
+    || gosu pgbackrest pgbackrest --stanza="${PGBR_STANZA}" stanza-upgrade 2>/dev/null \
     || true
 
 # Prove the archiving path end to end right away rather than at 2 a.m.: a
 # forced segment switch makes postgres hand a real segment to the
 # archive_command, and `check` verifies it arrived in the repository.
-gosu pgbackrest pgbackrest --stanza="${PGBACKREST_STANZA}" check || \
+gosu pgbackrest pgbackrest --stanza="${PGBR_STANZA}" check || \
     echo "pgbackrest: check failed - archiving is not working yet, see
 'odoo pgbackrest check' for the reason." >&2
 

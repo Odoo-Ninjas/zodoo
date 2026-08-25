@@ -18,11 +18,11 @@ JOB_BACKUP_ODOO_DB=odoo backup odoo-db $DB_ODOO_FILEFORMAT --dumptype $DB_ODOO_D
 # cleanup that eventually is not (see JOB_DADDY_CLEANUP below, which has no
 # CRONJOB_ counterpart and therefore never runs).
 JOB_PGBACKREST_FULL=odoo pgbackrest backup --type full
-CRONJOB_PGBACKREST_FULL=$PGBACKREST_FULL_CRON $JOB_PGBACKREST_FULL
+CRONJOB_PGBACKREST_FULL=$PGBR_FULL_CRON $JOB_PGBACKREST_FULL
 JOB_PGBACKREST_DIFF=odoo pgbackrest backup --type diff
-CRONJOB_PGBACKREST_DIFF=$PGBACKREST_DIFF_CRON $JOB_PGBACKREST_DIFF
+CRONJOB_PGBACKREST_DIFF=$PGBR_DIFF_CRON $JOB_PGBACKREST_DIFF
 JOB_PGBACKREST_INCR=odoo pgbackrest backup --type incr
-CRONJOB_PGBACKREST_INCR=$PGBACKREST_INCR_CRON $JOB_PGBACKREST_INCR
+CRONJOB_PGBACKREST_INCR=$PGBR_INCR_CRON $JOB_PGBACKREST_INCR
 
 # Taegliches verschluesseltes Offsite-Backup (restic). No-op solange
 # RUN_OFFSITE=0 - der Befehl steigt dann still aus, damit Projekte ohne

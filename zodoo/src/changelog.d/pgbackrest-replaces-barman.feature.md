@@ -15,7 +15,7 @@ Was sich im Betrieb aendert:
 * `restore` arbeitet mit `--delta`, holt also nur abweichende Dateien. Dafuer
   gibt es keine automatische Ruecksprungkopie mehr wie beim barman-Weg --
   `--keep-previous` legt sie an, kostet aber eine zweite Vollkopie.
-* Mit `PGBACKREST_REPO_HOST` liegt das Repository auf dem Backup-Server; die
+* Mit `PGBR_REPO_HOST` liegt das Repository auf dem Backup-Server; die
   Instanz haelt dann weder Passwort noch Loeschrecht.
 
 Umstellung: `RUN_BARMAN=0`, `RUN_PGBACKREST=1`, `odoo reload && odoo up -d`.

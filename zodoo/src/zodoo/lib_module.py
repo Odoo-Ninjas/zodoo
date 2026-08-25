@@ -1230,7 +1230,7 @@ def update(
             stop_update_blocking_roles(config)
             # Writers are stopped now and postgres is up: set a named
             # restore point so a failed update can be rewound (opt-in via
-            # PGBACKREST_GUARD_UPDATE=1 + RUN_PGBACKREST=1).
+            # PGBR_GUARD_UPDATE=1 + RUN_PGBACKREST=1).
             from . import lib_pgbackrest
 
             if lib_pgbackrest.guard_update_enabled(config):

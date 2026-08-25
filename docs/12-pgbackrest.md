@@ -47,25 +47,25 @@ setup.
 
 ## Repository topology
 
-Two modes, chosen by whether `PGBACKREST_REPO_HOST` is set.
+Two modes, chosen by whether `PGBR_REPO_HOST` is set.
 
 ### Local repository (development, testing)
 
-Empty `PGBACKREST_REPO_HOST`. The repository lives in the `pgbackrest_data`
+Empty `PGBR_REPO_HOST`. The repository lives in the `pgbackrest_data`
 volume on this machine. No certificates, no second host — and the only mode that
 works without a backup server. Backups are driven from here.
 
 ### Repository host (production)
 
-`PGBACKREST_REPO_HOST=<backup server>`, transport TLS. The repository lives on
+`PGBR_REPO_HOST=<backup server>`, transport TLS. The repository lives on
 the backup server. **Who drives the backup** is then a second decision,
-`PGBACKREST_BACKUP_FROM`, and it decides both the firewall shape and where
+`PGBR_BACKUP_FROM`, and it decides both the firewall shape and where
 retention is configured.
 
 | | `here` (default) | `repo-host` |
 | --- | --- | --- |
 | runs `backup` and `expire` | this machine | the backup server |
-| connections | **all outbound** | outbound WAL **plus inbound** on `PGBACKREST_TLS_SERVER_PORT` |
+| connections | **all outbound** | outbound WAL **plus inbound** on `PGBR_TLS_SERVER_PORT` |
 | open port on this machine | none | yes |
 | can this machine delete backups? | **yes** | no |
 | retention configured | on the backup server | on the backup server |
@@ -108,7 +108,7 @@ pgbackrest --stanza=<stanza> expire
 against its own values. `expire` is a repository-only operation — it needs no
 reachable cluster, which is what makes this work at all.
 
-`PGBACKREST_RETENTION_*` therefore applies **only to a local repository**, where
+`PGBR_RETENTION_*` therefore applies **only to a local repository**, where
 there is no other machine to do it. `odoo reload` says so in a yellow line
 whenever a repo host is configured.
 
@@ -146,8 +146,8 @@ is the part worth knowing before writing a firewall rule:
 
 | direction | carries | port setting | when |
 | --- | --- | --- | --- |
-| this machine → backup server | WAL, and with `BACKUP_FROM=here` the backups too | `PGBACKREST_REPO_HOST_PORT` | always |
-| backup server → **this machine** | the base backup — the repo host pulls | `PGBACKREST_TLS_SERVER_PORT` | only `BACKUP_FROM=repo-host` |
+| this machine → backup server | WAL, and with `BACKUP_FROM=here` the backups too | `PGBR_REPO_HOST_PORT` | always |
+| backup server → **this machine** | the base backup — the repo host pulls | `PGBR_TLS_SERVER_PORT` | only `BACKUP_FROM=repo-host` |
 
 The inbound one surprises people. It is not an accident: the repo host runs
 `pgbackrest backup` precisely so that this machine never touches the
@@ -172,14 +172,14 @@ So:
   router with `passthrough`) — works, because the bytes are handed through
   untouched. This is the way to put it on 443 alongside real web traffic.
 
-If an inbound port is not acceptable at all, `PGBACKREST_BACKUP_FROM=here`
+If an inbound port is not acceptable at all, `PGBR_BACKUP_FROM=here`
 makes every connection outbound. See the table above for what that costs.
 
 > **Not turnkey yet.** There is no enrolment command. The certificates
 > (`ca.crt`, `server.crt`, `server.key`, `client.crt`, `client.key`) have to be
 > placed in `$HOST_RUN_DIR/pgbackrest/cert/` by hand, and the backup server side
 > — a repo host running `pgbackrest server` against the NFS mount — does not
-> exist yet either. Until it does, leave `PGBACKREST_REPO_HOST` empty.
+> exist yet either. Until it does, leave `PGBR_REPO_HOST` empty.
 
 ## Schedule and retention
 
@@ -189,11 +189,11 @@ year for a single instance.
 
 | Setting | Default | |
 | --- | --- | --- |
-| `PGBACKREST_FULL_CRON` | `0 2 * * 0` | Sunday — the quietest day, so the cheapest slot |
-| `PGBACKREST_DIFF_CRON` | `0 2 * * 1-6` | daily |
-| `PGBACKREST_INCR_CRON` | *(empty)* | opt-in, intra-day |
-| `PGBACKREST_RETENTION_FULL` | `14` | with `..._TYPE=time`: days of continuous PITR |
-| `PGBACKREST_RETENTION_ARCHIVE` | *(empty)* | empty = continuous WAL across the whole window |
+| `PGBR_FULL_CRON` | `0 2 * * 0` | Sunday — the quietest day, so the cheapest slot |
+| `PGBR_DIFF_CRON` | `0 2 * * 1-6` | daily |
+| `PGBR_INCR_CRON` | *(empty)* | opt-in, intra-day |
+| `PGBR_RETENTION_FULL` | `14` | with `..._TYPE=time`: days of continuous PITR |
+| `PGBR_RETENTION_ARCHIVE` | *(empty)* | empty = continuous WAL across the whole window |
 
 **Diff rather than incr for the daily rhythm** is deliberate: a differential
 depends only on the full, an incremental on its predecessor. A chain of six
@@ -206,7 +206,7 @@ has to be replayed, and replay is single-threaded.
 
 ### The WAL retention lever
 
-`PGBACKREST_RETENTION_ARCHIVE` empty keeps the WAL for every retained full
+`PGBR_RETENTION_ARCHIVE` empty keeps the WAL for every retained full
 backup, i.e. a continuous window. Setting it to a number keeps continuous WAL
 only for that many recent backups; older ones stay restorable, but only to their
 own end point.
@@ -262,9 +262,26 @@ Two differences from the old barman path worth knowing before the first time:
 
 After a restore the timeline changes, so take a fresh full backup.
 
+## Settings are named `PGBR_*`, never `PGBACKREST_*`
+
+pgBackRest reads its **own** options from the environment with a `PGBACKREST_`
+prefix — `PGBACKREST_REPO_HOST` is the option `repo-host`, `PGBACKREST_BUNDLE`
+is `bundle`. zodoo exports every setting into every container, so a setting by
+such a name is handed straight to pgbackrest as one of its own options:
+
+```
+ERROR: [031]: option 'repo-host-type' requires an index
+WARN: environment contains invalid option 'bundle'
+```
+
+The ones that fail are the harmless half. `compress-type`, `process-max` and
+`archive-async` *are* valid options, and those silently override the
+configuration file. Hence `PGBR_*`. `RUN_PGBACKREST` and the `CRONJOB_PGBACKREST_*`
+entries do not collide and keep their names.
+
 ## Update guard
 
-`PGBACKREST_GUARD_UPDATE=1` makes every `odoo update` set a named restore point
+`PGBR_GUARD_UPDATE=1` makes every `odoo update` set a named restore point
 first, and offers to rewind to it if the update fails. The marker's WAL segment
 is switched and verified as archived before the update starts — an unarchived
 marker cannot be recovered to.

@@ -55,7 +55,7 @@ def _enabled_settings(**extra):
     """
     base = {
         "RUN_PGBACKREST": "1",
-        "PGBACKREST_STANZA": "unittest",
+        "PGBR_STANZA": "unittest",
         "POSTGRES_VERSION": "17",
     }
     base.update(extra)
@@ -72,7 +72,7 @@ def test_devmode_forces_pgbackrest_off(after_settings):
         "DEVMODE": "1",
         "RUN_PGBACKREST": "1",
         "RUN_POSTGRES": "1",
-        "PGBACKREST_FORCE_IN_DEVMODE": "0",
+        "PGBR_FORCE_IN_DEVMODE": "0",
     }
     after_settings(settings, None)
     assert settings["RUN_PGBACKREST"] == "0"
@@ -83,8 +83,8 @@ def test_devmode_force_flag_keeps_pgbackrest_on(after_settings):
         "DEVMODE": "1",
         "RUN_PGBACKREST": "1",
         "RUN_POSTGRES": "1",
-        "PGBACKREST_FORCE_IN_DEVMODE": "1",
-        "PGBACKREST_INCR_CRON": "0 */6 * * *",
+        "PGBR_FORCE_IN_DEVMODE": "1",
+        "PGBR_INCR_CRON": "0 */6 * * *",
     }
     after_settings(settings, None)
     assert settings["RUN_PGBACKREST"] == "1"
@@ -95,7 +95,7 @@ def test_no_devmode_leaves_pgbackrest_untouched(after_settings):
         "DEVMODE": "0",
         "RUN_PGBACKREST": "1",
         "RUN_POSTGRES": "1",
-        "PGBACKREST_INCR_CRON": "0 */6 * * *",
+        "PGBR_INCR_CRON": "0 */6 * * *",
     }
     after_settings(settings, None)
     assert settings["RUN_PGBACKREST"] == "1"
@@ -130,7 +130,7 @@ def test_incr_cron_cleared_when_no_schedule(after_settings):
         "DEVMODE": "0",
         "RUN_PGBACKREST": "1",
         "RUN_POSTGRES": "1",
-        "PGBACKREST_INCR_CRON": "",
+        "PGBR_INCR_CRON": "",
     }
     after_settings(settings, None)
     assert settings["CRONJOB_PGBACKREST_INCR"] == ""
@@ -143,7 +143,7 @@ def test_incr_cron_kept_when_scheduled(after_settings):
         "DEVMODE": "0",
         "RUN_PGBACKREST": "1",
         "RUN_POSTGRES": "1",
-        "PGBACKREST_INCR_CRON": "0 */6 * * *",
+        "PGBR_INCR_CRON": "0 */6 * * *",
     }
     after_settings(settings, None)
     assert "CRONJOB_PGBACKREST_INCR" not in settings
@@ -173,6 +173,14 @@ def test_archive_command_injected_when_enabled(after_compose, tmp_path):
     # the stanza has to travel in the command - it is what tells pgbackrest
     # which repository path the segment belongs to
     assert "--stanza=unittest" in pgconf
+    # and the whole command must be single-quoted: run.sh turns each entry
+    # into `-c <entry>` on a bash command line, so unquoted spaces split the
+    # value and postgres refuses to start with
+    # `unrecognized configuration parameter "stanza"`.
+    assert (
+        "archive_command='pgbackrest --stanza=unittest archive-push %p'"
+        in pgconf
+    )
 
 
 def test_nothing_injected_when_disabled(after_compose, tmp_path):
@@ -190,13 +198,58 @@ def test_socket_and_config_mounted(after_compose, tmp_path):
     pgbackrest cannot reach postgres over TCP, so the socket directory has to
     be shared; and the archive_command runs inside the postgres container, so
     that container needs the same configuration file the sidecar reads.
+
+    All of them in the LONG form. This hook runs after `docker compose
+    config`, which is the step that normalises "source:target" strings - a
+    string added here reaches create_directories unnormalised, which then
+    takes the volume name for a host path and raises NotImplementedError.
     """
     yml = {"services": {"postgres": {"environment": {}, "volumes": []}}}
     after_compose(None, _enabled_settings(HOST_RUN_DIR=str(tmp_path)), yml, {})
     vols = yml["services"]["postgres"]["volumes"]
-    assert any("postgres_socket:/var/run/postgresql" == v for v in vols)
-    assert any(v.endswith("/pgbackrest:/etc/pgbackrest:ro") for v in vols)
-    assert any("pgbackrest_spool:/var/spool/pgbackrest" == v for v in vols)
+    assert all(isinstance(v, dict) for v in vols)
+    by_target = {v["target"]: v for v in vols}
+    assert by_target["/var/run/postgresql"] == {
+        "type": "volume",
+        "source": "postgres_socket",
+        "target": "/var/run/postgresql",
+    }
+    assert by_target["/var/spool/pgbackrest"]["source"] == "pgbackrest_spool"
+    conf = by_target["/etc/pgbackrest"]
+    assert conf["type"] == "bind"
+    assert conf["source"].endswith("/pgbackrest")
+    assert conf["read_only"] is True
+
+
+def test_local_repository_is_mounted_into_postgres(after_compose, tmp_path):
+    """archive-push runs in the POSTGRES container, so it needs the repository.
+
+    The archive_command is executed by the postgres server process. With a
+    local repository that means the repository volume has to be mounted there
+    too - without it every segment fails with a missing archive.info and
+    postgres retries forever while pg_wal grows.
+    """
+    yml = {"services": {"postgres": {"environment": {}, "volumes": []}}}
+    after_compose(None, _enabled_settings(HOST_RUN_DIR=str(tmp_path)), yml, {})
+    targets = {v["target"]: v for v in yml["services"]["postgres"]["volumes"]}
+    assert targets["/var/lib/pgbackrest"]["source"] == "pgbackrest_data"
+
+
+def test_repo_host_does_not_mount_a_local_repository(after_compose, tmp_path):
+    # With a repo host, archive-push talks to the backup server over TLS and
+    # never touches a local repository path. Mounting one would suggest this
+    # machine owns storage that it does not.
+    yml = {"services": {"postgres": {"environment": {}, "volumes": []}}}
+    after_compose(
+        None,
+        _enabled_settings(
+            HOST_RUN_DIR=str(tmp_path), PGBR_REPO_HOST="backup.example"
+        ),
+        yml,
+        {},
+    )
+    targets = [v["target"] for v in yml["services"]["postgres"]["volumes"]]
+    assert "/var/lib/pgbackrest" not in targets
 
 
 def test_mounts_are_idempotent(after_compose, tmp_path):
@@ -266,10 +319,10 @@ def test_conf_written_with_repo_host(after_compose, tmp_path):
         None,
         _enabled_settings(
             HOST_RUN_DIR=str(tmp_path),
-            PGBACKREST_REPO_HOST="backup.example",
-            PGBACKREST_REPO_HOST_TYPE="tls",
-            PGBACKREST_REPO_HOST_PORT="8432",
-            PGBACKREST_BACKUP_FROM="repo-host",
+            PGBR_REPO_HOST="backup.example",
+            PGBR_REPO_HOST_TYPE="tls",
+            PGBR_REPO_HOST_PORT="8432",
+            PGBR_BACKUP_FROM="repo-host",
         ),
         {"services": {"postgres": {"environment": {}}}},
         {},
@@ -299,10 +352,10 @@ def test_the_two_tls_ports_are_independent(after_compose, tmp_path):
         None,
         _enabled_settings(
             HOST_RUN_DIR=str(tmp_path),
-            PGBACKREST_REPO_HOST="backup.example",
-            PGBACKREST_REPO_HOST_PORT="443",
-            PGBACKREST_TLS_SERVER_PORT="9443",
-            PGBACKREST_BACKUP_FROM="repo-host",
+            PGBR_REPO_HOST="backup.example",
+            PGBR_REPO_HOST_PORT="443",
+            PGBR_TLS_SERVER_PORT="9443",
+            PGBR_BACKUP_FROM="repo-host",
         ),
         yml,
         {},
@@ -312,7 +365,16 @@ def test_the_two_tls_ports_are_independent(after_compose, tmp_path):
     assert "tls-server-port=9443" in directives
     # the inbound port has to be reachable from outside the compose network,
     # because the repo host is the side that runs the backup and pulls
-    assert yml["services"]["pgbackrest"]["ports"] == ["9443:9443"]
+    # long form: this hook runs after `docker compose config`, so nothing
+    # normalises a "9443:9443" string any more
+    assert yml["services"]["pgbackrest"]["ports"] == [
+        {
+            "mode": "ingress",
+            "target": 9443,
+            "published": "9443",
+            "protocol": "tcp",
+        }
+    ]
 
 
 def test_no_port_published_without_a_repo_host(after_compose, tmp_path):
@@ -340,9 +402,9 @@ def test_pushing_to_a_repo_host_still_leaves_retention_over_there(
         None,
         _enabled_settings(
             HOST_RUN_DIR=str(tmp_path),
-            PGBACKREST_REPO_HOST="backup.example",
-            PGBACKREST_BACKUP_FROM="here",
-            PGBACKREST_RETENTION_FULL="30",
+            PGBR_REPO_HOST="backup.example",
+            PGBR_BACKUP_FROM="here",
+            PGBR_RETENTION_FULL="30",
         ),
         yml,
         {},
@@ -364,7 +426,7 @@ def test_backup_from_defaults_to_pushing(after_compose, tmp_path):
         None,
         _enabled_settings(
             HOST_RUN_DIR=str(tmp_path),
-            PGBACKREST_REPO_HOST="backup.example",
+            PGBR_REPO_HOST="backup.example",
         ),
         {"services": {"postgres": {"environment": {}}}},
         {},
@@ -382,9 +444,7 @@ def test_a_local_repository_always_gets_retention(after_compose, tmp_path):
     """
     after_compose(
         None,
-        _enabled_settings(
-            HOST_RUN_DIR=str(tmp_path), PGBACKREST_RETENTION_FULL=""
-        ),
+        _enabled_settings(HOST_RUN_DIR=str(tmp_path), PGBR_RETENTION_FULL=""),
         {"services": {"postgres": {"environment": {}}}},
         {},
     )
@@ -472,15 +532,15 @@ def test_guard_update_enabled():
 
     class C:
         run_pgbackrest = "1"
-        pgbackrest_guard_update = "1"
+        pgbr_guard_update = "1"
 
     class D:
         run_pgbackrest = "1"
-        pgbackrest_guard_update = "0"
+        pgbr_guard_update = "0"
 
     class E:
         run_pgbackrest = "0"
-        pgbackrest_guard_update = "1"
+        pgbr_guard_update = "1"
 
     assert p.guard_update_enabled(C()) is True
     assert p.guard_update_enabled(D()) is False
@@ -512,6 +572,39 @@ def test_parse_target_time_valid():
     assert p._parse_target_time("2026-05-31 14:25:00").startswith(
         "2026-05-31 14:25:00"
     )
+
+
+def test_parse_target_time_never_silently_truncates_to_midnight():
+    """The regression that a real PITR run found, and the tests did not.
+
+    `select now()` gives "2026-08-25 18:57:24.353049+00". Parsed with a list
+    of arrow formats tried in order, every format containing a time fails on
+    the fractional seconds and "YYYY-MM-DD" then matches the PREFIX - arrow
+    does not anchor. The result was midnight, silently, and the database was
+    recovered to 18 hours before the requested point.
+
+    A backup tool that succeeds at the wrong thing is worse than one that
+    fails, so this asserts the time survives rather than just that it parses.
+    """
+    from zodoo import lib_pgbackrest as p
+
+    for raw in (
+        "2026-05-31 14:25:24.353049+00",
+        "2026-05-31 14:25:24+00:00",
+        "2026-05-31T14:25:24.353049",
+        "2026-05-31 14:25:24",
+    ):
+        got = p._parse_target_time(raw)
+        assert "14:25:24" in got, f"{raw} -> {got}"
+        assert not got.startswith("2026-05-31 00:00:00"), f"{raw} -> {got}"
+
+
+def test_parse_target_time_bare_date_is_midnight():
+    # Still allowed - somebody typing a bare date means midnight. The defect
+    # was truncating a full timestamp TO it, not honouring an explicit date.
+    from zodoo import lib_pgbackrest as p
+
+    assert p._parse_target_time("2026-05-31").startswith("2026-05-31 00:00:00")
 
 
 def test_parse_target_time_future_aborts():

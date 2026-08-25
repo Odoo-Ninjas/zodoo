@@ -11,17 +11,17 @@
 ${PGBR_REPO_SECTION}
 
 # Compression and parallelism.
-compress-type=${PGBACKREST_COMPRESS_TYPE}
-compress-level=${PGBACKREST_COMPRESS_LEVEL}
-process-max=${PGBACKREST_PROCESS_MAX}
+compress-type=${PGBR_COMPRESS_TYPE}
+compress-level=${PGBR_COMPRESS_LEVEL}
+process-max=${PGBR_PROCESS_MAX}
 
 # Asynchronous WAL archiving. The archive_command drops the segment in the
 # spool directory and returns at once; background workers do the pushing. The
 # queue cap is the safety valve: past it, archive-push starts failing loudly
 # instead of letting pg_wal grow until the disk is full.
-archive-async=${PGBACKREST_ARCHIVE_ASYNC}
+archive-async=${PGBR_ARCHIVE_ASYNC}
 spool-path=/var/spool/pgbackrest
-archive-push-queue-max=${PGBACKREST_ARCHIVE_PUSH_QUEUE_MAX}
+archive-push-queue-max=${PGBR_ARCHIVE_PUSH_QUEUE_MAX}
 
 # Wait for the required WAL to actually arrive in the repository before
 # declaring a backup done, and fail the backup if it does not. This is the
@@ -42,7 +42,7 @@ log-level-file=detail
 log-path=/var/log/pgbackrest
 log-timestamp=y
 
-[${PGBACKREST_STANZA}]
+[${PGBR_STANZA}]
 # The data directory as this container sees it. pgbackrest reads it directly -
 # that is why the postgres volume is mounted here and why this container runs
 # under the same uid as postgres.
@@ -62,5 +62,11 @@ pg1-path=${PGDATA}
 # of view the cluster is simply local.
 pg1-socket-path=/var/run/postgresql
 pg1-port=${DB_PORT}
-pg1-user=${DB_USER}
+# The superuser the postgres image itself creates, NOT zodoo's DB_USER.
+#
+# DB_USER (odoo) is created later, by `odoo db reset` - on a freshly
+# initialised cluster it does not exist yet, and the sidecar then fails its
+# startup check with `role "odoo" does not exist` on every boot until somebody
+# resets the database. "postgres" exists from the moment the cluster does.
+pg1-user=postgres
 pg1-database=postgres

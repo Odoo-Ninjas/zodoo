@@ -12,23 +12,49 @@ def _truthy(val):
     return str(val).strip().lower() in ("1", "true", "yes", "on")
 
 
-def _add_volume(service, spec):
-    """Append a volume mapping unless an equivalent one is already there.
+def _add_volume(service, kind, source, target, read_only=False):
+    """Append a mount unless an equivalent one is already there.
 
-    `odoo reload` regenerates the compose file, but the postgres service is
-    also touched by other hooks, so this has to stay idempotent rather than
-    grow a duplicate mount on every run.
+    The LONG form, not "source:target", and that is not a style choice: this
+    hook runs after `docker compose config`, which is what normalises short
+    volume strings into dicts. A string added here is never normalised, and
+    `create_directories` then takes its left-hand side for a host path and
+    raises NotImplementedError on the volume name. Every other hook in this
+    repo emits dicts for the same reason.
+
+    Idempotent because `odoo reload` regenerates the compose file and the
+    postgres service is touched by several hooks.
     """
     volumes = service.setdefault("volumes", [])
     for existing in volumes:
-        if isinstance(existing, str) and existing == spec:
+        if (
+            isinstance(existing, dict)
+            and existing.get("source") == source
+            and existing.get("target") == target
+        ):
             return
-        if isinstance(existing, dict):
-            src = existing.get("source")
-            tgt = existing.get("target")
-            if f"{src}:{tgt}" == spec.rsplit(":ro", 1)[0]:
-                return
+    spec = {"type": kind, "source": source, "target": target}
+    if read_only:
+        spec["read_only"] = True
     volumes.append(spec)
+
+
+def _stanza(settings):
+    """The stanza name, with $PROJECT_NAME resolved.
+
+    default.settings ships PGBR_STANZA=$PROJECT_NAME, but settings
+    values are not expanded recursively - only the compose files go through
+    variable substitution. Read straight from the settings dict the value is
+    still the literal "$PROJECT_NAME", and a stanza by that name would be
+    created, archived into, and then not found by anything that resolved it
+    properly.
+    """
+    raw = (settings.get("PGBR_STANZA") or "").strip()
+    project = (settings.get("PROJECT_NAME") or "").strip()
+    for placeholder in ("${PROJECT_NAME}", "$PROJECT_NAME"):
+        if project:
+            raw = raw.replace(placeholder, project)
+    return raw.strip() or project or "odoo"
 
 
 def _tls_port(settings):
@@ -39,7 +65,7 @@ def _tls_port(settings):
     directions. Conflating them means a firewall rule written for one silently
     describes the other.
     """
-    return (settings.get("PGBACKREST_TLS_SERVER_PORT") or "8432").strip()
+    return (settings.get("PGBR_TLS_SERVER_PORT") or "8432").strip()
 
 
 def _backup_from(settings):
@@ -49,7 +75,7 @@ def _backup_from(settings):
     "repo-host" needs an inbound port but withholds delete rights from this
     machine. See docs/12-pgbackrest.md.
     """
-    val = (settings.get("PGBACKREST_BACKUP_FROM") or "here").strip().lower()
+    val = (settings.get("PGBR_BACKUP_FROM") or "here").strip().lower()
     return "repo-host" if val == "repo-host" else "here"
 
 
@@ -69,27 +95,23 @@ def _retention_lines(settings):
     "keep everything".
     """
     lines = []
-    full_type = (
-        settings.get("PGBACKREST_RETENTION_FULL_TYPE") or "time"
-    ).strip()
-    full = (settings.get("PGBACKREST_RETENTION_FULL") or "").strip() or "14"
+    full_type = (settings.get("PGBR_RETENTION_FULL_TYPE") or "time").strip()
+    full = (settings.get("PGBR_RETENTION_FULL") or "").strip() or "14"
     lines.append(f"repo1-retention-full-type={full_type}")
     lines.append(f"repo1-retention-full={full}")
 
-    diff = (settings.get("PGBACKREST_RETENTION_DIFF") or "").strip()
+    diff = (settings.get("PGBR_RETENTION_DIFF") or "").strip()
     if diff:
         lines.append(f"repo1-retention-diff={diff}")
 
     # Empty on purpose keeps the WAL for every retained full backup, i.e. a
     # continuous point-in-time window. Only a value narrows that.
-    archive = (settings.get("PGBACKREST_RETENTION_ARCHIVE") or "").strip()
+    archive = (settings.get("PGBR_RETENTION_ARCHIVE") or "").strip()
     if archive:
         lines.append(f"repo1-retention-archive={archive}")
         lines.append(
             "repo1-retention-archive-type="
-            + (
-                settings.get("PGBACKREST_RETENTION_ARCHIVE_TYPE") or "full"
-            ).strip()
+            + (settings.get("PGBR_RETENTION_ARCHIVE_TYPE") or "full").strip()
         )
     return lines
 
@@ -113,7 +135,7 @@ def _repo_section(settings):
                             retention, from its own scheduled `expire`. One
                             place, on the machine that watches the space.
     """
-    host = (settings.get("PGBACKREST_REPO_HOST") or "").strip()
+    host = (settings.get("PGBR_REPO_HOST") or "").strip()
     lines = []
 
     if host:
@@ -121,9 +143,9 @@ def _repo_section(settings):
         lines += [
             f"repo1-host={host}",
             "repo1-host-type="
-            + (settings.get("PGBACKREST_REPO_HOST_TYPE") or "tls").strip(),
+            + (settings.get("PGBR_REPO_HOST_TYPE") or "tls").strip(),
             "repo1-host-port="
-            + (settings.get("PGBACKREST_REPO_HOST_PORT") or "8432").strip(),
+            + (settings.get("PGBR_REPO_HOST_PORT") or "8432").strip(),
             "repo1-host-ca-file=/etc/pgbackrest/cert/ca.crt",
             "repo1-host-cert-file=/etc/pgbackrest/cert/client.crt",
             "repo1-host-key-file=/etc/pgbackrest/cert/client.key",
@@ -141,8 +163,7 @@ def _repo_section(settings):
                 "tls-server-ca-file=/etc/pgbackrest/cert/ca.crt",
                 "tls-server-cert-file=/etc/pgbackrest/cert/server.crt",
                 "tls-server-key-file=/etc/pgbackrest/cert/server.key",
-                f"tls-server-auth={host}="
-                + (settings.get("PGBACKREST_STANZA") or "odoo").strip(),
+                f"tls-server-auth={host}=" + _stanza(settings),
             ]
         else:
             lines += [
@@ -156,15 +177,15 @@ def _repo_section(settings):
                 "# server runs `pgbackrest --stanza=... expire` from its own",
                 "# cron, against its own retention values, in one place.",
                 "#",
-                "# The PGBACKREST_RETENTION_* settings are therefore ignored",
+                "# The PGBR_RETENTION_* settings are therefore ignored",
                 "# in this mode - see docs/12-pgbackrest.md.",
             ]
         return "\n".join(lines)
 
     lines += [
         "repo1-path=/var/lib/pgbackrest",
-        "repo1-block=" + (settings.get("PGBACKREST_BLOCK") or "y").strip(),
-        "repo1-bundle=" + (settings.get("PGBACKREST_BUNDLE") or "y").strip(),
+        "repo1-block=" + (settings.get("PGBR_BLOCK") or "y").strip(),
+        "repo1-bundle=" + (settings.get("PGBR_BUNDLE") or "y").strip(),
     ]
 
     lines += _retention_lines(settings)
@@ -175,27 +196,22 @@ def _render_conf(settings, run_dir):
     template = (current_dir / "pgbackrest.conf.template").read_text()
     values = {
         "PGBR_REPO_SECTION": _repo_section(settings),
-        "PGBACKREST_STANZA": (
-            settings.get("PGBACKREST_STANZA") or "odoo"
+        "PGBR_STANZA": _stanza(settings),
+        "PGBR_COMPRESS_TYPE": (
+            settings.get("PGBR_COMPRESS_TYPE") or "zst"
         ).strip(),
-        "PGBACKREST_COMPRESS_TYPE": (
-            settings.get("PGBACKREST_COMPRESS_TYPE") or "zst"
+        "PGBR_COMPRESS_LEVEL": (
+            settings.get("PGBR_COMPRESS_LEVEL") or "3"
         ).strip(),
-        "PGBACKREST_COMPRESS_LEVEL": (
-            settings.get("PGBACKREST_COMPRESS_LEVEL") or "3"
+        "PGBR_PROCESS_MAX": (settings.get("PGBR_PROCESS_MAX") or "4").strip(),
+        "PGBR_ARCHIVE_ASYNC": (
+            settings.get("PGBR_ARCHIVE_ASYNC") or "y"
         ).strip(),
-        "PGBACKREST_PROCESS_MAX": (
-            settings.get("PGBACKREST_PROCESS_MAX") or "4"
-        ).strip(),
-        "PGBACKREST_ARCHIVE_ASYNC": (
-            settings.get("PGBACKREST_ARCHIVE_ASYNC") or "y"
-        ).strip(),
-        "PGBACKREST_ARCHIVE_PUSH_QUEUE_MAX": (
-            settings.get("PGBACKREST_ARCHIVE_PUSH_QUEUE_MAX") or "1GB"
+        "PGBR_ARCHIVE_PUSH_QUEUE_MAX": (
+            settings.get("PGBR_ARCHIVE_PUSH_QUEUE_MAX") or "1GB"
         ).strip(),
         "PGDATA": "/var/lib/postgresql/data/pgdata",
         "DB_PORT": str(settings.get("DB_PORT") or "5432").strip(),
-        "DB_USER": (settings.get("DB_USER") or "odoo").strip(),
     }
     conf = Template(template).safe_substitute(values)
 
@@ -238,16 +254,31 @@ def after_compose(config, settings, yml, globals):
     run_dir = Path(settings["HOST_RUN_DIR"])
     _render_conf(settings, run_dir)
 
-    stanza = (settings.get("PGBACKREST_STANZA") or "odoo").strip()
+    stanza = _stanza(settings)
+
+    # Hand the RESOLVED stanza to the sidecar. The settings file ships
+    # PGBR_STANZA=$PROJECT_NAME, and that placeholder reaches the container
+    # verbatim - the entrypoint would then create and check a stanza literally
+    # called "$PROJECT_NAME" while the configuration file defines the real
+    # one, and every command fails with "requires option: pg1-path" because
+    # the section it looks for does not exist.
+    sidecar = yml.get("services", {}).get("pgbackrest")
+    if sidecar is not None:
+        sidecar.setdefault("environment", {})["PGBR_STANZA"] = stanza
 
     # --- postgres server configuration ---------------------------------------
     # archive_mode cannot be changed by a reload, only by a restart - which is
     # exactly what happens when the compose file changes, so this is the right
     # place for it.
+    # The archive_command is SINGLE-QUOTED, and it has to be: run.sh turns
+    # every POSTGRES_CONFIG entry into a `-c <entry>` fragment and writes them
+    # into /start.sh as one bash command line. Unquoted, the spaces split the
+    # value into separate arguments and postgres dies at startup with
+    # `unrecognized configuration parameter "stanza"`.
     params = [
         "wal_level=replica",
         "archive_mode=on",
-        f"archive_command=pgbackrest --stanza={stanza} archive-push %p",
+        "archive_command='pgbackrest " f"--stanza={stanza} archive-push %p'",
     ]
 
     pg = yml["services"]["postgres"]
@@ -272,31 +303,74 @@ def after_compose(config, settings, yml, globals):
     # The same configuration file the sidecar reads. One file for both sides:
     # the archive_command and the backup have to agree on where the repository
     # is, and two copies would eventually disagree.
-    _add_volume(pg, f"{run_dir}/pgbackrest:/etc/pgbackrest:ro")
+    _add_volume(
+        pg, "bind", f"{run_dir}/pgbackrest", "/etc/pgbackrest", read_only=True
+    )
     # The socket directory, shared with the sidecar (see the volume comment in
     # docker-compose.yml).
-    _add_volume(pg, "postgres_socket:/var/run/postgresql")
+    _add_volume(pg, "volume", "postgres_socket", "/var/run/postgresql")
     # Spool and logs for the asynchronous archive_command. Both are written by
     # the postgres container, not by the sidecar: archive-push and its async
     # worker run wherever postgres runs.
-    _add_volume(pg, "pgbackrest_spool:/var/spool/pgbackrest")
-    _add_volume(pg, f"{run_dir}/pgbackrest.logs:/var/log/pgbackrest")
+    _add_volume(pg, "volume", "pgbackrest_spool", "/var/spool/pgbackrest")
+    _add_volume(
+        pg, "bind", f"{run_dir}/pgbackrest.logs", "/var/log/pgbackrest"
+    )
 
-    yml.setdefault("volumes", {}).setdefault("pgbackrest_spool", None)
-    yml.setdefault("volumes", {}).setdefault("postgres_socket", None)
+    # With a LOCAL repository the postgres container needs the repository
+    # itself, because archive-push runs there - it is the archive_command, and
+    # the archive_command is executed by the postgres server process. Without
+    # this mount every WAL segment fails with
+    #
+    #   FileMissingError: unable to open missing file
+    #   '/var/lib/pgbackrest/archive/<stanza>/archive.info'
+    #
+    # and postgres retries forever while pg_wal grows.
+    #
+    # With a repo host there is nothing to mount: archive-push then talks to
+    # the backup server over TLS and never touches a local repository path.
+    if not (settings.get("PGBR_REPO_HOST") or "").strip():
+        _add_volume(pg, "volume", "pgbackrest_data", "/var/lib/pgbackrest")
+
+    # The spool volume has to be DECLARED here as well, not just mounted.
+    # It is declared in pgbackrest/docker-compose.yml, but `docker compose
+    # config` - which runs before this hook - prunes a named volume that no
+    # service uses yet, and only this hook attaches it (to postgres, since
+    # that is where archive-push runs). Without re-declaring it compose
+    # refuses the whole project with "refers to undefined volume".
+    #
+    # The name has to be project-scoped by hand for the same reason: the
+    # normalisation step that would have done it has already run.
+    project = (settings.get("PROJECT_NAME") or "").strip()
+    volumes = yml.setdefault("volumes", {})
+    if "pgbackrest_spool" not in volumes:
+        name = f"{project}_pgbackrest_spool" if project else "pgbackrest_spool"
+        volumes["pgbackrest_spool"] = {"name": name}
 
     # --- the inbound side of a repo-host setup --------------------------------
     # Only when the repo host PULLS: it is then the side that runs
     # `pgbackrest backup` and pulls from the TLS server in the sidecar, so that
     # server has to be reachable from outside the compose network. A local
     # repository serves nobody and gets no published port.
-    if (settings.get("PGBACKREST_REPO_HOST") or "").strip() and _backup_from(
+    if (settings.get("PGBR_REPO_HOST") or "").strip() and _backup_from(
         settings
     ) == "repo-host":
         sidecar = yml.get("services", {}).get("pgbackrest")
         if sidecar is not None:
             port = _tls_port(settings)
-            mapping = f"{port}:{port}"
             ports = sidecar.setdefault("ports", [])
-            if mapping not in ports:
-                ports.append(mapping)
+            # Long form for the same reason as the volumes above: this runs
+            # after `docker compose config`, so nothing normalises a
+            # "8432:8432" string any more.
+            if not any(
+                isinstance(p, dict) and str(p.get("published")) == port
+                for p in ports
+            ):
+                ports.append(
+                    {
+                        "mode": "ingress",
+                        "target": int(port),
+                        "published": port,
+                        "protocol": "tcp",
+                    }
+                )

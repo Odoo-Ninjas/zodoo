@@ -249,7 +249,7 @@ def pgbackrest_project(_session_home, tmp_path_factory):
     settings_path = Path.home() / ".odoo" / f"settings.{name}"
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     with settings_path.open("a") as fh:
-        fh.write("\nRUN_PGBACKREST=1\nPGBACKREST_FORCE_IN_DEVMODE=1\n")
+        fh.write("\nRUN_PGBACKREST=1\nPGBR_FORCE_IN_DEVMODE=1\n")
 
     project.run("reload", timeout=long_timeout)
     project.run("build", "--no-zodoo-pull", timeout=long_timeout)

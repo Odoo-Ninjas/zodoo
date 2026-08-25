@@ -416,9 +416,9 @@ space is needed for the local retention window. Three settings decide how much:
 
 | Setting | Default | Effect |
 | --- | --- | --- |
-| `PGBACKREST_COMPRESS_TYPE` | `zst` | roughly a third of the raw size at low CPU cost |
-| `PGBACKREST_RETENTION_FULL` | `14` (days, `..._TYPE=time`) | how far back a continuous point-in-time window reaches |
-| `PGBACKREST_FULL_CRON` / `..._DIFF_CRON` | weekly / daily | weekly full plus daily differentials, rather than a full every night |
+| `PGBR_COMPRESS_TYPE` | `zst` | roughly a third of the raw size at low CPU cost |
+| `PGBR_RETENTION_FULL` | `14` (days, `..._TYPE=time`) | how far back a continuous point-in-time window reaches |
+| `PGBR_FULL_CRON` / `..._DIFF_CRON` | weekly / daily | weekly full plus daily differentials, rather than a full every night |
 
 The schedule is the real lever. A daily full of a 45 GiB database is about
 16 GiB compressed, i.e. 5.8 TiB a year for one instance. Weekly full plus daily

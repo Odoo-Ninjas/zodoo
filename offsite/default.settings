@@ -46,7 +46,7 @@ OFFSITE_PASSPHRASE=
 # settings: settings values are not expanded recursively, so a path containing
 # $HOST_RUN_DIR would arrive in the compose file literally.
 # Schedule of the daily offsite run. Deliberately AFTER the pgbackrest base
-# backup (PGBACKREST_FULL_CRON / PGBACKREST_DIFF_CRON, 02:00) so the run picks
+# backup (PGBR_FULL_CRON / PGBR_DIFF_CRON, 02:00) so the run picks
 # up the fresh state instead of yesterday's.
 OFFSITE_BACKUP_CRON=0 4 * * *
 # Retention. Against append-only targets (our backup server) the client cannot

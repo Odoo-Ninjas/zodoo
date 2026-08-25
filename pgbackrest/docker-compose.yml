@@ -1,7 +1,7 @@
 # manage-order: 510
 volumes:
   # The local repository (base backups + WAL archive). Only used when
-  # PGBACKREST_REPO_HOST is empty; with a repo host the repository lives on the
+  # PGBR_REPO_HOST is empty; with a repo host the repository lives on the
   # backup server and this stays almost empty.
   pgbackrest_data:
   # Postgres' unix socket directory, shared with the postgres service.
@@ -12,6 +12,12 @@ volumes:
   # the cluster. This volume plus the data volume below are what make that
   # assumption true inside a compose stack.
   postgres_socket:
+  # Spool for the asynchronous archive_command. Written by the POSTGRES
+  # container, not by this one - archive-push and its async worker run
+  # wherever postgres runs. Declared here so `docker compose config` gives it
+  # a project-scoped name; the mount itself is added to postgres by
+  # __after_compose.py.
+  pgbackrest_spool:
 services:
   pgbackrest:
     build:
@@ -25,11 +31,15 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      PGBACKREST_STANZA: $PGBACKREST_STANZA
-      PGBACKREST_REPO_HOST: $PGBACKREST_REPO_HOST
-      PGBACKREST_BACKUP_FROM: $PGBACKREST_BACKUP_FROM
+      PGBR_STANZA: $PGBR_STANZA
+      PGBR_REPO_HOST: $PGBR_REPO_HOST
+      PGBR_BACKUP_FROM: $PGBR_BACKUP_FROM
       DB_PORT: $DB_PORT
-      DB_USER: $DB_USER
+      # The readiness probe below connects as this role, and it has to be
+      # the one the postgres image creates itself - zodoo's DB_USER is only
+      # created later by `odoo db reset`, so on a fresh cluster it does not
+      # exist and the sidecar would wait forever.
+      DB_USER: postgres
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       # The data directory, read-write rather than read-only on purpose:

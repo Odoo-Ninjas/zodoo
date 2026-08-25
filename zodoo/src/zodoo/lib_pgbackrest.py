@@ -21,10 +21,16 @@ def _stanza(config):
     Defaults to the project name rather than a fixed "odoo": on a shared repo
     host every instance's backups live under the stanza name, so a constant
     would make two projects write into each other's history.
+
+    The default in default.settings is the literal string "$PROJECT_NAME".
+    Settings values are not expanded recursively - only the compose files get
+    variable substitution - so it arrives here unexpanded and has to be
+    resolved rather than used as a stanza called "$PROJECT_NAME".
     """
-    return (
-        getattr(config, "pgbackrest_stanza", None) or config.project_name
-    ).strip()
+    raw = (getattr(config, "pgbr_stanza", None) or config.project_name).strip()
+    for placeholder in ("${PROJECT_NAME}", "$PROJECT_NAME"):
+        raw = raw.replace(placeholder, config.project_name)
+    return raw.strip()
 
 
 @cli.group(
@@ -40,7 +46,7 @@ def _ensure_pgbackrest(config):
     if not config.run_pgbackrest:
         abort(
             "pgBackRest is not enabled. Set RUN_PGBACKREST=1 (and on DEVMODE "
-            "machines PGBACKREST_FORCE_IN_DEVMODE=1), then "
+            "machines PGBR_FORCE_IN_DEVMODE=1), then "
             "`odoo reload && odoo up -d`."
         )
 
@@ -381,6 +387,41 @@ def _perform_restore(
                 "restored - the database is unchanged."
             )
 
+    # A stale postmaster.pid makes pgbackrest refuse the restore:
+    #
+    #   ERROR: [038]: unable to restore while PostgreSQL is running
+    #   HINT: presence of 'postmaster.pid' ... indicates PostgreSQL is running
+    #
+    # and it is left behind routinely, not exceptionally: docker stops the
+    # container with SIGTERM, which postgres reads as a SMART shutdown - wait
+    # for every client to disconnect. That outlives compose's stop timeout,
+    # the container is killed, and the pid file survives.
+    #
+    # Safe to remove here because the cluster is provably down: the containers
+    # were just removed, and this runs in a throwaway container of its own.
+    try:
+        __dc(
+            config,
+            [
+                "run",
+                "-T",
+                "--rm",
+                "--no-deps",
+                "--entrypoint",
+                "/bin/bash",
+                "postgres",
+                "-c",
+                f"if [ -f '{pgdata}/postmaster.pid' ]; then\n"
+                f"  echo 'Removing a stale postmaster.pid (postgres is down).'\n"
+                f"  rm -f '{pgdata}/postmaster.pid'\n"
+                f"fi\n",
+            ],
+        )
+    except subprocess.CalledProcessError:
+        # Not fatal on its own - if the file really is a problem the restore
+        # below says so, with pgbackrest's own wording.
+        pass
+
     args = ["restore"]
     if not no_delta:
         # Only fetch files whose checksum differs from what is already there.
@@ -511,25 +552,45 @@ def _list_backups(config):
     return rows
 
 
+_DATE_ONLY = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
 def _parse_target_time(raw):
-    """Parse a user-entered timestamp into what pgbackrest expects."""
+    """Parse a user-entered timestamp into what pgbackrest expects.
+
+    Deliberately NOT a list of arrow formats tried in order. arrow matches a
+    PREFIX, so "2026-08-25 18:57:24.353049+00" falls through every format with
+    a time in it and is then happily matched by "YYYY-MM-DD" - yielding
+    midnight, silently, and recovering the database to the wrong point. For a
+    backup tool that is the worst possible failure: it succeeds.
+
+    dateutil parses the whole string or raises, which is the property needed
+    here. A date without a time is accepted as midnight because somebody who
+    types a bare date means that; a timestamp is never truncated to it.
+    """
+    from dateutil import parser as _dateparser
+
     raw = (raw or "").strip()
-    dt = None
-    for fmt in [
-        "YYYY-MM-DD HH:mm:ssZZ",
-        "YYYY-MM-DDTHH:mm:ssZZ",
-        "YYYY-MM-DD HH:mm:ss",
-        "YYYY-MM-DD HH:mm",
-        "YYYY-MM-DDTHH:mm:ss",
-        "YYYY-MM-DD",
-    ]:
-        try:
-            dt = arrow.get(raw, fmt, tzinfo="local")
-            break
-        except (arrow.parser.ParserError, ValueError):
-            dt = None
-    if dt is None:
+    if not raw:
+        abort("No timestamp given. Use e.g. 2026-05-31 14:25:00.")
+    try:
+        parsed = _dateparser.parse(raw)
+    except (ValueError, OverflowError):
         abort(f"Invalid timestamp '{raw}'. Use e.g. 2026-05-31 14:25:00.")
+
+    dt = arrow.get(parsed)
+    if parsed.tzinfo is None:
+        # A bare timestamp means local time - the same clock the operator read
+        # the incident off.
+        dt = arrow.get(parsed, tzinfo="local")
+
+    if _DATE_ONLY.match(raw):
+        click.secho(
+            f"Recovering to {dt.format('YYYY-MM-DD HH:mm:ssZZ')} "
+            "(midnight - no time of day was given).",
+            fg="yellow",
+        )
+
     if dt > arrow.now():
         abort(f"Timestamp '{raw}' is in the future - nothing to recover to.")
     # pgbackrest hands the target to postgres' recovery_target_time, which
@@ -629,7 +690,7 @@ def _truthy(val):
 def guard_update_enabled(config):
     """True when both pgbackrest and the update-guard setting are on."""
     return _truthy(getattr(config, "run_pgbackrest", "0")) and _truthy(
-        getattr(config, "pgbackrest_guard_update", "0")
+        getattr(config, "pgbr_guard_update", "0")
     )
 
 
