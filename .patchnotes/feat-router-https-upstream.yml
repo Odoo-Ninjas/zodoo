@@ -1,0 +1,11 @@
+type: minor
+description: |
+  Der vhost-Router kann jetzt Backends anbinden, die selbst TLS sprechen
+  (`upstream_scheme=https`), und kennt zwei Einstellungen fuer grosse Uploads:
+  `client_max_body_size` (z.B. "0" ohne Grenze) und `proxy_request_buffering`
+  (aus = durchreichen statt erst auf Platte puffern).
+
+  Zum Testen: einen bestehenden vhost anschauen - er muss unveraendert
+  rendern (http, 1024M, Pufferung an). Nur ein vhost, der die neuen Felder
+  ausdruecklich setzt, bekommt anderes Verhalten.
+breaking: false
