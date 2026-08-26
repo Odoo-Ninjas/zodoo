@@ -335,11 +335,20 @@ after that confirmation will the service hand anything to the machine. A
 passphrase that lives solely on the machine being backed up is worthless in the
 one situation backups exist for.
 
+One approval covers **both streams**: the database goes to the pgBackRest
+repository, the filestore to the write-only receiver beside it. A machine that
+only backs up its database is a machine whose restore is missing every
+attachment, so both are issued together.
+
 Calling `register` again then collects everything: `ca.crt`, `client.crt` and
 `client.key` land in `$HOST_RUN_DIR/pgbackrest/cert/` (the key at 0600, which
 pgBackRest insists on), and `PGBR_STANZA`, `PGBR_REPO_HOST`,
 `PGBR_REPO_HOST_PORT`, `PGBR_CIPHER_TYPE`, `PGBR_CIPHER_PASS`,
-`PGBR_BACKUP_FROM` and `RUN_PGBACKREST` go into the settings. Then:
+`PGBR_BACKUP_FROM` and `RUN_PGBACKREST` go into the settings - plus
+`OFFSITE_WO_URL`, `OFFSITE_REST_USER`, `OFFSITE_REST_PASSWORD` and
+`OFFSITE_WO_RECIPIENT` for the filestore stream. If the server supplies no
+public age key, that stream deliberately stays **off**: switching it on without
+a key would upload attachments in the clear. Then:
 
 ```
 odoo reload && odoo up -d && odoo pgbackrest check

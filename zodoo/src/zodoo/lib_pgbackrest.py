@@ -1006,13 +1006,44 @@ def pgbackrest_register(config, name, note):
     # it - it does not serve one.
     update_setting(config, "PGBR_BACKUP_FROM", "here")
     update_setting(config, "RUN_PGBACKREST", "1")
+
+    # Second stream: the filestore goes to the write-only receiver. One
+    # approval covers both, so the answer carries both - and a machine that
+    # only backs up its database is a machine whose restore is missing every
+    # attachment.
+    #
+    # The upload password is replaceable (`wo-area passwd`); it decides who may
+    # upload and decrypts nothing. What must not be lost is the PRIVATE age key
+    # in the vault, and that is not created here - the recipient below is the
+    # public half, which is why it may sit in a settings file.
+    if answer.get("wo_url"):
+        update_setting(config, "OFFSITE_WO_URL", answer["wo_url"])
+        update_setting(config, "OFFSITE_REST_USER", answer["wo_user"])
+        update_setting(config, "OFFSITE_REST_PASSWORD", answer["wo_password"])
+        recipient = answer.get("wo_recipient") or ""
+        if recipient:
+            update_setting(config, "OFFSITE_WO_RECIPIENT", recipient)
+            update_setting(config, "RUN_OFFSITE", "1")
+        else:
+            # Without a public key the filestore run would upload plaintext.
+            # Better to leave the stream off and say so than to enable
+            # something that quietly ships attachments in the clear.
+            click.secho(
+                "The backup server did not supply a public age key for the "
+                "filestore. The filestore stream stays OFF - switching it on "
+                "without a key would upload attachments unencrypted. Ask for "
+                "wo-recipient.pub on the backup server, then run this again.",
+                fg="red",
+            )
+
     # The request is finished; leaving its state behind would look like an
     # open request forever.
     state_file.unlink(missing_ok=True)
 
     click.secho(
-        f"Stanza '{stanza}' is set up and written to the settings.\n"
-        "The passphrase is now in the settings of this project AND in "
+        f"Stanza '{stanza}' is set up and written to the settings"
+        + (", filestore stream included.\n" if answer.get("wo_url") else ".\n")
+        + "The passphrase is now in the settings of this project AND in "
         "1Password - it cannot be recovered from the backup server, which "
         "only ever stores ciphertext.\n\n"
         "Next:  odoo reload && odoo up -d && odoo pgbackrest check",

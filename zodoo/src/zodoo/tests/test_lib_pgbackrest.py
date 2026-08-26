@@ -936,3 +936,65 @@ def test_register_refuses_a_stanza_name_the_server_would_reject(enroll, tmp_path
     for bad in ("1demo", "a", "demo!", "x" * 42, "-demo", "de mo"):
         with pytest.raises(SystemExit):
             _run_register(mod, _Cfg(tmp_path), calls, name=bad)
+
+
+def _approved_with_filestore(**over):
+    d = _approved()
+    d.update(
+        {
+            "wo_url": "https://10.222.0.106:8444/demo/",
+            "wo_user": "demo",
+            "wo_password": "upload-password",
+            "wo_recipient": "age1qqqq",
+        }
+    )
+    d.update(over)
+    return d
+
+
+def _prepared(tmp_path, answer):
+    cdir = tmp_path / "pgbackrest" / "cert"
+    cdir.mkdir(parents=True, exist_ok=True)
+    (cdir / "ca.crt").write_text("ca")
+    (cdir / "enroll.json").write_text(
+        '{"stanza": "demo", "request_id": "r1", "token": "t1"}'
+    )
+    return lambda method, path, payload=None: answer
+
+
+def test_register_sets_up_both_streams(enroll, tmp_path):
+    """One approval, two streams.
+
+    A machine that only backs up its database is a machine whose restore is
+    missing every attachment - so the answer carries the filestore access too,
+    and it has to land in the settings.
+    """
+    mod, written = enroll
+    _run_register(
+        mod, _Cfg(tmp_path), _prepared(tmp_path, _approved_with_filestore())
+    )
+    assert written["OFFSITE_WO_URL"] == "https://10.222.0.106:8444/demo/"
+    assert written["OFFSITE_REST_USER"] == "demo"
+    assert written["OFFSITE_REST_PASSWORD"] == "upload-password"
+    assert written["OFFSITE_WO_RECIPIENT"] == "age1qqqq"
+    assert written["RUN_OFFSITE"] == "1"
+    assert written["RUN_PGBACKREST"] == "1"
+
+
+def test_filestore_stays_off_without_a_public_key(enroll, tmp_path):
+    """No recipient means no encryption - so the stream must not switch on.
+
+    This is the one failure mode worth a test of its own: everything would
+    look configured, the runs would report success, and attachments would be
+    leaving the machine in the clear.
+    """
+    mod, written = enroll
+    _run_register(
+        mod,
+        _Cfg(tmp_path),
+        _prepared(tmp_path, _approved_with_filestore(wo_recipient="")),
+    )
+    assert "RUN_OFFSITE" not in written
+    assert "OFFSITE_WO_RECIPIENT" not in written
+    # The database stream is unaffected - one missing key must not cost both.
+    assert written["RUN_PGBACKREST"] == "1"

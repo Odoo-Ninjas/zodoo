@@ -11,4 +11,9 @@ description: |
   Fingerabdruck der CA angezeigt - der gehoert einmal gegen den Server
   geprueft. Erwartet: die Zugangsdaten werden genau EINMAL herausgegeben,
   ein zweiter Abholversuch liefert "delivered" und nichts weiter.
+
+  Eine Freigabe deckt beide Stroeme ab: Datenbank (pgBackRest) und Filestore
+  (write-only Empfaenger). Liefert der Server keinen oeffentlichen age-Schluessel,
+  bleibt der Filestore-Strom absichtlich AUS - sonst gingen Anhaenge im Klartext
+  raus.
 breaking: false
