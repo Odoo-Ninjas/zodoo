@@ -800,3 +800,221 @@ def offer_safepoint_rollback(ctx, config, marker, non_interactive):
         return
     config.force = True
     _perform_restore(ctx, config, None, None, marker)
+
+
+# --------------------------------------------------------------------------- #
+# Enrolment
+#
+# Getting a machine onto the backup server by hand means moving three files and
+# a passphrase, and the passphrase is the one value that cannot be replaced
+# later. Doing that over chat or copy-paste is exactly where it goes wrong.
+#
+# The flow mirrors `odoo offsite register`, which has been carrying the restic
+# side for a while: the first call files a request, an admin approves it in the
+# service's own screen, and the same call then collects everything. The
+# credentials are handed out exactly once - a second call gets nothing.
+# --------------------------------------------------------------------------- #
+def _enroll_dir(config):
+    """Where the client certificate lives - mounted into the sidecar."""
+    from pathlib import Path
+
+    d = Path(config.HOST_RUN_DIR) / "pgbackrest" / "cert"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _enroll_ssl_context(ca_file):
+    """TLS context for the enrolment service.
+
+    The backup server issues its own certificate. Once the CA is here it is
+    verified against. On FIRST contact there is nothing to verify against - it
+    is then fetched, pinned and its fingerprint printed, so it can be held
+    against the server once. The same bargain ssh makes with accept-new.
+    """
+    import ssl
+
+    if ca_file.exists():
+        return ssl.create_default_context(cafile=str(ca_file))
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    return ctx
+
+
+def _enroll_call(config, method, path, payload=None):
+    import json as _json
+    import urllib.error
+    import urllib.request
+
+    base = (getattr(config, "PGBR_ENROLL_URL", "") or "").strip().rstrip("/")
+    if not base:
+        abort(
+            "PGBR_ENROLL_URL is empty - the backup server's enrolment service "
+            "is not configured."
+        )
+    data = _json.dumps(payload).encode() if payload is not None else None
+    req = urllib.request.Request(
+        base + path,
+        data=data,
+        method=method,
+        headers={"Content-Type": "application/json"} if data else {},
+    )
+    try:
+        with urllib.request.urlopen(
+            req,
+            timeout=30,
+            context=_enroll_ssl_context(_enroll_dir(config) / "ca.crt"),
+        ) as resp:
+            return _json.loads(resp.read().decode())
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode(errors="replace")
+        abort(f"The enrolment service answered {exc.code}: {body[:300]}")
+    except urllib.error.URLError as exc:
+        abort(
+            f"The enrolment service {base} is unreachable: {exc.reason}.\n"
+            "It is only reachable over the zebroo VPN - is this machine in a "
+            "VPN group together with the backup server?"
+        )
+
+
+@pgbackrest.command(
+    name="register",
+    help=(
+        "Request a stanza on the backup server and collect the credentials. "
+        "The first call files a request for an admin to approve; calling it "
+        "again once approved writes certificate and passphrase into place."
+    ),
+)
+@click.option(
+    "--name",
+    default=None,
+    help="Stanza name (default: the project name).",
+)
+@click.option("--note", default="", help="Note for the admin.")
+@pass_config
+def pgbackrest_register(config, name, note):
+    import json as _json
+    import socket
+    import ssl
+    import urllib.request
+
+    from .tools import update_setting
+
+    stanza = (name or _stanza(config)).strip().lower()
+    if not re.match(r"^[a-z][a-z0-9_-]{1,40}$", stanza):
+        abort(
+            f"'{stanza}' is not a usable stanza name. Allowed: a-z, 0-9, _ and "
+            "-, starting with a letter, 2-41 characters. Pass one with --name."
+        )
+    cdir = _enroll_dir(config)
+    ca_file = cdir / "ca.crt"
+    state_file = cdir / "enroll.json"
+
+    # The CA comes first: without it nothing that follows can be verified.
+    if not ca_file.exists():
+        base = (config.PGBR_ENROLL_URL or "").strip().rstrip("/")
+        with urllib.request.urlopen(
+            urllib.request.Request(base + "/api/ca"),
+            timeout=30,
+            context=_enroll_ssl_context(ca_file),
+        ) as resp:
+            pem = resp.read()
+        ca_file.write_bytes(pem)
+        ca_file.chmod(0o644)
+        import hashlib
+
+        fp = hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem.decode())).hexdigest()
+        fp = ":".join(fp[i : i + 2] for i in range(0, len(fp), 2)).upper()
+        click.secho(
+            "Certificate authority accepted and pinned on first contact.\n"
+            f"  SHA256 {fp}\n"
+            "Hold it against the backup server once; any later change aborts "
+            "the connection.",
+            fg="yellow",
+        )
+
+    state = _json.loads(state_file.read_text()) if state_file.exists() else {}
+
+    if state.get("stanza") != stanza or not state.get("request_id"):
+        answer = _enroll_call(
+            config,
+            "POST",
+            "/api/request",
+            {
+                "area": stanza,
+                "hostname": socket.gethostname(),
+                "project": config.project_name,
+                "note": note,
+            },
+        )
+        state = {
+            "stanza": stanza,
+            "request_id": answer["request_id"],
+            "token": answer.get("pickup_token", state.get("token", "")),
+        }
+        state_file.write_text(_json.dumps(state, indent=2))
+        state_file.chmod(0o600)
+        click.secho(
+            f"Stanza '{stanza}' requested (request {state['request_id']}).\n"
+            f"{answer.get('note', '')}\n"
+            "Run the same command again once it has been approved.",
+            fg="green",
+        )
+        return
+
+    answer = _enroll_call(
+        config,
+        "GET",
+        f"/api/status?request_id={state['request_id']}&token={state['token']}",
+    )
+    status = answer.get("status")
+    if status == "pending":
+        click.secho(
+            f"Request {state['request_id']} for '{stanza}' is still awaiting "
+            "approval." + (f"\n{answer['note']}" if answer.get("note") else ""),
+            fg="yellow",
+        )
+        return
+    if status == "rejected":
+        state_file.unlink(missing_ok=True)
+        abort(f"The request for '{stanza}' was rejected.")
+    if status == "delivered":
+        abort(
+            "The credentials have already been collected - the server hands "
+            "them out exactly once. The passphrase is in 1Password; copy it "
+            "and the certificate from there into PGBR_CIPHER_PASS and "
+            f"{cdir}."
+        )
+    if status != "approved":
+        abort(f"Unexpected answer from the enrolment service: {answer}")
+
+    if answer.get("ca_cert"):
+        ca_file.write_text(answer["ca_cert"])
+        ca_file.chmod(0o644)
+    (cdir / "client.crt").write_text(answer["client_cert"])
+    (cdir / "client.crt").chmod(0o644)
+    (cdir / "client.key").write_text(answer["client_key"])
+    # pgBackRest refuses a key that others can read, and it is right to.
+    (cdir / "client.key").chmod(0o600)
+
+    update_setting(config, "PGBR_STANZA", answer["stanza"])
+    update_setting(config, "PGBR_REPO_HOST", answer["repo_host"])
+    update_setting(config, "PGBR_REPO_HOST_PORT", str(answer["repo_port"]))
+    update_setting(config, "PGBR_CIPHER_TYPE", answer["cipher_type"])
+    update_setting(config, "PGBR_CIPHER_PASS", answer["cipher_pass"])
+    # The repository is over there, so this machine backs up from itself into
+    # it - it does not serve one.
+    update_setting(config, "PGBR_BACKUP_FROM", "here")
+    update_setting(config, "RUN_PGBACKREST", "1")
+    # The request is finished; leaving its state behind would look like an
+    # open request forever.
+    state_file.unlink(missing_ok=True)
+
+    click.secho(
+        f"Stanza '{stanza}' is set up and written to the settings.\n"
+        "The passphrase is now in the settings of this project AND in "
+        "1Password - it cannot be recovered from the backup server, which "
+        "only ever stores ciphertext.\n\n"
+        "Next:  odoo reload && odoo up -d && odoo pgbackrest check",
+        fg="green",
+    )

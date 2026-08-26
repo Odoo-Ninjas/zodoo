@@ -821,3 +821,118 @@ def test_e2e_pitr_undoes_a_change(pgbackrest_project):
     project.run(
         "psql", "--sql", "CREATE TABLE pitr_promote_check (x int)", timeout=60
     )
+
+
+# --------------------------------------------------------------------------- #
+# Enrolment
+#
+# What is worth testing here is not the HTTP plumbing but the two ways this
+# can quietly go wrong: writing a private key that others can read, and
+# accepting a stanza name the server will reject anyway - the second one only
+# surfacing after an admin has already been asked to approve something.
+# --------------------------------------------------------------------------- #
+class _Cfg:
+    """Minimal stand-in for the click config object."""
+
+    def __init__(self, tmp_path, **kw):
+        self.HOST_RUN_DIR = str(tmp_path)
+        self.project_name = kw.pop("project_name", "demo")
+        self.PGBR_ENROLL_URL = kw.pop(
+            "PGBR_ENROLL_URL", "https://backup.example:8444"
+        )
+        self.pgbr_stanza = kw.pop("pgbr_stanza", None)
+        for k, v in kw.items():
+            setattr(self, k, v)
+
+
+@pytest.fixture
+def enroll(monkeypatch):
+    """The register command with its network and settings calls captured."""
+    from zodoo import lib_pgbackrest as mod
+
+    written = {}
+    monkeypatch.setattr(
+        mod, "update_setting", lambda c, k, v: written.__setitem__(k, v), raising=False
+    )
+    import zodoo.tools as _tools
+
+    monkeypatch.setattr(
+        _tools, "update_setting", lambda c, k, v: written.__setitem__(k, v)
+    )
+    return mod, written
+
+
+def _approved(stanza="demo"):
+    return {
+        "status": "approved",
+        "stanza": stanza,
+        "repo_host": "10.222.0.106",
+        "repo_port": 8443,
+        "cipher_type": "aes-256-cbc",
+        "cipher_pass": "s3cret-passphrase",
+        "ca_cert": "-----BEGIN CERTIFICATE-----\nca\n-----END CERTIFICATE-----\n",
+        "client_cert": "-----BEGIN CERTIFICATE-----\ncrt\n-----END CERTIFICATE-----\n",
+        "client_key": "-----BEGIN PRIVATE KEY-----\nkey\n-----END PRIVATE KEY-----\n",
+    }
+
+
+def _run_register(mod, config, calls, name=None, note=""):
+    """Invoke the command body directly, past click's decorators."""
+    monkey = calls
+    mod._enroll_call = lambda cfg, method, path, payload=None: monkey(
+        method, path, payload
+    )
+    return mod.pgbackrest_register.callback.__wrapped__(config, name, note)
+
+
+def test_register_writes_the_private_key_unreadable_to_others(
+    enroll, tmp_path, monkeypatch
+):
+    """A client key others can read is a key pgBackRest refuses - rightly.
+
+    The mode is the whole point of this test: everything else about the
+    handover can be repeated, but a key written 0644 into a shared run
+    directory has already leaked by the time anyone notices.
+    """
+    mod, written = enroll
+    cdir = tmp_path / "pgbackrest" / "cert"
+    cdir.mkdir(parents=True)
+    (cdir / "ca.crt").write_text("ca")  # skips the first-contact fetch
+    (cdir / "enroll.json").write_text(
+        '{"stanza": "demo", "request_id": "r1", "token": "t1"}'
+    )
+
+    def calls(method, path, payload=None):
+        assert method == "GET" and "request_id=r1" in path
+        return _approved()
+
+    _run_register(mod, _Cfg(tmp_path), calls)
+
+    key = cdir / "client.key"
+    assert key.read_text().startswith("-----BEGIN PRIVATE KEY-----")
+    assert (key.stat().st_mode & 0o077) == 0, oct(key.stat().st_mode)
+    assert written["PGBR_CIPHER_PASS"] == "s3cret-passphrase"
+    assert written["PGBR_REPO_HOST"] == "10.222.0.106"
+    assert written["PGBR_REPO_HOST_PORT"] == "8443"
+    assert written["PGBR_BACKUP_FROM"] == "here"
+    assert written["RUN_PGBACKREST"] == "1"
+    # A finished request must not linger and look open forever.
+    assert not (cdir / "enroll.json").exists()
+
+
+def test_register_refuses_a_stanza_name_the_server_would_reject(enroll, tmp_path):
+    """Better to stop here than after an admin has approved something.
+
+    The server enforces the same pattern. Letting a bad name through means the
+    failure lands after a human has already been pulled in.
+    """
+    mod, _ = enroll
+
+    def calls(*a, **kw):  # pragma: no cover - must never be reached
+        raise AssertionError("the service was contacted despite a bad name")
+
+    # "Demo" is deliberately absent: the command lowercases the name, exactly
+    # as the service does, so it is a valid name and not a rejected one.
+    for bad in ("1demo", "a", "demo!", "x" * 42, "-demo", "de mo"):
+        with pytest.raises(SystemExit):
+            _run_register(mod, _Cfg(tmp_path), calls, name=bad)

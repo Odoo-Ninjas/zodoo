@@ -317,6 +317,51 @@ had. It belongs in the hosting record before the first backup runs.
 `odoo reload` prints a red warning when a repo host is configured without a
 passphrase, because that is the case where unencrypted data leaves the machine.
 
+## Enrolment
+
+Getting a machine onto the backup server by hand means moving three files and a
+passphrase around. The passphrase is the one value that cannot be replaced
+afterwards, so chat and copy-paste are exactly the wrong tools for it.
+
+```
+odoo pgbackrest register
+```
+
+The first call files a request. An admin sees it at
+`https://db.backup.zebroo.de:8444/`, checks the name and approves; only then do
+the client certificate and the passphrase come into existence. They are shown
+once, the admin puts the passphrase into 1Password and confirms that - and only
+after that confirmation will the service hand anything to the machine. A
+passphrase that lives solely on the machine being backed up is worthless in the
+one situation backups exist for.
+
+Calling `register` again then collects everything: `ca.crt`, `client.crt` and
+`client.key` land in `$HOST_RUN_DIR/pgbackrest/cert/` (the key at 0600, which
+pgBackRest insists on), and `PGBR_STANZA`, `PGBR_REPO_HOST`,
+`PGBR_REPO_HOST_PORT`, `PGBR_CIPHER_TYPE`, `PGBR_CIPHER_PASS`,
+`PGBR_BACKUP_FROM` and `RUN_PGBACKREST` go into the settings. Then:
+
+```
+odoo reload && odoo up -d && odoo pgbackrest check
+```
+
+Two properties are worth knowing:
+
+* **Handed out exactly once.** After delivery the server deletes the passphrase
+  from its own state; a second call answers `delivered` and nothing else. If
+  the machine loses it before `odoo reload`, it comes from 1Password - not from
+  the backup server, which only ever stores ciphertext.
+* **The CA is pinned on first contact,** with its fingerprint printed, the same
+  bargain ssh makes with `accept-new`. Any later change aborts the connection.
+
+The service also files an age-encrypted envelope of the credentials on the
+backup server. Encrypted against a *public* key whose private half is in
+1Password, so the server can write it but never read it - which is what makes
+it safe to attach to the project record in hosting.zebroo.de.
+
+The service listens on 8444, not 8443. 8443 speaks pgBackRest's own protocol,
+which is not HTTP; the enrolment service is ordinary HTTPS and lives beside it.
+
 ## One version, everywhere
 
 pgBackRest requires the **same version on every host that touches a

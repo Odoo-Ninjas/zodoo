@@ -270,3 +270,16 @@ PGBR_FORCE_IN_DEVMODE=0
 # a named restore point. If the update fails, the console offers to rewind the
 # database to that pre-update state.
 PGBR_GUARD_UPDATE=0
+
+# --------------------------------------------------------------------------- #
+# ENROLMENT
+# --------------------------------------------------------------------------- #
+# Address of the enrolment service on the backup server. `odoo pgbackrest
+# register` files a request there, an admin approves it, and the same command
+# then collects stanza, client certificate and passphrase and writes them into
+# the settings.
+#
+# Deliberately a separate port from PGBR_REPO_HOST_PORT: 8443 is pgBackRest's
+# own protocol, which is not HTTP. The enrolment service is an ordinary HTTPS
+# service and lives next to it on 8444.
+PGBR_ENROLL_URL=https://db.backup.zebroo.de:8444
