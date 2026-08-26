@@ -328,7 +328,7 @@ odoo pgbackrest register
 ```
 
 The first call files a request. An admin sees it at
-`https://db.backup.zebroo.de:8444/`, checks the name and approves; only then do
+`https://db.backup.zebroo.de:8445/`, checks the name and approves; only then do
 the client certificate and the passphrase come into existence. They are shown
 once, the admin puts the passphrase into 1Password and confirms that - and only
 after that confirmation will the service hand anything to the machine. A
@@ -359,8 +359,9 @@ backup server. Encrypted against a *public* key whose private half is in
 1Password, so the server can write it but never read it - which is what makes
 it safe to attach to the project record in hosting.zebroo.de.
 
-The service listens on 8444, not 8443. 8443 speaks pgBackRest's own protocol,
-which is not HTTP; the enrolment service is ordinary HTTPS and lives beside it.
+The service listens on 8445. Three ports, three different things: 8443 speaks
+pgBackRest's own protocol (not HTTP), 8444 is the write-only receiver that takes
+the filestores, and the enrolment service is ordinary HTTPS beside them.
 
 ## One version, everywhere
 

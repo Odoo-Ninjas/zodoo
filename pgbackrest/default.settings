@@ -280,6 +280,7 @@ PGBR_GUARD_UPDATE=0
 # the settings.
 #
 # Deliberately a separate port from PGBR_REPO_HOST_PORT: 8443 is pgBackRest's
-# own protocol, which is not HTTP. The enrolment service is an ordinary HTTPS
-# service and lives next to it on 8444.
-PGBR_ENROLL_URL=https://db.backup.zebroo.de:8444
+# own protocol, which is not HTTP. 8444 belongs to the write-only receiver that
+# takes the filestores. The enrolment service is ordinary HTTPS and sits beside
+# both on 8445.
+PGBR_ENROLL_URL=https://db.backup.zebroo.de:8445
