@@ -16,7 +16,20 @@ server {
         proxy_buffers 16 1024k;
         proxy_buffer_size 256k;
 
+{% if item.client_max_body_size is defined and item.client_max_body_size %}
+        # 0 = no limit. Needed for uploads that are streamed rather than
+        # measured beforehand - a filestore bundle has no size known in advance.
+        client_max_body_size {{ item.client_max_body_size }};
+{% else %}
         client_max_body_size 1024M;
+{% endif %}
+{% if item.proxy_request_buffering is defined and item.proxy_request_buffering == False %}
+        # Hand the body upstream as it arrives instead of spooling the whole
+        # request to disk first. For multi-gigabyte uploads the default would
+        # mean writing everything twice and delaying the backend until the last
+        # byte has landed on the proxy.
+        proxy_request_buffering off;
+{% endif %}
 
 {% include "_ip_allowlist.inc" %}
         # BASIC_AUTH
@@ -51,7 +64,16 @@ server {
 {% endif %}
 
                 set $var_{{ item.upstream_name }} {{ item.upstream_name }};
+{% if item.upstream_scheme is defined and item.upstream_scheme == 'https' %}
+                # The backend speaks TLS itself. Certificate verification stays
+                # off (nginx's default for proxy_pass): these are our own
+                # machines on a private network, reached by address, and their
+                # certificates are issued by our own CA - so there is no name to
+                # verify against and nothing a public trust store could say.
+                proxy_pass https://$var_{{ item.upstream_name }};
+{% else %}
                 proxy_pass http://$var_{{ item.upstream_name }};
+{% endif %}
 
                 # enable websockets
                 proxy_http_version      1.1;
