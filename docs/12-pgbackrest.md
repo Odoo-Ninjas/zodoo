@@ -18,6 +18,131 @@ The page-level incrementals are the reason for the switch: postgres already
 knows which pages changed, so nothing has to be rediscovered by hashing a byte
 stream.
 
+## Setting a machine up against the backup server
+
+The whole path, in order, from a fresh checkout to a verified backup. Nothing
+here is optional and nothing is out of order - the enrolment deliberately needs
+two calls with a human in between.
+
+### Before you start
+
+The machine has to reach the backup server. Two ports, two different things:
+
+| Port | Purpose |
+| ---- | ------- |
+| 8443 | the repository - pgBackRest's own protocol inside TLS, not HTTP |
+| 8445 | the enrolment service - ordinary HTTPS |
+
+Both are reachable over the zebroo VPN. A machine that is not in a VPN group
+with the backup server gets a timeout, not a helpful error - so check that
+first:
+
+```
+ping -c1 10.222.0.106
+```
+
+### 1. Check out and build
+
+```
+git clone <project> && cd <project>
+odoo reload
+odoo build
+```
+
+`odoo build` matters more here than usual: pgBackRest refuses to talk to a
+different version of itself, so the sidecar and all postgres images are pinned
+to `PGBR_VERSION` at build time. An image built months ago against a different
+version will fail later with a `ProtocolError` - and it will fail at 2 a.m.
+against the backup server, not now.
+
+### 2. Ask for a stanza
+
+```
+odoo pgbackrest register
+```
+
+This files a request and stops. Nothing exists on the backup server yet - no
+certificate, no passphrase. The command prints the request number and, on first
+contact, the fingerprint of our CA, which it pins the way ssh does with
+`accept-new`. Hold that fingerprint against the backup server once.
+
+### 3. Someone approves it
+
+An admin opens `https://db.backup.zebroo.de:8445/`, checks the name against the
+customer, and approves. Only in that moment do the client certificate and the
+passphrase come into existence, and they are shown exactly once.
+
+The admin then picks the project in hosting.zebroo.de and confirms that the
+passphrase is in 1Password. **Until that confirmation the machine gets
+nothing.** That is deliberate: a passphrase that lives only on the machine
+being backed up is worthless in the one situation backups exist for. If the
+filing at the project fails, the approval stays open rather than releasing
+credentials without a second copy.
+
+### 4. Collect the credentials
+
+```
+odoo pgbackrest register
+```
+
+The same command again. This time it writes:
+
+* `ca.crt`, `client.crt` and `client.key` into `$HOST_RUN_DIR/pgbackrest/cert/`
+  (the key at 0600, which pgBackRest insists on)
+* `PGBR_STANZA`, `PGBR_REPO_HOST`, `PGBR_REPO_HOST_PORT`, `PGBR_CIPHER_TYPE`,
+  `PGBR_CIPHER_PASS`, `PGBR_BACKUP_FROM` and `RUN_PGBACKREST` into the settings
+* the filestore stream as well, if the server issued one
+
+Handed out **exactly once**. A second call answers `delivered` and nothing
+else; from then on the copy that exists is the one in 1Password and at the
+project.
+
+### 5. Bring it up and check
+
+```
+odoo reload && odoo up -d
+odoo pgbackrest check
+```
+
+`check` is not a formality. It verifies that both ends run the same version,
+that the certificate is accepted for this stanza, and that a WAL segment
+actually arrives on the far side. If it passes, the path works end to end.
+
+### 6. First backup
+
+```
+odoo pgbackrest backup --type full
+odoo pgbackrest info
+```
+
+`info` should show the full backup with a repository size well below the
+database size. From here the cron entries take over: full on Sundays,
+differential the rest of the week (`PGBR_FULL_CRON`, `PGBR_DIFF_CRON`).
+
+### What you do not have to do
+
+* **Set retention.** It lives on the backup server, which owns the disk. The
+  client deliberately ships none - see below.
+* **Set `RUN_PGBACKREST`.** `register` does it.
+* **Create the stanza.** The sidecar does it on startup.
+
+### Several projects on one machine
+
+Each project gets its own volume (`<project>_pgbackrest_data`) and its own
+stanza (the project name), so they never mix - not locally, and not in a shared
+repository on the backup server, where `tls-server-auth` binds each certificate
+to exactly its stanza.
+
+What is *not* separated automatically is the load. All projects inherit the
+same cron times, so ten projects start ten backups at 02:00, each with
+`PGBR_PROCESS_MAX` processes. On a dense machine, stagger them and lower the
+parallelism:
+
+```
+odoo setting PGBR_FULL_CRON="30 2 * * 0"
+odoo setting PGBR_PROCESS_MAX=2
+```
+
 ## What runs where
 
 ```

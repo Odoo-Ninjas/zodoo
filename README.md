@@ -127,6 +127,34 @@ odoo backup odoo-db <path> (or default name used)
 odoo restore odoo-db <path> (or select from list)
 ```
 
+### Offsite backup with pgBackRest
+
+The commands above dump the database to a file. For continuous backup - base
+backups plus WAL archive, point-in-time recovery, and a repository on a
+different machine - use pgBackRest. It is off until switched on
+(`RUN_PGBACKREST`), and `register` switches it on for you.
+
+Setting a machine up against our backup server, in full:
+
+```
+odoo reload && odoo build
+
+odoo pgbackrest register     # files a request, then stops
+                             # -> an admin approves it at
+                             #    https://db.backup.zebroo.de:8445/
+odoo pgbackrest register     # collects certificate + passphrase
+
+odoo reload && odoo up -d
+odoo pgbackrest check        # same version, certificate accepted, WAL arrives
+odoo pgbackrest backup --type full
+odoo pgbackrest info
+```
+
+Two calls with a human in between is deliberate: the passphrase cannot be
+replaced afterwards, so nothing is released until an admin has confirmed a
+second copy exists. Details, including what to do without a backup server,
+several projects on one machine, and recovery: [docs/12-pgbackrest.md](./docs/12-pgbackrest.md).
+
 ### Show Database activity
 
 ```
