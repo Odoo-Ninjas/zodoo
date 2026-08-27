@@ -26,6 +26,7 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 
 SOCKET_PATH = "/var/run/zodoo-supervisor.sock"
+CLIENT_VERBS = ("status", "restart", "start", "stop", "shutdown")
 ZODOO_PYTHON = os.environ.get(
     "ZODOO_PYTHON", "/opt/zodoo_pipx/venvs/zodoo/bin/python3"
 )
@@ -116,16 +117,32 @@ def _resolve_probe(name):
     raise KeyError(f"unknown role probe: {name}")
 
 
-def _is_role_enabled(spec):
+# Gate states. "unknown" only happens for probe-gated roles whose probe
+# raised — the DB is unreachable (right after an update, while postgres
+# restarts). That is NOT the same as "this role must not run": treating it
+# as a definitive off is how a queuejobs role goes silently missing.
+GATE_ON = "on"
+GATE_OFF = "off"
+GATE_UNKNOWN = "unknown"
+
+
+def _role_gate_state(spec):
     probe_name = spec.get("enabled_probe")
     if probe_name:
         try:
             probe = _PROBES.setdefault(probe_name, _resolve_probe(probe_name))
-            return bool(probe())
+            return GATE_ON if probe() else GATE_OFF
         except Exception as ex:
             _log(f"role probe {probe_name!r} failed: {ex} — disabling role")
-            return False
-    return _env_truthy(spec["enabled_key"])
+            return GATE_UNKNOWN
+    return GATE_ON if _env_truthy(spec["enabled_key"]) else GATE_OFF
+
+
+def _is_role_enabled(spec):
+    """A role runs only on a definitive yes — an unevaluable probe keeps it
+    off (that is the long-standing behaviour), but callers that report back
+    to a human can tell the two apart via `_role_gate_state`."""
+    return _role_gate_state(spec) == GATE_ON
 
 
 class Role:
@@ -213,17 +230,25 @@ class Role:
     def is_alive(self):
         return self.proc is not None and self.proc.poll() is None
 
-    def probe_allows_running(self):
-        """Re-evaluate an `enabled_probe` role gate.
+    def gate_allows_running(self):
+        """Re-evaluate the role gate — probe *and* env-var gated roles.
 
-        Returns True for roles without a probe (their gate is a static env
-        var, evaluated once at construction). For probe-gated roles the probe
-        is asked again — the answer can change at runtime (a module gets
-        uninstalled) and a stale True must not keep a role alive that has
-        decided, in its own child process, that it must not run.
+        For probe-gated roles the probe is asked again: the answer can change
+        at runtime (a module gets uninstalled) and a stale True must not keep
+        a role alive that has decided, in its own child process, that it must
+        not run.
+
+        Env-gated roles are checked here too. It used to return True for them
+        unconditionally ("their gate is static, evaluated once at
+        construction"), which was wrong for every gate that a *later* caller
+        can flip on: `odoo update` unconditionally does `supervisor.py start
+        cronjobs` at the end, so on an instance with RUN_ODOO_CRONJOBS=0 the
+        role got want_running=True, the child exited straight away ("Cronjobs
+        shall not run. Good-bye!") and was respawned about twice a second —
+        forever, burning ~50% of a core (observed for 7 days on a staging
+        instance). The gate is the same one the child itself evaluates, so
+        asking it here keeps the two in sync.
         """
-        if not self.spec.get("enabled_probe"):
-            return True
         return _is_role_enabled(self.spec)
 
     def reap_if_dead(self):
@@ -307,23 +332,30 @@ class Supervisor:
                             role.spawn()
                     continue
                 if role.reap_if_dead() and role.want_running:
-                    # A probe-gated role that has become disabled must not be
-                    # respawned. Without this the queuejobs role turns into a
-                    # spawn loop once something has set want_running (control
-                    # socket `start`, watchdog): the child re-checks the same
-                    # probe, exits cleanly, gets reaped, gets respawned — once
-                    # per second, forever. Each of those starts runs
-                    # prepare_run_shared/kill_odoo and therefore also kills the
-                    # web workers.
-                    if not role.probe_allows_running():
+                    # A gated-off role must not be respawned. Without this the
+                    # role turns into a spawn loop once something has set
+                    # want_running (control socket `start`, watchdog): the
+                    # child re-checks the same gate, exits cleanly, gets
+                    # reaped, gets respawned — once per second, forever. Each
+                    # of those starts runs prepare_run_shared/kill_odoo and
+                    # therefore also kills the web workers.
+                    if not role.gate_allows_running():
                         _log(
                             f"[{role.name}] role gate is off — not "
                             f"respawning (want_running -> False)"
                         )
                         role.want_running = False
                         continue
-                    # Exponential backoff on tight crash loops.
+                    # No rc-based "it exited cleanly, so it meant it"
+                    # shortcut here: run.py returns exec_odoo()'s rc instead
+                    # of exiting with it, so EVERY role child exits 0 — a
+                    # crashed odoo-bin (port 8069 still held after a restart,
+                    # an addon raising at import) is indistinguishable from a
+                    # gate refusal. Only the gate above may stop a respawn;
+                    # everything else keeps the backoff loop, which is what
+                    # recovers from those crashes.
                     since = time.time() - role.last_spawn
+                    # Exponential backoff on tight crash loops.
                     if since < role.backoff:
                         _log(
                             f"[{role.name}] crashed after "
@@ -376,19 +408,39 @@ class Supervisor:
                     "error": f"unknown role: {arg}",
                 }
             role = self.roles[arg]
-            if (
-                verb in ("start", "restart")
-                and not role.probe_allows_running()
-            ):
+            if verb in ("start", "restart"):
                 # Refuse to start a role whose gate says it must not run —
                 # otherwise `start queuejobs` on a project without the
-                # `queue_job` module arms a permanent respawn loop.
-                return {
-                    "ok": False,
-                    "error": (
-                        f"{arg} is disabled (role gate off) — not started"
-                    ),
-                }
+                # `queue_job` module (or `start cronjobs` with
+                # RUN_ODOO_CRONJOBS=0) arms a permanent respawn loop.
+                gate = _role_gate_state(role.spec)
+                if gate == GATE_OFF:
+                    # ok=True: the caller asked for a state that is already
+                    # reached ("this role must not run"), so this is a no-op,
+                    # not a failure. `odoo update` starts all three roles
+                    # unconditionally at the end and would otherwise take the
+                    # error as "supervisor cannot do it" and fall back to
+                    # compose-level ops on service names that no longer
+                    # exist.
+                    return {
+                        "ok": True,
+                        "noop": True,
+                        "msg": (
+                            f"{arg} is disabled (role gate off) — "
+                            f"not started"
+                        ),
+                    }
+                if gate == GATE_UNKNOWN:
+                    # Could not evaluate the gate (probe DB unreachable).
+                    # Stays an error so the caller warns instead of silently
+                    # leaving the role dead.
+                    return {
+                        "ok": False,
+                        "error": (
+                            f"{arg}: role gate could not be evaluated — "
+                            f"not started"
+                        ),
+                    }
             if verb == "stop":
                 role.want_running = False
                 role.stop()
@@ -622,11 +674,46 @@ def _client(argv):
     return 0
 
 
+def _daemon_already_running():
+    """True when another supervisor is listening on the control socket.
+
+    A stale socket file from a killed container is not "running": connect()
+    then fails with ECONNREFUSED and we go on to replace it.
+    """
+    try:
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(2.0)
+        sock.connect(SOCKET_PATH)
+        sock.close()
+        return True
+    except OSError:
+        return False
+
+
 def main():
     argv = sys.argv[1:]
-    if argv and argv[0] in ("status", "restart", "start", "stop", "shutdown"):
-        sys.exit(_client(argv))
-    # Daemon mode
+    if argv:
+        if argv[0] in CLIENT_VERBS:
+            sys.exit(_client(argv))
+        # Anything else used to fall through into daemon mode — so a
+        # harmless-looking `supervisor.py --help` inside a running container
+        # started a SECOND supervisor, whose startup runs kill_odoo() and
+        # therefore killed the live web workers.
+        print(
+            f"usage: supervisor.py [{' | '.join(CLIENT_VERBS)}] [<role>]\n"
+            f"       supervisor.py            # daemon mode (PID 1 only)",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    # Daemon mode. Refuse to start a second one: its startup kills the odoo
+    # processes of the one that is already running.
+    if _daemon_already_running():
+        print(
+            f"supervisor already running (socket {SOCKET_PATH} answers) — "
+            f"refusing to start a second daemon",
+            file=sys.stderr,
+        )
+        sys.exit(3)
     Path(SOCKET_PATH).parent.mkdir(parents=True, exist_ok=True)
     Supervisor().run()
 
