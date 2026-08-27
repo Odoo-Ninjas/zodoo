@@ -83,3 +83,36 @@ def test_buffering_stays_on_unless_explicitly_turned_off():
 def test_http_is_the_default_however_it_is_spelled(scheme):
     out = _render(**({} if scheme is None else {"upstream_scheme": scheme}))
     assert "proxy_pass http://$var_upstream_1;" in out
+
+def test_no_rate_limit_by_default():
+    """A vhost that does not ask for it must render exactly as before.
+
+    This template renders every vhost on the router. A limit that appears
+    where nobody asked for one throttles customer sites.
+    """
+    out = _render()
+    assert "limit_req" not in out
+    assert "limit_req_zone" not in out
+
+
+def test_rate_limit_declares_zone_and_applies_it():
+    """Zone in the http context, application in the server block.
+
+    nginx refuses limit_req_zone anywhere but http, and a limit_req naming a
+    zone that was never declared fails the config test - so the two halves
+    have to appear together or not at all.
+    """
+    out = _render(rate_limit="10r/s")
+    assert (
+        "limit_req_zone $binary_remote_addr zone=upstream_1_rl:10m rate=10r/s;"
+        in out
+    )
+    assert "limit_req zone=upstream_1_rl burst=20 nodelay;" in out
+    assert "limit_req_status 429;" in out
+    # The zone must come before the server block that uses it.
+    assert out.index("limit_req_zone") < out.index("server {")
+
+
+def test_rate_limit_burst_is_configurable():
+    out = _render(rate_limit="5r/s", rate_limit_burst=100)
+    assert "burst=100" in out
