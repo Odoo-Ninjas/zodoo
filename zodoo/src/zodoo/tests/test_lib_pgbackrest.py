@@ -897,7 +897,6 @@ def test_register_writes_the_private_key_unreadable_to_others(
     mod, written = enroll
     cdir = tmp_path / "pgbackrest" / "cert"
     cdir.mkdir(parents=True)
-    (cdir / "ca.crt").write_text("ca")  # skips the first-contact fetch
     (cdir / "enroll.json").write_text(
         '{"stanza": "demo", "request_id": "r1", "token": "t1"}'
     )
@@ -955,7 +954,6 @@ def _approved_with_filestore(**over):
 def _prepared(tmp_path, answer):
     cdir = tmp_path / "pgbackrest" / "cert"
     cdir.mkdir(parents=True, exist_ok=True)
-    (cdir / "ca.crt").write_text("ca")
     (cdir / "enroll.json").write_text(
         '{"stanza": "demo", "request_id": "r1", "token": "t1"}'
     )

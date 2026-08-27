@@ -823,22 +823,29 @@ def _enroll_dir(config):
     return d
 
 
-def _enroll_ssl_context(ca_file):
+def _enroll_ssl_context(config):
     """TLS context for the enrolment service.
 
-    The backup server issues its own certificate. Once the CA is here it is
-    verified against. On FIRST contact there is nothing to verify against - it
-    is then fetched, pinned and its fingerprint printed, so it can be held
-    against the server once. The same bargain ssh makes with accept-new.
+    Plain system trust: the service sits behind the same proxy as every other
+    site and carries a publicly issued certificate, so there is a chain to
+    verify against and nothing to pin.
+
+    It used to be different. While the service answered with a self-issued
+    certificate there was nothing to verify against on first contact, so the
+    CA was fetched, pinned and its fingerprint printed - ssh's accept-new
+    bargain. That step is gone, and with it the one instruction in the setup
+    that people got wrong.
+
+    PGBR_ENROLL_CA still allows pointing at an own CA file, for a service that
+    is not reachable under a public name - a test instance, or a customer who
+    runs their own.
     """
     import ssl
 
-    if ca_file.exists():
-        return ssl.create_default_context(cafile=str(ca_file))
-    ctx = ssl.create_default_context()
-    ctx.check_hostname = False
-    ctx.verify_mode = ssl.CERT_NONE
-    return ctx
+    own = (getattr(config, "PGBR_ENROLL_CA", "") or "").strip()
+    if own:
+        return ssl.create_default_context(cafile=own)
+    return ssl.create_default_context()
 
 
 def _enroll_call(config, method, path, payload=None):
@@ -863,7 +870,7 @@ def _enroll_call(config, method, path, payload=None):
         with urllib.request.urlopen(
             req,
             timeout=30,
-            context=_enroll_ssl_context(_enroll_dir(config) / "ca.crt"),
+            context=_enroll_ssl_context(config),
         ) as resp:
             return _json.loads(resp.read().decode())
     except urllib.error.HTTPError as exc:
@@ -895,8 +902,6 @@ def _enroll_call(config, method, path, payload=None):
 def pgbackrest_register(config, name, note):
     import json as _json
     import socket
-    import ssl
-    import urllib.request
 
     from .tools import update_setting
 
@@ -909,29 +914,6 @@ def pgbackrest_register(config, name, note):
     cdir = _enroll_dir(config)
     ca_file = cdir / "ca.crt"
     state_file = cdir / "enroll.json"
-
-    # The CA comes first: without it nothing that follows can be verified.
-    if not ca_file.exists():
-        base = (config.PGBR_ENROLL_URL or "").strip().rstrip("/")
-        with urllib.request.urlopen(
-            urllib.request.Request(base + "/api/ca"),
-            timeout=30,
-            context=_enroll_ssl_context(ca_file),
-        ) as resp:
-            pem = resp.read()
-        ca_file.write_bytes(pem)
-        ca_file.chmod(0o644)
-        import hashlib
-
-        fp = hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem.decode())).hexdigest()
-        fp = ":".join(fp[i : i + 2] for i in range(0, len(fp), 2)).upper()
-        click.secho(
-            "Certificate authority accepted and pinned on first contact.\n"
-            f"  SHA256 {fp}\n"
-            "Hold it against the backup server once; any later change aborts "
-            "the connection.",
-            fg="yellow",
-        )
 
     state = _json.loads(state_file.read_text()) if state_file.exists() else {}
 

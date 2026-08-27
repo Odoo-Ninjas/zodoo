@@ -28,14 +28,20 @@ two calls with a human in between.
 
 The machine has to reach the backup server. Two ports, two different things:
 
-| Port | Purpose |
-| ---- | ------- |
-| 8443 | the repository - pgBackRest's own protocol inside TLS, not HTTP |
-| 8445 | the enrolment service - ordinary HTTPS |
+| Address | Purpose |
+| ------- | ------- |
+| `enroll.backup.zebroo.de` (443) | the enrolment service - ordinary HTTPS, public |
+| `db.backup.zebroo.de` (8443) | the repository - pgBackRest's own protocol inside TLS |
 
-Both are reachable over the zebroo VPN. A machine that is not in a VPN group
-with the backup server gets a timeout, not a helpful error - so check that
-first:
+The two are reached differently on purpose. The enrolment service speaks HTTP,
+so it sits behind the same proxy as every other site and carries a publicly
+issued certificate. The repository cannot: pgBackRest speaks its own protocol
+and authorises by client certificate, which a terminating proxy would throw
+away - it is passed through untouched.
+
+The repository port is currently reachable over the zebroo VPN only. A machine
+that is not in a VPN group with the backup server gets a timeout rather than a
+helpful error, so check that first:
 
 ```
 ping -c1 10.222.0.106
@@ -62,13 +68,12 @@ odoo pgbackrest register
 ```
 
 This files a request and stops. Nothing exists on the backup server yet - no
-certificate, no passphrase. The command prints the request number and, on first
-contact, the fingerprint of our CA, which it pins the way ssh does with
-`accept-new`. Hold that fingerprint against the backup server once.
+certificate, no passphrase. The command prints the request number and what
+happens next.
 
 ### 3. Someone approves it
 
-An admin opens `https://db.backup.zebroo.de:8445/`, checks the name against the
+An admin opens `https://enroll.backup.zebroo.de/`, checks the name against the
 customer, and approves. Only in that moment do the client certificate and the
 passphrase come into existence, and they are shown exactly once.
 
@@ -453,7 +458,7 @@ odoo pgbackrest register
 ```
 
 The first call files a request. An admin sees it at
-`https://db.backup.zebroo.de:8445/`, checks the name and approves; only then do
+`https://enroll.backup.zebroo.de/`, checks the name and approves; only then do
 the client certificate and the passphrase come into existence. They are shown
 once, the admin puts the passphrase into 1Password and confirms that - and only
 after that confirmation will the service hand anything to the machine. A
@@ -485,17 +490,19 @@ Two properties are worth knowing:
   from its own state; a second call answers `delivered` and nothing else. If
   the machine loses it before `odoo reload`, it comes from 1Password - not from
   the backup server, which only ever stores ciphertext.
-* **The CA is pinned on first contact,** with its fingerprint printed, the same
-  bargain ssh makes with `accept-new`. Any later change aborts the connection.
+* **Nothing has to be pinned.** The enrolment service carries a publicly issued
+  certificate, so there is a chain to verify against. Our own CA still matters -
+  but only for the repository connection, and it arrives with the credentials.
 
 The service also files an age-encrypted envelope of the credentials on the
 backup server. Encrypted against a *public* key whose private half is in
 1Password, so the server can write it but never read it - which is what makes
 it safe to attach to the project record in hosting.zebroo.de.
 
-The service listens on 8445. Three ports, three different things: 8443 speaks
-pgBackRest's own protocol (not HTTP), 8444 is the write-only receiver that takes
-the filestores, and the enrolment service is ordinary HTTPS beside them.
+The approval screen is reachable from the VPN and the LAN only; from anywhere
+else it answers 404, so it is not apparent from outside that there is a screen
+with a password at all. The client API (`/api/request`, `/api/status`) stays
+public - it authenticates itself with the request number and pickup token.
 
 ## One version, everywhere
 

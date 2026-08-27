@@ -141,7 +141,7 @@ odoo reload && odoo build
 
 odoo pgbackrest register     # files a request, then stops
                              # -> an admin approves it at
-                             #    https://db.backup.zebroo.de:8445/
+                             #    https://enroll.backup.zebroo.de/
 odoo pgbackrest register     # collects certificate + passphrase
 
 odoo reload && odoo up -d

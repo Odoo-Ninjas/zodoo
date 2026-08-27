@@ -279,8 +279,11 @@ PGBR_GUARD_UPDATE=0
 # then collects stanza, client certificate and passphrase and writes them into
 # the settings.
 #
-# Deliberately a separate port from PGBR_REPO_HOST_PORT: 8443 is pgBackRest's
-# own protocol, which is not HTTP. 8444 belongs to the write-only receiver that
-# takes the filestores. The enrolment service is ordinary HTTPS and sits beside
-# both on 8445.
-PGBR_ENROLL_URL=https://db.backup.zebroo.de:8445
+# Ordinary HTTPS on 443, behind the same proxy as every other site - the
+# enrolment service is the one part of this that speaks HTTP and can therefore
+# be terminated for. Its certificate is public, so nothing has to be pinned.
+#
+# The repository is a different matter and keeps its own name and port: it
+# speaks pgBackRest's own protocol and authorises by client certificate, so it
+# is passed through untouched (PGBR_REPO_HOST, PGBR_REPO_HOST_PORT).
+PGBR_ENROLL_URL=https://enroll.backup.zebroo.de
