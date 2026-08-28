@@ -253,9 +253,17 @@ def pgbackrest_project(_session_home, tmp_path_factory):
 
     project.run("reload", timeout=long_timeout)
     project.run("build", "--no-zodoo-pull", timeout=long_timeout)
-    project.run("up", "-d", "postgres", timeout=60 * 20)
+    # postgres AND the sidecar together, in that order but in one step.
+    #
+    # postgres starts archiving the moment it is up (archive_mode=on), and
+    # archive-push fails until the stanza exists - which is what the sidecar's
+    # entrypoint creates. Starting postgres alone left every WAL push failing
+    # with "FileMissingError: unable to open missing file .../archive.info.copy",
+    # and the database reset that follows never finished: 600 seconds waiting
+    # for a postgres that was up but wedged behind its own archive queue.
+    project.run("up", "-d", "postgres", "pgbackrest", timeout=60 * 20)
     project.run_force("db", "reset", timeout=60 * 20)
-    project.run("up", "-d", timeout=60 * 20)  # brings up pgbackrest too
+    project.run("up", "-d", timeout=60 * 20)
 
     try:
         yield project
