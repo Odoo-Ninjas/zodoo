@@ -374,9 +374,11 @@ def after_compose(config, settings, yml, globals):
     # postgres keeps serving, the WAL piles up, and the backup that everyone
     # believes exists does not.
     #
-    # Deliberately without `condition: service_healthy`: the sidecar waits for
-    # postgres itself, so requiring the reverse would deadlock. Compose only
-    # has to START it.
+    # Deliberately without `condition: service_healthy`, and the sidecar in
+    # turn declares no dependency on postgres: both directions at once are a
+    # cycle, and compose refuses the project outright with "dependency cycle
+    # detected". The sidecar waits in its entrypoint instead - on the socket,
+    # which is the path that actually has to work.
     pg.setdefault("depends_on", [])
     deps = pg["depends_on"]
     if isinstance(deps, dict):

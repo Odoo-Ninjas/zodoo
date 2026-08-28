@@ -1055,3 +1055,25 @@ def test_archive_queue_is_bounded(after_compose, tmp_path):
     assert any(
         d.startswith("archive-push-queue-max=") for d in _directives(tmp_path)
     ), "no bound on the archive queue"
+
+
+def test_the_dependency_points_one_way_only():
+    """postgres -> pgbackrest, and never back.
+
+    Both directions at once is not a redundancy, it is a cycle: compose
+    refuses the whole project with "dependency cycle detected: pgbackrest ->
+    postgres -> pgbackrest", and nothing starts at all. That is how it failed
+    in CI once the postgres side was added.
+
+    The sidecar waits in its entrypoint instead, on the postgres socket -
+    which is the path that actually has to work, and which a compose health
+    state says nothing about.
+    """
+    import yaml
+
+    compose = yaml.safe_load((_PGBR_DIR / "docker-compose.yml").read_text())
+    sidecar = compose["services"]["pgbackrest"]
+    assert "depends_on" not in sidecar, (
+        "the sidecar must not depend on postgres - postgres depends on it, "
+        "and both together is a cycle"
+    )

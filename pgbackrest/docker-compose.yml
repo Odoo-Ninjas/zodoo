@@ -28,9 +28,15 @@ services:
     restart: unless-stopped
     profiles:
       - auto
-    depends_on:
-      postgres:
-        condition: service_healthy
+    # KEIN depends_on auf postgres. Die Abhaengigkeit laeuft andersherum:
+    # postgres zieht diesen Dienst mit hoch (siehe __after_compose.py), weil
+    # postgres ab der ersten Sekunde archiviert und die Stanza hier entsteht.
+    # Beide Richtungen zugleich waeren ein Zyklus, und compose lehnt das ab:
+    # "dependency cycle detected: pgbackrest -> postgres -> pgbackrest".
+    #
+    # Gewartet wird trotzdem, nur im Entrypoint: dort auf den SOCKET, was der
+    # Pfad ist, auf den es ankommt - eine Zustandsanzeige von compose sagt
+    # nichts darueber, ob pgbackrest postgres auch erreichen kann.
     environment:
       PGBR_STANZA: $PGBR_STANZA
       PGBR_REPO_HOST: $PGBR_REPO_HOST
