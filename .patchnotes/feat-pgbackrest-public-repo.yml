@@ -1,0 +1,10 @@
+type: minor
+description: |
+  Das Repository ist jetzt oeffentlich unter db.backup.zebroo.de auf Port 443
+  erreichbar - eine Instanz braucht fuer die Sicherung keine VPN-Mitgliedschaft
+  mehr. PGBR_REPO_HOST_PORT steht deshalb auf 443.
+
+  Zum Testen: auf einer Instanz ohne VPN-Zugang zum Backup-Server
+  `odoo pgbackrest check` aufrufen. Erwartet: die Pruefung laeuft durch und
+  archiviert ein WAL-Segment.
+breaking: false

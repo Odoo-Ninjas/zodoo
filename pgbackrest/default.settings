@@ -96,12 +96,15 @@ PGBR_REPO_HOST=
 # See PGBR_BACKUP_FROM below for which of the two you get and what each
 # one costs.
 #
-# Both are freely settable (1-65535), so 443 on either side is fine and is the
-# usual answer to a restrictive firewall. But note what this is NOT: pgbackrest
-# speaks its own protocol inside TLS, not HTTP inside TLS. Port 443 gets it
-# through a port-based firewall; it does NOT survive an HTTPS reverse proxy
-# that terminates TLS. Only TCP/SNI passthrough works. Details in the docs.
-PGBR_REPO_HOST_PORT=8432
+# Both are freely settable (1-65535). Our backup server answers on 443, and
+# that is not a coincidence: only 80, 443 and 1194 reach it from the internet.
+#
+# Note what 443 does NOT mean here: pgbackrest speaks its own protocol inside
+# TLS, not HTTP inside TLS. The port gets it through a port-based firewall; it
+# does NOT survive an HTTPS reverse proxy that terminates TLS. That is why the
+# repository has its own public address instead of living as a vhost beside
+# the other sites. Details in the docs.
+PGBR_REPO_HOST_PORT=443
 #
 # WHICH machine runs `pgbackrest backup` - and with it `expire`. Only relevant
 # when PGBR_REPO_HOST is set.

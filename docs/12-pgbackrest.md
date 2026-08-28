@@ -26,26 +26,23 @@ two calls with a human in between.
 
 ### Before you start
 
-The machine has to reach the backup server. Two ports, two different things:
+Nothing, in the normal case. Both addresses are reachable from the internet:
 
 | Address | Purpose |
 | ------- | ------- |
-| `enroll.backup.zebroo.de` (443) | the enrolment service - ordinary HTTPS, public |
-| `db.backup.zebroo.de` (8443) | the repository - pgBackRest's own protocol inside TLS |
+| `enroll.backup.zebroo.de` (443) | the enrolment service - ordinary HTTPS behind the proxy |
+| `db.backup.zebroo.de` (443) | the repository - pgBackRest's own protocol, own address |
 
-The two are reached differently on purpose. The enrolment service speaks HTTP,
-so it sits behind the same proxy as every other site and carries a publicly
-issued certificate. The repository cannot: pgBackRest speaks its own protocol
-and authorises by client certificate, which a terminating proxy would throw
-away - it is passed through untouched.
+They are reached differently on purpose. The enrolment service speaks HTTP, so
+it sits behind the same proxy as every other site and carries a publicly issued
+certificate. The repository cannot: pgBackRest speaks its own protocol and
+authorises by client certificate, which a terminating proxy would throw away.
+It therefore has its **own public address** rather than living as a vhost, and
+answers on 443 because only 80, 443 and 1194 reach us from the internet.
 
-The repository port is currently reachable over the zebroo VPN only. A machine
-that is not in a VPN group with the backup server gets a timeout rather than a
-helpful error, so check that first:
-
-```
-ping -c1 10.222.0.106
-```
+A machine therefore needs no VPN membership to be backed up. That matters
+beyond convenience: the backup traffic does not pass through the VPN
+concentrator, which is the wrong path for bulk data.
 
 ### 1. Check out and build
 
