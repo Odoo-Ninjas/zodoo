@@ -1,5 +1,17 @@
 # Changelog
 
+## 10.0.0
+
+
+- |
+- |
+- |
+- **BREAKING**: Datenbanksicherung von barman auf pgBackRest umgestellt: WAL-Archivierung statt Streaming, Inkrementelle auf Page-Ebene, Aufraeumen als Teil jedes Backups, und ein Repo-Host-Modus, bei dem weder Schluessel noch Loeschrecht auf der Kundenmaschine liegen.
+- |
+- |
+- |
+
+
 ## 9.4.4
 
 
