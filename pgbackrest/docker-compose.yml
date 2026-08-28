@@ -1,0 +1,70 @@
+# manage-order: 510
+volumes:
+  # The local repository (base backups + WAL archive). Only used when
+  # PGBR_REPO_HOST is empty; with a repo host the repository lives on the
+  # backup server and this stays almost empty.
+  pgbackrest_data:
+  # Postgres' unix socket directory, shared with the postgres service.
+  #
+  # Not a nicety: pgbackrest has no way to reach postgres over TCP. pg1-host
+  # means "run the pgbackrest process on that remote machine", not "connect
+  # libpq there", so pgbackrest always assumes it sits on the same machine as
+  # the cluster. This volume plus the data volume below are what make that
+  # assumption true inside a compose stack.
+  postgres_socket:
+  # Spool for the asynchronous archive_command. Written by the POSTGRES
+  # container, not by this one - archive-push and its async worker run
+  # wherever postgres runs. Declared here so `docker compose config` gives it
+  # a project-scoped name; the mount itself is added to postgres by
+  # __after_compose.py.
+  pgbackrest_spool:
+services:
+  pgbackrest:
+    build:
+      context: $ODOO_IMAGES/pgbackrest
+      args:
+        POSTGRES_VERSION: $POSTGRES_VERSION
+        PGBR_VERSION: $PGBR_VERSION
+    restart: unless-stopped
+    profiles:
+      - auto
+    # KEIN depends_on auf postgres. Die Abhaengigkeit laeuft andersherum:
+    # postgres zieht diesen Dienst mit hoch (siehe __after_compose.py), weil
+    # postgres ab der ersten Sekunde archiviert und die Stanza hier entsteht.
+    # Beide Richtungen zugleich waeren ein Zyklus, und compose lehnt das ab:
+    # "dependency cycle detected: pgbackrest -> postgres -> pgbackrest".
+    #
+    # Gewartet wird trotzdem, nur im Entrypoint: dort auf den SOCKET, was der
+    # Pfad ist, auf den es ankommt - eine Zustandsanzeige von compose sagt
+    # nichts darueber, ob pgbackrest postgres auch erreichen kann.
+    environment:
+      PGBR_STANZA: $PGBR_STANZA
+      PGBR_REPO_HOST: $PGBR_REPO_HOST
+      PGBR_BACKUP_FROM: $PGBR_BACKUP_FROM
+      DB_PORT: $DB_PORT
+      # The readiness probe below connects as this role, and it has to be
+      # the one the postgres image creates itself - zodoo's DB_USER is only
+      # created later by `odoo db reset`, so on a fresh cluster it does not
+      # exist and the sidecar would wait forever.
+      DB_USER: postgres
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      # The data directory, read-write rather than read-only on purpose:
+      # `pgbackrest restore` writes into it, and a restore is the entire point
+      # of taking backups. Backups themselves only read.
+      - odoo_postgres_volume:/var/lib/postgresql/data
+      # Der Socket kommt aus __after_compose.py, nicht von hier: auf Linux
+      # muss es DASSELBE Host-Verzeichnis sein, durch das auch zodoo mit
+      # postgres spricht ($HOST_RUN_DIR/postgres.socket). Ein Volume an dieser
+      # Stelle sperrt den Host aus, und `odoo psql` findet keinen Socket mehr.
+      # The local repository.
+      - pgbackrest_data:/var/lib/pgbackrest
+      # Rendered by __after_compose.py, read by BOTH this container and
+      # postgres, so the archive_command and the backup agree on where the
+      # repository is and how it is reached.
+      - $HOST_RUN_DIR/pgbackrest:/etc/pgbackrest:ro
+      # Log directory on the host: when a nightly backup fails, the answer
+      # should be readable without entering a container.
+      - $HOST_RUN_DIR/pgbackrest.logs:/var/log/pgbackrest
+      # Used when exporting a recovered data directory back to the host.
+      - $DUMPS_PATH:/host/dumps

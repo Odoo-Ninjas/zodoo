@@ -4,11 +4,11 @@ volumes:
   # difference between "deduplicated and incremental" and "reads everything
   # again every night" - it has to survive across runs.
   offsite_cache:
-  # Declared here as well, not only in barman/docker-compose.yml: with
-  # RUN_BARMAN=0 the barman compose file is not part of the merge at all, and a
+  # Declared here as well, not only in pgbackrest/docker-compose.yml: with
+  # RUN_PGBACKREST=0 that compose file is not part of the merge at all, and a
   # volume reference into nothing makes `docker compose config` fail. This way
-  # the source is simply empty when barman is switched off.
-  barman_data:
+  # the source is simply empty when pgbackrest is switched off.
+  pgbackrest_data:
 services:
   offsite:
     build:
@@ -38,8 +38,8 @@ services:
       OFFSITE_WO_RECIPIENT: $OFFSITE_WO_RECIPIENT
       OFFSITE_WO_DB_RECIPIENT: $OFFSITE_WO_DB_RECIPIENT
       # Set per run by `odoo offsite backup` (docker compose run -e) when a
-      # fresh dump was pulled because barman is off. Declared here only so the
-      # variable exists inside the container at all.
+      # fresh dump was pulled because pgbackrest is off. Declared here only so
+      # the variable exists inside the container at all.
       OFFSITE_DB_DUMP: ""
       PROJECT_NAME: $PROJECT_NAME
       # Selects this database's filestore subdirectory out of the host-wide
@@ -49,7 +49,7 @@ services:
       # All sources read-only: this container reads backups, it does not
       # produce any, and it must not touch production data under any
       # circumstances.
-      - barman_data:/source/barman:ro
+      - pgbackrest_data:/source/pgbackrest:ro
       - $ODOO_FILES:/source/filestore:ro
       - $DUMPS_PATH:/source/dumps:ro
       - offsite_cache:/var/lib/restic

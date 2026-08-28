@@ -1,6 +1,6 @@
 """Standard-Image-Modus: das offizielle odoo:<version> statt unseres Images.
 
-Der Rest des Stacks (Proxy, Postgres, Barman, Monitoring) laeuft unveraendert
+Der Rest des Stacks (Proxy, Postgres, pgBackRest, Monitoring) laeuft unveraendert
 weiter -- siehe odoo/__after_compose.py:_apply_standard_odoo_image. Was im
 offiziellen Image fehlt, ist alles, was wir in unser Image hineinbauen:
 /odoolib, der In-Container-Supervisor und die zodoo-CLI. Die Befehle, die

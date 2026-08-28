@@ -27,31 +27,27 @@ if [ -d /var/lib/postgresql/data ]; then
     chown 999:999 /var/lib/postgresql/data
 fi
 
-# Barman needs a `host replication` entry in pg_hba.conf. On a fresh data dir
-# that is added by init/setup_barman_replication.sh, but that script only runs
-# during initdb - so enabling Barman on an EXISTING cluster left the entry
-# missing and barman failed with "no pg_hba.conf entry for replication
-# connection". wal_level was set, the barman container was up, and nothing said
-# a word: only `barman check` revealed it.
+# pgBackRest writes from inside THIS container: the archive_command is executed
+# by the postgres server process, and with archive-async it spawns a background
+# worker that spools segments before pushing them. Both need directories that
+# belong to the postgres user.
 #
-# So ensure the entry on every start, while we are still root and before
-# postgres starts (no reload needed). Idempotent: the grep guard is the same
-# one the init script uses. Never widens anything beyond the existing host
-# line's auth method, and the entry is left in place when Barman is switched
-# off again - removing it could break a barman that is still streaming.
-function ensure_barman_pg_hba() {
-    local pgdata="${PGDATA:-/var/lib/postgresql/data/pgdata}"
-    local hba="$pgdata/pg_hba.conf"
-    local method="${POSTGRES_HOST_AUTH_METHOD:-md5}"
-    [ "${RUN_BARMAN:-0}" = "1" ] || return 0
-    # No pg_hba.conf yet means a fresh volume; initdb runs the init script.
-    [ -f "$hba" ] || return 0
-    if ! grep -qE '^\s*host\s+replication\s+all\s+all\s' "$hba"; then
-        echo "host replication all all ${method}" >> "$hba"
-        echo "barman: added missing pg_hba entry 'host replication all all ${method}'"
-    fi
+# They are volumes (see pgbackrest/__after_compose.py), so docker creates them
+# as root:root on first use and the unprivileged postgres process could not
+# write - archiving would fail on a brand new stack with a permission error
+# that says nothing about volumes.
+#
+# We are still root here and postgres has not started yet, so this is the right
+# moment. Cheap and idempotent, hence unconditional: the directories only exist
+# when the mounts are there, i.e. when pgbackrest is actually enabled.
+function ensure_pgbackrest_dirs() {
+    local d
+    for d in /var/spool/pgbackrest /var/log/pgbackrest; do
+        [ -d "$d" ] || continue
+        chown -R 999:999 "$d" 2>/dev/null || true
+    done
 }
-ensure_barman_pg_hba
+ensure_pgbackrest_dirs
 
 function make_entrypoint_with_params() {
 python3 <<EOF

@@ -1190,5 +1190,6 @@ Commands.register(edit_msg)
 
 # Register status directly in the top-level cli group so `odoo status`
 # resolves via exact match instead of AliasedGroup's subgroup search.
-# Without this, barman/status wins the tie (barman < setup alphabetically).
+# Without this, pgbackrest/status wins the tie (pgbackrest < setup
+# alphabetically).
 cli.add_command(status)

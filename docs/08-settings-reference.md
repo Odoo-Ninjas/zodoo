@@ -81,7 +81,7 @@ Or edit the files directly. Run `odoo reload` after manual edits.
 | `ODOO_STANDARD_IMAGE`      | `0`     | `1` = run the official `odoo:<version>` image from Docker Hub instead of our build. |
 | `ODOO_STANDARD_IMAGE_NAME` | —       | Override the image reference (default `odoo:${ODOO_VERSION_INT}`).                  |
 
-Everything around Odoo keeps working: proxy, postgres, barman and the whole
+Everything around Odoo keeps working: proxy, postgres, pgbackrest and the whole
 monitoring stack are independent of the Odoo image. What lives _inside_ our
 image is gone, so these commands are unavailable or behave differently:
 
@@ -91,7 +91,7 @@ image is gone, so these commands are unavailable or behave differently:
   (`odoo -i <mods> -u <mods> --stop-after-init`) in a one-off container.
 - `odoo backup files` does not see the filestore: it lives in the named
   volume `odoo-standard-data`, not under `${ODOO_FILES}`. The database is
-  fully covered by barman.
+  fully covered by pgbackrest.
 
 ## Registry
 
@@ -160,12 +160,12 @@ backup server, do not set these by hand — `odoo offsite register` fills them i
 | `OFFSITE_PASSPHRASE`       | _(empty)_                   | Repository key. **Without it the backups are lost** — it must exist outside this machine (1Password / the hosting backend).                                                                                                                              |
 | `OFFSITE_ENROLL_URL`       | `https://10.222.0.106:8443` | Enrollment service that `odoo offsite register` talks to.                                                                                                                                                                                                |
 | `OFFSITE_LOCAL_DIR`        | _(empty)_                   | Host directory mounted into the container — only for path targets, so `OFFSITE_REPO` reads the same on both sides.                                                                                                                                       |
-| `OFFSITE_BACKUP_CRON`      | `0 4 * * *`                 | Nightly run, deliberately after the Barman base backup (02:00).                                                                                                                                                                                          |
+| `OFFSITE_BACKUP_CRON`      | `0 4 * * *`                 | Nightly run, deliberately after the pgBackRest backup (02:00).                                                                                                                                                                                          |
 | `OFFSITE_KEEP_DAILY`       | `7`                         | Retention. Against append-only targets these describe what should apply **server-side**; the client cannot prune there.                                                                                                                                  |
 | `OFFSITE_KEEP_WEEKLY`      | `4`                         |                                                                                                                                                                                                                                                          |
 | `OFFSITE_KEEP_MONTHLY`     | `6`                         |                                                                                                                                                                                                                                                          |
 | `OFFSITE_COMPRESSION`      | `auto`                      | `auto`, `off` (already-compressed sources) or `max` (line costs more than CPU).                                                                                                                                                                          |
-| `OFFSITE_INCLUDE_DUMPS`    | `0`                         | Also back up all of `$DUMPS_PATH`. Off by default: with Barman the database is already covered, and the dumps folder often holds many old states.                                                                                                        |
+| `OFFSITE_INCLUDE_DUMPS`    | `0`                         | Also back up all of `$DUMPS_PATH`. Off by default: with pgBackRest the database is already covered, and the dumps folder often holds many old states.                                                                                                        |
 | `OFFSITE_ALLOW_WITHOUT_DB` | `0`                         | Emergency exit for the completeness check. The run aborts when no database state would be in the snapshot — a snapshot of attachments alone looks like a backup until someone restores. Only set this when the database is provably backed up elsewhere. |
 | `OFFSITE_ALLOW_WITHOUT_FILES` | `0`                      | The same check in the other direction: the run aborts when the filestore is missing or empty — which is exactly what an unmounted volume looks like. The database would be saved, the attachments not, and it would only show up on restore. |
 | `OFFSITE_LAYOUT`           | `split`                     | `split` writes two repositories per area, `<area>/db` and `<area>/files`, so each part has its own visible age on the backup server. `flat` is the old single-repository behaviour and exists for legacy installations only. |

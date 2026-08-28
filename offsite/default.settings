@@ -45,9 +45,9 @@ OFFSITE_PASSPHRASE=
 # `odoo offsite register`. Those paths are deliberately hard-wired rather than
 # settings: settings values are not expanded recursively, so a path containing
 # $HOST_RUN_DIR would arrive in the compose file literally.
-# Schedule of the daily offsite run. Deliberately AFTER the barman base backup
-# (BARMAN_BACKUP_CRON, 02:00) so the run picks up the fresh base instead of
-# yesterday's.
+# Schedule of the daily offsite run. Deliberately AFTER the pgbackrest base
+# backup (PGBR_FULL_CRON / PGBR_DIFF_CRON, 02:00) so the run picks
+# up the fresh state instead of yesterday's.
 OFFSITE_BACKUP_CRON=0 4 * * *
 # Retention. Against append-only targets (our backup server) the client cannot
 # clean up - these values then describe what should apply SERVER-SIDE. Against
@@ -60,17 +60,17 @@ OFFSITE_KEEP_MONTHLY=6
 # CPU.
 OFFSITE_COMPRESSION=auto
 # Additionally back up the dump files from $DUMPS_PATH. Off by default: with
-# barman the database is already covered by WAL plus base backup, and
+# pgbackrest the database is already covered by WAL plus base backup, and
 # /host/dumps often holds many old states.
 #
-# Without barman this is not needed at all: `odoo offsite backup` then pulls a
+# Without pgbackrest this is not needed at all: `odoo offsite backup` then pulls a
 # fresh dump itself and takes exactly that one along - see
 # OFFSITE_ALLOW_WITHOUT_DB.
 OFFSITE_INCLUDE_DUMPS=0
 # Emergency exit for the completeness check.
 #
 # The offsite run aborts when no database state would end up in the archive -
-# neither via barman nor via a dump. That is deliberate: the filestore is always
+# neither via pgbackrest nor via a dump. That is deliberate: the filestore is always
 # there, the database is not, and a snapshot of nothing but attachments looks
 # like a backup until somebody wants to restore. 1 switches the check off and
 # knowingly backs up the files only - which only makes sense when the database
@@ -115,7 +115,8 @@ OFFSITE_WO_DB_RECIPIENT=
 # Wie oft die WAL-Segmente hochgeschoben werden. Minuetlich, damit der Verlust
 # bei einem Maschinenausfall eine Minute kostet und nicht eine Nacht. Der Lauf
 # ist billig (nichts Neues = kein Upload) und laeuft nie doppelt (Lock).
-# Das laufende Segment (*.partial) wird nie mitgenommen.
+# Halbfertige Segmente gibt es hier nicht: pgbackrest legt ein Segment erst im
+# Archiv ab, wenn Postgres es fertig geschrieben hat.
 OFFSITE_WAL_CRON=* * * * *
 # Upload brake in KiB/s (0 = unlimited). Useful when the backup should not eat
 # the production system's bandwidth.

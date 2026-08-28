@@ -13,6 +13,7 @@
 | [09-manifest.md](./09-manifest.md)                     | MANIFEST file format and fields             |
 | [10-troubleshooting.md](./10-troubleshooting.md)       | Common problems and solutions               |
 | [11-offsite-backup.md](./11-offsite-backup.md)         | Encrypted offsite backup with restic        |
+| [12-pgbackrest.md](./12-pgbackrest.md)                 | Database backup + point-in-time recovery    |
 
 These files are the source of truth. (The former online copy at
 docs.zebroo.de is gone; internal documentation now lives in Odoo Knowledge.)

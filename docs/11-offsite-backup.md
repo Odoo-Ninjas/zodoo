@@ -18,7 +18,7 @@ Odoo machine                                     backup server
 │  (encrypts + deduplicates)    │   port 8000    │  --private-repos         │
 └───────────────────────────────┘                └───────────┬──────────────┘
    sources (read-only):                                      │
-     /source/barman     Barman catalog (WAL + base backup)    ▼
+     /source/pgbackrest pgBackRest repo (WAL + backups)       ▼
      /source/filestore  this database's filestore        <area>/db
      /source/dumps      optional / the fresh dump        <area>/files
 ```
@@ -29,7 +29,7 @@ A run writes into **two** repositories under the same customer area:
 
 | Repository      | Contents                                | Snapshot tags |
 | --------------- | --------------------------------------- | ------------- |
-| `<area>/db/`    | Barman catalog, or the database dump    | `zodoo,db`    |
+| `<area>/db/`    | pgBackRest repository, or the database dump | `zodoo,db` |
 | `<area>/files/` | the filestore of this database          | `zodoo,files` |
 
 The reason is monitoring, not tidiness. With everything in one repository, an
@@ -136,13 +136,13 @@ redundancy.
 
 A run collects, from read-only mounts:
 
-- `/source/barman` — the Barman catalog (WAL + base backup), only present with
-  `RUN_BARMAN=1`
+- `/source/pgbackrest` — the pgBackRest repository (WAL archive + backups),
+  only present with `RUN_PGBACKREST=1`
 - the filestore of **this** database (`filestore/$DBNAME`), not the host-wide
   pool; on a machine with several instances the pool holds other customers'
   attachments
 - `/source/dumps` only with `OFFSITE_INCLUDE_DUMPS=1`, or the single fresh dump
-  that `odoo offsite backup` pulls when Barman is off
+  that `odoo offsite backup` pulls when pgBackRest is off
 
 **The run aborts when no database state would end up in the snapshot.** The
 filestore is always there, the database is not — and a snapshot of nothing but
@@ -164,8 +164,8 @@ Both streams are attempted even when one fails, and the run then reports which.
 Otherwise a broken database upload would mask that the filestore did not go
 either, and one alarm would arrive where two belong.
 
-The recommendation is `RUN_BARMAN=1`: it costs nothing extra (it runs on a disk
-that is already paid for) and adds point-in-time recovery on top.
+The recommendation is `RUN_PGBACKREST=1`: it costs nothing extra (it runs on a
+disk that is already paid for) and adds point-in-time recovery on top.
 
 ## Write-only filestore backup
 
@@ -263,11 +263,17 @@ names.
 ## Write-only database backup (WAL)
 
 The same move as the filestore, for the half that matters more. With
-`RUN_BARMAN=1` the database is captured as **base backups plus WAL segments**,
-and both are immutable: a WAL segment is written once and never changed, a base
-backup directory never changes once barman marks it `DONE`. So there is nothing
-to deduplicate — and therefore no need to read the target, which is what forces
-a readable key onto the machine in the restic path.
+`RUN_PGBACKREST=1` the database is captured as **backups plus WAL segments**,
+and both are immutable: a WAL object is written once and never changed, a backup
+directory never changes once pgbackrest has recorded its label in `backup.info`.
+So there is nothing to deduplicate — and therefore no need to read the target,
+which is what forces a readable key onto the machine in the restic path.
+
+Note this is **not** pgBackRest's own repo-host topology. That one also keeps
+the key and the delete rights off this machine, but it needs pgbackrest running
+on the far side. This path uploads to a receiver that only ever stores what it
+is given and knows nothing about postgres — see
+[12-pgbackrest.md](./12-pgbackrest.md#repository-topology).
 
 | Setting | What it is |
 | --- | --- |
@@ -275,7 +281,7 @@ a readable key onto the machine in the restic path.
 | `OFFSITE_WAL_CRON` | how often WAL is pushed. `* * * * *` — every minute |
 
 ```bash
-odoo offsite db     # base backups + WAL (after the nightly barman backup)
+odoo offsite db     # backups + WAL (after the nightly pgbackrest backup)
 odoo offsite wal    # WAL only, every minute via CRONJOB_OFFSITE_WAL
 ```
 
@@ -291,8 +297,9 @@ a real request, and one shared key cannot express it.
 ### What this buys beyond confidentiality
 
 - **Completeness is checkable without a key.** WAL names are a sequence and the
-  manifest declares, in the clear, which segments belong to which base backup
-  (`begin_wal`/`end_wal`/`timeline`). In a restic repository the file names are
+  manifest declares, in the clear, which segments belong to which backup
+  (`wal_start`/`wal_stop`, plus the backup `type`). In a restic repository the
+  file names are
   encrypted, so only a key holder could ever notice a broken chain. On the
   backup server `wo-check` verifies: every declared object present and the right
   size, every base backup's `begin_wal` present, no gap inside a timeline, and
@@ -404,22 +411,23 @@ still no `GET`.
 
 ### Local space on the machine
 
-Barman writes base backups into its own catalogue before anything is uploaded, so
-local space is needed for the local retention window. Two settings decide how
-much:
+pgBackRest writes into its local repository before anything is uploaded, so local
+space is needed for the local retention window. Three settings decide how much:
 
 | Setting | Default | Effect |
 | --- | --- | --- |
-| `BARMAN_BACKUP_COMPRESSION` | `zstd` | measured 58.4 MiB → 20.9 MiB on a small test database, i.e. factor ~2.8 |
-| `BARMAN_RETENTION` | `RECOVERY WINDOW OF 2 DAYS` | the history lives offsite now, so the machine only keeps enough to serve the upload and a fast local restore |
+| `PGBR_COMPRESS_TYPE` | `zst` | roughly a third of the raw size at low CPU cost |
+| `PGBR_RETENTION_FULL` | `14` (days, `..._TYPE=time`) | how far back a continuous point-in-time window reaches |
+| `PGBR_FULL_CRON` / `..._DIFF_CRON` | weekly / daily | weekly full plus daily differentials, rather than a full every night |
 
-Without both, a 600 GB database with daily base backups and a 7-day window needs
-over 4 TB locally. With both it is a few hundred GB.
+The schedule is the real lever. A daily full of a 45 GiB database is about
+16 GiB compressed, i.e. 5.8 TiB a year for one instance. Weekly full plus daily
+differentials costs a fraction of that and restores just as fast, because
+`restore --delta` only fetches the files that differ.
 
-The barman image ships the `zstd` and `lz4` binaries, because barman hands the
-decompressor to `tar`: without the binary a compressed base backup fails with
-`tar (child): zstd: Cannot exec` - no backup at all rather than an uncompressed
-one.
+Retention needs no job of its own: `expire` runs as the last step of every
+backup. That is deliberate — a cleanup that has to be scheduled separately is a
+cleanup that eventually is not.
 
 ### Ledger and restoring
 
@@ -430,13 +438,17 @@ from the host needs `sudo`.
 Restoring needs the age private key from 1Password:
 
 ```bash
-age -d -i db.age-key -o base.tar.gz base-<id>.tar.gz.age && tar xzf base.tar.gz
-for f in wal-*.gz.age; do age -d -i db.age-key "$f" | gunzip > "wals/${f#wal-}"; done
+age -d -i db.age-key -o backup.tar backup-<label>.tar.age && tar xf backup.tar
+for f in wal-*.age; do age -d -i db.age-key -o "${f%.age}" "$f"; done
 ```
 
-Then hand the base backup and the WAL to barman (or postgres directly) as a
-normal PITR restore. A decrypted segment must be exactly 16 777 216 bytes — a
-cheap sanity check that needs no barman.
+The result is a pgBackRest repository again: put the backup directories under
+`backup/<stanza>/` and the segments under `archive/<stanza>/<version>-<n>/`,
+point a `pgbackrest.conf` at it and run a normal `restore`.
+
+Unlike the barman path the segments are **already compressed** by pgbackrest, so
+there is no `gunzip` step and the old "a segment must be exactly 16 777 216
+bytes" sanity check no longer applies — the compressed size varies.
 
 ## Switching the restic path off entirely
 
@@ -485,7 +497,7 @@ the write-only receiver needs it.
 they are reporting on.
 
 The nightly run is `OFFSITE_BACKUP_CRON` (default 04:00), deliberately after the
-Barman base backup at 02:00 so it picks up the fresh base instead of yesterday's.
+pgBackRest backup at 02:00 so it picks up the fresh state instead of yesterday's.
 
 ## Retention
 
@@ -519,7 +531,7 @@ export RESTIC_REPOSITORY="$BASE/files/"
 restic --cacert rest-server.crt restore latest --target /restore
 ```
 
-Same passphrase for both. Then restore the database from the dump or the Barman
+Same passphrase for both. Then restore the database from the dump or the pgBackRest
 catalog, and put the filestore back into `$ODOO_FILES/filestore/<db>`.
 
 Check the dates of the two snapshots against each other. A filestore much newer
@@ -552,7 +564,7 @@ location and at the integrity of the history.
 | `OFFSITE_REST_USER is empty`                          | Area credentials missing — the registration never completed.                                                                                        |
 | restic refuses the connection / certificate error     | `rest-server.crt` missing or the server certificate changed. Re-run `register`; if the fingerprint really changed, find out why before trusting it. |
 | `Enrollment service … is unreachable`                    | The enrollment service is only reachable over the zebroo VPN. Is this machine in a VPN group with the backup server?                                |
-| Backup aborts with "no database state in the backup"    | Working as intended. Set `RUN_BARMAN=1`, or use `odoo offsite backup` (pulls a dump itself).                                                        |
+| Backup aborts with "no database state in the backup"    | Working as intended. Set `RUN_PGBACKREST=1`, or use `odoo offsite backup` (pulls a dump itself).                                                    |
 | Stale lock after a crash / reboot                     | The run breaks a hanging lock itself before starting. `rest-server` permits lock removal even in append-only mode.                                  |
 | Offsite target is a path and the run refuses to start | Parent directory missing — the disk is probably not mounted. Do not "fix" this by creating the directory.                                           |
 

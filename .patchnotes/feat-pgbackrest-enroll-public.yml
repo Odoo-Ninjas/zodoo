@@ -1,0 +1,11 @@
+type: minor
+description: |
+  Der Anmeldedienst laeuft jetzt oeffentlich unter enroll.backup.zebroo.de
+  (443) statt auf Port 8445 im VPN. Damit entfaellt der Schritt, bei dem beim
+  ersten Kontakt ein CA-Fingerabdruck angezeigt und bestaetigt werden musste -
+  das Zertifikat ist oeffentlich ausgestellt.
+
+  Zum Testen: `odoo pgbackrest register` auf einer Instanz ohne VPN-Zugang zum
+  Backup-Server aufrufen. Erwartet: die Anfrage geht durch. Die Freigabemaske
+  ist von aussen NICHT erreichbar (404) - nur aus VPN und LAN.
+breaking: false

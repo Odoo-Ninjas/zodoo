@@ -1,0 +1,3 @@
+type: breaking
+description: "Datenbanksicherung von barman auf pgBackRest umgestellt: WAL-Archivierung statt Streaming, Inkrementelle auf Page-Ebene, Aufraeumen als Teil jedes Backups, und ein Repo-Host-Modus, bei dem weder Schluessel noch Loeschrecht auf der Kundenmaschine liegen."
+breaking: true

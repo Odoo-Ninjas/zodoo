@@ -58,9 +58,9 @@ if click:
                 else:
                     # No exact match. If the shortest matched name is itself
                     # a prefix of ALL matched names (e.g. `odoo bar` matches
-                    # both `barman` and `barman-status`), resolve to the
+                    # both `pgbackrest` and `pgbackrest-info`), resolve to the
                     # shortest one — first by registration order on equal
-                    # names. Without this, adding `barman-status` made the
+                    # names. Without this, adding `pgbackrest-info` made the
                     # established `odoo bar` abbreviation ambiguous.
                     names = {m[0].name for m in matches}
                     shortest = min(names, key=len)

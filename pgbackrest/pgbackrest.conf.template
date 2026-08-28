@@ -1,0 +1,72 @@
+[global]
+# Where the repository is reached. Filled by entrypoint.sh, because the two
+# modes are structurally different rather than a changed value:
+#
+#   local repo host   repo1-path, and this container owns the storage
+#   remote repo host  repo1-host + TLS material, and NO repo1-path - the path
+#                     exists on the other machine and is none of our business
+#
+# That is also the security boundary: in remote mode nothing here can read or
+# delete the repository, so the certificate below is an identity, not a key.
+${PGBR_REPO_SECTION}
+
+# Compression and parallelism.
+compress-type=${PGBR_COMPRESS_TYPE}
+compress-level=${PGBR_COMPRESS_LEVEL}
+process-max=${PGBR_PROCESS_MAX}
+
+# Asynchronous WAL archiving. The archive_command drops the segment in the
+# spool directory and returns at once; background workers do the pushing. The
+# queue cap is the safety valve: past it, archive-push starts failing loudly
+# instead of letting pg_wal grow until the disk is full.
+archive-async=${PGBR_ARCHIVE_ASYNC}
+spool-path=/var/spool/pgbackrest
+archive-push-queue-max=${PGBR_ARCHIVE_PUSH_QUEUE_MAX}
+
+# Wait for the required WAL to actually arrive in the repository before
+# declaring a backup done, and fail the backup if it does not. This is the
+# check that makes "backup succeeded" mean "backup is restorable": a base
+# backup without the WAL written during it cannot be started at all, and
+# without this setting that only shows up on the day somebody needs it.
+archive-check=y
+archive-timeout=60
+
+# Force an immediate checkpoint instead of waiting for the next scheduled one.
+# Without it a backup can sit idle for minutes before the first byte moves.
+start-fast=y
+
+# Logging. Console output is what the operator sees through `odoo pgbackrest`,
+# the file log is what is left to look at afterwards.
+log-level-console=info
+log-level-file=detail
+log-path=/var/log/pgbackrest
+log-timestamp=y
+
+[${PGBR_STANZA}]
+# The data directory as this container sees it. pgbackrest reads it directly -
+# that is why the postgres volume is mounted here and why this container runs
+# under the same uid as postgres.
+pg1-path=${PGDATA}
+# The connection used for pg_backup_start / pg_backup_stop and for querying the
+# server version and configuration. A superuser has everything needed; no
+# separate role is created, exactly as the barman path did it.
+#
+# Deliberately a UNIX SOCKET, not a host/port. pgbackrest has no option to
+# reach postgres over TCP: pg1-host means "run the pgbackrest process on that
+# remote machine", not "connect libpq there". Since pgbackrest must read PGDATA
+# anyway, it always considers itself co-located with the cluster.
+#
+# In a compose setup that co-location has to be manufactured, and this is what
+# the two shared volumes in docker-compose.yml are for: the data directory and
+# postgres' socket directory are both mounted here, so from pgbackrest's point
+# of view the cluster is simply local.
+pg1-socket-path=/var/run/postgresql
+pg1-port=${DB_PORT}
+# The superuser the postgres image itself creates, NOT zodoo's DB_USER.
+#
+# DB_USER (odoo) is created later, by `odoo db reset` - on a freshly
+# initialised cluster it does not exist yet, and the sidecar then fails its
+# startup check with `role "odoo" does not exist` on every boot until somebody
+# resets the database. "postgres" exists from the moment the cluster does.
+pg1-user=postgres
+pg1-database=postgres

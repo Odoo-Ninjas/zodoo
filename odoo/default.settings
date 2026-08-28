@@ -57,7 +57,7 @@ SRC_EXTRA=1
 ZODOO_EMBED=0
 
 # Standard-Image-Modus: statt unseres gebauten Images laeuft das offizielle
-# odoo:<version> von Docker Hub. Proxy, Postgres, Barman und Monitoring bleiben.
+# odoo:<version> von Docker Hub. Proxy, Postgres, pgBackRest und Monitoring bleiben.
 # Nicht alle zodoo-Befehle funktionieren dann (siehe docs).
 ODOO_STANDARD_IMAGE=0
 # Leer = odoo:${ODOO_VERSION_INT}; sonst z.B. ein eigenes Tag aus der Registry.

@@ -1,16 +1,33 @@
 RUN_CRONJOBS=1
 JOB_BACKUP_ODOO_DB=odoo backup odoo-db $DB_ODOO_FILEFORMAT --dumptype $DB_ODOO_DUMPTYPE
 
-# Daily Barman full base backup (WAL is streamed continuously by the barman
-# container in between). No-ops unless RUN_BARMAN=1 - the command aborts early
-# when the barman service is absent. Schedule comes from BARMAN_BACKUP_CRON.
-JOB_BARMAN_BACKUP=odoo barman backup
-CRONJOB_BARMAN_BACKUP=$BARMAN_BACKUP_CRON $JOB_BARMAN_BACKUP
+# pgBackRest base backups. WAL is archived continuously by postgres itself
+# (archive_command) in between, so these jobs only take the base states.
+#
+# Three of them because the types differ in what they cost and what they buy:
+#
+#   full  a complete copy. Weekly, on the quietest day.
+#   diff  everything changed since the last full. Daily.
+#   incr  everything since the last backup of any type. Optional, intra-day.
+#
+# All three no-op quietly unless RUN_PGBACKREST=1 - they run on every project,
+# and a project without pgbackrest must not log a cron error every night.
+#
+# Retention is NOT a separate job on purpose: pgbackrest expires as the last
+# step of every backup. A cleanup that has to be scheduled separately is a
+# cleanup that eventually is not (see JOB_DADDY_CLEANUP below, which has no
+# CRONJOB_ counterpart and therefore never runs).
+JOB_PGBACKREST_FULL=odoo pgbackrest backup --type full
+CRONJOB_PGBACKREST_FULL=$PGBR_FULL_CRON $JOB_PGBACKREST_FULL
+JOB_PGBACKREST_DIFF=odoo pgbackrest backup --type diff
+CRONJOB_PGBACKREST_DIFF=$PGBR_DIFF_CRON $JOB_PGBACKREST_DIFF
+JOB_PGBACKREST_INCR=odoo pgbackrest backup --type incr
+CRONJOB_PGBACKREST_INCR=$PGBR_INCR_CRON $JOB_PGBACKREST_INCR
 
 # Taegliches verschluesseltes Offsite-Backup (restic). No-op solange
 # RUN_OFFSITE=0 - der Befehl steigt dann still aus, damit Projekte ohne
 # Offsite-Ziel nicht jede Nacht einen Cron-Fehler melden. Laeuft nach dem
-# Barman-Basisbackup, damit die frische Basis mitgeht.
+# pgBackRest-Basisbackup, damit der frische Stand mitgeht.
 JOB_OFFSITE_BACKUP=odoo offsite backup
 CRONJOB_OFFSITE_BACKUP=$OFFSITE_BACKUP_CRON $JOB_OFFSITE_BACKUP
 

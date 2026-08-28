@@ -1,0 +1,14 @@
+# The image is built per postgres major version: the client tools it carries
+# (psql, pg_isready) have to match the server, so two projects on different
+# majors must not share one image.
+#
+# Everything else that configures the backup - repository, retention, schedule,
+# certificates - arrives through the environment and the mounted configuration
+# at runtime, and deliberately does NOT enter the tag. Otherwise two projects
+# pointing at different backup servers would build two identical images under
+# two different tags.
+settings:
+  - POSTGRES_VERSION
+tag_prefix:
+  - POSTGRES_VERSION
+generation: 2

@@ -5,6 +5,12 @@ services:
   postgres:
     build:
       context: $ODOO_IMAGES/postgres
+      args:
+        # Pins the pgbackrest package so this image and the sidecar
+        # cannot drift apart - see pgbackrest/default.settings.
+        # Empty on a project without pgBackRest, which then installs
+        # unpinned exactly as before.
+        PGBR_VERSION: $PGBR_VERSION
     restart: unless-stopped
     stdin_open: true
     command: ["postgres"]

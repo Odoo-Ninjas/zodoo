@@ -1,7 +1,7 @@
 name: Bake test
 
 # End-to-end smoke test for the `odoo` CLI: init -> reload -> db reset -> bake,
-# plus the barman streaming-backup + point-in-time-recovery roundtrip.
+# plus the pgbackrest backup + point-in-time-recovery roundtrip.
 # Heavy (clones full Odoo + builds Docker images). Runs:
 #   - on PR when CLI source, templates or this workflow changes
 #   - on demand via workflow_dispatch (with a version input)
@@ -20,7 +20,7 @@ on:
     paths:
       - "zodoo/src/**"
       - "odoo/**"
-      - "barman/**"
+      - "pgbackrest/**"
       - "templates/customs_template/**"
       - ".github/workflows/bake-test.yml"
   workflow_dispatch:
@@ -107,13 +107,24 @@ jobs:
           "$ZODOO_PY" -m pytest -vv -s -m slow \
             zodoo/src/zodoo/tests/test_offsite_filestore_e2e.py
 
-      - name: Run barman PITR end-to-end test
-        # Brings up the optional barman service, takes a base backup + WAL,
+      - name: Run pgbackrest PITR end-to-end test
+        # Brings up the optional pgbackrest service, takes a backup + WAL,
         # then recovers to a named restore point and asserts the change was
         # undone. Reuses the 19.0 docker layers built by the bake step.
         run: |
           ZODOO_PY="$(pipx environment --value PIPX_LOCAL_VENVS)/zodoo/bin/python"
-          "$ZODOO_PY" -m pytest -vv -s -m slow zodoo/src/zodoo/tests/test_lib_barman.py
+          "$ZODOO_PY" -m pytest -vv -s -m slow zodoo/src/zodoo/tests/test_lib_pgbackrest.py
+
+      - name: Run pgbackrest repo-host end-to-end test
+        # The other pgbackrest test uses a local repository. This one brings up
+        # a real `pgbackrest server` as the receiving side - in the project's
+        # OWN image, so the two ends cannot differ in version - and asserts
+        # that full, diff and incr all arrive over TLS with a client
+        # certificate. Reuses the docker layers built above.
+        run: |
+          ZODOO_PY="$(pipx environment --value PIPX_LOCAL_VENVS)/zodoo/bin/python"
+          "$ZODOO_PY" -m pytest -vv -s -m slow \
+            zodoo/src/zodoo/tests/test_pgbackrest_repo_host_e2e.py
 
       - name: Collect docker logs on failure
         if: failure()
