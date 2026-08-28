@@ -1296,19 +1296,50 @@ def test_e2e_archiving_heals_a_missing_stanza(pgbackrest_project):
     # Vorbedingung: es gibt sie ueberhaupt.
     assert _in_postgres(project, f"test -d {archive} && echo da").stdout.strip()
 
-    _in_postgres(project, f"rm -rf {archive}")
+    # Archiv weg - UND den Spool leeren.
+    #
+    # Der Spool ist hier nicht Beiwerk: mit archive-async=y reicht der
+    # Vordergrundaufruf das Segment nur weiter und meldet Erfolg, der
+    # eigentliche Push passiert in einem Hintergrundprozess. Bleiben dessen
+    # Statusdateien liegen, gilt das Segment als erledigt, es wird gar nicht
+    # erst versucht - und dann gibt es auch nichts zu heilen.
+    # Die GANZE Stanza, nicht nur das Archiv. Fehlt nur eines von beiden,
+    # verweigert pgbackrest die Neuanlage:
+    #
+    #     ERROR: [055]: backup.info exists but archive.info is missing
+    #
+    # Das ist Absicht und richtig so: ein archive.info neben bestehende
+    # Sicherungen zu setzen wuerde einen Bestand als brauchbar ausweisen, der
+    # es womoeglich nicht ist. Ein halb zerstoertes Repository gehoert vor
+    # menschliche Augen, nicht in eine Automatik. Die Huelle heilt deshalb den
+    # FEHLENDEN Fall, nicht den halben - und scheitert im halben laut.
+    #
+    # Dieser Test laeuft nach dem PITR-Test, dessen Sicherungen hier also
+    # mit weggeraeumt werden duerfen.
+    _in_postgres(project, f"rm -rf {archive} /var/lib/pgbackrest/backup/{stanza}")
+    # Und den Spool: mit archive-async=y reicht der Vordergrundaufruf das
+    # Segment nur weiter und meldet Erfolg. Bleiben die Statusdateien liegen,
+    # gilt es als erledigt und wird gar nicht erst versucht.
+    _in_postgres(project, "rm -rf /var/spool/pgbackrest/* || true", check=False)
     assert not _in_postgres(
         project, f"test -d {archive} && echo da", check=False
     ).stdout.strip(), "die Stanza liess sich nicht entfernen"
 
-    # Ein WAL-Wechsel zwingt postgres, sofort zu archivieren.
-    _sql(project, "SELECT pg_switch_wal()")
+    # Mehrere WAL-Wechsel, und das ist ebenfalls kein Zufall: der Fehler des
+    # Hintergrundprozesses erreicht den Vordergrund erst beim NAECHSTEN
+    # Segment. Ein einzelner Wechsel wuerde die Huelle also gar nicht in die
+    # Lage bringen, die sie behandeln soll.
+    def _healed():
+        _sql(project, "SELECT pg_switch_wal()", check=False)
+        time.sleep(4)
+        return _in_postgres(
+            project, f"test -d {archive} && echo da", check=False
+        ).stdout.strip()
 
     healed = _retry(
-        lambda: _in_postgres(
-            project, f"test -d {archive} && echo da", check=False
-        ).stdout.strip(),
-        timeout=120,
+        _healed,
+        timeout=180,
+        interval=6.0,
         what="die Stanza wird von der Huelle neu angelegt",
     )
     assert healed, "die Stanza kam nicht zurueck - die Huelle hat nicht geheilt"
@@ -1316,7 +1347,7 @@ def test_e2e_archiving_heals_a_missing_stanza(pgbackrest_project):
     # Und sie heilt LAUT: eine stille Reparatur waere fast so schlecht wie ein
     # stiller Ausfall, weil niemand erfaehrt, dass etwas nicht stimmte.
     logs = _run(
-        ["docker", "logs", "--tail", "400", f"{project.name}_postgres"],
+        ["docker", "logs", "--tail", "600", f"{project.name}_postgres"],
         cwd=project.path,
         timeout=60,
         check=False,
@@ -1327,3 +1358,35 @@ def test_e2e_archiving_heals_a_missing_stanza(pgbackrest_project):
     # Zum Schluss der Beweis, dass wirklich wieder archiviert wird und nicht
     # nur ein Verzeichnis existiert.
     project.run("pgbackrest", "check", timeout=180)
+
+
+def test_wrapper_fails_loudly_when_the_stanza_cannot_be_created(tmp_path):
+    """Ein halb zerstoertes Repository darf die Huelle NICHT stillschweigend flicken.
+
+    pgbackrest verweigert die Neuanlage, wenn backup.info da ist und
+    archive.info fehlt ("[055]"). Das ist richtig: ein archive.info neben
+    bestehende Sicherungen zu setzen wuerde einen Bestand als brauchbar
+    ausweisen, der es womoeglich nicht ist. Solche Faelle gehoeren vor
+    menschliche Augen.
+
+    Die Huelle muss dann also weiter scheitern - und zwar mit dem
+    Rueckgabewert von archive-push, damit postgres es merkt und weiter
+    versucht, statt das Segment fuer erledigt zu halten.
+    """
+    env = _fake_pgbackrest(
+        tmp_path,
+        "#!/bin/bash\n"
+        'echo "$@" >> "$CALLS"\n'
+        'if [ "$2" = "stanza-create" ]; then\n'
+        '  echo "ERROR: [055]: backup.info exists but archive.info is missing" >&2\n'
+        "  exit 55\n"
+        "fi\n"
+        "echo \"FileMissingError: unable to open missing file "
+        "'/var/lib/pgbackrest/archive/demo/archive.info' for read\" >&2\n"
+        "exit 103\n",
+    )
+    res = _run_wrapper(tmp_path, env)
+    calls = (tmp_path / "calls.log").read_text()
+    assert "stanza-create" in calls, "es wurde nicht einmal versucht"
+    assert res.returncode == 103, res
+    assert "archive.info" in res.stderr

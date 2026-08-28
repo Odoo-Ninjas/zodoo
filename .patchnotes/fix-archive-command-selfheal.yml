@@ -5,9 +5,14 @@ description: |
   Sidecar laeuft - und es fiel nicht auf, weil postgres normal weiterbediente,
   waehrend sich das WAL staute.
 
-  Genau EINE Ursache wird geheilt (fehlende archive.info), jeder andere Fehler
-  geht unveraendert durch: ein archive_command, das Probleme verschluckt, wirft
-  WAL weg, und die Luecke faellt erst beim Wiederherstellen auf.
+  Genau EINE Ursache wird geheilt (die vollstaendig fehlende Stanza), jeder
+  andere Fehler geht unveraendert durch: ein archive_command, das Probleme
+  verschluckt, wirft WAL weg, und die Luecke faellt erst beim Wiederherstellen
+  auf.
+
+  Ein HALB zerstoertes Repository wird bewusst NICHT geflickt - fehlt nur
+  archive.info, waehrend backup.info dasteht, scheitert es weiter und laut.
+  Das gehoert vor menschliche Augen.
 
   Abgedeckt von einem End-zu-Ende-Test im Bake-Lauf: Stanza im laufenden
   Projekt entfernen, WAL-Wechsel ausloesen, und pruefen, dass sie zurueckkommt,

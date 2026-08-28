@@ -14,6 +14,14 @@
 # und zwar dauerhaft. postgres bedient weiter, das WAL staut sich, und die
 # Sicherung, die alle fuer vorhanden halten, gibt es nicht.
 #
+# Was sie ebenfalls nicht tut: ein HALB zerstoertes Repository flicken. Fehlt
+# nur archive.info, waehrend backup.info dasteht, verweigert pgbackrest die
+# Neuanlage ("[055]: backup.info exists but archive.info is missing") - und das
+# ist richtig so. Ein archive.info neben bestehende Sicherungen zu setzen wuerde
+# einen Bestand als brauchbar ausweisen, der es womoeglich nicht ist. Solche
+# Faelle gehoeren vor menschliche Augen, nicht in eine Automatik. Die Huelle
+# scheitert dann weiter, laut, mit dem Rueckgabewert von archive-push.
+#
 # Was diese Huelle NICHT tut: Fehler verschlucken. Ein archive_command, das
 # bei Problemen Erfolg meldet, wirft WAL-Segmente weg, und die Luecke faellt
 # beim Wiederherstellen auf - dem teuersten denkbaren Zeitpunkt. Deshalb wird
