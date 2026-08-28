@@ -106,7 +106,14 @@ jobs:
           # Nur die projektunabhaengigen Dienste. "odoo" fehlt hier bewusst
           # (Tag haengt am Projekt), ebenso alles, was ohnehin nicht auf einer
           # Kundenmaschine laeuft.
-          SERVICES="postgres proxy cronjobs pgbackrest rsync console pgtools"
+          #
+          # cronjobshell, offsite und odoo_metrics_exporter kamen dazu: sie
+          # laufen auf jeder Kundenmaschine, standen aber nicht in der Liste.
+          # Gemessen am 28.08.2026 auf einer frisch aufgesetzten Instanz --
+          # genau diese drei meldete zodoo als "not in zodoo registry" und
+          # baute sie einzeln nach.
+          SERVICES="postgres proxy cronjobs cronjobshell pgbackrest offsite"
+          SERVICES="$SERVICES odoo_metrics_exporter rsync console pgtools"
 
           IFS=',' read -ra VERS <<< "$VERSIONS"
           for version in "${VERS[@]}"; do
@@ -127,6 +134,20 @@ jobs:
             odoo setting "ZODOO_REGISTRY_USERNAME=$REGISTRY_USERNAME"
             odoo setting "ZODOO_REGISTRY_PASSWORD=$REGISTRY_PASSWORD"
             odoo setting "ZODOO_REGISTRY_SUGGESTED=1"
+            # Die Dienste muessen EINGESCHALTET sein, sonst schreibt "odoo
+            # reload" sie gar nicht erst in die Compose-Datei -- und dann
+            # bricht der Bau mit "could not find any target matching
+            # 'pgbackrest'" ab. Genau daran ist dieser Ablauf seit dem
+            # 24.08.2026 jedes Mal gescheitert, und weil er die Images
+            # deshalb nie hochgeladen hat, musste sie jede Kundenmaschine
+            # selbst bauen: rund neun Minuten pro Bestellung statt anderthalb.
+            #
+            # Hier eingeschaltet zu sein hat keine Nebenwirkung: das Projekt
+            # ist ein Wegwerf-Kontext, gestartet wird nichts, gebraucht wird
+            # nur die richtige Berechnung der Tags.
+            odoo setting "RUN_PGBACKREST=1"
+            odoo setting "RUN_OFFSITE=1"
+            odoo setting "RUN_DASHBOARD=1"
             odoo reload
             # shellcheck disable=SC2086
             odoo build $SERVICES
