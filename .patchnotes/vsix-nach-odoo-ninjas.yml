@@ -1,0 +1,11 @@
+type: internal
+description: |
+  Auch die VSCode-Erweiterung ist vom Privataccount marcwimmer nach
+  Odoo-Ninjas umgezogen. Der Download-Link in `lib_composer.py` zeigt jetzt
+  direkt dorthin statt ueber GitHubs Weiterleitung.
+
+  Damit verweist zodoo nur noch an einer einzigen Stelle auf den
+  Privataccount: in einem Kommentar in `module_tools.py`, der die Syntax fuer
+  direkte Git-URLs am Beispiel eines pymssql-Forks zeigt. Der hat keine
+  Funktion.
+breaking: false
