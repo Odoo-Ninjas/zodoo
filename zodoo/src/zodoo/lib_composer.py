@@ -2173,7 +2173,7 @@ def _install_zebroo_extension():
     code_bin = shutil.which("code") or shutil.which("code-insiders")
     if not code_bin:
         return
-    vsix_url = "https://github.com/marcwimmer/vscodeextension_browserodoo/releases/latest/download/zebroo.vsix"
+    vsix_url = "https://github.com/Odoo-Ninjas/vscodeextension_browserodoo/releases/latest/download/zebroo.vsix"
     vsix_path = Path(os.environ.get("HOME", "~")) / ".odoo" / "zebroo.vsix"
     try:
         subprocess.run(
