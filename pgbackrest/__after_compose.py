@@ -1,3 +1,4 @@
+import platform
 import inspect
 import os
 from pathlib import Path
@@ -336,9 +337,35 @@ def after_compose(config, settings, yml, globals):
     _add_volume(
         pg, "bind", f"{run_dir}/pgbackrest", "/etc/pgbackrest", read_only=True
     )
-    # The socket directory, shared with the sidecar (see the volume comment in
-    # docker-compose.yml).
-    _add_volume(pg, "volume", "postgres_socket", "/var/run/postgresql")
+    # The socket directory, shared with the sidecar - and on Linux it must be
+    # the SAME host directory that zodoo itself talks through.
+    #
+    # postgres/docker-compose.platform_linux.yml binds
+    # $HOST_RUN_DIR/postgres.socket onto /var/run/postgresql, and
+    # odoo_config.py connects through exactly that path. Putting a named
+    # volume on top of it means the host never sees a socket again: `odoo
+    # psql`, `odoo db reset` and everything else that talks to postgres from
+    # outside fail with "No such file or directory".
+    #
+    # That defect was invisible on macOS, where zodoo connects over TCP
+    # instead - which is why it survived local testing and only surfaced in CI
+    # on Linux. On a Linux server it would have hit every project that turned
+    # pgBackRest on.
+    #
+    # Off Linux there is no host socket to share, so a named volume is the
+    # only way to get the socket from postgres to the sidecar.
+    if platform.system() == "Linux":
+        socket_mount = ("bind", f"{run_dir}/postgres.socket")
+    else:
+        socket_mount = ("volume", "postgres_socket")
+    _add_volume(pg, socket_mount[0], socket_mount[1], "/var/run/postgresql")
+    # Und dieselbe Quelle beim Sidecar: die beiden muessen sich denselben
+    # Socket teilen, sonst findet pgbackrest die Datenbank nicht.
+    sidecar = yml.get("services", {}).get("pgbackrest")
+    if sidecar is not None:
+        _add_volume(
+            sidecar, socket_mount[0], socket_mount[1], "/var/run/postgresql"
+        )
     # Spool and logs for the asynchronous archive_command. Both are written by
     # the postgres container, not by the sidecar: archive-push and its async
     # worker run wherever postgres runs.

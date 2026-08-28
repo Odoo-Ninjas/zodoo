@@ -15,6 +15,7 @@ undoes a change against a live stack.
 from __future__ import annotations
 
 import importlib.util
+import platform
 import time
 from pathlib import Path
 
@@ -209,11 +210,15 @@ def test_socket_and_config_mounted(after_compose, tmp_path):
     vols = yml["services"]["postgres"]["volumes"]
     assert all(isinstance(v, dict) for v in vols)
     by_target = {v["target"]: v for v in vols}
-    assert by_target["/var/run/postgresql"] == {
-        "type": "volume",
-        "source": "postgres_socket",
-        "target": "/var/run/postgresql",
-    }
+    sock = by_target["/var/run/postgresql"]
+    if platform.system() == "Linux":
+        # On Linux it MUST be the same host directory zodoo itself connects
+        # through - see the comment in __after_compose.py. A named volume here
+        # locks the host out and breaks `odoo psql` and `odoo db reset`.
+        assert sock["type"] == "bind", sock
+        assert sock["source"].endswith("/postgres.socket"), sock
+    else:
+        assert sock["type"] == "volume" and sock["source"] == "postgres_socket"
     assert by_target["/var/spool/pgbackrest"]["source"] == "pgbackrest_spool"
     conf = by_target["/etc/pgbackrest"]
     assert conf["type"] == "bind"
@@ -1077,3 +1082,32 @@ def test_the_dependency_points_one_way_only():
         "the sidecar must not depend on postgres - postgres depends on it, "
         "and both together is a cycle"
     )
+
+
+def test_sidecar_and_postgres_share_one_socket_source(after_compose, tmp_path):
+    """Both must mount the SAME thing at /var/run/postgresql.
+
+    pgbackrest cannot reach postgres over TCP - it needs the socket. If the
+    two mount different sources there, the sidecar sits in front of an empty
+    directory and every command fails with "could not connect".
+
+    And on Linux the shared source has to be the host directory zodoo uses
+    too, or `odoo psql` and `odoo db reset` stop working the moment pgBackRest
+    is switched on. That is not hypothetical: it is what made the end-to-end
+    test time out for days, invisible on macOS because zodoo falls back to TCP
+    there.
+    """
+    yml = {
+        "services": {
+            "postgres": {"environment": {}, "volumes": []},
+            "pgbackrest": {"volumes": []},
+        }
+    }
+    after_compose(None, _enabled_settings(HOST_RUN_DIR=str(tmp_path)), yml, {})
+    def _sock(svc):
+        for v in yml["services"][svc]["volumes"]:
+            if v.get("target") == "/var/run/postgresql":
+                return v
+        raise AssertionError(f"{svc} has no socket mount")
+    a, b = _sock("postgres"), _sock("pgbackrest")
+    assert (a["type"], a["source"]) == (b["type"], b["source"]), (a, b)

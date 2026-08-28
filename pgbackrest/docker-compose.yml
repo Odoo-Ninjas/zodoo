@@ -53,8 +53,10 @@ services:
       # `pgbackrest restore` writes into it, and a restore is the entire point
       # of taking backups. Backups themselves only read.
       - odoo_postgres_volume:/var/lib/postgresql/data
-      # See the volume comment above - this is the libpq connection.
-      - postgres_socket:/var/run/postgresql
+      # Der Socket kommt aus __after_compose.py, nicht von hier: auf Linux
+      # muss es DASSELBE Host-Verzeichnis sein, durch das auch zodoo mit
+      # postgres spricht ($HOST_RUN_DIR/postgres.socket). Ein Volume an dieser
+      # Stelle sperrt den Host aus, und `odoo psql` findet keinen Socket mehr.
       # The local repository.
       - pgbackrest_data:/var/lib/pgbackrest
       # Rendered by __after_compose.py, read by BOTH this container and
