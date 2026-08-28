@@ -22,7 +22,7 @@ from pathlib import Path
 import arrow
 import pytest
 
-from .conftest import requires_full_stack
+from .conftest import _run, requires_full_stack
 
 # repo root: .../images/zodoo/src/zodoo/tests/test_lib_pgbackrest.py -> parents[4]
 _PGBR_DIR = Path(__file__).resolve().parents[4] / "pgbackrest"
@@ -1254,3 +1254,76 @@ def test_socket_volume_is_redeclared_when_it_is_a_volume(
             "der Hook haengt ein Volume an, das er nicht deklariert - compose "
             "wirft es vorher weg"
         )
+
+
+def _in_postgres(project, cmd, check=True):
+    """Ein Kommando IM postgres-Container ausfuehren."""
+    return _run(
+        [
+            "docker", "compose", "-p", project.name, "exec", "-T", "postgres",
+            "bash", "-lc", cmd,
+        ],
+        cwd=project.path,
+        timeout=120,
+        check=check,
+    )
+
+
+@pytest.mark.slow
+@requires_full_stack
+def test_e2e_archiving_heals_a_missing_stanza(pgbackrest_project):
+    """Stanza weg, WAL-Wechsel, Stanza wieder da - ohne Zutun.
+
+    Der Unit-Test daneben prueft die Verzweigung der Huelle gegen ein
+    gefaelschtes pgbackrest. Was er NICHT zeigen kann: dass postgres die Huelle
+    im Ernstfall wirklich aufruft, dass sie mit den echten Rechten im Container
+    laeuft, und dass pgbackrest die frisch angelegte Stanza danach auch
+    akzeptiert.
+
+    Genau das ist der Fall, der vorher still schieflief: der Sidecar legt die
+    Stanza an, postgres archiviert aber ab seiner ersten Sekunde. Fehlte sie,
+    scheiterte jeder Push dauerhaft - waehrend postgres normal weiterbediente
+    und niemandem etwas auffiel.
+
+    Bewusst wird nur das Archiv-Verzeichnis entfernt, nicht die Sicherungen:
+    der Test laeuft nach dem PITR-Test auf derselben Instanz, und ein Test
+    sollte nicht die Daten wegraeumen, um die es im Nachbartest geht.
+    """
+    project = pgbackrest_project
+    stanza = project.name
+    archive = f"/var/lib/pgbackrest/archive/{stanza}"
+
+    # Vorbedingung: es gibt sie ueberhaupt.
+    assert _in_postgres(project, f"test -d {archive} && echo da").stdout.strip()
+
+    _in_postgres(project, f"rm -rf {archive}")
+    assert not _in_postgres(
+        project, f"test -d {archive} && echo da", check=False
+    ).stdout.strip(), "die Stanza liess sich nicht entfernen"
+
+    # Ein WAL-Wechsel zwingt postgres, sofort zu archivieren.
+    _sql(project, "SELECT pg_switch_wal()")
+
+    healed = _retry(
+        lambda: _in_postgres(
+            project, f"test -d {archive} && echo da", check=False
+        ).stdout.strip(),
+        timeout=120,
+        what="die Stanza wird von der Huelle neu angelegt",
+    )
+    assert healed, "die Stanza kam nicht zurueck - die Huelle hat nicht geheilt"
+
+    # Und sie heilt LAUT: eine stille Reparatur waere fast so schlecht wie ein
+    # stiller Ausfall, weil niemand erfaehrt, dass etwas nicht stimmte.
+    logs = _run(
+        ["docker", "logs", "--tail", "400", f"{project.name}_postgres"],
+        cwd=project.path,
+        timeout=60,
+        check=False,
+    )
+    out = (logs.stdout or "") + (logs.stderr or "")
+    assert "lege sie an und versuche erneut" in out, out[-2000:]
+
+    # Zum Schluss der Beweis, dass wirklich wieder archiviert wird und nicht
+    # nur ein Verzeichnis existiert.
+    project.run("pgbackrest", "check", timeout=180)

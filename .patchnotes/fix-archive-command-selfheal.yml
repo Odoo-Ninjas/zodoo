@@ -9,8 +9,10 @@ description: |
   geht unveraendert durch: ein archive_command, das Probleme verschluckt, wirft
   WAL weg, und die Luecke faellt erst beim Wiederherstellen auf.
 
-  Zum Testen: auf einem Projekt mit lokalem Repository
-  `rm -rf /var/lib/pgbackrest/archive` im postgres-Container, dann
-  `select pg_switch_wal()`. Im Log muss "Stanza ... fehlt, lege sie an" stehen
-  und der Push danach durchlaufen.
+  Abgedeckt von einem End-zu-Ende-Test im Bake-Lauf: Stanza im laufenden
+  Projekt entfernen, WAL-Wechsel ausloesen, und pruefen, dass sie zurueckkommt,
+  dass die Meldung im Log steht und dass danach wieder archiviert wird.
+
+  Von Hand nachvollziehbar mit `rm -rf /var/lib/pgbackrest/archive` im
+  postgres-Container und `select pg_switch_wal()`.
 breaking: false
