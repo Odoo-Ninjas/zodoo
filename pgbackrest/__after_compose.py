@@ -249,6 +249,15 @@ def _render_conf(settings, run_dir):
     target_dir = run_dir / "pgbackrest"
     target_dir.mkdir(parents=True, exist_ok=True)
     (target_dir / "cert").mkdir(parents=True, exist_ok=True)
+    # Die Huelle liegt neben der Konfiguration: dasselbe Verzeichnis ist
+    # ohnehin schon nach /etc/pgbackrest gemountet, also braucht es dafuer
+    # keine Aenderung an den sechs postgres-Images.
+    script_src = current_dir / "archive-push.sh"
+    script_dst = target_dir / "archive-push.sh"
+    if not script_dst.exists() or script_dst.read_text() != script_src.read_text():
+        script_dst.write_text(script_src.read_text())
+    script_dst.chmod(0o755)
+
     conf_file = target_dir / "pgbackrest.conf"
     # Only write when it actually changed: the file is mounted into a running
     # postgres, and rewriting it on every `odoo reload` would churn the mtime
@@ -309,7 +318,11 @@ def after_compose(config, settings, yml, globals):
     params = [
         "wal_level=replica",
         "archive_mode=on",
-        "archive_command='pgbackrest " f"--stanza={stanza} archive-push %p'",
+        # Ueber die Huelle, nicht direkt: sie holt eine fehlende Stanza einmal
+        # nach und versucht erneut. Jeder andere Fehler geht unveraendert
+        # durch - ein archive_command, das Probleme verschluckt, wirft WAL weg.
+        "archive_command='/etc/pgbackrest/archive-push.sh "
+        f"{stanza} %p'",
     ]
 
     pg = yml["services"]["postgres"]
@@ -427,6 +440,15 @@ def after_compose(config, settings, yml, globals):
     if "pgbackrest_spool" not in volumes:
         name = f"{project}_pgbackrest_spool" if project else "pgbackrest_spool"
         volumes["pgbackrest_spool"] = {"name": name}
+    # Und der Socket, wo er als Volume gebraucht wird (nicht auf Linux - dort
+    # ist es ein Bind auf das Host-Verzeichnis). Aus demselben Grund: seit der
+    # statische Mount aus docker-compose.yml raus ist, benutzt ihn zum
+    # Zeitpunkt von `docker compose config` niemand mehr, und compose wirft ihn
+    # weg. Ohne diese Zeilen scheitert das ganze Projekt mit
+    # "service pgbackrest refers to undefined volume postgres_socket".
+    if socket_mount[0] == "volume" and "postgres_socket" not in volumes:
+        name = f"{project}_postgres_socket" if project else "postgres_socket"
+        volumes["postgres_socket"] = {"name": name}
 
     # --- the inbound side of a repo-host setup --------------------------------
     # Only when the repo host PULLS: it is then the side that runs

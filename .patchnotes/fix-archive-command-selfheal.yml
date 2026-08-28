@@ -1,0 +1,16 @@
+type: minor
+description: |
+  Das archive_command holt eine fehlende Stanza jetzt selbst nach, statt
+  dauerhaft zu scheitern. Betroffen war jede Lage, in der postgres ohne den
+  Sidecar laeuft - und es fiel nicht auf, weil postgres normal weiterbediente,
+  waehrend sich das WAL staute.
+
+  Genau EINE Ursache wird geheilt (fehlende archive.info), jeder andere Fehler
+  geht unveraendert durch: ein archive_command, das Probleme verschluckt, wirft
+  WAL weg, und die Luecke faellt erst beim Wiederherstellen auf.
+
+  Zum Testen: auf einem Projekt mit lokalem Repository
+  `rm -rf /var/lib/pgbackrest/archive` im postgres-Container, dann
+  `select pg_switch_wal()`. Im Log muss "Stanza ... fehlt, lege sie an" stehen
+  und der Push danach durchlaufen.
+breaking: false

@@ -173,13 +173,13 @@ def test_archive_command_injected_when_enabled(after_compose, tmp_path):
     assert "archive-push" in pgconf
     # the stanza has to travel in the command - it is what tells pgbackrest
     # which repository path the segment belongs to
-    assert "--stanza=unittest" in pgconf
+    assert "unittest" in pgconf
     # and the whole command must be single-quoted: run.sh turns each entry
     # into `-c <entry>` on a bash command line, so unquoted spaces split the
     # value and postgres refuses to start with
     # `unrecognized configuration parameter "stanza"`.
     assert (
-        "archive_command='pgbackrest --stanza=unittest archive-push %p'"
+        "archive_command='/etc/pgbackrest/archive-push.sh unittest %p'"
         in pgconf
     )
 
@@ -1111,3 +1111,146 @@ def test_sidecar_and_postgres_share_one_socket_source(after_compose, tmp_path):
         raise AssertionError(f"{svc} has no socket mount")
     a, b = _sock("postgres"), _sock("pgbackrest")
     assert (a["type"], a["source"]) == (b["type"], b["source"]), (a, b)
+
+
+# --------------------------------------------------------------------------- #
+# Die archive_command-Huelle
+# --------------------------------------------------------------------------- #
+_WRAPPER = _PGBR_DIR / "archive-push.sh"
+
+
+def _fake_pgbackrest(tmp_path, script_body):
+    """Ein 'pgbackrest' auf dem PATH, das sich so verhaelt wie vorgegeben.
+
+    So laesst sich die Huelle pruefen, ohne pgBackRest, postgres oder Docker -
+    was den Unterschied macht zwischen einem Test, der bei jeder Aenderung
+    laeuft, und einem, der nur nachts im Bake-Lauf laeuft.
+    """
+    import os
+    import stat
+
+    bindir = tmp_path / "bin"
+    bindir.mkdir(exist_ok=True)
+    fake = bindir / "pgbackrest"
+    fake.write_text(script_body)
+    fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+    env = dict(os.environ)
+    env["PATH"] = f"{bindir}:{env['PATH']}"
+    env["CALLS"] = str(tmp_path / "calls.log")
+    return env
+
+
+def _run_wrapper(tmp_path, env):
+    import subprocess
+
+    return subprocess.run(
+        ["bash", str(_WRAPPER), "demo", "pg_wal/000000010000000000000001"],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+
+def test_wrapper_passes_a_successful_push_through(tmp_path):
+    env = _fake_pgbackrest(
+        tmp_path,
+        '#!/bin/bash\necho "$@" >> "$CALLS"\necho "pushed"\nexit 0\n',
+    )
+    res = _run_wrapper(tmp_path, env)
+    assert res.returncode == 0, res.stderr
+    calls = (tmp_path / "calls.log").read_text()
+    assert "stanza-create" not in calls, calls
+
+
+def test_wrapper_creates_a_missing_stanza_and_retries(tmp_path):
+    """Genau diese eine Ursache darf geheilt werden.
+
+    Ohne das scheitert das Archivieren dauerhaft und still, sobald postgres
+    ohne den Sidecar laeuft - und niemand merkt es, weil postgres normal
+    weiterbedient.
+    """
+    env = _fake_pgbackrest(
+        tmp_path,
+        "#!/bin/bash\n"
+        'echo "$@" >> "$CALLS"\n'
+        'if [ "$2" = "stanza-create" ]; then exit 0; fi\n'
+        'if grep -c "archive-push" "$CALLS" | grep -qx 1; then\n'
+        '  echo "FileMissingError: unable to open missing file '
+        "'/var/lib/pgbackrest/archive/demo/archive.info' for read\" >&2\n"
+        "  exit 103\n"
+        "fi\n"
+        'echo "pushed"\nexit 0\n',
+    )
+    res = _run_wrapper(tmp_path, env)
+    calls = (tmp_path / "calls.log").read_text()
+    assert "stanza-create" in calls, calls
+    assert calls.count("archive-push") == 2, calls
+    assert res.returncode == 0, res.stderr
+
+
+def test_wrapper_does_not_swallow_other_errors(tmp_path):
+    """Jeder andere Fehler muss durchschlagen.
+
+    Ein archive_command, das Probleme verschluckt, wirft WAL-Segmente weg -
+    und die Luecke faellt beim Wiederherstellen auf, also zum teuersten
+    denkbaren Zeitpunkt. Lieber laut scheitern.
+    """
+    env = _fake_pgbackrest(
+        tmp_path,
+        "#!/bin/bash\n"
+        'echo "$@" >> "$CALLS"\n'
+        'echo "ERROR: unable to acquire lock" >&2\nexit 50\n',
+    )
+    res = _run_wrapper(tmp_path, env)
+    assert res.returncode == 50, res
+    calls = (tmp_path / "calls.log").read_text()
+    assert "stanza-create" not in calls, calls
+    assert "unable to acquire lock" in res.stderr
+
+
+def test_archive_command_points_at_the_wrapper(after_compose, tmp_path):
+    """Und das Kommando muss die Huelle auch wirklich benutzen."""
+    yml = {"services": {"postgres": {"environment": {}}}}
+    after_compose(None, _enabled_settings(HOST_RUN_DIR=str(tmp_path)), yml, {})
+    pgconf = yml["services"]["postgres"]["environment"]["POSTGRES_CONFIG"]
+    assert (
+        "archive_command='/etc/pgbackrest/archive-push.sh unittest %p'"
+        in pgconf
+    ), pgconf
+    shipped = tmp_path / "pgbackrest" / "archive-push.sh"
+    assert shipped.exists(), "die Huelle wird nicht ausgeliefert"
+    assert shipped.stat().st_mode & 0o111, "die Huelle ist nicht ausfuehrbar"
+
+
+def test_socket_volume_is_redeclared_when_it_is_a_volume(
+    after_compose, tmp_path
+):
+    """Ein benanntes Volume, das der Hook anhaengt, muss er auch deklarieren.
+
+    `docker compose config` laeuft VOR diesem Hook und wirft jedes benannte
+    Volume weg, das noch kein Dienst benutzt. Seit der statische Mount aus
+    docker-compose.yml raus ist, trifft das den Socket - und compose lehnt
+    dann das ganze Projekt ab:
+
+        service "pgbackrest" refers to undefined volume postgres_socket
+
+    Auf Linux ist es ein Bind auf das Host-Verzeichnis, da stellt sich die
+    Frage nicht. Der Test prueft deshalb die Bedingung, nicht die Plattform.
+    """
+    yml = {
+        "services": {
+            "postgres": {"environment": {}, "volumes": []},
+            "pgbackrest": {"volumes": []},
+        }
+    }
+    after_compose(None, _enabled_settings(HOST_RUN_DIR=str(tmp_path)), yml, {})
+    mount = next(
+        v
+        for v in yml["services"]["pgbackrest"]["volumes"]
+        if v.get("target") == "/var/run/postgresql"
+    )
+    if mount["type"] == "volume":
+        assert "postgres_socket" in yml.get("volumes", {}), (
+            "der Hook haengt ein Volume an, das er nicht deklariert - compose "
+            "wirft es vorher weg"
+        )
