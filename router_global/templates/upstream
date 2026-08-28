@@ -1,6 +1,14 @@
 upstream {{ item.upstream_name }} {
     server {{ item.upstream_server }}:{{ item.upstream_port }};
 }
+{% if item.rate_limit is defined and item.rate_limit %}
+# Ratenbegrenzung je Absender-IP. Gehoert in den http-Kontext, deshalb hier
+# oben und nicht im server-Block.
+#
+# $binary_remote_addr, nicht $remote_addr: der Proxy sieht die echte Adresse,
+# und binary spart in der Zone Platz. 10m fassen rund 160.000 Adressen.
+limit_req_zone $binary_remote_addr zone={{ item.upstream_name }}_rl:10m rate={{ item.rate_limit }};
+{% endif %}
 
 {% if item.before_server_conf is defined and item.before_server_conf %}
 {{ item.before_server_conf }}
@@ -15,6 +23,13 @@ server {
 
         proxy_buffers 16 1024k;
         proxy_buffer_size 256k;
+{% if item.rate_limit is defined and item.rate_limit %}
+        # burst faengt Spitzen ab, ohne normale Nutzung zu bestrafen; nodelay
+        # laesst den Puffer sofort durch statt ihn kuenstlich zu verzoegern.
+        # Wer darueber liegt, bekommt 429 statt bedient zu werden.
+        limit_req zone={{ item.upstream_name }}_rl burst={{ item.rate_limit_burst | default(20) }} nodelay;
+        limit_req_status 429;
+{% endif %}
 
 {% if item.client_max_body_size is defined and item.client_max_body_size %}
         # 0 = no limit. Needed for uploads that are streamed rather than
