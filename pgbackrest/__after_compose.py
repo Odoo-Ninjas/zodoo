@@ -362,6 +362,28 @@ def after_compose(config, settings, yml, globals):
     if not (settings.get("PGBR_REPO_HOST") or "").strip():
         _add_volume(pg, "volume", "pgbackrest_data", "/var/lib/pgbackrest")
 
+    # postgres depends on the sidecar, so that starting postgres alone brings
+    # it too.
+    #
+    # This is not tidiness, it is the difference between working and quietly
+    # broken. postgres archives from its first second (archive_mode=on), and
+    # the stanza that archive-push writes into is created by the sidecar's
+    # entrypoint. Start postgres by itself - `docker compose up -d postgres`,
+    # a partial restart, `odoo db reset` - and every WAL push fails with
+    # "unable to open missing file .../archive.info". Nothing announces it:
+    # postgres keeps serving, the WAL piles up, and the backup that everyone
+    # believes exists does not.
+    #
+    # Deliberately without `condition: service_healthy`: the sidecar waits for
+    # postgres itself, so requiring the reverse would deadlock. Compose only
+    # has to START it.
+    pg.setdefault("depends_on", [])
+    deps = pg["depends_on"]
+    if isinstance(deps, dict):
+        deps.setdefault("pgbackrest", {})
+    elif "pgbackrest" not in deps:
+        deps.append("pgbackrest")
+
     # The spool volume has to be DECLARED here as well, not just mounted.
     # It is declared in pgbackrest/docker-compose.yml, but `docker compose
     # config` - which runs before this hook - prunes a named volume that no

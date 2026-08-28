@@ -996,3 +996,62 @@ def test_filestore_stays_off_without_a_public_key(enroll, tmp_path):
     assert "OFFSITE_WO_RECIPIENT" not in written
     # The database stream is unaffected - one missing key must not cost both.
     assert written["RUN_PGBACKREST"] == "1"
+
+
+# --------------------------------------------------------------------------- #
+# Archivierung darf nicht still scheitern
+# --------------------------------------------------------------------------- #
+def _deps(yml):
+    d = yml["services"]["postgres"].get("depends_on") or []
+    return list(d.keys()) if isinstance(d, dict) else list(d)
+
+
+def test_postgres_pulls_the_sidecar_up_with_it(after_compose, tmp_path):
+    """Starting postgres alone must bring the sidecar too.
+
+    postgres archives from its first second, and the stanza that archive-push
+    writes into is created by the sidecar's entrypoint. Without this
+    dependency, `docker compose up -d postgres` - or a partial restart, or
+    `odoo db reset` - leaves every WAL push failing on a missing
+    archive.info, and nothing says so: postgres keeps serving, the WAL piles
+    up, and the backup everyone believes in does not exist.
+
+    This is exactly how the end-to-end test failed for days: postgres up,
+    sidecar one step later, the reset timing out behind an archive queue that
+    could never drain.
+    """
+    yml = {"services": {"postgres": {"environment": {}}}}
+    after_compose(None, _enabled_settings(HOST_RUN_DIR=str(tmp_path)), yml, {})
+    assert "pgbackrest" in _deps(yml), _deps(yml)
+
+
+def test_no_such_dependency_when_disabled(after_compose, tmp_path):
+    """A project without pgBackRest must not gain a dependency on it."""
+    yml = {"services": {"postgres": {"environment": {}}}}
+    after_compose(
+        None,
+        {"RUN_PGBACKREST": "0", "HOST_RUN_DIR": str(tmp_path)},
+        yml,
+        {},
+    )
+    assert "pgbackrest" not in _deps(yml), _deps(yml)
+
+
+def test_archive_queue_is_bounded(after_compose, tmp_path):
+    """A failing archive must not be able to fill the disk.
+
+    archive-push-queue-max lets pgBackRest give up on the oldest segments
+    instead of letting the volume run full. That loses WAL - loudly, with a
+    warning - which is the better of two bad outcomes: a gap in the archive is
+    recoverable from the next full backup, a full disk takes the database down
+    with it.
+    """
+    after_compose(
+        None,
+        _enabled_settings(HOST_RUN_DIR=str(tmp_path)),
+        {"services": {"postgres": {"environment": {}}}},
+        {},
+    )
+    assert any(
+        d.startswith("archive-push-queue-max=") for d in _directives(tmp_path)
+    ), "no bound on the archive queue"
