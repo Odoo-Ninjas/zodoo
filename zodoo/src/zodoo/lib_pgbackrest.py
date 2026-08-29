@@ -1,10 +1,13 @@
 import json
+import os
 import re
+import shutil
 import socket
 import subprocess
-import traceback
 import sys
+import tempfile
 import time
+import traceback
 import uuid
 from pathlib import Path
 import arrow
@@ -941,12 +944,31 @@ def _docker(*args, timeout=1800, check=True):
     return out
 
 
-def _verify_latest_backup(config, stanza, image, mounts):
+def _pgbr_als_benutzer(image, run_user):
+    """docker-Argumente, um pgbackrest als NICHT-root zu starten.
+
+    Zwei Wege, weil es zwei Abbilder gibt und beide recht haben:
+
+      * Im Abbild eines Projekts gibt es gosu und einen Benutzer namens
+        pgbackrest - so ruft der Sidecar es auch sonst auf.
+      * Im Abbild des Pruefstands (auf postgres:17 aufgesetzt) gibt es kein
+        gosu; dort wird die Kennung direkt gesetzt, und sie ist dieselbe wie
+        die von postgres.
+
+    Als root darf es in keinem Fall laufen: pgbackrest lehnt das ab, und zwar
+    zu Recht - es wuerde Dateien anlegen, an die der spaetere Postgres nicht
+    mehr herankommt.
+    """
+    if run_user:
+        return ["--user", run_user, "--entrypoint", "pgbackrest", image]
+    return ["--entrypoint", "/usr/sbin/gosu", image, "pgbackrest", "pgbackrest"]
+
+
+def _verify_latest_backup(config, stanza, image, mounts, run_user=None):
     out = _docker(
         "run", "--rm",
         *sum((["-v", m] for m in mounts), []),
-        "--entrypoint", "/usr/sbin/gosu", image,
-        "pgbackrest", "pgbackrest",
+        *_pgbr_als_benutzer(image, run_user),
         "--stanza", stanza, "info", "--output=json",
         timeout=300,
     )
@@ -1115,35 +1137,47 @@ def _verify_cleanup(container, volume):
             pass
 
 
-def run_verify(config, stanza=None):
-    """Eine Rueckspielprobe durchfuehren und das Ergebnis zurueckgeben."""
-    stanza = stanza or _stanza(config)
+def _probe(umgebung, stanza):
+    """Der eigentliche Ablauf - unabhaengig davon, WOHER die Umgebung kommt.
+
+    Genau hier liegt der Sinn dieser Trennung: die Probe eines Projekts an
+    sich selbst und die Probe des Pruefstands an einem fremden Bereich sollen
+    dasselbe TUN. Zwei Umsetzungen derselben Sache laufen frueher oder spaeter
+    auseinander, und dann prueft der Pruefstand etwas anderes als das, was wir
+    getestet haben.
+
+    umgebung: {pgbackrest_image, postgres_image, mounts, run_user, bench}
+    """
     kennung = uuid.uuid4().hex[:10]
     container = f"verify-{stanza}-{kennung}"
     volume = f"verify_{stanza}_{kennung}".replace("-", "_")
     begonnen = time.time()
 
+    pgbr_image = umgebung["pgbackrest_image"]
+    pg_image = umgebung["postgres_image"]
+    mounts = umgebung["mounts"]
+    run_user = umgebung.get("run_user")
+
     ergebnis = {
         "area": stanza,
-        "bench": socket.gethostname(),
+        "bench": umgebung.get("bench") or socket.gethostname(),
         "checked_at": int(begonnen),
     }
     try:
-        pgbr_image, pg_image = _verify_images(config)
-        mounts = _verify_mounts(config)
-
         ergebnis["backup"] = _verify_latest_backup(
-            config, stanza, pgbr_image, mounts
+            None, stanza, pgbr_image, mounts, run_user
         )
 
         _docker("volume", "create", volume, timeout=120)
-        # Ein frisches Volume gehoert root; pgbackrest laeuft als pgbackrest
-        # und verweigert sonst ("not owned by current user"). Zu Recht: als
-        # root angelegte Dateien koennte der Postgres danach nicht lesen.
+        # Ein frisches Volume gehoert root; pgbackrest laeuft als jemand
+        # anderes und verweigert sonst ("not owned by current user"). Zu
+        # Recht: als root angelegte Dateien koennte der Postgres danach nicht
+        # lesen.
         _docker(
             "run", "--rm", "-v", f"{volume}:{VERIFY_PGDATA}", "--user", "0",
             "--entrypoint", "chown", pgbr_image,
-            "-R", "pgbackrest:pgbackrest", VERIFY_PGDATA,
+            "-R", (run_user or "pgbackrest:pgbackrest").replace(":", "."),
+            VERIFY_PGDATA,
             timeout=300,
         )
         # --type=immediate: bis zum Ende der Sicherung, nicht weiter. Die Frage
@@ -1153,8 +1187,7 @@ def run_verify(config, stanza=None):
             "run", "--rm",
             "-v", f"{volume}:{VERIFY_PGDATA}",
             *sum((["-v", m] for m in mounts), []),
-            "--entrypoint", "/usr/sbin/gosu", pgbr_image,
-            "pgbackrest", "pgbackrest",
+            *_pgbr_als_benutzer(pgbr_image, run_user),
             "--stanza", stanza, "restore",
             "--type=immediate", "--target-action=promote",
             timeout=3600,
@@ -1181,50 +1214,218 @@ def run_verify(config, stanza=None):
     return ergebnis
 
 
+def run_verify(config, stanza=None):
+    """Eine Rueckspielprobe an den Sicherungen DIESES Projekts."""
+    stanza = stanza or _stanza(config)
+    try:
+        pgbr_image, pg_image = _verify_images(config)
+        umgebung = {
+            "pgbackrest_image": pgbr_image,
+            "postgres_image": pg_image,
+            "mounts": _verify_mounts(config),
+            "run_user": None,  # im Projektabbild fuehrt gosu zum Ziel
+            "bench": socket.gethostname(),
+        }
+    except VerifyFailed as ex:
+        # Auch das ist ein ERGEBNIS, kein Absturz - sonst sieht die
+        # Ueberwachung "keine Probe gelaufen" statt "Probe gescheitert".
+        return {
+            "area": stanza,
+            "bench": socket.gethostname(),
+            "checked_at": int(time.time()),
+            "result": "failed",
+            "error": str(ex)[-2000:],
+            "seconds": 0,
+        }
+    except Exception as ex:  # noqa: BLE001
+        return {
+            "area": stanza,
+            "bench": socket.gethostname(),
+            "checked_at": int(time.time()),
+            "result": "failed",
+            "error": f"{type(ex).__name__}: {ex}"[-2000:],
+            "seconds": 0,
+        }
+    return _probe(umgebung, stanza)
+
+
+# --------------------------------------------------------------------------- #
+# Der Pruefstand: dieselbe Probe, aber an FREMDEN Bereichen                     #
+# --------------------------------------------------------------------------- #
+
+BENCH_PFLICHTFELDER = ("repo_host", "cert_dir", "pgbackrest_image")
+
+
+def bench_conf_text(bench, stanza):
+    """Die pgbackrest.conf, mit der der Pruefstand liest.
+
+    Bewusst NUR lesend gedacht: hier steht kein pg1-path eines laufenden
+    Clusters, sondern der Pfad, unter den zurueckgespielt wird.
+    """
+    zeilen = [
+        "[global]",
+        f"repo1-host={bench['repo_host']}",
+        "repo1-host-type=tls",
+        f"repo1-host-port={bench.get('repo_port', 443)}",
+        "repo1-host-ca-file=/etc/pgbackrest/cert/ca.crt",
+        "repo1-host-cert-file=/etc/pgbackrest/cert/client.crt",
+        "repo1-host-key-file=/etc/pgbackrest/cert/client.key",
+    ]
+    if bench.get("cipher_pass"):
+        zeilen += [
+            f"repo1-cipher-type={bench.get('cipher_type', 'aes-256-cbc')}",
+            f"repo1-cipher-pass={bench['cipher_pass']}",
+        ]
+    zeilen += [
+        "log-level-console=info",
+        "log-level-file=off",
+        "process-max=4",
+        "",
+        f"[{stanza}]",
+        f"pg1-path={VERIFY_PGDATA}",
+        "",
+    ]
+    return "\n".join(zeilen)
+
+
+def _bench_umgebung(bench, stanza, arbeitsordner):
+    """Konfiguration und Zertifikat fuer EINEN Bereich bereitlegen.
+
+    Die abgelegten Dateien gehoeren dem Benutzer, unter dem der Container
+    laeuft - nicht root und nicht allen. In der Konfiguration steht die
+    Passphrase; sie lesbar fuer jeden zu machen waere der bequeme, falsche Weg.
+    """
+    fehlend = [f for f in BENCH_PFLICHTFELDER if not bench.get(f)]
+    if fehlend:
+        raise VerifyFailed(
+            "in der Pruefstand-Konfiguration fehlt: " + ", ".join(fehlend)
+        )
+
+    run_user = bench.get("run_user", "999:999")
+    uid, _, gid = run_user.partition(":")
+    uid, gid = int(uid), int(gid or uid)
+
+    ordner = Path(arbeitsordner)
+    (ordner / "pgbackrest.conf").write_text(bench_conf_text(bench, stanza))
+    os.chmod(ordner / "pgbackrest.conf", 0o600)
+    os.chown(ordner / "pgbackrest.conf", uid, gid)
+
+    cert_ziel = ordner / "cert"
+    cert_ziel.mkdir(mode=0o700, exist_ok=True)
+    os.chown(cert_ziel, uid, gid)
+    for datei in ("ca.crt", "client.crt", "client.key"):
+        quelle = Path(bench["cert_dir"]) / datei
+        if not quelle.exists():
+            raise VerifyFailed(f"das Zertifikat {quelle} fehlt")
+        (cert_ziel / datei).write_bytes(quelle.read_bytes())
+        os.chmod(cert_ziel / datei, 0o600)
+        os.chown(cert_ziel / datei, uid, gid)
+    os.chown(ordner, uid, gid)
+
+    return {
+        "pgbackrest_image": bench["pgbackrest_image"],
+        "postgres_image": bench.get("postgres_image")
+        or bench["pgbackrest_image"],
+        "mounts": [f"{ordner}:/etc/pgbackrest:ro"],
+        "run_user": run_user,
+        "bench": bench.get("bench") or socket.gethostname(),
+    }
+
+
+def run_verify_bench(bench, stanza):
+    """Eine Rueckspielprobe des PRUEFSTANDS an einem fremden Bereich."""
+    eigen = dict(bench)
+    eigen.update((bench.get("stanzas") or {}).get(stanza) or {})
+    arbeitsordner = tempfile.mkdtemp(prefix=f"verify-{stanza}-")
+    try:
+        umgebung = _bench_umgebung(eigen, stanza, arbeitsordner)
+    except VerifyFailed as ex:
+        shutil.rmtree(arbeitsordner, ignore_errors=True)
+        return {
+            "area": stanza,
+            "bench": eigen.get("bench") or socket.gethostname(),
+            "checked_at": int(time.time()),
+            "result": "failed",
+            "error": str(ex)[-2000:],
+            "seconds": 0,
+        }
+    try:
+        return _probe(umgebung, stanza)
+    finally:
+        shutil.rmtree(arbeitsordner, ignore_errors=True)
+
+
 @pgbackrest.command(
     name="verify",
     help=(
         "Restore test: bring the newest backup up as a throwaway postgres and "
         "read real data from it. The only check that says anything about the "
         "CONTENT of the backups - everything else only proves the bytes are "
-        "there. Never touches this project's data directory."
+        "there. Never touches this project's data directory. With "
+        "--bench-config it runs the same probe against FOREIGN stanzas, which "
+        "is what the dedicated bench machine does."
     ),
 )
-@click.option("--stanza", default=None, help="verify another stanza")
+@click.option("--stanza", default=None, help="verify this stanza only")
 @click.option("--json", "as_json", is_flag=True, help="machine readable")
 @click.option(
     "--report-to",
     default=None,
     help="directory for the result file, named <stanza>-<timestamp>.json",
 )
+@click.option(
+    "--bench-config",
+    default=None,
+    type=click.Path(exists=True, dir_okay=False),
+    help=(
+        "bench mode: read repository, certificate and stanzas from this JSON "
+        "instead of from the current project. No zodoo project needed."
+    ),
+)
 @pass_config
-def pgbackrest_verify(config, stanza, as_json, report_to):
-    _ensure_pgbackrest(config)
-    ergebnis = run_verify(config, stanza)
-
-    if report_to:
-        ziel = Path(report_to)
-        ziel.mkdir(parents=True, exist_ok=True)
-        stempel = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-        datei = ziel / f"{ergebnis['area']}-{stempel}.json"
-        datei.write_text(json.dumps(ergebnis, indent=1, sort_keys=True) + "\n")
-        click.secho(f"geschrieben: {datei}", fg="green")
-
-    if as_json:
-        click.echo(json.dumps(ergebnis, indent=1, sort_keys=True))
-    elif ergebnis["result"] == "passed":
-        click.secho(
-            f"Rueckspielprobe bestanden: Sicherung {ergebnis['backup']} laeuft, "
-            f"{ergebnis['rows']} Zeilen aus {ergebnis['table']} gelesen "
-            f"({ergebnis['seconds']}s).",
-            fg="green",
-        )
+def pgbackrest_verify(config, stanza, as_json, report_to, bench_config):
+    if bench_config:
+        # Im Pruefstand-Betrieb gibt es kein Projekt - also auch nichts, was
+        # RUN_PGBACKREST einschalten koennte. Die Angaben kommen alle aus der
+        # Datei.
+        with open(bench_config) as fh:
+            bench = json.load(fh)
+        bereiche = [stanza] if stanza else sorted(bench.get("stanzas") or {})
+        if not bereiche:
+            abort(f"in {bench_config} steht kein einziger Bereich")
+        ergebnisse = [run_verify_bench(bench, b) for b in bereiche]
     else:
-        click.secho(
-            f"Rueckspielprobe GESCHEITERT: {ergebnis.get('error')}", fg="red"
-        )
+        _ensure_pgbackrest(config)
+        ergebnisse = [run_verify(config, stanza)]
 
-    if ergebnis["result"] != "passed":
+    for ergebnis in ergebnisse:
+        if report_to:
+            ziel = Path(report_to)
+            ziel.mkdir(parents=True, exist_ok=True)
+            stempel = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+            datei = ziel / f"{ergebnis['area']}-{stempel}.json"
+            datei.write_text(
+                json.dumps(ergebnis, indent=1, sort_keys=True) + "\n"
+            )
+            click.secho(f"geschrieben: {datei}", fg="green")
+
+        if as_json:
+            click.echo(json.dumps(ergebnis, indent=1, sort_keys=True))
+        elif ergebnis["result"] == "passed":
+            click.secho(
+                f"{ergebnis['area']}: Rueckspielprobe bestanden - Sicherung "
+                f"{ergebnis['backup']} laeuft, {ergebnis['rows']} Zeilen aus "
+                f"{ergebnis['table']} gelesen ({ergebnis['seconds']}s).",
+                fg="green",
+            )
+        else:
+            click.secho(
+                f"{ergebnis['area']}: Rueckspielprobe GESCHEITERT - "
+                f"{ergebnis.get('error')}",
+                fg="red",
+            )
+
+    if any(e["result"] != "passed" for e in ergebnisse):
         sys.exit(1)
 
 

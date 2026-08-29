@@ -282,10 +282,16 @@ def test_a_failure_is_reported_not_raised(monkeypatch, compose):
 
 
 def test_cleanup_runs_even_when_the_probe_blows_up(monkeypatch, compose):
-    """Kein Wegwerf-Volume darf liegenbleiben - sonst laeuft die Platte voll."""
+    """Kein Wegwerf-Volume darf liegenbleiben - sonst laeuft die Platte voll.
+
+    Geprueft wird der Fall, in dem waehrend der Probe etwas explodiert,
+    NACHDEM Container und Volume angelegt wurden. Scheitert schon das
+    Zusammenstellen der Umgebung, gibt es nichts aufzuraeumen - dann darf und
+    soll nichts passieren.
+    """
     aufgeraeumt = []
     monkeypatch.setattr(
-        lp, "_verify_images", mock.Mock(side_effect=RuntimeError("boom"))
+        lp, "_verify_latest_backup", mock.Mock(side_effect=RuntimeError("boom"))
     )
     monkeypatch.setattr(
         lp, "_verify_cleanup", lambda c, v: aufgeraeumt.append((c, v))
@@ -294,6 +300,25 @@ def test_cleanup_runs_even_when_the_probe_blows_up(monkeypatch, compose):
     assert erg["result"] == "failed"
     assert "boom" in erg["error"]
     assert len(aufgeraeumt) == 1
+    container, volume = aufgeraeumt[0]
+    assert container.startswith("verify-")
+    assert volume.startswith("verify_")
+
+
+def test_nothing_is_cleaned_up_when_nothing_was_created(monkeypatch, compose):
+    """Scheitert schon die Umgebung, wird kein Aufraeumen vorgetaeuscht."""
+    aufgeraeumt = []
+    monkeypatch.setattr(
+        lp, "_verify_images",
+        mock.Mock(side_effect=lp.VerifyFailed("kein pgbackrest im Projekt")),
+    )
+    monkeypatch.setattr(
+        lp, "_verify_cleanup", lambda c, v: aufgeraeumt.append((c, v))
+    )
+    erg = lp.run_verify(FakeConfig())
+    assert erg["result"] == "failed"
+    assert "kein pgbackrest" in erg["error"]
+    assert aufgeraeumt == []
 
 
 def test_the_stanza_can_be_overridden(monkeypatch, compose):
@@ -466,3 +491,163 @@ def test_an_already_prefixed_name_is_not_prefixed_twice(monkeypatch):
     sidecar = {"volumes": [{"source": "kunde_pgbackrest_data",
                             "target": "/var/lib/pgbackrest"}]}
     assert lp._repo_volume(FakeConfig(), sidecar) == "kunde_pgbackrest_data"
+
+
+# --------------------------------------------------------------------------- #
+# Der Pruefstand: dieselbe Probe, fremde Bereiche                              #
+# --------------------------------------------------------------------------- #
+
+
+BENCH = {
+    "repo_host": "db.backup.zebroo.de",
+    "repo_port": 443,
+    "cipher_type": "aes-256-cbc",
+    "cipher_pass": "geheim",
+    "cert_dir": "/etc/pgbr-pruefstand/cert",
+    "pgbackrest_image": "pgbr-pruefstand:2.59.1",
+    "bench": "pgbr-pruefstand",
+    "stanzas": {"kunde-a": {}, "kunde-b": {"cipher_pass": "anders"}},
+}
+
+
+def test_the_bench_config_reaches_the_repository_over_tls():
+    text = lp.bench_conf_text(BENCH, "kunde-a")
+    assert "repo1-host=db.backup.zebroo.de" in text
+    assert "repo1-host-type=tls" in text
+    assert "repo1-host-port=443" in text
+    assert "repo1-cipher-pass=geheim" in text
+
+
+def test_the_bench_restores_to_the_same_path_as_a_real_instance():
+    """Derselbe Pfad wie in der echten Instanz - daran haengt archive-get.
+
+    Zeigte pg1-path woandershin als dorthin, wo Postgres seine Daten sieht,
+    scheitert jedes Nachladen von WAL waehrend der Wiederherstellung.
+    """
+    text = lp.bench_conf_text(BENCH, "kunde-a")
+    assert f"pg1-path={lp.VERIFY_PGDATA}" in text
+    assert "[kunde-a]" in text
+
+
+def test_the_bench_writes_no_repo_path():
+    """Der Bestand liegt anderswo - ein repo1-path waere schlicht falsch."""
+    text = lp.bench_conf_text(BENCH, "kunde-a")
+    assert "repo1-path" not in text
+
+
+def test_a_stanza_can_carry_its_own_passphrase(monkeypatch, tmp_path):
+    """Jeder Kunde hat eine eigene Passphrase - eine gemeinsame gibt es nicht."""
+    gesehen = {}
+    monkeypatch.setattr(
+        lp, "_probe", lambda umgebung, stanza: {"result": "passed"}
+    )
+    monkeypatch.setattr(
+        lp, "_bench_umgebung",
+        lambda bench, stanza, ordner: gesehen.setdefault(stanza, bench) and {},
+    )
+    for b in ("kunde-a", "kunde-b"):
+        lp.run_verify_bench(BENCH, b)
+    assert gesehen["kunde-a"]["cipher_pass"] == "geheim"
+    assert gesehen["kunde-b"]["cipher_pass"] == "anders"
+
+
+def test_the_bench_config_must_be_complete(tmp_path):
+    """Fehlt etwas, wird es benannt - nicht erst von pgbackrest gemeldet."""
+    with pytest.raises(lp.VerifyFailed) as ex:
+        lp._bench_umgebung({"repo_host": "x"}, "kunde-a", str(tmp_path))
+    assert "cert_dir" in str(ex.value)
+    assert "pgbackrest_image" in str(ex.value)
+
+
+def test_a_missing_certificate_is_named(tmp_path, monkeypatch):
+    monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
+    bench = dict(BENCH, cert_dir=str(tmp_path / "gibtsnicht"))
+    with pytest.raises(lp.VerifyFailed) as ex:
+        lp._bench_umgebung(bench, "kunde-a", str(tmp_path))
+    assert "Zertifikat" in str(ex.value)
+
+
+def test_the_bench_environment_carries_the_user_and_one_image(tmp_path,
+                                                              monkeypatch):
+    """Ein Abbild fuer beide Rollen, und ein Benutzer statt gosu.
+
+    Im Pruefstand-Abbild (auf postgres:17 aufgesetzt) gibt es kein gosu - die
+    Kennung wird direkt gesetzt, und sie ist dieselbe wie die von postgres.
+    """
+    monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
+    cert = tmp_path / "cert"
+    cert.mkdir()
+    for f in ("ca.crt", "client.crt", "client.key"):
+        (cert / f).write_text("x")
+    bench = dict(BENCH, cert_dir=str(cert))
+    arbeit = tmp_path / "arbeit"
+    arbeit.mkdir()
+
+    u = lp._bench_umgebung(bench, "kunde-a", str(arbeit))
+    assert u["run_user"] == "999:999"
+    assert u["pgbackrest_image"] == u["postgres_image"] == "pgbr-pruefstand:2.59.1"
+    assert u["mounts"] == [f"{arbeit}:/etc/pgbackrest:ro"]
+    assert u["bench"] == "pgbr-pruefstand"
+    # Die Passphrase steht in der Datei - sie darf nicht fuer alle lesbar sein.
+    import stat
+    modus = stat.S_IMODE((arbeit / "pgbackrest.conf").stat().st_mode)
+    assert modus == 0o600, oct(modus)
+
+
+def test_the_bench_never_mounts_a_data_volume(tmp_path, monkeypatch):
+    """Der Pruefstand kennt keine laufende Instanz - und haengt auch keine ein."""
+    monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
+    cert = tmp_path / "cert"
+    cert.mkdir()
+    for f in ("ca.crt", "client.crt", "client.key"):
+        (cert / f).write_text("x")
+    arbeit = tmp_path / "arbeit2"
+    arbeit.mkdir()
+    u = lp._bench_umgebung(dict(BENCH, cert_dir=str(cert)), "kunde-a",
+                           str(arbeit))
+    assert not any("postgresql/data" in m for m in u["mounts"]), u["mounts"]
+
+
+# --------------------------------------------------------------------------- #
+# Ein Ablauf, zwei Herkuenfte                                                  #
+# --------------------------------------------------------------------------- #
+
+
+def test_both_paths_run_the_very_same_probe(monkeypatch, compose, tmp_path):
+    """Projekt und Pruefstand muessen DASSELBE tun.
+
+    Zwei Umsetzungen derselben Sache laufen frueher oder spaeter auseinander -
+    und dann prueft der Pruefstand etwas anderes als das, was getestet wurde.
+    """
+    gerufen = []
+    monkeypatch.setattr(
+        lp, "_probe",
+        lambda umgebung, stanza: gerufen.append((umgebung, stanza)) or
+        {"result": "passed"},
+    )
+    monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
+    cert = tmp_path / "cert"
+    cert.mkdir()
+    for f in ("ca.crt", "client.crt", "client.key"):
+        (cert / f).write_text("x")
+
+    lp.run_verify(FakeConfig())
+    lp.run_verify_bench(dict(BENCH, cert_dir=str(cert)), "kunde-a")
+
+    assert len(gerufen) == 2
+    # Beide liefern dieselbe Art Umgebung - nur eben aus anderer Quelle.
+    for umgebung, _ in gerufen:
+        assert set(umgebung) >= {
+            "pgbackrest_image", "postgres_image", "mounts", "run_user", "bench"
+        }
+
+
+def test_the_non_root_invocation_differs_per_image():
+    """Projektabbild kennt gosu, Pruefstand-Abbild setzt die Kennung."""
+    mit_gosu = lp._pgbr_als_benutzer("bild", None)
+    assert "gosu" in " ".join(mit_gosu)
+    assert "--user" not in mit_gosu
+
+    mit_user = lp._pgbr_als_benutzer("bild", "999:999")
+    assert mit_user[:2] == ["--user", "999:999"]
+    assert "gosu" not in " ".join(mit_user)
