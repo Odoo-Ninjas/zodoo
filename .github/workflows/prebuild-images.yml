@@ -213,6 +213,13 @@ jobs:
               if [ "$uebrig" -ne 0 ]; then
                 echo "::error::$uebrig Upload(s) nicht abgeschlossen -- die Images fehlen in der Registry."
                 find "$qdir" -maxdepth 1 -type f -printf '%f\\n' || true
+                # Ohne die Protokolle des Arbeiters raet man hinterher, woran
+                # es lag -- und der Runner ist dann weg.
+                for f in "$qdir"/log/*; do
+                  [ -f "$f" ] || continue
+                  echo "----- $(basename "$f")"
+                  tail -40 "$f"
+                done
                 exit 1
               fi
             fi
