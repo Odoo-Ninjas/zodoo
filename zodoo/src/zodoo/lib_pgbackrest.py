@@ -779,6 +779,44 @@ def _compose_config(config):
     return json.loads(out)
 
 
+def _verify_repo_is_local(config):
+    """Liegt das Repository auf dieser Maschine oder auf dem Backup-Server?
+
+    Steht ein repo1-path in der Konfiguration, gehoert die Ablage diesem
+    Verbund selbst - dann muss die Probe das Volume mitbekommen, sonst findet
+    sie nichts. Steht dort ein repo1-host, ist die Ablage anderswo und wird
+    ueber das Netz gelesen.
+    """
+    conf = Path(config.HOST_RUN_DIR) / "pgbackrest" / "pgbackrest.conf"
+    try:
+        zeilen = conf.read_text().splitlines()
+    except OSError:
+        return False
+    return any(
+        z.strip().startswith("repo1-path") for z in zeilen
+    )
+
+
+def _volume_targets(service):
+    """Die Einhaengungen eines Dienstes als (Quelle, Ziel).
+
+    `compose config` liefert je nach Version zwei Formen - die ausfuehrliche
+    als Abbildung und die kurze als "quelle:ziel[:optionen]". Beide kommen
+    vor, also werden beide gelesen. Wer nur eine kennt, findet auf der anderen
+    Maschine nichts und meldet dann etwas Irrefuehrendes.
+    """
+    for vol in service.get("volumes", []) or []:
+        if isinstance(vol, dict):
+            quelle, ziel = vol.get("source"), vol.get("target")
+        else:
+            teile = str(vol).split(":")
+            if len(teile) < 2:
+                continue
+            quelle, ziel = teile[0], teile[1]
+        if quelle and ziel:
+            yield quelle, ziel
+
+
 def _verify_mounts(config):
     """Die Einhaengungen der Probe - und vor allem: welche NICHT.
 
@@ -794,15 +832,23 @@ def _verify_mounts(config):
     services = _compose_config(config).get("services", {})
     sidecar = services.get("pgbackrest") or {}
 
-    mounts = []
     run_pgbr = Path(config.HOST_RUN_DIR) / "pgbackrest"
-    mounts.append(f"{run_pgbr}:/etc/pgbackrest:ro")
+    mounts = [f"{run_pgbr}:/etc/pgbackrest:ro"]
 
-    for vol in sidecar.get("volumes", []) or []:
-        ziel = vol.get("target") if isinstance(vol, dict) else None
-        quelle = vol.get("source") if isinstance(vol, dict) else None
-        if ziel == "/var/lib/pgbackrest" and quelle:
+    for quelle, ziel in _volume_targets(sidecar):
+        if ziel == "/var/lib/pgbackrest":
             mounts.append(f"{quelle}:/var/lib/pgbackrest:ro")
+
+    if _verify_repo_is_local(config) and len(mounts) == 1:
+        # Lieber hier klar scheitern als pgbackrest gleich "missing stanza
+        # path" sagen lassen - das klingt nach einem kaputten Bestand und
+        # schickt den Suchenden ins Repository, obwohl nur die Einhaengung
+        # fehlt.
+        raise VerifyFailed(
+            "das Repository liegt lokal, aber sein Volume ist in der "
+            "compose-Konfiguration nicht zu finden - ohne das kann die Probe "
+            "den Bestand nicht lesen"
+        )
     return mounts
 
 
@@ -863,6 +909,14 @@ def _verify_latest_backup(config, stanza, image, mounts):
     # Sicherung" nennt, schickt den Suchenden in die falsche Richtung.
     status = daten[0].get("status") or {}
     code = status.get("code")
+    if code == 1:
+        # Der Bestand ist erreichbar, diese Stanza aber nicht darin. Das ist
+        # etwas anderes als "nicht lesbar" und braucht eine andere Suche.
+        raise VerifyFailed(
+            f"im Repository gibt es keinen Bereich '{stanza}' "
+            f"({status.get('message')}) - entweder wurde nie eine Stanza "
+            "angelegt, oder es wird am falschen Ort gesucht"
+        )
     if code not in (0, 2):
         raise VerifyFailed(
             f"das Repository ist nicht lesbar (Status {code}: "

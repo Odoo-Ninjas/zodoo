@@ -1295,12 +1295,16 @@ def test_e2e_the_restore_probe_brings_the_backup_up_and_reads_it(
     vorher = _sql(project, "SELECT count(*) FROM pitr_demo")
     assert any(c.isdigit() for c in vorher), vorher
 
-    out = project.run("pgbackrest", "verify", "--json", timeout=2400)
+    # check=False: eine gescheiterte Probe endet mit Rueckgabewert 1, und dann
+    # soll hier IHR Grund stehen und nicht bloss "Kommando fehlgeschlagen".
+    out = project.run(
+        "pgbackrest", "verify", "--json", check=False, timeout=2400
+    )
     ergebnis = json.loads(
         out.stdout[out.stdout.index("{") : out.stdout.rindex("}") + 1]
     )
 
-    assert ergebnis["result"] == "passed", ergebnis
+    assert ergebnis["result"] == "passed", ergebnis.get("error", ergebnis)
     # Nicht nur "bestanden": es muss auch wirklich etwas gelesen worden sein.
     # Eine Probe, die null Zeilen aus nichts liest, wuerde sonst durchgehen.
     assert ergebnis["rows"] > 0, ergebnis

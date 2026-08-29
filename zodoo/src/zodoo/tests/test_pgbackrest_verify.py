@@ -46,9 +46,25 @@ COMPOSE = {
 }
 
 
+# Die kurze Schreibweise - so liefert es manche compose-Version.
+COMPOSE_KURZ = {
+    "services": {
+        "pgbackrest": {
+            "image": "kunde-pgbackrest",
+            "volumes": [
+                "kunde_odoo_postgres_volume:/var/lib/postgresql/data",
+                "kunde_pgbackrest_data:/var/lib/pgbackrest",
+            ],
+        },
+        "postgres": {"image": "kunde-postgres", "volumes": []},
+    }
+}
+
+
 @pytest.fixture
 def compose(monkeypatch):
     monkeypatch.setattr(lp, "_compose_config", lambda config: COMPOSE)
+    monkeypatch.setattr(lp, "_verify_repo_is_local", lambda config: True)
     return COMPOSE
 
 
@@ -326,3 +342,75 @@ def test_a_project_without_the_services_says_which_are_missing(monkeypatch):
     with pytest.raises(lp.VerifyFailed) as ex:
         lp._verify_images(FakeConfig())
     assert "pgbackrest" in str(ex.value)
+
+
+# --------------------------------------------------------------------------- #
+# Die beiden Schreibweisen von compose                                         #
+# --------------------------------------------------------------------------- #
+
+
+def test_the_short_volume_notation_is_understood_too(monkeypatch):
+    """`compose config` liefert je nach Version Abbildung oder "quelle:ziel".
+
+    Wer nur eine Form kennt, findet auf der anderen Maschine das Repository
+    nicht - und pgbackrest meldet dann "missing stanza path", was nach einem
+    kaputten Bestand aussieht statt nach einer fehlenden Einhaengung.
+    """
+    monkeypatch.setattr(lp, "_compose_config", lambda config: COMPOSE_KURZ)
+    monkeypatch.setattr(lp, "_verify_repo_is_local", lambda config: True)
+    mounts = lp._verify_mounts(FakeConfig())
+    assert any(m == "kunde_pgbackrest_data:/var/lib/pgbackrest:ro"
+               for m in mounts), mounts
+    assert not any("odoo_postgres_volume" in m for m in mounts), mounts
+
+
+def test_a_local_repository_without_its_volume_fails_clearly(monkeypatch):
+    """Fehlende Einhaengung wird benannt, statt sie pgbackrest melden zu lassen."""
+    monkeypatch.setattr(
+        lp, "_compose_config",
+        lambda config: {"services": {"pgbackrest": {"volumes": []}}},
+    )
+    monkeypatch.setattr(lp, "_verify_repo_is_local", lambda config: True)
+    with pytest.raises(lp.VerifyFailed) as ex:
+        lp._verify_mounts(FakeConfig())
+    assert "Volume" in str(ex.value)
+
+
+def test_a_remote_repository_needs_no_volume(monkeypatch):
+    """Liegt der Bestand auf dem Backup-Server, gibt es hier nichts einzuhaengen."""
+    monkeypatch.setattr(
+        lp, "_compose_config",
+        lambda config: {"services": {"pgbackrest": {"volumes": []}}},
+    )
+    monkeypatch.setattr(lp, "_verify_repo_is_local", lambda config: False)
+    assert lp._verify_mounts(FakeConfig()) == [
+        "/tmp/run-kunde/pgbackrest:/etc/pgbackrest:ro"
+    ]
+
+
+def test_a_missing_stanza_is_not_called_unreadable(monkeypatch):
+    """Status 1 heisst: Bestand da, dieser Bereich nicht. Andere Suche."""
+    _info(monkeypatch, [{"status": {"code": 1, "message": "missing stanza path"},
+                         "backup": []}])
+    with pytest.raises(lp.VerifyFailed) as ex:
+        lp._verify_latest_backup(FakeConfig(), "kunde", "img", [])
+    assert "keinen Bereich" in str(ex.value)
+    assert "Passphrase" not in str(ex.value)
+
+
+def test_the_local_repo_detection_reads_the_projects_config(tmp_path):
+    """repo1-path = hier, repo1-host = anderswo."""
+    class C:
+        project_name = "kunde"
+        pgbr_stanza = None
+        HOST_RUN_DIR = str(tmp_path)
+
+    d = tmp_path / "pgbackrest"
+    d.mkdir()
+    conf = d / "pgbackrest.conf"
+
+    conf.write_text("[global]\nrepo1-path=/var/lib/pgbackrest\n")
+    assert lp._verify_repo_is_local(C()) is True
+
+    conf.write_text("[global]\nrepo1-host=db.backup.zebroo.de\n")
+    assert lp._verify_repo_is_local(C()) is False
