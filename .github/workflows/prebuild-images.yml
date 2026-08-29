@@ -175,7 +175,7 @@ jobs:
             odoo build $SERVICES
             # shellcheck disable=SC2086
             odoo zodoo-push $SERVICES
-            # Und dann warten, bis die Warteschlange leer ist.
+            # Und dann warten, bis die Warteschlange WIRKLICH leer ist.
             #
             # "odoo build" laedt nicht selbst hoch: enqueue_registry_uploads
             # benennt das Image lokal um, legt einen Auftrag in
@@ -189,6 +189,33 @@ jobs:
             # der dafuer vorgesehene Notnagel und arbeitet die Warteschlange
             # im Vordergrund ab.
             odoo run-crontab
+            # run-crontab allein reicht nicht: der abgekoppelte Arbeiter hat
+            # die Auftraege in der Regel schon geklaut (sie heissen dann
+            # <job>.json.processing.<pid>), und run-crontab meldet "processed
+            # 0 job(s)", waehrend die Uploads noch laufen. Endet der Job
+            # jetzt, stirbt der Arbeiter mitten im Push.
+            #
+            # Also auf das Verzeichnis warten, bis weder ein wartender noch
+            # ein laufender Auftrag darin liegt.
+            qdir="$HOME/.odoo/run/$(basename "$project" | tr '.' '_')/jobqueue"
+            [ -d "$qdir" ] || qdir="$(find "$HOME/.odoo/run" -maxdepth 2 -type d -name jobqueue | head -1)"
+            if [ -n "${qdir:-}" ] && [ -d "$qdir" ]; then
+              for _ in $(seq 1 120); do
+                offen=$(find "$qdir" -maxdepth 1 \
+                  \( -name '*.json' -o -name '*.json.processing.*' \) | wc -l)
+                [ "$offen" -eq 0 ] && break
+                echo "warte auf $offen Upload(s) ..."
+                sleep 10
+              done
+              odoo run-crontab
+              uebrig=$(find "$qdir" -maxdepth 1 \
+                \( -name '*.json' -o -name '*.json.processing.*' -o -name '*.failed.*' \) | wc -l)
+              if [ "$uebrig" -ne 0 ]; then
+                echo "::error::$uebrig Upload(s) nicht abgeschlossen -- die Images fehlen in der Registry."
+                find "$qdir" -maxdepth 1 -type f -printf '%f\\n' || true
+                exit 1
+              fi
+            fi
             cd /
             rm -rf "$project"
             echo "::endgroup::"
