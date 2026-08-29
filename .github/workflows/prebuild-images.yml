@@ -153,6 +153,20 @@ jobs:
             odoo build $SERVICES
             # shellcheck disable=SC2086
             odoo zodoo-push $SERVICES
+            # Und dann warten, bis die Warteschlange leer ist.
+            #
+            # "odoo build" laedt nicht selbst hoch: enqueue_registry_uploads
+            # benennt das Image lokal um, legt einen Auftrag in
+            # ${run}/jobqueue/ und startet einen ABGEKOPPELTEN Arbeiter. Auf
+            # einem GitHub-Runner endet der Job unmittelbar danach, der
+            # Arbeiter stirbt mit ihm -- und in der Registry kommt nichts an.
+            #
+            # Genau so gesehen am 28.08.2026: der Lauf war gruen, die
+            # Tag-Liste der Registry danach unveraendert, und jede
+            # Kundenmaschine baute die Images weiter selbst. run-crontab ist
+            # der dafuer vorgesehene Notnagel und arbeitet die Warteschlange
+            # im Vordergrund ab.
+            odoo run-crontab
             cd /
             rm -rf "$project"
             echo "::endgroup::"

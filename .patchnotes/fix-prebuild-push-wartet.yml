@@ -1,0 +1,21 @@
+type: fix
+description: |
+  Das Vorbauen der Images war gruen, aber in der Registry kam nichts an.
+
+  "odoo build" laedt nicht selbst hoch: enqueue_registry_uploads benennt das
+  Image lokal um, legt einen Auftrag in ${run}/jobqueue/ und startet einen
+  ABGEKOPPELTEN Arbeiter. Auf einem GitHub-Runner endet der Job unmittelbar
+  nach dem Bauen, der Arbeiter stirbt mit ihm -- und der docker push passiert
+  nie.
+
+  Nachweisbar am 28.08.2026: der Lauf lief durch, die Tag-Liste der Registry
+  war danach unveraendert, und eine frisch aufgesetzte Kundenmaschine suchte
+  weiterhin genau die Tags, die die CI selbst als "not in zodoo registry"
+  gemeldet und gebaut hatte (postgres 17-20b751e7, cronjobs 17-ec190864,
+  offsite e8e79952). Die Tags stimmen also ueberein -- es lud nur niemand
+  hoch.
+
+  Der Ablauf ruft jetzt am Ende "odoo run-crontab", den dafuer vorgesehenen
+  Notnagel: er arbeitet die Warteschlange im Vordergrund ab, bevor der Job
+  endet.
+breaking: false
