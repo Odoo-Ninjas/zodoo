@@ -817,6 +817,61 @@ def _volume_targets(service):
             yield quelle, ziel
 
 
+def _repo_volume(config, sidecar):
+    """Der WIRKLICHE Name des Repository-Volumes.
+
+    Hier lauert eine Falle: `compose config` nennt bei benannten Volumes nur
+    den kurzen Namen aus der Datei ('pgbackrest_data'), angelegt werden sie
+    zur Laufzeit aber mit dem Projekt davor ('kunde_pgbackrest_data'). Wer den
+    kurzen Namen an `docker run` weiterreicht, bekommt keinen Fehler, sondern
+    ein frisch erzeugtes LEERES Volume - und die Probe meldet dann 'missing
+    stanza path', als waere der Bestand kaputt.
+
+    Deshalb wird zuerst der laufende Sidecar gefragt: was dort tatsaechlich
+    eingehaengt ist, ist die Wahrheit. Nur wenn er nicht laeuft, wird der Name
+    nach derselben Regel gebildet, die auch compose benutzt.
+    """
+    aus_container = _repo_volume_from_container(config)
+    if aus_container:
+        return aus_container
+
+    for quelle, ziel in _volume_targets(sidecar):
+        if ziel != "/var/lib/pgbackrest":
+            continue
+        if quelle.startswith("/") or quelle.startswith("."):
+            return quelle  # eine Einhaengung aus dem Dateisystem, unveraendert
+        vorsatz = f"{config.project_name}_"
+        # Nicht doppelt voranstellen: je nach Version nennt compose den Namen
+        # schon mit Projekt. Zweimal davor waere ein Volume, das es nicht gibt
+        # - und das faellt wieder erst als "leerer Bestand" auf.
+        if quelle.startswith(vorsatz):
+            return quelle
+        return vorsatz + quelle
+    return None
+
+
+def _repo_volume_from_container(config):
+    try:
+        cid = subprocess.check_output(
+            __get_cmd(config) + ["ps", "-aq", "pgbackrest"], encoding="utf-8"
+        ).strip().splitlines()
+        if not cid:
+            return None
+        roh = subprocess.check_output(
+            ["docker", "inspect", cid[0], "--format", "{{json .Mounts}}"],
+            encoding="utf-8",
+        )
+    except (subprocess.CalledProcessError, OSError):
+        return None
+    try:
+        for m in json.loads(roh):
+            if m.get("Destination") == "/var/lib/pgbackrest":
+                return m.get("Name") or m.get("Source")
+    except ValueError:
+        return None
+    return None
+
+
 def _verify_mounts(config):
     """Die Einhaengungen der Probe - und vor allem: welche NICHT.
 
@@ -835,9 +890,9 @@ def _verify_mounts(config):
     run_pgbr = Path(config.HOST_RUN_DIR) / "pgbackrest"
     mounts = [f"{run_pgbr}:/etc/pgbackrest:ro"]
 
-    for quelle, ziel in _volume_targets(sidecar):
-        if ziel == "/var/lib/pgbackrest":
-            mounts.append(f"{quelle}:/var/lib/pgbackrest:ro")
+    repo = _repo_volume(config, sidecar)
+    if repo:
+        mounts.append(f"{repo}:/var/lib/pgbackrest:ro")
 
     if _verify_repo_is_local(config) and len(mounts) == 1:
         # Lieber hier klar scheitern als pgbackrest gleich "missing stanza

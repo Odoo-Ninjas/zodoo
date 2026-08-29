@@ -52,8 +52,8 @@ COMPOSE_KURZ = {
         "pgbackrest": {
             "image": "kunde-pgbackrest",
             "volumes": [
-                "kunde_odoo_postgres_volume:/var/lib/postgresql/data",
-                "kunde_pgbackrest_data:/var/lib/pgbackrest",
+                "odoo_postgres_volume:/var/lib/postgresql/data",
+                "pgbackrest_data:/var/lib/pgbackrest",
             ],
         },
         "postgres": {"image": "kunde-postgres", "volumes": []},
@@ -65,6 +65,7 @@ COMPOSE_KURZ = {
 def compose(monkeypatch):
     monkeypatch.setattr(lp, "_compose_config", lambda config: COMPOSE)
     monkeypatch.setattr(lp, "_verify_repo_is_local", lambda config: True)
+    monkeypatch.setattr(lp, "_repo_volume_from_container", lambda config: None)
     return COMPOSE
 
 
@@ -358,6 +359,7 @@ def test_the_short_volume_notation_is_understood_too(monkeypatch):
     """
     monkeypatch.setattr(lp, "_compose_config", lambda config: COMPOSE_KURZ)
     monkeypatch.setattr(lp, "_verify_repo_is_local", lambda config: True)
+    monkeypatch.setattr(lp, "_repo_volume_from_container", lambda config: None)
     mounts = lp._verify_mounts(FakeConfig())
     assert any(m == "kunde_pgbackrest_data:/var/lib/pgbackrest:ro"
                for m in mounts), mounts
@@ -371,6 +373,7 @@ def test_a_local_repository_without_its_volume_fails_clearly(monkeypatch):
         lambda config: {"services": {"pgbackrest": {"volumes": []}}},
     )
     monkeypatch.setattr(lp, "_verify_repo_is_local", lambda config: True)
+    monkeypatch.setattr(lp, "_repo_volume_from_container", lambda config: None)
     with pytest.raises(lp.VerifyFailed) as ex:
         lp._verify_mounts(FakeConfig())
     assert "Volume" in str(ex.value)
@@ -383,6 +386,7 @@ def test_a_remote_repository_needs_no_volume(monkeypatch):
         lambda config: {"services": {"pgbackrest": {"volumes": []}}},
     )
     monkeypatch.setattr(lp, "_verify_repo_is_local", lambda config: False)
+    monkeypatch.setattr(lp, "_repo_volume_from_container", lambda config: None)
     assert lp._verify_mounts(FakeConfig()) == [
         "/tmp/run-kunde/pgbackrest:/etc/pgbackrest:ro"
     ]
@@ -414,3 +418,51 @@ def test_the_local_repo_detection_reads_the_projects_config(tmp_path):
 
     conf.write_text("[global]\nrepo1-host=db.backup.zebroo.de\n")
     assert lp._verify_repo_is_local(C()) is False
+
+
+# --------------------------------------------------------------------------- #
+# Der wirkliche Name des Repository-Volumes                                    #
+# --------------------------------------------------------------------------- #
+
+
+def test_a_named_volume_gets_the_project_prefix(monkeypatch):
+    """compose nennt 'pgbackrest_data', angelegt wird 'kunde_pgbackrest_data'.
+
+    Der kurze Name an `docker run` gibt KEINEN Fehler - er erzeugt ein frisches
+    leeres Volume. Die Probe meldet dann 'missing stanza path', als waere der
+    Bestand kaputt. Genau diese falsche Faehrte verhindert dieser Test.
+    """
+    monkeypatch.setattr(lp, "_repo_volume_from_container", lambda config: None)
+    sidecar = {"volumes": [{"source": "pgbackrest_data",
+                            "target": "/var/lib/pgbackrest"}]}
+    assert lp._repo_volume(FakeConfig(), sidecar) == "kunde_pgbackrest_data"
+
+
+def test_a_path_mount_is_used_unchanged(monkeypatch):
+    """Ein Pfad aus dem Dateisystem bekommt kein Projekt davor."""
+    monkeypatch.setattr(lp, "_repo_volume_from_container", lambda config: None)
+    sidecar = {"volumes": [{"source": "/srv/repo",
+                            "target": "/var/lib/pgbackrest"}]}
+    assert lp._repo_volume(FakeConfig(), sidecar) == "/srv/repo"
+
+
+def test_the_running_container_wins_over_the_derived_name(monkeypatch):
+    """Was tatsaechlich eingehaengt ist, schlaegt jede Herleitung."""
+    monkeypatch.setattr(
+        lp, "_repo_volume_from_container", lambda config: "ganz_anders"
+    )
+    sidecar = {"volumes": [{"source": "pgbackrest_data",
+                            "target": "/var/lib/pgbackrest"}]}
+    assert lp._repo_volume(FakeConfig(), sidecar) == "ganz_anders"
+
+
+def test_an_already_prefixed_name_is_not_prefixed_twice(monkeypatch):
+    """Manche compose-Version nennt den Namen schon mit Projekt.
+
+    Zweimal davor waere ein Volume, das es nicht gibt - und das faellt wieder
+    nur als "leerer Bestand" auf, also als falsche Faehrte.
+    """
+    monkeypatch.setattr(lp, "_repo_volume_from_container", lambda config: None)
+    sidecar = {"volumes": [{"source": "kunde_pgbackrest_data",
+                            "target": "/var/lib/pgbackrest"}]}
+    assert lp._repo_volume(FakeConfig(), sidecar) == "kunde_pgbackrest_data"
