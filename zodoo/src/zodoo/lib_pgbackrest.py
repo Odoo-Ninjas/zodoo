@@ -1,8 +1,12 @@
 import json
 import re
+import socket
 import subprocess
+import traceback
 import sys
 import time
+import uuid
+from pathlib import Path
 import arrow
 import inquirer
 import click
@@ -737,6 +741,491 @@ def pgbackrest_info_toplevel(config):
 # Update guard: named restore point before `odoo update`, rollback on failure. #
 # Called from lib_module.update().                                             #
 # --------------------------------------------------------------------------- #
+
+
+# --------------------------------------------------------------------------- #
+# verify - die Rueckspielprobe                                                 #
+# --------------------------------------------------------------------------- #
+
+# Derselbe Pfad, unter dem auch die echte Instanz ihr Datenverzeichnis sieht.
+# Das ist der Kniff, der diese Probe einfach macht: die Konfiguration des
+# Projekts stimmt dann unveraendert weiter, es liegt nur ein Wegwerf-Volume
+# darunter statt der echten Platte.
+VERIFY_PGDATA = "/var/lib/postgresql/data/pgdata"
+
+# Wieviel Zeit die zurueckgespielte Instanz zum Hochfahren bekommt.
+VERIFY_STARTUP_TIMEOUT = 300
+
+# Was Postgres beim Wiederherstellen mindestens so gross braucht wie auf der
+# Quelle, sonst: "recovery aborted because of insufficient parameter settings".
+# Links der Name in pg_controldata, rechts der Serverparameter.
+VERIFY_MINIMUMS = {
+    "max_connections": "max_connections",
+    "max_worker_processes": "max_worker_processes",
+    "max_wal_senders": "max_wal_senders",
+    "max_prepared_xacts": "max_prepared_transactions",
+    "max_locks_per_xact": "max_locks_per_transaction",
+}
+
+
+class VerifyFailed(Exception):
+    """Ein Schritt der Probe ist gescheitert - mit Grund."""
+
+
+def _compose_config(config):
+    out = subprocess.check_output(
+        __get_cmd(config) + ["config", "--format", "json"], encoding="utf-8"
+    )
+    return json.loads(out)
+
+
+def _verify_repo_is_local(config):
+    """Liegt das Repository auf dieser Maschine oder auf dem Backup-Server?
+
+    Steht ein repo1-path in der Konfiguration, gehoert die Ablage diesem
+    Verbund selbst - dann muss die Probe das Volume mitbekommen, sonst findet
+    sie nichts. Steht dort ein repo1-host, ist die Ablage anderswo und wird
+    ueber das Netz gelesen.
+    """
+    conf = Path(config.HOST_RUN_DIR) / "pgbackrest" / "pgbackrest.conf"
+    try:
+        zeilen = conf.read_text().splitlines()
+    except OSError:
+        return False
+    return any(
+        z.strip().startswith("repo1-path") for z in zeilen
+    )
+
+
+def _volume_targets(service):
+    """Die Einhaengungen eines Dienstes als (Quelle, Ziel).
+
+    `compose config` liefert je nach Version zwei Formen - die ausfuehrliche
+    als Abbildung und die kurze als "quelle:ziel[:optionen]". Beide kommen
+    vor, also werden beide gelesen. Wer nur eine kennt, findet auf der anderen
+    Maschine nichts und meldet dann etwas Irrefuehrendes.
+    """
+    for vol in service.get("volumes", []) or []:
+        if isinstance(vol, dict):
+            quelle, ziel = vol.get("source"), vol.get("target")
+        else:
+            teile = str(vol).split(":")
+            if len(teile) < 2:
+                continue
+            quelle, ziel = teile[0], teile[1]
+        if quelle and ziel:
+            yield quelle, ziel
+
+
+def _repo_volume(config, sidecar):
+    """Der WIRKLICHE Name des Repository-Volumes.
+
+    Hier lauert eine Falle: `compose config` nennt bei benannten Volumes nur
+    den kurzen Namen aus der Datei ('pgbackrest_data'), angelegt werden sie
+    zur Laufzeit aber mit dem Projekt davor ('kunde_pgbackrest_data'). Wer den
+    kurzen Namen an `docker run` weiterreicht, bekommt keinen Fehler, sondern
+    ein frisch erzeugtes LEERES Volume - und die Probe meldet dann 'missing
+    stanza path', als waere der Bestand kaputt.
+
+    Deshalb wird zuerst der laufende Sidecar gefragt: was dort tatsaechlich
+    eingehaengt ist, ist die Wahrheit. Nur wenn er nicht laeuft, wird der Name
+    nach derselben Regel gebildet, die auch compose benutzt.
+    """
+    aus_container = _repo_volume_from_container(config)
+    if aus_container:
+        return aus_container
+
+    for quelle, ziel in _volume_targets(sidecar):
+        if ziel != "/var/lib/pgbackrest":
+            continue
+        if quelle.startswith("/") or quelle.startswith("."):
+            return quelle  # eine Einhaengung aus dem Dateisystem, unveraendert
+        vorsatz = f"{config.project_name}_"
+        # Nicht doppelt voranstellen: je nach Version nennt compose den Namen
+        # schon mit Projekt. Zweimal davor waere ein Volume, das es nicht gibt
+        # - und das faellt wieder erst als "leerer Bestand" auf.
+        if quelle.startswith(vorsatz):
+            return quelle
+        return vorsatz + quelle
+    return None
+
+
+def _repo_volume_from_container(config):
+    try:
+        cid = subprocess.check_output(
+            __get_cmd(config) + ["ps", "-aq", "pgbackrest"], encoding="utf-8"
+        ).strip().splitlines()
+        if not cid:
+            return None
+        roh = subprocess.check_output(
+            ["docker", "inspect", cid[0], "--format", "{{json .Mounts}}"],
+            encoding="utf-8",
+        )
+    except (subprocess.CalledProcessError, OSError):
+        return None
+    try:
+        for m in json.loads(roh):
+            if m.get("Destination") == "/var/lib/pgbackrest":
+                return m.get("Name") or m.get("Source")
+    except ValueError:
+        return None
+    return None
+
+
+def _verify_mounts(config):
+    """Die Einhaengungen der Probe - und vor allem: welche NICHT.
+
+    Bewusst NICHT dabei ist das Datenvolume des Projekts. Nicht, weil wir
+    aufpassen wuerden, nichts hineinzuschreiben, sondern damit es gar nicht
+    erreichbar ist: was nicht eingehaengt ist, kann auch ein Fehler in diesem
+    Code nicht ueberschreiben. Eine Probe, die im Zweifel die Produktion
+    plaettet, waere schlimmer als gar keine.
+
+    Das Repository wird, wenn es lokal liegt, NUR LESEND eingehaengt. Eine
+    Rueckspielprobe hat im Bestand nichts zu schreiben.
+    """
+    services = _compose_config(config).get("services", {})
+    sidecar = services.get("pgbackrest") or {}
+
+    run_pgbr = Path(config.HOST_RUN_DIR) / "pgbackrest"
+    mounts = [f"{run_pgbr}:/etc/pgbackrest:ro"]
+
+    repo = _repo_volume(config, sidecar)
+    if repo:
+        mounts.append(f"{repo}:/var/lib/pgbackrest:ro")
+
+    if _verify_repo_is_local(config) and len(mounts) == 1:
+        # Lieber hier klar scheitern als pgbackrest gleich "missing stanza
+        # path" sagen lassen - das klingt nach einem kaputten Bestand und
+        # schickt den Suchenden ins Repository, obwohl nur die Einhaengung
+        # fehlt.
+        raise VerifyFailed(
+            "das Repository liegt lokal, aber sein Volume ist in der "
+            "compose-Konfiguration nicht zu finden - ohne das kann die Probe "
+            "den Bestand nicht lesen"
+        )
+    return mounts
+
+
+def _verify_images(config):
+    """Die Abbilder, mit denen die Probe arbeitet.
+
+    `compose config` fuehrt bei GEBAUTEN Diensten kein `image` - es steht dort
+    nur ein `build`. Compose vergibt dann selbst den Namen
+    <projekt>-<dienst>, und genau der wird hier hilfsweise gebildet. Ohne das
+    landet ein None in der docker-Zeile, und der Fehler taucht erst tief in
+    subprocess auf, wo ihn niemand mehr zuordnet.
+    """
+    services = _compose_config(config).get("services", {})
+    fehlend = [n for n in ("pgbackrest", "postgres") if n not in services]
+    if fehlend:
+        raise VerifyFailed(
+            "diesem Projekt fehlen die Dienste " + ", ".join(fehlend)
+        )
+    return tuple(
+        services[dienst].get("image")
+        or f"{config.project_name}-{dienst}"
+        for dienst in ("pgbackrest", "postgres")
+    )
+
+
+def _docker(*args, timeout=1800, check=True):
+    out = subprocess.run(
+        ["docker", *args], capture_output=True, text=True, timeout=timeout
+    )
+    if check and out.returncode != 0:
+        raise VerifyFailed(
+            f"{' '.join(args[:3])} ...: rc={out.returncode}\n"
+            + (out.stderr or out.stdout).strip()[-2000:]
+        )
+    return out
+
+
+def _verify_latest_backup(config, stanza, image, mounts):
+    out = _docker(
+        "run", "--rm",
+        *sum((["-v", m] for m in mounts), []),
+        "--entrypoint", "/usr/sbin/gosu", image,
+        "pgbackrest", "pgbackrest",
+        "--stanza", stanza, "info", "--output=json",
+        timeout=300,
+    )
+    try:
+        daten = json.loads(out.stdout)
+    except ValueError as ex:
+        raise VerifyFailed(f"info lieferte kein JSON: {ex}") from ex
+    if not daten:
+        raise VerifyFailed(f"das Repository kennt die Stanza '{stanza}' nicht")
+
+    # Zwischen "leer" und "unlesbar" unterscheiden. Beides sieht in der Ausgabe
+    # gleich aus - null Sicherungen - hat aber voellig verschiedene Ursachen:
+    # das eine ist eine Instanz, die noch nie gesichert hat, das andere eine
+    # falsche Passphrase oder ein beschaedigtes Repository. Wer beides "keine
+    # Sicherung" nennt, schickt den Suchenden in die falsche Richtung.
+    status = daten[0].get("status") or {}
+    code = status.get("code")
+    if code == 1:
+        # Der Bestand ist erreichbar, diese Stanza aber nicht darin. Das ist
+        # etwas anderes als "nicht lesbar" und braucht eine andere Suche.
+        raise VerifyFailed(
+            f"im Repository gibt es keinen Bereich '{stanza}' "
+            f"({status.get('message')}) - entweder wurde nie eine Stanza "
+            "angelegt, oder es wird am falschen Ort gesucht"
+        )
+    if code not in (0, 2):
+        raise VerifyFailed(
+            f"das Repository ist nicht lesbar (Status {code}: "
+            f"{status.get('message')}) - haeufigste Ursache: falsche "
+            "Passphrase oder falsches Zertifikat"
+        )
+    if not daten[0].get("backup"):
+        raise VerifyFailed(f"'{stanza}' ist angemeldet, hat aber nie gesichert")
+    return daten[0]["backup"][-1]["label"]
+
+
+def _verify_minimums(postgres_image, volume, mounts):
+    """Die Mindestwerte der QUELLE aus dem zurueckgespielten pg_control lesen.
+
+    Warum nicht die zurueckgespielte postgresql.conf: zodoo reicht diese Werte
+    als Startparameter (-c) an Postgres, sie stehen also gar nicht in der
+    Datei. In pg_control stehen sie immer - dort hat Postgres selbst
+    festgehalten, womit der Cluster lief. Ausgelesen statt geraten: zu klein
+    laesst die Probe scheitern, zu gross verdeckt nichts, kostet aber Speicher.
+    """
+    out = _docker(
+        "run", "--rm",
+        "-v", f"{volume}:{VERIFY_PGDATA}",
+        *sum((["-v", m] for m in mounts), []),
+        "--user", "0",
+        "--entrypoint", "pg_controldata", postgres_image, VERIFY_PGDATA,
+        check=False, timeout=300,
+    )
+    werte = {}
+    for zeile in (out.stdout or "").splitlines():
+        if ":" not in zeile:
+            continue
+        links, rechts = zeile.split(":", 1)
+        for feld, parameter in VERIFY_MINIMUMS.items():
+            if feld in links and rechts.strip().isdigit():
+                werte[parameter] = rechts.strip()
+    return werte
+
+
+def _verify_query(container, frage, db="postgres", timeout=180):
+    return _docker(
+        "exec", container, "psql", "-U", "postgres", "-d", db, "-tAc", frage,
+        check=False, timeout=timeout,
+    )
+
+
+def _verify_read_user_data(container):
+    """Die eigentliche Frage - und sie geht an NUTZDATEN, nicht an den Katalog.
+
+    Ein Cluster, der hochfaehrt und erst beim ersten echten Lesen auf eine
+    kaputte Seite laeuft, soll hier durchfallen. Deshalb die groesste Tabelle
+    der groessten Datenbank: dort ist am meisten zu holen und am ehesten etwas
+    kaputt.
+    """
+    db = _verify_query(
+        container,
+        "SELECT datname FROM pg_database WHERE datallowconn "
+        "AND NOT datistemplate ORDER BY pg_database_size(oid) DESC LIMIT 1",
+    ).stdout.strip()
+    if not db:
+        raise VerifyFailed("in der zurueckgespielten Instanz ist keine Datenbank")
+
+    tabelle = _verify_query(
+        container,
+        "SELECT quote_ident(n.nspname)||'.'||quote_ident(c.relname) "
+        "FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+        "WHERE c.relkind = 'r' "
+        "AND n.nspname NOT IN ('pg_catalog','information_schema') "
+        "ORDER BY c.relpages DESC LIMIT 1",
+        db=db,
+    ).stdout.strip()
+    if not tabelle:
+        raise VerifyFailed(
+            f"in '{db}' gibt es keine einzige Nutztabelle - die Sicherung ist "
+            "zwar lesbar, aber leer"
+        )
+
+    out = _verify_query(container, f"SELECT count(*) FROM {tabelle}", db=db)
+    if out.returncode != 0 or not out.stdout.strip().isdigit():
+        raise VerifyFailed(
+            f"{db}.{tabelle} laesst sich nicht lesen: "
+            + (out.stderr or out.stdout).strip()[-800:]
+        )
+    return {"database": db, "table": tabelle, "rows": int(out.stdout.strip())}
+
+
+def _verify_start_and_read(postgres_image, volume, mounts, container):
+    parameter = []
+    for schluessel, wert in sorted(
+        _verify_minimums(postgres_image, volume, mounts).items()
+    ):
+        parameter += ["-c", f"{schluessel}={wert}"]
+
+    _docker(
+        "run", "-d", "--name", container,
+        "-v", f"{volume}:{VERIFY_PGDATA}",
+        # Die Repo-Konfiguration muss AUCH hier hinein: Postgres holt sich
+        # waehrend der Wiederherstellung die fehlenden WAL-Segmente selbst aus
+        # dem Repository (archive-get). Damit prueft die Probe nicht nur die
+        # Sicherungsdateien, sondern auch die Archivstrecke.
+        *sum((["-v", m] for m in mounts), []),
+        "-e", f"PGDATA={VERIFY_PGDATA}",
+        "-e", "POSTGRES_HOST_AUTH_METHOD=trust",
+        "--entrypoint", "docker-entrypoint.sh", postgres_image, "postgres",
+        *parameter,
+        timeout=300,
+    )
+
+    def protokoll():
+        out = _docker("logs", "--tail", "40", container, check=False, timeout=120)
+        return ((out.stdout or "") + (out.stderr or "")).strip()[-1800:]
+
+    ende = time.time() + VERIFY_STARTUP_TIMEOUT
+    while time.time() < ende:
+        zustand = _docker(
+            "inspect", container, "--format", "{{.State.Status}}",
+            check=False, timeout=120,
+        ).stdout.strip()
+        if zustand == "exited":
+            # Nicht bis zum Zeitablauf warten - der Start ist gescheitert, und
+            # das Protokoll sagt warum.
+            raise VerifyFailed(
+                "die zurueckgespielte Datenbank ist beim Start ausgestiegen:\n"
+                + protokoll()
+            )
+        if _verify_query(container, "SELECT 1").stdout.strip() == "1":
+            return _verify_read_user_data(container)
+        time.sleep(5)
+
+    raise VerifyFailed(
+        f"die zurueckgespielte Datenbank antwortet nach "
+        f"{VERIFY_STARTUP_TIMEOUT}s nicht:\n" + protokoll()
+    )
+
+
+def _verify_cleanup(container, volume):
+    for cmd in (("rm", "-f", container), ("volume", "rm", "-f", volume)):
+        try:
+            _docker(*cmd, check=False, timeout=300)
+        except Exception:  # noqa: BLE001 - Aufraeumen darf nie das Ergebnis kippen
+            pass
+
+
+def run_verify(config, stanza=None):
+    """Eine Rueckspielprobe durchfuehren und das Ergebnis zurueckgeben."""
+    stanza = stanza or _stanza(config)
+    kennung = uuid.uuid4().hex[:10]
+    container = f"verify-{stanza}-{kennung}"
+    volume = f"verify_{stanza}_{kennung}".replace("-", "_")
+    begonnen = time.time()
+
+    ergebnis = {
+        "area": stanza,
+        "bench": socket.gethostname(),
+        "checked_at": int(begonnen),
+    }
+    try:
+        pgbr_image, pg_image = _verify_images(config)
+        mounts = _verify_mounts(config)
+
+        ergebnis["backup"] = _verify_latest_backup(
+            config, stanza, pgbr_image, mounts
+        )
+
+        _docker("volume", "create", volume, timeout=120)
+        # Ein frisches Volume gehoert root; pgbackrest laeuft als pgbackrest
+        # und verweigert sonst ("not owned by current user"). Zu Recht: als
+        # root angelegte Dateien koennte der Postgres danach nicht lesen.
+        _docker(
+            "run", "--rm", "-v", f"{volume}:{VERIFY_PGDATA}", "--user", "0",
+            "--entrypoint", "chown", pgbr_image,
+            "-R", "pgbackrest:pgbackrest", VERIFY_PGDATA,
+            timeout=300,
+        )
+        # --type=immediate: bis zum Ende der Sicherung, nicht weiter. Die Frage
+        # ist "laeuft sie wieder an", nicht "spiele WAL bis heute nach" - das
+        # waere eine andere Frage und dauert um Groessenordnungen laenger.
+        _docker(
+            "run", "--rm",
+            "-v", f"{volume}:{VERIFY_PGDATA}",
+            *sum((["-v", m] for m in mounts), []),
+            "--entrypoint", "/usr/sbin/gosu", pgbr_image,
+            "pgbackrest", "pgbackrest",
+            "--stanza", stanza, "restore",
+            "--type=immediate", "--target-action=promote",
+            timeout=3600,
+        )
+        ergebnis.update(
+            _verify_start_and_read(pg_image, volume, mounts, container)
+        )
+        ergebnis["result"] = "passed"
+    except VerifyFailed as ex:
+        ergebnis["result"] = "failed"
+        ergebnis["error"] = str(ex)[-2000:]
+    except Exception as ex:  # noqa: BLE001
+        # Mit Rueckverfolgung: ein unerwarteter Fehler in der Probe selbst ist
+        # sonst nicht auffindbar - "TypeError: expected str" ohne Stelle sagt
+        # niemandem, wo er suchen soll.
+        ergebnis["result"] = "failed"
+        ergebnis["error"] = (
+            f"{type(ex).__name__}: {ex}\n" + traceback.format_exc()
+        )[-2000:]
+    finally:
+        _verify_cleanup(container, volume)
+
+    ergebnis["seconds"] = int(time.time() - begonnen)
+    return ergebnis
+
+
+@pgbackrest.command(
+    name="verify",
+    help=(
+        "Restore test: bring the newest backup up as a throwaway postgres and "
+        "read real data from it. The only check that says anything about the "
+        "CONTENT of the backups - everything else only proves the bytes are "
+        "there. Never touches this project's data directory."
+    ),
+)
+@click.option("--stanza", default=None, help="verify another stanza")
+@click.option("--json", "as_json", is_flag=True, help="machine readable")
+@click.option(
+    "--report-to",
+    default=None,
+    help="directory for the result file, named <stanza>-<timestamp>.json",
+)
+@pass_config
+def pgbackrest_verify(config, stanza, as_json, report_to):
+    _ensure_pgbackrest(config)
+    ergebnis = run_verify(config, stanza)
+
+    if report_to:
+        ziel = Path(report_to)
+        ziel.mkdir(parents=True, exist_ok=True)
+        stempel = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+        datei = ziel / f"{ergebnis['area']}-{stempel}.json"
+        datei.write_text(json.dumps(ergebnis, indent=1, sort_keys=True) + "\n")
+        click.secho(f"geschrieben: {datei}", fg="green")
+
+    if as_json:
+        click.echo(json.dumps(ergebnis, indent=1, sort_keys=True))
+    elif ergebnis["result"] == "passed":
+        click.secho(
+            f"Rueckspielprobe bestanden: Sicherung {ergebnis['backup']} laeuft, "
+            f"{ergebnis['rows']} Zeilen aus {ergebnis['table']} gelesen "
+            f"({ergebnis['seconds']}s).",
+            fg="green",
+        )
+    else:
+        click.secho(
+            f"Rueckspielprobe GESCHEITERT: {ergebnis.get('error')}", fg="red"
+        )
+
+    if ergebnis["result"] != "passed":
+        sys.exit(1)
 
 
 def _truthy(val):

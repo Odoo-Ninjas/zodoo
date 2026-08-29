@@ -1,0 +1,32 @@
+type: feature
+breaking: false
+description: |
+  Neu: `odoo pgbackrest verify` — die Rueckspielprobe.
+
+  Bisher pruefte an den Sicherungen alles nur, ob die Bytes daliegen, die wir
+  hingelegt haben: Groessen, Zeitstempel, Lueckenlosigkeit der WAL-Kette.
+  Keine dieser Pruefungen sagt etwas darueber, ob sich aus dem Bestand je
+  wieder ein Postgres starten laesst. Das sagt nur diese hier.
+
+  Zum Ausprobieren: im Projektverzeichnis `odoo pgbackrest verify` aufrufen.
+  Die neueste Sicherung wird in ein Wegwerf-Volume zurueckgespielt, ein
+  Postgres darauf gestartet und aus der groessten Nutztabelle der groessten
+  Datenbank gelesen. Am Ende steht eine Zeile wie
+
+      Rueckspielprobe bestanden: Sicherung 20260825-212040F laeuft,
+      70000 Zeilen aus public.res_partner gelesen (15s).
+
+  Worauf zu achten ist: die LAUFENDE Instanz bleibt dabei unberuehrt - sie
+  muss waehrend und nach der Probe unveraendert weiterlaufen. Das ist keine
+  Sorgfaltsfrage, sondern eingebaut: das Datenvolume des Projekts wird gar
+  nicht erst eingehaengt, und das Repository nur lesend. Was nicht eingehaengt
+  ist, kann auch ein Fehler in diesem Code nicht ueberschreiben.
+
+  `--json` fuer die maschinenlesbare Form, `--report-to <ordner>` legt das
+  Ergebnis als `<stanza>-<zeitstempel>.json` ab (das liest die Ueberwachung),
+  `--stanza` prueft einen fremden Bereich - dafuer gibt es den Pruefstand.
+
+  Ein Fehlschlag ist ein Ergebnis, kein Absturz: es wird trotzdem eine Datei
+  geschrieben. "Probe gescheitert" und "keine Probe gelaufen" sind sehr
+  verschiedene Nachrichten, und die Ueberwachung muss sie unterscheiden
+  koennen.

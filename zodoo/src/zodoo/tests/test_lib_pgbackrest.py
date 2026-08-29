@@ -15,7 +15,9 @@ undoes a change against a live stack.
 from __future__ import annotations
 
 import importlib.util
+import json
 import platform
+import subprocess
 import time
 from pathlib import Path
 
@@ -1267,6 +1269,65 @@ def _in_postgres(project, cmd, check=True):
         timeout=120,
         check=check,
     )
+
+
+@pytest.mark.slow
+@requires_full_stack
+def test_e2e_the_restore_probe_brings_the_backup_up_and_reads_it(
+    pgbackrest_project,
+):
+    """Die Rueckspielprobe im Ganzen - und der Nachweis, dass sie nichts anfasst.
+
+    Der PITR-Test davor hat bereits gesichert, es liegt also etwas im
+    Repository. Diese Probe holt es heraus, faehrt es hoch und liest daraus -
+    ohne das Datenverzeichnis der laufenden Instanz zu beruehren.
+
+    Genau das wird hier auch geprueft, und zwar an der Sache selbst: vorher und
+    nachher wird in der LAUFENDEN Datenbank gezaehlt. Bliebe die Probe nicht
+    bei sich, waere die Zahl danach eine andere - oder die Instanz waere weg.
+    """
+    project = pgbackrest_project
+
+    # Der PITR-Test davor hinterlaesst pitr_demo - daran wird gemessen, ob die
+    # laufende Instanz die Probe unveraendert uebersteht. Verglichen wird die
+    # rohe Ausgabe, nicht eine herausgeloeste Zahl: `odoo psql` schreibt noch
+    # Beiwerk mit, und fuer "vorher wie nachher" ist das gleichgueltig.
+    vorher = _sql(project, "SELECT count(*) FROM pitr_demo")
+    assert any(c.isdigit() for c in vorher), vorher
+
+    # check=False: eine gescheiterte Probe endet mit Rueckgabewert 1, und dann
+    # soll hier IHR Grund stehen und nicht bloss "Kommando fehlgeschlagen".
+    out = project.run(
+        "pgbackrest", "verify", "--json", check=False, timeout=2400
+    )
+    ergebnis = json.loads(
+        out.stdout[out.stdout.index("{") : out.stdout.rindex("}") + 1]
+    )
+
+    assert ergebnis["result"] == "passed", ergebnis.get("error", ergebnis)
+    # Nicht nur "bestanden": es muss auch wirklich etwas gelesen worden sein.
+    # Eine Probe, die null Zeilen aus nichts liest, wuerde sonst durchgehen.
+    assert ergebnis["rows"] > 0, ergebnis
+    assert ergebnis["table"], ergebnis
+    assert ergebnis["backup"], ergebnis
+
+    nachher = _sql(project, "SELECT count(*) FROM pitr_demo")
+    assert nachher == vorher, (
+        f"die laufende Instanz hat sich waehrend der Probe veraendert: "
+        f"{vorher!r} -> {nachher!r}"
+    )
+
+    # Und nichts bleibt liegen: weder Container noch Volume der Probe.
+    reste = subprocess.run(
+        ["docker", "ps", "-aq", "--filter", "name=verify-"],
+        capture_output=True, text=True,
+    ).stdout.strip()
+    assert not reste, f"Container der Probe blieben stehen: {reste}"
+    volumes = subprocess.run(
+        ["docker", "volume", "ls", "-q", "--filter", "name=verify_"],
+        capture_output=True, text=True,
+    ).stdout.strip()
+    assert not volumes, f"Volumes der Probe blieben liegen: {volumes}"
 
 
 @pytest.mark.slow
