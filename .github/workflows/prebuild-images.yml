@@ -115,6 +115,28 @@ jobs:
           SERVICES="postgres proxy cronjobs cronjobshell pgbackrest offsite"
           SERVICES="$SERVICES odoo_metrics_exporter rsync console pgtools"
 
+          # Die Registry-Einstellungen gehoeren in die BENUTZER-Datei,
+          # nicht nur ins Projekt.
+          #
+          # _get_push_credentials liest ZODOO_REGISTRY_SUGGESTED
+          # ausschliesslich aus ~/.odoo/settings (_read_user_setting).
+          # Benutzername und Passwort duerfen aus den Projekteinstellungen
+          # kommen, dieser eine Schluessel nicht. Ist er leer und haengt kein
+          # Terminal dran -- also in jeder CI -- steigt die Funktion
+          # STILLSCHWEIGEND aus und laedt nichts hoch.
+          #
+          # Genau das ist am 28./29.08.2026 passiert: der Lauf war gruen, die
+          # Images waren gebaut, die Tags stimmten mit denen der
+          # Kundenmaschinen ueberein -- und in der Registry kam nichts an,
+          # ohne eine einzige Zeile Ausgabe.
+          mkdir -p "$HOME/.odoo"
+          {
+            echo "ZODOO_REGISTRY_URL=$REGISTRY_URL"
+            echo "ZODOO_REGISTRY_USERNAME=$REGISTRY_USERNAME"
+            echo "ZODOO_REGISTRY_PASSWORD=$REGISTRY_PASSWORD"
+            echo "ZODOO_REGISTRY_SUGGESTED=1"
+          } >> "$HOME/.odoo/settings"
+
           IFS=',' read -ra VERS <<< "$VERSIONS"
           for version in "${VERS[@]}"; do
             version="$(echo "$version" | xargs)"

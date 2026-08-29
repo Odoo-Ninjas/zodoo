@@ -15,7 +15,15 @@ description: |
   offsite e8e79952). Die Tags stimmen also ueberein -- es lud nur niemand
   hoch.
 
-  Der Ablauf ruft jetzt am Ende "odoo run-crontab", den dafuer vorgesehenen
-  Notnagel: er arbeitet die Warteschlange im Vordergrund ab, bevor der Job
-  endet.
+  Der eigentliche Grund lag noch eine Ebene tiefer: _get_push_credentials
+  liest ZODOO_REGISTRY_SUGGESTED ausschliesslich aus ~/.odoo/settings
+  (_read_user_setting). Der Ablauf setzte es mit "odoo setting" im Projekt --
+  also in ./.odoo/settings. Ist der Schluessel in der Benutzerdatei leer und
+  haengt kein Terminal dran, steigt die Funktion stillschweigend aus: kein
+  Push, keine Meldung, gruener Lauf.
+
+  Der Ablauf schreibt die Registry-Einstellungen jetzt in ~/.odoo/settings
+  und ruft am Ende zusaetzlich "odoo run-crontab", damit auch die in die
+  Warteschlange gelegten Uploads noch im Vordergrund abgearbeitet werden,
+  bevor der Runner abgeraeumt wird.
 breaking: false
