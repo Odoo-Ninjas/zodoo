@@ -1288,8 +1288,12 @@ def test_e2e_the_restore_probe_brings_the_backup_up_and_reads_it(
     """
     project = pgbackrest_project
 
-    vorher = _sql(project, "SELECT count(*) FROM pitr_probe").stdout.strip()
-    assert vorher.isdigit(), vorher
+    # Der PITR-Test davor hinterlaesst pitr_demo - daran wird gemessen, ob die
+    # laufende Instanz die Probe unveraendert uebersteht. Verglichen wird die
+    # rohe Ausgabe, nicht eine herausgeloeste Zahl: `odoo psql` schreibt noch
+    # Beiwerk mit, und fuer "vorher wie nachher" ist das gleichgueltig.
+    vorher = _sql(project, "SELECT count(*) FROM pitr_demo")
+    assert any(c.isdigit() for c in vorher), vorher
 
     out = project.run("pgbackrest", "verify", "--json", timeout=2400)
     ergebnis = json.loads(
@@ -1303,10 +1307,10 @@ def test_e2e_the_restore_probe_brings_the_backup_up_and_reads_it(
     assert ergebnis["table"], ergebnis
     assert ergebnis["backup"], ergebnis
 
-    nachher = _sql(project, "SELECT count(*) FROM pitr_probe").stdout.strip()
+    nachher = _sql(project, "SELECT count(*) FROM pitr_demo")
     assert nachher == vorher, (
         f"die laufende Instanz hat sich waehrend der Probe veraendert: "
-        f"{vorher} -> {nachher}"
+        f"{vorher!r} -> {nachher!r}"
     )
 
     # Und nichts bleibt liegen: weder Container noch Volume der Probe.
