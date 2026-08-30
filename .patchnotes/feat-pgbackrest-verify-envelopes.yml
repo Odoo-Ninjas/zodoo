@@ -1,0 +1,27 @@
+type: feature
+breaking: false
+description: |
+  Der Pruefstand kann jetzt die age-Umschlaege des Anmeldedienstes oeffnen —
+  und braucht dadurch KEIN eigenes Zertifikat mehr.
+
+  Beim Freigeben eines Bereichs legt der Anmeldedienst einen verschluesselten
+  Umschlag ab. Darin steht nicht nur die Passphrase, sondern auch das
+  Client-Zertifikat des Kunden. Das ist der eigentliche Gewinn: der Pruefstand
+  nimmt je Bereich das Zertifikat des KUNDEN, statt eines Sammelzertifikats,
+  das auf alle Bereiche berechtigt waere. pgBackRest kennt kein
+  Nur-Lese-Zertifikat — ein Sammelzertifikat duerfte ueberall auch schreiben.
+
+  Zum Ausprobieren: in der Pruefstand-Konfiguration `age_identity` (privater
+  Schluessel) und `envelope_dir` (Ordner mit den Umschlaegen) setzen; die
+  Bereichsliste und `cert_dir` koennen dann entfallen. Ein Lauf ohne weitere
+  Angaben prueft alle Bereiche, zu denen ein Umschlag liegt:
+
+      odoo pgbackrest verify --bench-config /etc/pgbr-pruefstand/config.json
+
+  Worauf zu achten ist: neue Kunden muessen NICHT nachgetragen werden — was
+  nachgetragen werden muss, wird irgendwann vergessen, und ein Bereich, den
+  niemand prueft, faellt nicht auf. Liegen mehrere Umschlaege eines Bereichs,
+  gilt der juengste. Einzelne Werte lassen sich weiter von Hand uebersteuern.
+
+  Der private Schluessel wird NICHT in einen Container eingehaengt: geoeffnet
+  wird auf der Maschine, hinein geht nur das Ergebnis.

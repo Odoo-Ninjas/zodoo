@@ -651,3 +651,171 @@ def test_the_non_root_invocation_differs_per_image():
     mit_user = lp._pgbr_als_benutzer("bild", "999:999")
     assert mit_user[:2] == ["--user", "999:999"]
     assert "gosu" not in " ".join(mit_user)
+
+
+# --------------------------------------------------------------------------- #
+# Umschlaege: Passphrase UND Zertifikat kommen vom Anmeldedienst              #
+# --------------------------------------------------------------------------- #
+
+
+UMSCHLAG = {
+    "area": "kunde-a",
+    "stanza": "kunde-a",
+    "repo_host": "db.backup.zebroo.de",
+    "repo_port": 443,
+    "cipher_type": "aes-256-cbc",
+    "cipher_pass": "aus-dem-umschlag",
+    "client_cert": "-----BEGIN CERTIFICATE-----\nkunde-a\n-----END CERTIFICATE-----\n",
+    "client_key": "-----BEGIN PRIVATE KEY-----\nkunde-a\n-----END PRIVATE KEY-----\n",
+}
+
+
+def _umschlag_ordner(tmp_path, *namen):
+    d = tmp_path / "umschlaege"
+    d.mkdir(exist_ok=True)
+    for n in namen:
+        (d / n).write_text("age-chiffrat")
+    return str(d)
+
+
+def test_the_newest_envelope_wins(tmp_path):
+    """Eine zweite Freigabe legt eine zweite Datei an, statt zu ueberschreiben.
+
+    Es gilt der juengste Umschlag - er traegt die Zugangsdaten, die zuletzt
+    ausgegeben wurden. Der aelteste wuerde ein abgeloestes Zertifikat liefern.
+    """
+    d = _umschlag_ordner(
+        tmp_path,
+        "kunde-a-20260101T000000Z.age",
+        "kunde-a-20260815T000000Z.age",
+        "kunde-b-20260901T000000Z.age",
+    )
+    assert lp.neuester_umschlag(d, "kunde-a").endswith(
+        "kunde-a-20260815T000000Z.age"
+    )
+
+
+def test_areas_are_derived_from_the_envelopes(tmp_path):
+    """Neue Kunden muessen nicht von Hand nachgetragen werden.
+
+    Was nachgetragen werden muss, wird irgendwann vergessen - und ein Bereich,
+    den niemand prueft, faellt nicht auf.
+    """
+    d = _umschlag_ordner(
+        tmp_path, "kunde-a-20260101T000000Z.age", "kunde-b-20260101T000000Z.age"
+    )
+    assert lp.umschlag_bereiche(d) == ["kunde-a", "kunde-b"]
+
+
+def test_no_envelope_directory_is_not_an_error(tmp_path):
+    assert lp.umschlag_bereiche(None) == []
+    assert lp.neuester_umschlag(str(tmp_path / "weg"), "kunde-a") is None
+
+
+def test_the_envelope_supplies_passphrase_and_certificate(monkeypatch,
+                                                          tmp_path):
+    """Der eigentliche Gewinn: das Zertifikat des KUNDEN kommt mit.
+
+    Damit braucht der Pruefstand kein eigenes, das auf alle Bereiche
+    berechtigt waere - pgBackRest kennt kein Nur-Lese-Zertifikat, ein
+    Sammelzertifikat duerfte also ueberall auch schreiben.
+    """
+    d = _umschlag_ordner(tmp_path, "kunde-a-20260101T000000Z.age")
+    monkeypatch.setattr(lp, "umschlag_oeffnen", lambda i, p: UMSCHLAG)
+    ergaenzt = lp._aus_umschlag(
+        {"envelope_dir": d, "age_identity": "/etc/age.key"}, "kunde-a"
+    )
+    assert ergaenzt["cipher_pass"] == "aus-dem-umschlag"
+    assert "kunde-a" in ergaenzt["client_cert"]
+    assert "kunde-a" in ergaenzt["client_key"]
+    assert ergaenzt["repo_host"] == "db.backup.zebroo.de"
+    assert ergaenzt["umschlag"] == "kunde-a-20260101T000000Z.age"
+
+
+def test_explicit_configuration_beats_the_envelope(monkeypatch, tmp_path):
+    """Ein Wert von Hand laesst sich uebersteuern, ohne den Umschlag anzufassen."""
+    d = _umschlag_ordner(tmp_path, "kunde-a-20260101T000000Z.age")
+    monkeypatch.setattr(lp, "umschlag_oeffnen", lambda i, p: UMSCHLAG)
+    ergaenzt = lp._aus_umschlag(
+        {"envelope_dir": d, "age_identity": "/k", "cipher_pass": "von-hand"},
+        "kunde-a",
+    )
+    assert ergaenzt["cipher_pass"] == "von-hand"
+
+
+def test_a_missing_age_key_is_named_plainly(tmp_path):
+    """Ohne privaten Schluessel geht es nicht - und das soll dastehen."""
+    d = _umschlag_ordner(tmp_path, "kunde-a-20260101T000000Z.age")
+    with pytest.raises(lp.VerifyFailed) as ex:
+        lp._aus_umschlag({"envelope_dir": d}, "kunde-a")
+    assert "age_identity" in str(ex.value)
+
+    with pytest.raises(lp.VerifyFailed) as ex:
+        lp._aus_umschlag(
+            {"envelope_dir": d, "age_identity": str(tmp_path / "weg.key")},
+            "kunde-a",
+        )
+    assert "nicht da" in str(ex.value)
+
+
+def test_an_unopenable_envelope_says_so(monkeypatch, tmp_path):
+    """Falscher Schluessel ist etwas anderes als ein kaputtes Backup."""
+    d = _umschlag_ordner(tmp_path, "kunde-a-20260101T000000Z.age")
+    identity = tmp_path / "age.key"
+    identity.write_text("x")
+    monkeypatch.setattr(
+        lp.subprocess, "run",
+        lambda *a, **kw: mock.Mock(returncode=1, stderr="no identity matched",
+                                   stdout=""),
+    )
+    with pytest.raises(lp.VerifyFailed) as ex:
+        lp.umschlag_oeffnen(str(identity), str(tmp_path / "u.age"))
+    assert "nicht oeffnen" in str(ex.value)
+    assert "no identity matched" in str(ex.value)
+
+
+def test_the_certificate_from_the_envelope_is_written_not_copied(monkeypatch,
+                                                                 tmp_path):
+    """Aus dem Umschlag kommt Text, kein Pfad - er wird abgelegt, nicht kopiert."""
+    monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
+    arbeit = tmp_path / "arbeit"
+    arbeit.mkdir()
+    bench = {
+        "repo_host": "db.backup.zebroo.de",
+        "pgbackrest_image": "pgbr-pruefstand:2.59.1",
+        "client_cert": UMSCHLAG["client_cert"],
+        "client_key": UMSCHLAG["client_key"],
+        "cipher_pass": "x",
+        # ca.crt kommt weiter aus dem Ordner - sie ist fuer alle dieselbe.
+        "cert_dir": str(tmp_path / "cert"),
+    }
+    (tmp_path / "cert").mkdir()
+    (tmp_path / "cert" / "ca.crt").write_text("CA")
+
+    lp._bench_umgebung(bench, "kunde-a", str(arbeit))
+    assert "kunde-a" in (arbeit / "cert" / "client.crt").read_text()
+    assert "kunde-a" in (arbeit / "cert" / "client.key").read_text()
+    assert (arbeit / "cert" / "ca.crt").read_text() == "CA"
+
+
+def test_the_private_age_key_is_never_mounted(monkeypatch, tmp_path):
+    """Der Schluessel oeffnet JEDEN Umschlag - er hat im Container nichts zu suchen.
+
+    Geoeffnet wird auf der Maschine, hinein geht nur das Ergebnis.
+    """
+    monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
+    arbeit = tmp_path / "arbeit2"
+    arbeit.mkdir()
+    (tmp_path / "cert").mkdir(exist_ok=True)
+    (tmp_path / "cert" / "ca.crt").write_text("CA")
+    bench = {
+        "repo_host": "h", "pgbackrest_image": "b",
+        "age_identity": "/etc/pgbr-pruefstand/age.key",
+        "client_cert": "c", "client_key": "k", "cipher_pass": "x",
+        "cert_dir": str(tmp_path / "cert"),
+    }
+    u = lp._bench_umgebung(bench, "kunde-a", str(arbeit))
+    assert not any(bench["age_identity"] in m for m in u["mounts"]), u["mounts"]
+    # Und auch sonst nichts aus /etc/pgbr-pruefstand - dort liegt der
+    # Schluessel, und eingehaengt wird nur der Wegwerf-Ordner.
+    assert all(m.startswith(str(arbeit)) for m in u["mounts"]), u["mounts"]
