@@ -17,6 +17,15 @@ JOB_BACKUP_ODOO_DB=odoo backup odoo-db $DB_ODOO_FILEFORMAT --dumptype $DB_ODOO_D
 # step of every backup. A cleanup that has to be scheduled separately is a
 # cleanup that eventually is not (see JOB_DADDY_CLEANUP below, which has no
 # CRONJOB_ counterpart and therefore never runs).
+# Kennzahlen zur Sicherung fuer die Ueberwachung. Alle fuenf Minuten, weil
+# der Wert nicht die Sicherung selbst ist, sondern die Antwort auf "wann war
+# die letzte" -- die aendert sich hoechstens einmal am Tag. Haeufiger als
+# noetig ist er trotzdem: faellt der Schreiber aus, soll das schnell
+# auffallen (zodoo_backup_metrics_written_timestamp_seconds altert dann).
+#
+# Laeuft auf jedem Projekt und steigt ohne pgbackrest/dashboard still aus.
+JOB_BACKUP_METRICS=odoo backup-metrics
+CRONJOB_BACKUP_METRICS=*/5 * * * * $JOB_BACKUP_METRICS
 JOB_PGBACKREST_FULL=odoo pgbackrest backup --type full
 CRONJOB_PGBACKREST_FULL=$PGBR_FULL_CRON $JOB_PGBACKREST_FULL
 JOB_PGBACKREST_DIFF=odoo pgbackrest backup --type diff

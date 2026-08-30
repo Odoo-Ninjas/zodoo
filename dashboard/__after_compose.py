@@ -10,7 +10,12 @@ Hier wird deshalb eine Kopie nach ``$HOST_RUN_DIR/dashboard/prometheus.yml``
 gerendert und der Mount darauf umgebogen -- denselben Weg gehen schon die
 Dockerfiles und die Compose-Datei.
 
-Wichtig: das passiert NUR, wenn remote_write eingeschaltet ist. Ohne die
+Dazu bekommt der node_exporter den textfile-Collector: `odoo
+backup-metrics` legt dort Kennzahlen zur Sicherung ab, und ohne den
+Collector laege die Datei nur herum.
+
+Wichtig: das Umbiegen von prometheus.yml passiert NUR, wenn
+remote_write eingeschaltet ist. Ohne die
 Einstellung bleibt alles beim Alten, inklusive des bisherigen Mounts. Eine
 Aenderung, die auch dort etwas tut, wo sie nichts zu tun hat, ist eine
 Aenderung mit unnoetigem Radius.
@@ -127,9 +132,56 @@ def _rendern(settings, run_dir):
     return datei
 
 
+def _textfile_einhaengen(yml, run_dir):
+    """node_exporter den textfile-Collector geben.
+
+    Dort legt `odoo backup-metrics` ab, wie es um die Sicherung steht. Ohne
+    den Collector wuerde die Datei geschrieben und nie gelesen -- und das
+    waere die schlechteste aller Varianten: es saehe nach Ueberwachung aus.
+
+    Laeuft unabhaengig von remote_write: die Werte sind auch auf einer
+    einzelnen Maschine nuetzlich, im Grafana vor Ort.
+    """
+    dienst = (yml.get("services") or {}).get("node_exporter")
+    if not dienst:
+        return
+    ordner = run_dir / "dashboard" / "textfile"
+    ordner.mkdir(parents=True, exist_ok=True)
+
+    schalter = "--collector.textfile.directory=/textfile"
+    befehl = dienst.setdefault("command", [])
+    if isinstance(befehl, list) and schalter not in befehl:
+        befehl.append(schalter)
+
+    ziel = "/textfile"
+    volumes = dienst.setdefault("volumes", [])
+    vorhanden = any(
+        (isinstance(v, dict) and v.get("target") == ziel)
+        or (isinstance(v, str) and f":{ziel}" in v)
+        for v in volumes
+    )
+    if not vorhanden:
+        # Lange Form, nicht "quelle:ziel": dieser Haken laeuft NACH
+        # `docker compose config`, das Kurzformen normalisiert. Ein hier
+        # angehaengter String wird nicht mehr normalisiert, und
+        # create_directories haelt dann die linke Seite fuer einen Hostpfad.
+        volumes.append(
+            {
+                "type": "bind",
+                "source": str(ordner),
+                "target": ziel,
+                "read_only": True,
+            }
+        )
+
+
 def after_compose(config, settings, yml, globals):
     if not _truthy(settings.get("RUN_DASHBOARD", "0")):
         return
+
+    run_dir = Path(settings["HOST_RUN_DIR"])
+    _textfile_einhaengen(yml, run_dir)
+
     if not _wert(settings, "DASHBOARD_REMOTE_WRITE_URL"):
         return
 
@@ -137,7 +189,6 @@ def after_compose(config, settings, yml, globals):
     if not dienst:
         return
 
-    run_dir = Path(settings["HOST_RUN_DIR"])
     datei = _rendern(settings, run_dir)
 
     if not _mount_umbiegen(dienst, datei):
