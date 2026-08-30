@@ -1296,6 +1296,8 @@ def _bench_umgebung(bench, stanza, arbeitsordner):
     Passphrase; sie lesbar fuer jeden zu machen waere der bequeme, falsche Weg.
     """
     fehlend = [f for f in BENCH_PFLICHTFELDER if not bench.get(f)]
+    if not bench.get("cert_dir") and bench.get("client_cert"):
+        fehlend = [f for f in fehlend if f != "cert_dir"]
     if fehlend:
         raise VerifyFailed(
             "in der Pruefstand-Konfiguration fehlt: " + ", ".join(fehlend)
@@ -1313,11 +1315,27 @@ def _bench_umgebung(bench, stanza, arbeitsordner):
     cert_ziel = ordner / "cert"
     cert_ziel.mkdir(mode=0o700, exist_ok=True)
     os.chown(cert_ziel, uid, gid)
+
+    # Das Zertifikat kommt entweder aus dem Umschlag des Bereichs (dann ist es
+    # das des KUNDEN und gilt nur fuer dessen Stanza) oder aus einem Ordner.
+    # Der Umschlag ist der bessere Weg - siehe umschlag_oeffnen().
+    aus_umschlag = {
+        "client.crt": bench.get("client_cert"),
+        "client.key": bench.get("client_key"),
+    }
     for datei in ("ca.crt", "client.crt", "client.key"):
-        quelle = Path(bench["cert_dir"]) / datei
-        if not quelle.exists():
-            raise VerifyFailed(f"das Zertifikat {quelle} fehlt")
-        (cert_ziel / datei).write_bytes(quelle.read_bytes())
+        inhalt = aus_umschlag.get(datei)
+        if inhalt:
+            (cert_ziel / datei).write_text(inhalt)
+        else:
+            if not bench.get("cert_dir"):
+                raise VerifyFailed(
+                    f"fuer {datei} gibt es weder einen Umschlag noch cert_dir"
+                )
+            quelle = Path(bench["cert_dir"]) / datei
+            if not quelle.exists():
+                raise VerifyFailed(f"das Zertifikat {quelle} fehlt")
+            (cert_ziel / datei).write_bytes(quelle.read_bytes())
         os.chmod(cert_ziel / datei, 0o600)
         os.chown(cert_ziel / datei, uid, gid)
     os.chown(ordner, uid, gid)
@@ -1332,12 +1350,104 @@ def _bench_umgebung(bench, stanza, arbeitsordner):
     }
 
 
+def umschlag_oeffnen(identity, pfad):
+    """Einen age-Umschlag lesen.
+
+    Der Anmeldedienst legt beim Freigeben eines Bereichs einen Umschlag ab,
+    verschluesselt gegen einen OEFFENTLICHEN Schluessel - der Backup-Server
+    kann ihn also anlegen, aber nicht oeffnen. Genau deshalb darf er offen
+    herumliegen.
+
+    Drin steht alles, was zum Zurueckspielen noetig ist: Repository,
+    Passphrase UND das Zertifikat des Kunden. Dass das Zertifikat mitkommt,
+    ist der eigentliche Gewinn: der Pruefstand braucht dadurch KEIN eigenes,
+    das auf alle Bereiche berechtigt waere - er nimmt je Bereich das des
+    Kunden. pgBackRest kennt kein Nur-Lese-Zertifikat, ein Sammelzertifikat
+    duerfte also ueberall auch schreiben.
+    """
+    if not identity:
+        raise VerifyFailed(
+            "fuer Umschlaege fehlt der private age-Schluessel "
+            "(age_identity in der Pruefstand-Konfiguration)"
+        )
+    if not os.path.exists(identity):
+        raise VerifyFailed(f"der age-Schluessel {identity} ist nicht da")
+
+    out = subprocess.run(
+        ["age", "--decrypt", "-i", identity, pfad],
+        capture_output=True, text=True, timeout=60,
+    )
+    if out.returncode != 0:
+        raise VerifyFailed(
+            f"der Umschlag {os.path.basename(pfad)} laesst sich nicht "
+            "oeffnen: " + (out.stderr or "").strip()[-300:]
+        )
+    try:
+        return json.loads(out.stdout)
+    except ValueError as ex:
+        raise VerifyFailed(f"der Umschlag enthaelt kein JSON: {ex}") from ex
+
+
+def neuester_umschlag(ordner, stanza):
+    """Der juengste Umschlag eines Bereichs, oder None.
+
+    Eine zweite Freigabe legt eine zweite Datei an, statt die erste zu
+    ueberschreiben - der juengste gilt, denn er traegt die Zugangsdaten, die
+    zuletzt ausgegeben wurden.
+    """
+    if not ordner or not os.path.isdir(ordner):
+        return None
+    treffer = sorted(
+        p for p in os.listdir(ordner)
+        if p.startswith(f"{stanza}-") and p.endswith(".age")
+    )
+    return os.path.join(ordner, treffer[-1]) if treffer else None
+
+
+def umschlag_bereiche(ordner):
+    """Welche Bereiche im Umschlag-Ordner liegen."""
+    if not ordner or not os.path.isdir(ordner):
+        return []
+    namen = set()
+    for p in os.listdir(ordner):
+        if p.endswith(".age") and "-" in p:
+            namen.add(p.rsplit("-", 1)[0])
+    return sorted(namen)
+
+
+def _aus_umschlag(bench, stanza):
+    """Die Angaben eines Bereichs aus seinem Umschlag ergaenzen.
+
+    Was schon in der Konfiguration steht, bleibt stehen - so laesst sich ein
+    einzelner Wert von Hand uebersteuern, ohne den Umschlag anzufassen.
+    """
+    pfad = neuester_umschlag(bench.get("envelope_dir"), stanza)
+    if not pfad:
+        return bench
+    daten = umschlag_oeffnen(bench.get("age_identity"), pfad)
+
+    ergaenzt = dict(bench)
+    for aus, nach in (
+        ("repo_host", "repo_host"),
+        ("repo_port", "repo_port"),
+        ("cipher_type", "cipher_type"),
+        ("cipher_pass", "cipher_pass"),
+        ("client_cert", "client_cert"),
+        ("client_key", "client_key"),
+    ):
+        if daten.get(aus) and not ergaenzt.get(nach):
+            ergaenzt[nach] = daten[aus]
+    ergaenzt["umschlag"] = os.path.basename(pfad)
+    return ergaenzt
+
+
 def run_verify_bench(bench, stanza):
     """Eine Rueckspielprobe des PRUEFSTANDS an einem fremden Bereich."""
     eigen = dict(bench)
     eigen.update((bench.get("stanzas") or {}).get(stanza) or {})
     arbeitsordner = tempfile.mkdtemp(prefix=f"verify-{stanza}-")
     try:
+        eigen = _aus_umschlag(eigen, stanza)
         umgebung = _bench_umgebung(eigen, stanza, arbeitsordner)
     except VerifyFailed as ex:
         shutil.rmtree(arbeitsordner, ignore_errors=True)
@@ -1390,9 +1500,23 @@ def pgbackrest_verify(config, stanza, as_json, report_to, bench_config):
         # Datei.
         with open(bench_config) as fh:
             bench = json.load(fh)
-        bereiche = [stanza] if stanza else sorted(bench.get("stanzas") or {})
+        # Die Bereiche stehen entweder in der Datei oder ergeben sich aus den
+        # abgelegten Umschlaegen. Letzteres ist der Normalfall: dann muss beim
+        # Anmelden eines neuen Kunden hier nichts nachgetragen werden, und es
+        # kann auch nichts vergessen werden.
+        bereiche = (
+            [stanza] if stanza
+            else sorted(
+                set(bench.get("stanzas") or {})
+                | set(umschlag_bereiche(bench.get("envelope_dir")))
+            )
+        )
         if not bereiche:
-            abort(f"in {bench_config} steht kein einziger Bereich")
+            abort(
+                f"in {bench_config} steht kein Bereich, und unter "
+                f"{bench.get('envelope_dir') or '(kein envelope_dir)'} liegt "
+                "auch kein Umschlag"
+            )
         ergebnisse = [run_verify_bench(bench, b) for b in bereiche]
     else:
         _ensure_pgbackrest(config)
