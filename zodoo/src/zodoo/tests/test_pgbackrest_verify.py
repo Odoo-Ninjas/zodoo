@@ -819,3 +819,162 @@ def test_the_private_age_key_is_never_mounted(monkeypatch, tmp_path):
     # Und auch sonst nichts aus /etc/pgbr-pruefstand - dort liegt der
     # Schluessel, und eingehaengt wird nur der Wegwerf-Ordner.
     assert all(m.startswith(str(arbeit)) for m in u["mounts"]), u["mounts"]
+
+
+# --------------------------------------------------------------------------- #
+# Zweite Bestandsart: Objektspeicher (S3 / MinIO)                              #
+# --------------------------------------------------------------------------- #
+
+
+BENCH_S3 = {
+    "repo_type": "s3",
+    "s3_endpoint": "192.168.77.44:9000",
+    "s3_bucket": "pgbackrest",
+    "s3_key": "pgbackrest",
+    "s3_key_secret": "geheim",
+    "pgbackrest_image": "pgbr-pruefstand:2.59.1",
+    "cipher_pass": "passphrase",
+    "bench": "pgbr-pruefstand",
+}
+
+
+def test_the_s3_form_addresses_the_bucket_by_path():
+    """MinIO adressiert Buckets ueber den Pfad, nicht ueber den Hostnamen.
+
+    Mit der Vorgabe 'host' laeuft jede Anfrage gegen einen Namen, den es im
+    DNS nicht gibt - und der Fehler sieht aus wie ein Netzproblem.
+    """
+    text = lp.bench_conf_text(BENCH_S3, "kunde-a")
+    assert "repo1-type=s3" in text
+    assert "repo1-s3-uri-style=path" in text
+    assert "repo1-s3-bucket=pgbackrest" in text
+    assert "repo1-s3-endpoint=192.168.77.44:9000" in text
+
+
+def test_the_s3_form_has_no_repo_host():
+    """Ein Objektspeicher ist kein Repo-Host - beides zugleich waere Unsinn."""
+    text = lp.bench_conf_text(BENCH_S3, "kunde-a")
+    assert "repo1-host=" not in text
+    assert "repo1-host-cert-file" not in text
+
+
+def test_the_tls_form_has_no_s3_options():
+    text = lp.bench_conf_text(BENCH, "kunde-a")
+    assert "repo1-type=s3" not in text
+    assert "repo1-host=db.backup.zebroo.de" in text
+
+
+def test_the_storage_certificate_is_verified_not_trusted_blindly():
+    """Sonst koennte sich zwischen Pruefstand und Bestand jemand setzen.
+
+    Und die Probe wuerde ihn bestaetigen - eine Rueckspielprobe, die auf einen
+    untergeschobenen Bestand hereinfaellt, ist schlimmer als keine.
+    """
+    text = lp.bench_conf_text(
+        dict(BENCH_S3, storage_ca_file="/etc/pgbr-pruefstand/minio-ca.crt"),
+        "kunde-a",
+    )
+    assert "repo1-storage-verify-tls=y" in text
+    assert "repo1-storage-ca-file=/etc/pgbackrest/cert/storage-ca.crt" in text
+
+
+def test_the_encryption_stays_ours_on_s3_too():
+    """Der Speicher sieht Chiffrat - egal ob eigener MinIO oder fremder Anbieter."""
+    text = lp.bench_conf_text(BENCH_S3, "kunde-a")
+    assert "repo1-cipher-pass=passphrase" in text
+
+
+def test_an_incomplete_s3_config_names_what_is_missing(tmp_path, monkeypatch):
+    monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
+    arbeit = tmp_path / "a"
+    arbeit.mkdir()
+    with pytest.raises(lp.VerifyFailed) as ex:
+        lp._bench_umgebung(
+            {"repo_type": "s3", "s3_endpoint": "x"}, "kunde-a", str(arbeit)
+        )
+    fehlt = str(ex.value)
+    assert "s3_bucket" in fehlt and "s3_key" in fehlt
+    # Ein Zertifikatsordner ist bei S3 gerade NICHT noetig - er darf hier auch
+    # nicht angemahnt werden, sonst sucht man an der falschen Stelle.
+    assert "cert_dir" not in fehlt
+
+
+def test_s3_needs_no_client_certificate(tmp_path, monkeypatch):
+    """Ein Objektspeicher weist uns ueber ein Schluesselpaar aus."""
+    monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
+    arbeit = tmp_path / "b"
+    arbeit.mkdir()
+    u = lp._bench_umgebung(BENCH_S3, "kunde-a", str(arbeit))
+    assert u["mounts"] == [f"{arbeit}:/etc/pgbackrest:ro"]
+    assert not (arbeit / "cert" / "client.crt").exists()
+
+
+def test_the_storage_ca_is_copied_into_the_throwaway_folder(tmp_path,
+                                                            monkeypatch):
+    monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
+    ca = tmp_path / "minio-ca.crt"
+    ca.write_text("CA-INHALT")
+    arbeit = tmp_path / "c"
+    arbeit.mkdir()
+    lp._bench_umgebung(
+        dict(BENCH_S3, storage_ca_file=str(ca)), "kunde-a", str(arbeit)
+    )
+    assert (arbeit / "cert" / "storage-ca.crt").read_text() == "CA-INHALT"
+
+
+def test_a_missing_storage_ca_is_named(tmp_path, monkeypatch):
+    monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
+    arbeit = tmp_path / "d"
+    arbeit.mkdir()
+    with pytest.raises(lp.VerifyFailed) as ex:
+        lp._bench_umgebung(
+            dict(BENCH_S3, storage_ca_file=str(tmp_path / "weg.crt")),
+            "kunde-a", str(arbeit),
+        )
+    assert "Speicher-CA" in str(ex.value)
+
+
+def test_both_repository_kinds_produce_the_same_shape_of_environment(
+    tmp_path, monkeypatch
+):
+    """Danach ist der Ablauf identisch - nur die Herkunft unterscheidet sich."""
+    monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
+    cert = tmp_path / "cert"
+    cert.mkdir()
+    for f in ("ca.crt", "client.crt", "client.key"):
+        (cert / f).write_text("x")
+    a, b = tmp_path / "ea", tmp_path / "eb"
+    a.mkdir(); b.mkdir()
+
+    tls = lp._bench_umgebung(dict(BENCH, cert_dir=str(cert)), "k", str(a))
+    s3 = lp._bench_umgebung(BENCH_S3, "k", str(b))
+    assert set(tls) == set(s3)
+
+
+def test_the_working_folder_belongs_to_the_container_user_in_both_shapes(
+    tmp_path, monkeypatch
+):
+    """Der Ordner kommt von mkdtemp und gehoert root mit 0700.
+
+    Wird er nicht uebertragen, kann der Container die Konfiguration nicht
+    lesen - "Permission denied" auf die eigene pgbackrest.conf. Ein Zweig, der
+    frueher zurueckkehrt, darf das nicht verlieren koennen.
+    """
+    gesehen = []
+    monkeypatch.setattr(
+        lp.os, "chown", lambda pfad, u, g: gesehen.append(str(pfad))
+    )
+    cert = tmp_path / "cert"
+    cert.mkdir()
+    for f in ("ca.crt", "client.crt", "client.key"):
+        (cert / f).write_text("x")
+
+    for name, bench in (
+        ("tls", dict(BENCH, cert_dir=str(cert))),
+        ("s3", BENCH_S3),
+    ):
+        gesehen.clear()
+        arbeit = tmp_path / name
+        arbeit.mkdir()
+        lp._bench_umgebung(bench, "k", str(arbeit))
+        assert str(arbeit) in gesehen, (name, gesehen)

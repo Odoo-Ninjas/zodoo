@@ -1254,23 +1254,60 @@ def run_verify(config, stanza=None):
 # --------------------------------------------------------------------------- #
 
 BENCH_PFLICHTFELDER = ("repo_host", "cert_dir", "pgbackrest_image")
+BENCH_PFLICHTFELDER_S3 = (
+    "s3_endpoint", "s3_bucket", "s3_key", "s3_key_secret", "pgbackrest_image",
+)
 
 
 def bench_conf_text(bench, stanza):
     """Die pgbackrest.conf, mit der der Pruefstand liest.
 
-    Bewusst NUR lesend gedacht: hier steht kein pg1-path eines laufenden
+    Zwei Formen, weil es zwei Arten von Bestand gibt und sie strukturell
+    verschieden sind, nicht nur anders benannt:
+
+      tls  ein pgBackRest-Repo-Host, der uns ueber sein eigenes Protokoll
+           bedient - dort weist ein CLIENT-ZERTIFIKAT aus, wer wir sind.
+      s3   ein Objektspeicher, der uns Dateien gibt - dort ist es ein
+           SCHLUeSSELPAAR, und der Bestand ist ein Pfad im Bucket.
+
+    Bewusst nur lesend gedacht: hier steht kein pg1-path eines laufenden
     Clusters, sondern der Pfad, unter den zurueckgespielt wird.
     """
-    zeilen = [
-        "[global]",
-        f"repo1-host={bench['repo_host']}",
-        "repo1-host-type=tls",
-        f"repo1-host-port={bench.get('repo_port', 443)}",
-        "repo1-host-ca-file=/etc/pgbackrest/cert/ca.crt",
-        "repo1-host-cert-file=/etc/pgbackrest/cert/client.crt",
-        "repo1-host-key-file=/etc/pgbackrest/cert/client.key",
-    ]
+    zeilen = ["[global]"]
+
+    if bench.get("repo_type") == "s3":
+        zeilen += [
+            "repo1-type=s3",
+            f"repo1-s3-endpoint={bench['s3_endpoint']}",
+            f"repo1-s3-bucket={bench['s3_bucket']}",
+            f"repo1-s3-region={bench.get('s3_region', 'us-east-1')}",
+            f"repo1-s3-key={bench['s3_key']}",
+            f"repo1-s3-key-secret={bench['s3_key_secret']}",
+            # MinIO und die meisten selbstbetriebenen Speicher adressieren den
+            # Bucket ueber den PFAD, nicht ueber den Hostnamen. Bei einem
+            # Anbieter mit eigenem DNS je Bucket waere es andersherum -
+            # deshalb einstellbar und nicht festgenagelt.
+            f"repo1-s3-uri-style={bench.get('s3_uri_style', 'path')}",
+            f"repo1-path={bench.get('s3_path', '/')}",
+        ]
+        if bench.get("storage_ca_file"):
+            # Das Zertifikat wird GEPRUEFT, nicht blind angenommen: sonst
+            # koennte sich zwischen Pruefstand und Bestand jemand dazwischen
+            # setzen, und die Probe wuerde ihn bestaetigen.
+            zeilen += [
+                "repo1-storage-ca-file=/etc/pgbackrest/cert/storage-ca.crt",
+                "repo1-storage-verify-tls=y",
+            ]
+    else:
+        zeilen += [
+            f"repo1-host={bench['repo_host']}",
+            "repo1-host-type=tls",
+            f"repo1-host-port={bench.get('repo_port', 443)}",
+            "repo1-host-ca-file=/etc/pgbackrest/cert/ca.crt",
+            "repo1-host-cert-file=/etc/pgbackrest/cert/client.crt",
+            "repo1-host-key-file=/etc/pgbackrest/cert/client.key",
+        ]
+
     if bench.get("cipher_pass"):
         zeilen += [
             f"repo1-cipher-type={bench.get('cipher_type', 'aes-256-cbc')}",
@@ -1295,8 +1332,10 @@ def _bench_umgebung(bench, stanza, arbeitsordner):
     laeuft - nicht root und nicht allen. In der Konfiguration steht die
     Passphrase; sie lesbar fuer jeden zu machen waere der bequeme, falsche Weg.
     """
-    fehlend = [f for f in BENCH_PFLICHTFELDER if not bench.get(f)]
-    if not bench.get("cert_dir") and bench.get("client_cert"):
+    ist_s3 = bench.get("repo_type") == "s3"
+    pflicht = BENCH_PFLICHTFELDER_S3 if ist_s3 else BENCH_PFLICHTFELDER
+    fehlend = [f for f in pflicht if not bench.get(f)]
+    if not ist_s3 and not bench.get("cert_dir") and bench.get("client_cert"):
         fehlend = [f for f in fehlend if f != "cert_dir"]
     if fehlend:
         raise VerifyFailed(
@@ -1308,6 +1347,10 @@ def _bench_umgebung(bench, stanza, arbeitsordner):
     uid, gid = int(uid), int(gid or uid)
 
     ordner = Path(arbeitsordner)
+    # Zuerst der Ordner selbst: er kommt von mkdtemp und gehoert root mit 0700.
+    # Wer das erst am Ende macht, verliert es beim naechsten Zweig, der frueher
+    # zurueckkehrt - genau das ist mir hier passiert.
+    os.chown(ordner, uid, gid)
     (ordner / "pgbackrest.conf").write_text(bench_conf_text(bench, stanza))
     os.chmod(ordner / "pgbackrest.conf", 0o600)
     os.chown(ordner / "pgbackrest.conf", uid, gid)
@@ -1315,6 +1358,27 @@ def _bench_umgebung(bench, stanza, arbeitsordner):
     cert_ziel = ordner / "cert"
     cert_ziel.mkdir(mode=0o700, exist_ok=True)
     os.chown(cert_ziel, uid, gid)
+
+    if ist_s3:
+        # Ein Objektspeicher weist uns ueber ein Schluesselpaar aus, nicht
+        # ueber ein Zertifikat. Hierher kommt nur die CA, gegen die SEIN
+        # Zertifikat geprueft wird - und auch die nur, wenn eine angegeben ist.
+        quelle = bench.get("storage_ca_file")
+        if quelle:
+            if not Path(quelle).exists():
+                raise VerifyFailed(f"die Speicher-CA {quelle} fehlt")
+            ziel = cert_ziel / "storage-ca.crt"
+            ziel.write_bytes(Path(quelle).read_bytes())
+            os.chmod(ziel, 0o600)
+            os.chown(ziel, uid, gid)
+        return {
+            "pgbackrest_image": bench["pgbackrest_image"],
+            "postgres_image": bench.get("postgres_image")
+            or bench["pgbackrest_image"],
+            "mounts": [f"{ordner}:/etc/pgbackrest:ro"],
+            "run_user": run_user,
+            "bench": bench.get("bench") or socket.gethostname(),
+        }
 
     # Das Zertifikat kommt entweder aus dem Umschlag des Bereichs (dann ist es
     # das des KUNDEN und gilt nur fuer dessen Stanza) oder aus einem Ordner.
@@ -1338,7 +1402,6 @@ def _bench_umgebung(bench, stanza, arbeitsordner):
             (cert_ziel / datei).write_bytes(quelle.read_bytes())
         os.chmod(cert_ziel / datei, 0o600)
         os.chown(cert_ziel / datei, uid, gid)
-    os.chown(ordner, uid, gid)
 
     return {
         "pgbackrest_image": bench["pgbackrest_image"],
@@ -1429,6 +1492,8 @@ def _aus_umschlag(bench, stanza):
     ergaenzt = dict(bench)
     for aus, nach in (
         ("repo_host", "repo_host"),
+        ("s3_endpoint", "s3_endpoint"),
+        ("s3_bucket", "s3_bucket"),
         ("repo_port", "repo_port"),
         ("cipher_type", "cipher_type"),
         ("cipher_pass", "cipher_pass"),
