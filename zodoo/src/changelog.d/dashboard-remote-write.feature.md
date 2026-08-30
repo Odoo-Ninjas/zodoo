@@ -1,0 +1,9 @@
+Der Prometheus einer Instanz kann eine Kopie seiner Messwerte an eine zentrale Ablage schicken (`remote_write`). Gedacht fuer den Betrieb mehrerer Maschinen: die Instanz misst schon alles, was man ueber sie wissen will, aber bisher nur fuer sich. Der lokale Prometheus bleibt unveraendert die Detailsicht vor Ort; nach draussen geht eine Kopie, aus der sich Flottensicht und Alarme bauen lassen.
+
+Einschalten mit `DASHBOARD_REMOTE_WRITE_URL` (leer = aus, und dann aendert sich gar nichts). Dazu `DASHBOARD_REMOTE_WRITE_USER` / `DASHBOARD_REMOTE_WRITE_PASSWORD` fuer den Zugang und `DASHBOARD_REMOTE_WRITE_INSTANZ` fuer den Namen, unter dem diese Maschine in der Ablage erscheint (Label `instanz`).
+
+`DASHBOARD_REMOTE_WRITE_INSTANZ` ist Pflicht, sobald eine URL steht, und faellt bewusst NICHT auf `$PROJECT_NAME` zurueck: der heisst auf vielen Installationen ueberall gleich, und die Messwerte der ganzen Flotte laegen dann uebereinander, ohne dass es auffiele. Fehlt der Name, bleibt `remote_write` aus und sagt warum. Auf DEVMODE-Maschinen ist es ohnehin aus (`DASHBOARD_REMOTE_FORCE_IN_DEVMODE=1` schaltet es zum Testen ein).
+
+Technisch: `prometheus.yml` wird dafuer je Projekt nach `$HOST_RUN_DIR/dashboard/prometheus.yml` gerendert und der Mount darauf umgebogen -- bisher hing fuer alle Projekte dieselbe Datei aus dem Images-Verzeichnis im Container, und die kann keine Werte je Maschine tragen. Ohne die Einstellung passiert das nicht und der bisherige Mount bleibt.
+
+Zum Testen: `DASHBOARD_REMOTE_WRITE_URL` und `..._INSTANZ` setzen, `odoo reload`, dann `$HOST_RUN_DIR/dashboard/prometheus.yml` ansehen (`remote_write:` und `external_labels:` muessen drinstehen) und in der Ablage nachsehen, ob Messwerte mit dem eigenen `instanz`-Label ankommen. Ohne `..._INSTANZ` muss `odoo reload` rot melden und nichts schicken.

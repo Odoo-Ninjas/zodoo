@@ -11,3 +11,31 @@ DASHBOARD_LOKI_RETENTION=168h
 # on non-DEVMODE instances (see __after_settings.py) and skipped entirely in
 # DEVMODE (empty -> gate disabled, no prompt).
 DASHBOARD_PASSWORD=
+
+# ---------------------------------------------------------------------------
+# Kopie der Messwerte an eine zentrale Ablage schicken (remote_write).
+#
+# Wozu: der Prometheus auf dieser Maschine misst alles, was man ueber sie
+# wissen will, aber er misst es nur fuer sich. Wer eine Flotte betreibt,
+# braucht eine Stelle, an der alle zusammenlaufen -- fuer die Uebersicht und
+# fuer Alarme. Der lokale Prometheus bleibt dabei unveraendert die
+# Detailsicht vor Ort; nach draussen geht eine Kopie.
+#
+# Leer = aus. Dann bleibt alles wie bisher und es geht nichts nach draussen.
+DASHBOARD_REMOTE_WRITE_URL=
+# Zugang zur Ablage. Je Maschine ein eigener -- ein gemeinsamer waere ein
+# Generalschluessel auf die Messwerte aller Kunden.
+DASHBOARD_REMOTE_WRITE_USER=
+DASHBOARD_REMOTE_WRITE_PASSWORD=
+# Unter welchem Namen diese Maschine in der Ablage erscheint (Label
+# "instanz"). MUSS gesetzt sein, sobald eine URL steht.
+#
+# Warum das nicht einfach $PROJECT_NAME ist: der heisst auf jeder unserer
+# Maschinen "instance". Genau dieser stille Rueckfall hat am 29.08.2026 dazu
+# gefuehrt, dass jede Instanz denselben Bereich am Backup-Server angefragt
+# hat. Hier waere die Folge, dass die Messwerte der ganzen Flotte unter einem
+# Namen uebereinanderliegen -- ohne dass irgendwo etwas rot wird.
+DASHBOARD_REMOTE_WRITE_INSTANZ=
+# Auf Entwicklerrechnern aus, wie bei pgbackrest und offsite: eine Kiste
+# unter dem Schreibtisch gehoert nicht in die Flottensicht.
+DASHBOARD_REMOTE_FORCE_IN_DEVMODE=0
