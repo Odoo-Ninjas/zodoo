@@ -1552,6 +1552,102 @@ def run_verify_bench(bench, stanza):
         shutil.rmtree(arbeitsordner, ignore_errors=True)
 
 
+# --------------------------------------------------------------------------- #
+# Bestandspruefung: sind die abgelegten Bytes noch heil?                        #
+# --------------------------------------------------------------------------- #
+
+
+def _verify_ausgabe_lesen(text, stanza):
+    """Das Urteil aus der Ausgabe von `pgbackrest verify` holen.
+
+    NICHT aus dem Rueckgabewert: `verify` meldet `status: error` und beendet
+    sich trotzdem mit 0 ("completed successfully"). Wer den Rueckgabewert
+    prueft, bekommt fuer ein kaputtes Repository ein gruenes Ergebnis - der
+    stillste denkbare Fehlschlag.
+    """
+    zeilen = [z.strip() for z in text.splitlines()]
+    urteil = None
+    meldungen = []
+    gesehen = False
+    for zeile in zeilen:
+        if zeile.endswith("stanza: %s" % stanza) or zeile == "stanza: %s" % stanza:
+            gesehen = True
+            continue
+        if not gesehen:
+            continue
+        if "status:" in zeile:
+            urteil = zeile.split("status:", 1)[1].strip()
+            continue
+        if urteil and zeile and not zeile.startswith(("20", "-")):
+            meldungen.append(zeile)
+    return urteil, meldungen
+
+
+def run_repo_verify_bench(bench, stanza):
+    """`pgbackrest verify` fuer EINEN fremden Bereich, vom Pruefstand aus.
+
+    Warum hier und nicht auf dem Repo-Host: `verify` muss die abgelegten
+    Dateien LESEN, um ihre Pruefsummen nachzurechnen - und der Repo-Host hat
+    die Passphrase nicht. Das ist kein Versehen, sondern der Kern des Aufbaus:
+    er verwahrt Sicherungen, die er selbst nicht oeffnen kann. Auf dem
+    Repo-Host aufgerufen meldet verify darum nur "No usable backup.info file".
+    Die Passphrase liegt dort, wo auch die Rueckspielprobe sie herbekommt -
+    im age-Umschlag auf dem Pruefstand.
+
+    Beantwortet eine andere Frage als die Rueckspielprobe: die faehrt die
+    NEUESTE Sicherung hoch und spielt kein WAL nach. Hier geht es um den
+    ganzen Bestand - Luecken im WAL, beschaedigte Bloecke in aelteren
+    Sicherungen.
+    """
+    eigen = dict(bench)
+    eigen.update((bench.get("stanzas") or {}).get(stanza) or {})
+    arbeitsordner = tempfile.mkdtemp(prefix=f"repo-verify-{stanza}-")
+    begonnen = time.time()
+    ergebnis = {
+        "area": stanza,
+        "bench": eigen.get("bench") or socket.gethostname(),
+        "checked_at": int(begonnen),
+        "kind": "repo-verify",
+        "store": _bestandsname(eigen),
+    }
+    try:
+        eigen = _aus_umschlag(eigen, stanza)
+        umgebung = _bench_umgebung(eigen, stanza, arbeitsordner)
+        out = _docker(
+            "run", "--rm",
+            *sum((["-v", m] for m in umgebung["mounts"]), []),
+            *_pgbr_als_benutzer(umgebung["pgbackrest_image"],
+                                umgebung.get("run_user")),
+            "--stanza", stanza, "verify",
+            timeout=14400,
+        )
+        text = (out.stdout or "") + (out.stderr or "")
+        urteil, meldungen = _verify_ausgabe_lesen(text, stanza)
+        if urteil is None:
+            ergebnis["result"] = "failed"
+            ergebnis["error"] = (
+                "verify hat kein Urteil zur Stanza ausgegeben:\n" + text[-1500:]
+            )
+        elif urteil == "ok":
+            ergebnis["result"] = "passed"
+        else:
+            ergebnis["result"] = "failed"
+            ergebnis["error"] = "; ".join(meldungen)[:2000] or urteil
+        ergebnis["meldungen"] = meldungen[:20]
+    except VerifyFailed as ex:
+        ergebnis["result"] = "failed"
+        ergebnis["error"] = str(ex)[-2000:]
+    except Exception as ex:  # noqa: BLE001
+        ergebnis["result"] = "failed"
+        ergebnis["error"] = (
+            f"{type(ex).__name__}: {ex}\n" + traceback.format_exc()
+        )[-2000:]
+    finally:
+        shutil.rmtree(arbeitsordner, ignore_errors=True)
+    ergebnis["seconds"] = int(time.time() - begonnen)
+    return ergebnis
+
+
 @pgbackrest.command(
     name="verify",
     help=(
@@ -1639,6 +1735,80 @@ def pgbackrest_verify(config, stanza, as_json, report_to, bench_config):
             click.secho(
                 f"{ergebnis['area']}: Rueckspielprobe GESCHEITERT - "
                 f"{ergebnis.get('error')}",
+                fg="red",
+            )
+
+    if any(e["result"] != "passed" for e in ergebnisse):
+        sys.exit(1)
+
+
+@pgbackrest.command(
+    name="repo-verify",
+    help=(
+        "Check the stored bytes themselves: WAL gaps, damaged blocks in older "
+        "backups. Different question from `verify`, which brings the NEWEST "
+        "backup up and replays no WAL. Bench mode only - it needs the "
+        "passphrase, which the repository host deliberately does not have."
+    ),
+)
+@click.option("--stanza", default=None, help="verify this stanza only")
+@click.option("--json", "as_json", is_flag=True, help="machine readable")
+@click.option(
+    "--report-to",
+    default=None,
+    help="directory for the result file",
+)
+@click.option(
+    "--bench-config",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False),
+    help="bench mode: repository, certificate and stanzas from this JSON",
+)
+@pass_config
+def pgbackrest_repo_verify(config, stanza, as_json, report_to, bench_config):
+    with open(bench_config) as fh:
+        bench = json.load(fh)
+    bereiche = (
+        [stanza] if stanza
+        else sorted(
+            set(bench.get("stanzas") or {})
+            | set(umschlag_bereiche(bench.get("envelope_dir")))
+        )
+    )
+    if not bereiche:
+        abort(
+            f"in {bench_config} steht kein Bereich, und unter "
+            f"{bench.get('envelope_dir') or '(kein envelope_dir)'} liegt "
+            "auch kein Umschlag"
+        )
+    ergebnisse = [run_repo_verify_bench(bench, b) for b in bereiche]
+
+    for ergebnis in ergebnisse:
+        if report_to:
+            ziel = Path(report_to)
+            ziel.mkdir(parents=True, exist_ok=True)
+            stempel = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+            datei = ziel / (
+                f"{ergebnis['area']}-{ergebnis.get('store') or '-'}"
+                f"-repo-{stempel}.json"
+            )
+            datei.write_text(
+                json.dumps(ergebnis, indent=1, sort_keys=True) + "\n"
+            )
+            click.secho(f"geschrieben: {datei}", fg="green")
+
+        if as_json:
+            click.echo(json.dumps(ergebnis, indent=1, sort_keys=True))
+        elif ergebnis["result"] == "passed":
+            click.secho(
+                f"{ergebnis['area']} ({ergebnis['store']}): Bestand heil "
+                f"({ergebnis['seconds']}s).",
+                fg="green",
+            )
+        else:
+            click.secho(
+                f"{ergebnis['area']} ({ergebnis['store']}): Bestand BEANSTANDET"
+                f" - {ergebnis.get('error')}",
                 fg="red",
             )
 
