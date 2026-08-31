@@ -33,6 +33,15 @@ CRONJOB_PGBACKREST_DIFF=$PGBR_DIFF_CRON $JOB_PGBACKREST_DIFF
 JOB_PGBACKREST_INCR=odoo pgbackrest backup --type incr
 CRONJOB_PGBACKREST_INCR=$PGBR_INCR_CRON $JOB_PGBACKREST_INCR
 
+# Stuendlich den ganzen Weg pruefen: ein WAL-Segment weiterschalten und
+# nachsehen, ob es im Repository ankommt. Das ist die einzige Pruefung, die
+# die Instanz SELBST ueber ihre Sicherung anstellen kann - alles andere sieht
+# man erst auf dem Backup-Server, und dort faellt ein stehengebliebener
+# Archivierer erst nach Stunden auf. --record legt das Ergebnis ab, damit
+# `odoo backup-metrics` eine Kennzahl daraus machen kann.
+JOB_PGBACKREST_CHECK=odoo pgbackrest check --record
+CRONJOB_PGBACKREST_CHECK=17 * * * * $JOB_PGBACKREST_CHECK
+
 # Taegliches verschluesseltes Offsite-Backup (restic). No-op solange
 # RUN_OFFSITE=0 - der Befehl steigt dann still aus, damit Projekte ohne
 # Offsite-Ziel nicht jede Nacht einen Cron-Fehler melden. Laeuft nach dem

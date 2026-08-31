@@ -1,0 +1,39 @@
+type: feature
+breaking: false
+description: |
+  Die Instanz meldet jetzt auch den Zustand der WAL-ARCHIVIERUNG, nicht nur
+  den ihrer Sicherungen - und prueft stuendlich selbst, ob der Weg zum
+  Repository ueberhaupt funktioniert.
+
+  Hintergrund: bisher sagten die Kennzahlen, WANN zuletzt gesichert wurde.
+  Eine Instanz kann aber taeglich sichern und trotzdem seit Tagen kein WAL
+  mehr loswerden - dann gibt es Basisstaende, aber keinen lueckenlosen Weg
+  dazwischen, und Wiederherstellung auf einen Zeitpunkt ist nicht mehr
+  moeglich. Auf dem Backup-Server faellt ein stehengebliebener Archivierer
+  erst nach Stunden auf, in der Instanz selbst bisher gar nicht.
+
+  Neu in `odoo backup-metrics`:
+  `zodoo_wal_archived_total`, `zodoo_wal_failed_total`,
+  `zodoo_wal_last_archived_timestamp_seconds`,
+  `zodoo_wal_last_failed_timestamp_seconds` (aus `pg_stat_archiver`),
+  `zodoo_wal_spool_files` (wartende Segmente),
+  `zodoo_wal_dropped_total` und `zodoo_backup_check_success` /
+  `zodoo_backup_check_timestamp_seconds`.
+
+  `zodoo_wal_dropped_total` ist die wichtigste davon: sie zaehlt, wie oft
+  pgBackRest WAL WEGGEWORFEN hat, weil `archive-push-queue-max`
+  ueberschritten war. In dem Fall meldet pgBackRest postgres ERFOLG, postgres
+  gibt das Segment frei, danach laeuft alles weiter und sieht frisch aus -
+  die Luecke faellt erst beim Wiederherstellen auf. Der Kompromiss ist
+  bewusst so gewaehlt (sonst laeuft die Instanzplatte voll), aber jeder
+  Anstieg dieses Zaehlers ist ein Zwischenfall.
+
+  Zum Ausprobieren: `odoo backup-metrics --stdout` zeigt die Datei, ohne sie
+  zu schreiben. Der neue Zeitplan `CRONJOB_PGBACKREST_CHECK` laeuft stuendlich
+  (`odoo pgbackrest check --record`) und legt sein Ergebnis unter
+  `<run>/pgbackrest-check.json` ab; von Hand geht das mit demselben Befehl.
+
+  Worauf zu achten ist: laesst sich ein Wert nicht lesen, wird die Zeile
+  WEGGELASSEN statt auf 0 gesetzt. Eine 0 bei "fehlgeschlagen" saehe aus wie
+  "alles gut" - und das ist genau der Zustand, den diese Kennzahlen
+  aufdecken sollen.
