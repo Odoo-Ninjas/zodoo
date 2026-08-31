@@ -118,7 +118,14 @@ jobs:
           # dem Ablauf. Die Zeile daneben zeigt, WAS docker gespeichert hat
           # -- nur die Schluessel, nie die Werte.
           echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY_URL" -u "$REGISTRY_USERNAME" --password-stdin
-          python3 -c 'import json,os; p=os.path.expanduser("~/.docker/config.json"); c=json.load(open(p)) if os.path.exists(p) else {}; [print(f"  {k}: Felder={sorted(v)} auth-Wert gefuellt={bool(v.get("auth"))}") for k,v in sorted(c.get("auths",{}).items())]; print("credsStore:", c.get("credsStore") or "(keiner)"); print("credHelpers:", c.get("credHelpers") or "(keine)")'
+          python3 -c 'import json,os
+          p = os.path.expanduser("~/.docker/config.json")
+          c = json.load(open(p)) if os.path.exists(p) else {}
+          for k, v in sorted(c.get("auths", {}).items()):
+              print("  " + k + ": Felder=" + str(sorted(v))
+                    + " auth-Wert gefuellt=" + str(bool(v.get("auth"))))
+          print("credsStore:", c.get("credsStore") or "(keiner)")
+          print("credHelpers:", c.get("credHelpers") or "(keine)")'
 
           # Nur die projektunabhaengigen Dienste. "odoo" fehlt hier bewusst
           # (Tag haengt am Projekt), ebenso alles, was ohnehin nicht auf einer
