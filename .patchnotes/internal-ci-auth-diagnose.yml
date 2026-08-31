@@ -1,0 +1,3 @@
+type: internal
+description: Die Diagnosezeile im prebuild-Ablauf zeigt jetzt auch, ob der gespeicherte docker-Zugang einen gefuellten auth-Wert traegt (nie den Wert selbst). Ohne das war nicht zu unterscheiden, ob docker gar keinen Eintrag hat oder einen leeren -- ein leerer entsteht, wenn docker login gegen eine anonym bediente /v2/ laeuft und deshalb nie etwas beweisen musste.
+breaking: false
