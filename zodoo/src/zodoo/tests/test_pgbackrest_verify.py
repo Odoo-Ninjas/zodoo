@@ -1060,3 +1060,101 @@ def test_the_two_stores_do_not_share_a_file_name(tmp_path, monkeypatch):
     assert len(namen) == 2, namen
     assert any("-erstbestand-" in n for n in namen), namen
     assert any("-zweitbestand-" in n for n in namen), namen
+
+
+# --------------------------------------------------------------------------- #
+# Bestandspruefung (`pgbackrest verify`)                                       #
+# --------------------------------------------------------------------------- #
+#
+# Die gefaehrlichste Eigenschaft dieses Befehls: er meldet `status: error` und
+# beendet sich trotzdem mit 0. Wer den Rueckgabewert prueft, bekommt fuer ein
+# kaputtes Repository ein gruenes Ergebnis.
+
+
+AUSGABE_OK = """\
+2026-08-31 18:53:15.864 P00   INFO: verify command begin 2.59.1
+2026-08-31 18:53:15.889 P00   INFO: stanza: kunde-a
+                                    status: ok
+2026-08-31 18:53:15.889 P00   INFO: verify command end: completed successfully
+"""
+
+AUSGABE_KAPUTT = """\
+2026-08-31 18:53:15.864 P00   INFO: verify command begin 2.59.1
+2026-08-31 18:53:15.889 P00   INFO: stanza: kunde-a
+                                    status: error
+                                      missing WAL segment 0000000100000000000000AB
+                                      invalid checksum in backup 20260825-212040F
+2026-08-31 18:53:15.889 P00   INFO: verify command end: completed successfully
+"""
+
+
+def test_the_verdict_comes_from_the_output_not_the_exit_code():
+    urteil, meldungen = lp._verify_ausgabe_lesen(AUSGABE_OK, "kunde-a")
+    assert urteil == "ok"
+    assert meldungen == []
+
+    urteil, meldungen = lp._verify_ausgabe_lesen(AUSGABE_KAPUTT, "kunde-a")
+    assert urteil == "error"
+    assert any("missing WAL" in m for m in meldungen), meldungen
+    assert any("invalid checksum" in m for m in meldungen), meldungen
+
+
+def test_a_damaged_repository_is_a_failure_even_though_pgbackrest_exits_zero(
+        monkeypatch, tmp_path):
+    """Der Fall, um den es geht - Rueckgabewert 0, Bestand kaputt."""
+    monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
+    monkeypatch.setattr(
+        lp, "_bench_umgebung",
+        lambda bench, stanza, ordner: {
+            "pgbackrest_image": "bild", "postgres_image": "bild",
+            "mounts": [], "run_user": "pgbackrest:pgbackrest",
+        },
+    )
+    monkeypatch.setattr(
+        lp, "_docker",
+        lambda *a, **kw: mock.Mock(stdout=AUSGABE_KAPUTT, stderr="",
+                                   returncode=0),
+    )
+    e = lp.run_repo_verify_bench(dict(BENCH_S3, store="zweitbestand"),
+                                 "kunde-a")
+    assert e["result"] == "failed", e
+    assert "missing WAL" in e["error"]
+    assert e["store"] == "zweitbestand"
+    assert e["kind"] == "repo-verify"
+
+
+def test_a_healthy_repository_passes(monkeypatch):
+    monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
+    monkeypatch.setattr(
+        lp, "_bench_umgebung",
+        lambda bench, stanza, ordner: {
+            "pgbackrest_image": "bild", "postgres_image": "bild",
+            "mounts": [], "run_user": None,
+        },
+    )
+    monkeypatch.setattr(
+        lp, "_docker",
+        lambda *a, **kw: mock.Mock(stdout=AUSGABE_OK, stderr="", returncode=0),
+    )
+    e = lp.run_repo_verify_bench(dict(BENCH_S3), "kunde-a")
+    assert e["result"] == "passed", e
+
+
+def test_output_without_a_verdict_is_not_silently_green(monkeypatch):
+    """Abgebrochene Ausgabe darf nicht als 'heil' durchgehen."""
+    monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
+    monkeypatch.setattr(
+        lp, "_bench_umgebung",
+        lambda bench, stanza, ordner: {
+            "pgbackrest_image": "bild", "postgres_image": "bild",
+            "mounts": [], "run_user": None,
+        },
+    )
+    monkeypatch.setattr(
+        lp, "_docker",
+        lambda *a, **kw: mock.Mock(stdout="irgendwas", stderr="",
+                                   returncode=0),
+    )
+    e = lp.run_repo_verify_bench(dict(BENCH_S3), "kunde-a")
+    assert e["result"] == "failed"
+    assert "kein Urteil" in e["error"]

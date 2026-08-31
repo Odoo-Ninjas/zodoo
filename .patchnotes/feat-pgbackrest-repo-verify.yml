@@ -1,0 +1,32 @@
+type: feature
+breaking: false
+description: |
+  Neuer Befehl `odoo pgbackrest repo-verify --bench-config <datei>`: prueft die
+  abgelegten Bytes selbst - Luecken im WAL, beschaedigte Bloecke in aelteren
+  Sicherungen.
+
+  Hintergrund: die Rueckspielprobe (`verify`) faehrt die NEUESTE Sicherung hoch
+  und spielt kein WAL nach. Sie beweist "die juengste Sicherung laeuft an" -
+  nicht "PITR ueber die Aufbewahrungszeit funktioniert" und nicht "die
+  aelteren Sicherungen sind heil". Genau dafuer gibt es `pgbackrest verify`,
+  und es lief bei uns bisher nirgends.
+
+  Zum Ausprobieren: auf dem Pruefstand
+  `odoo pgbackrest repo-verify --bench-config /etc/pgbr-pruefstand/config.json`.
+  Laeuft ueber alle Bereiche, die sich aus den Umschlaegen ergeben, und legt
+  mit `--report-to` je Bereich und Bestand einen Nachweis ab.
+
+  Worauf zu achten ist - zweierlei:
+
+  Erstens laeuft das NUR im Pruefstandsbetrieb, nicht auf dem Repo-Host. Der
+  hat die Passphrase bewusst nicht, und `verify` muss die Dateien lesen, um
+  ihre Pruefsummen nachzurechnen. Dort aufgerufen meldet es nur "No usable
+  backup.info file" - was aussieht wie ein kaputtes Repository, aber nur
+  heisst, dass der Host tut, was er soll.
+
+  Zweitens meldet `pgbackrest verify` ein `status: error` und beendet sich
+  trotzdem mit 0 ("completed successfully"). Das Urteil wird deshalb aus der
+  AUSGABE gelesen, nicht aus dem Rueckgabewert. Wer das andersherum baut,
+  bekommt fuer ein kaputtes Repository ein gruenes Ergebnis - der stillste
+  denkbare Fehlschlag. Eine Ausgabe ohne erkennbares Urteil gilt als
+  Fehlschlag, nicht als heil.
