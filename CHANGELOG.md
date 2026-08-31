@@ -1,5 +1,11 @@
 # Changelog
 
+## 10.6.4
+
+
+- **Internal**: 'Der prebuild-Ablauf misst jetzt zwei Dinge, um den unauthorized-Fehlschlag einzukreisen: einen direkten docker push unmittelbar nach der Anmeldung (trennt docker/Registry von unterwegs verloren) und einen zweiten Blick in ~/.docker/config.json nach dem Fehlschlag (zeigt, ob der Zugang zwischendurch ueberschrieben wurde).'
+
+
 ## 10.6.3
 
 
