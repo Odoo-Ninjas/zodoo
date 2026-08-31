@@ -62,7 +62,12 @@ services:
       # Rendered by __after_compose.py, read by BOTH this container and
       # postgres, so the archive_command and the backup agree on where the
       # repository is and how it is reached.
-      - $HOST_RUN_DIR/pgbackrest:/etc/pgbackrest:ro
+      # NICHT :ro -- der entrypoint muss die TLS-Schluessel auf den
+      # pgbackrest-Benutzer umschreiben koennen. pgBackRest verweigert einen
+      # Schluessel, der ihm nicht gehoert, und `odoo pgbackrest register`
+      # laeuft als Betriebsbenutzer, der den Besitz nicht vergeben darf --
+      # das kann nur root, und root ist hier drinnen.
+      - $HOST_RUN_DIR/pgbackrest:/etc/pgbackrest
       # Log directory on the host: when a nightly backup fails, the answer
       # should be readable without entering a container.
       - $HOST_RUN_DIR/pgbackrest.logs:/var/log/pgbackrest

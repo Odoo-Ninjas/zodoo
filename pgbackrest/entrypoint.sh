@@ -54,6 +54,31 @@ pgbr_die() {
 mkdir -p /var/lib/pgbackrest /var/log/pgbackrest /var/spool/pgbackrest
 chown -R 999:999 /var/lib/pgbackrest /var/log/pgbackrest /var/spool/pgbackrest
 
+# Die TLS-Schluessel auf den pgbackrest-Benutzer umschreiben.
+#
+# pgBackRest verweigert einen Schluessel, der ihm nicht gehoert ("key file ...
+# must be owned by the 'pgbackrest' user or root") -- zu Recht. Geschrieben
+# werden sie von `odoo pgbackrest register` als Betriebsbenutzer (uid 1000),
+# und der DARF den Besitz nicht auf 999 vergeben; das kann nur root.
+#
+# Kopieren waere kein Ausweg: der Schluessel ist 0600 und gehoert 1000, ein
+# Prozess als 999 kann ihn nicht einmal lesen.
+#
+# postgres startet ueber depends_on nach diesem Container, sein
+# archive_command findet die Dateien also bereits gerichtet vor.
+#
+# Am 31.08.2026 gefunden: die Anmeldung meldete Erfolg, `pgbackrest check`
+# brach mit Fehler 42 ab, das WAL-Archiv lief in den Zeitueberlauf -- und
+# nachts waere die Sicherung still ausgefallen.
+if [ -d /etc/pgbackrest/cert ]; then
+    chown -R 999:999 /etc/pgbackrest/cert 2>/dev/null || \
+        echo "pgbackrest: WARNUNG - /etc/pgbackrest/cert liess sich nicht auf den pgbackrest-Benutzer umschreiben (read-only eingehaengt?). pgBackRest wird den Schluessel ablehnen." >&2
+    chmod 700 /etc/pgbackrest/cert 2>/dev/null || true
+    for k in client.key server.key; do
+        [ -f "/etc/pgbackrest/cert/$k" ] && chmod 600 "/etc/pgbackrest/cert/$k"
+    done
+fi
+
 # --- wait for postgres --------------------------------------------------------
 # Via the socket, not TCP: the socket is what pgbackrest itself will use, so
 # waiting on it proves the path that matters rather than a different one.
