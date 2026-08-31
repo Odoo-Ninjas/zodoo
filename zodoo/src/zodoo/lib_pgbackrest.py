@@ -1877,14 +1877,25 @@ def pgbackrest_register(config, name, note):
     if status != "approved":
         abort(f"Unexpected answer from the enrolment service: {answer}")
 
+    # Erst loeschen, dann schreiben.
+    #
+    # Nach dem ersten Start gehoeren diese Dateien dem pgbackrest-Benutzer im
+    # Container (der entrypoint schreibt den Besitz um, weil pgBackRest einen
+    # fremden Schluessel ablehnt). Dieser Befehl laeuft als Betriebsbenutzer
+    # und koennte eine 0600-Datei, die ihm nicht mehr gehoert, nicht
+    # ueberschreiben -- wohl aber im eigenen Verzeichnis ersetzen. Ohne das
+    # scheitert jede erneute Anmeldung mit "Permission denied".
+    def _schreibe(name, inhalt, modus):
+        ziel = cdir / name
+        ziel.unlink(missing_ok=True)
+        ziel.write_text(inhalt)
+        ziel.chmod(modus)
+
     if answer.get("ca_cert"):
-        ca_file.write_text(answer["ca_cert"])
-        ca_file.chmod(0o644)
-    (cdir / "client.crt").write_text(answer["client_cert"])
-    (cdir / "client.crt").chmod(0o644)
-    (cdir / "client.key").write_text(answer["client_key"])
+        _schreibe("ca.crt", answer["ca_cert"], 0o644)
+    _schreibe("client.crt", answer["client_cert"], 0o644)
     # pgBackRest refuses a key that others can read, and it is right to.
-    (cdir / "client.key").chmod(0o600)
+    _schreibe("client.key", answer["client_key"], 0o600)
 
     update_setting(config, "PGBR_STANZA", answer["stanza"])
     update_setting(config, "PGBR_REPO_HOST", answer["repo_host"])
