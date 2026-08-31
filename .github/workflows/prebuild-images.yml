@@ -127,6 +127,20 @@ jobs:
           print("credsStore:", c.get("credsStore") or "(keiner)")
           print("credHelpers:", c.get("credHelpers") or "(keine)")'
 
+          # Direkter Push unmittelbar nach der Anmeldung.
+          #
+          # Trennt zwei Moeglichkeiten, die von aussen gleich aussehen: liegt
+          # es an docker/Registry, scheitert schon dieser Push. Geht er
+          # durch, liegt es an dem, was zwischen Anmeldung und zodoos Push
+          # passiert -- und dann ist der Zugang unterwegs verlorengegangen.
+          docker pull -q alpine:3.20 >/dev/null
+          docker tag alpine:3.20 "$REGISTRY_URL/zodoo-probe:ci-$GITHUB_RUN_ID"
+          if docker push "$REGISTRY_URL/zodoo-probe:ci-$GITHUB_RUN_ID"; then
+            echo "PROBE: direkter Push GEHT"
+          else
+            echo "PROBE: direkter Push scheitert schon hier"
+          fi
+
           # Nur die projektunabhaengigen Dienste. "odoo" fehlt hier bewusst
           # (Tag haengt am Projekt), ebenso alles, was ohnehin nicht auf einer
           # Kundenmaschine laeuft.
@@ -236,6 +250,13 @@ jobs:
                 \( -name '*.json' -o -name '*.json.processing.*' -o -name '*.failed.*' \) | wc -l)
               if [ "$uebrig" -ne 0 ]; then
                 echo "::error::$uebrig Upload(s) nicht abgeschlossen -- die Images fehlen in der Registry."
+                echo "--- docker-Zugang NACH dem Fehlschlag:"
+                python3 -c 'import json,os
+          p = os.path.expanduser("~/.docker/config.json")
+          c = json.load(open(p)) if os.path.exists(p) else {}
+          for k, v in sorted(c.get("auths", {}).items()):
+              print("  " + k + ": Felder=" + str(sorted(v))
+                    + " auth-Wert gefuellt=" + str(bool(v.get("auth"))))' || true
                 find "$qdir" -maxdepth 1 -type f -printf '%f\\n' || true
                 # Ohne die Protokolle des Arbeiters raet man hinterher, woran
                 # es lag -- und der Runner ist dann weg.
