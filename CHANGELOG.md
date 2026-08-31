@@ -1,5 +1,12 @@
 # Changelog
 
+## 10.6.3
+
+
+- **Internal**: Die Diagnosezeile im prebuild-Ablauf zeigt jetzt auch, ob der gespeicherte docker-Zugang einen gefuellten auth-Wert traegt (nie den Wert selbst). Ohne das war nicht zu unterscheiden, ob docker gar keinen Eintrag hat oder einen leeren -- ein leerer entsteht, wenn docker login gegen eine anonym bediente /v2/ laeuft und deshalb nie etwas beweisen musste.
+- **Internal**: Die Diagnosezeile im prebuild-Ablauf war selbst fehlerhaft (doppelte Anfuehrungszeichen in einem doppelt gequoteten f-String) und riss den Schritt wegen set -e ab, bevor ueberhaupt gepusht wurde. Neu geschrieben ohne f-String und vor dem Committen ausprobiert.
+
+
 ## 10.6.2
 
 

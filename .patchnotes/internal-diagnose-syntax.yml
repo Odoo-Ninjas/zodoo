@@ -1,3 +1,0 @@
-type: internal
-description: Die Diagnosezeile im prebuild-Ablauf war selbst fehlerhaft (doppelte Anfuehrungszeichen in einem doppelt gequoteten f-String) und riss den Schritt wegen set -e ab, bevor ueberhaupt gepusht wurde. Neu geschrieben ohne f-String und vor dem Committen ausprobiert.
-breaking: false
