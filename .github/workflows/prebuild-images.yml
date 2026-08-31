@@ -103,6 +103,23 @@ jobs:
             exit 1
           fi
 
+          # Docker HIER anmelden und nicht darauf vertrauen, dass zodoo es
+          # tut.
+          #
+          # Warum: zodoo meldet sich an (login_with_settings_credentials) und
+          # gibt "Stored registry credentials" aus -- am 31.08.2026 kamen die
+          # Zugangsdaten trotzdem nicht am Registry an. Im Apache-Protokoll
+          # sieht man den Unterschied: ein gesunder Push antwortet auf den
+          # 401 mit einer Wiederholung, die den Benutzernamen traegt; die
+          # Laeufe hier wiederholten nie. Auf einem gewoehnlichen Linux mit
+          # denselben Zugangsdaten funktioniert derselbe Push.
+          #
+          # Eine Anmeldung mehr kostet nichts und nimmt eine Unbekannte aus
+          # dem Ablauf. Die Zeile daneben zeigt, WAS docker gespeichert hat
+          # -- nur die Schluessel, nie die Werte.
+          echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY_URL" -u "$REGISTRY_USERNAME" --password-stdin
+          python3 -c 'import json,os; p=os.path.expanduser("~/.docker/config.json"); c=json.load(open(p)) if os.path.exists(p) else {}; print("auths:", sorted(c.get("auths",{}))); print("credsStore:", c.get("credsStore") or "(keiner)"); print("credHelpers:", c.get("credHelpers") or "(keine)")'
+
           # Nur die projektunabhaengigen Dienste. "odoo" fehlt hier bewusst
           # (Tag haengt am Projekt), ebenso alles, was ohnehin nicht auf einer
           # Kundenmaschine laeuft.
