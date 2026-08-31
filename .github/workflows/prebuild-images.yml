@@ -115,6 +115,28 @@ jobs:
           SERVICES="postgres proxy cronjobs cronjobshell pgbackrest offsite"
           SERVICES="$SERVICES odoo_metrics_exporter rsync console pgtools"
 
+          # Die Registry-Einstellungen gehoeren in die BENUTZER-Datei,
+          # nicht nur ins Projekt.
+          #
+          # _get_push_credentials liest ZODOO_REGISTRY_SUGGESTED
+          # ausschliesslich aus ~/.odoo/settings (_read_user_setting).
+          # Benutzername und Passwort duerfen aus den Projekteinstellungen
+          # kommen, dieser eine Schluessel nicht. Ist er leer und haengt kein
+          # Terminal dran -- also in jeder CI -- steigt die Funktion
+          # STILLSCHWEIGEND aus und laedt nichts hoch.
+          #
+          # Genau das ist am 28./29.08.2026 passiert: der Lauf war gruen, die
+          # Images waren gebaut, die Tags stimmten mit denen der
+          # Kundenmaschinen ueberein -- und in der Registry kam nichts an,
+          # ohne eine einzige Zeile Ausgabe.
+          mkdir -p "$HOME/.odoo"
+          {
+            echo "ZODOO_REGISTRY_URL=$REGISTRY_URL"
+            echo "ZODOO_REGISTRY_USERNAME=$REGISTRY_USERNAME"
+            echo "ZODOO_REGISTRY_PASSWORD=$REGISTRY_PASSWORD"
+            echo "ZODOO_REGISTRY_SUGGESTED=1"
+          } >> "$HOME/.odoo/settings"
+
           IFS=',' read -ra VERS <<< "$VERSIONS"
           for version in "${VERS[@]}"; do
             version="$(echo "$version" | xargs)"
@@ -153,6 +175,54 @@ jobs:
             odoo build $SERVICES
             # shellcheck disable=SC2086
             odoo zodoo-push $SERVICES
+            # Und dann warten, bis die Warteschlange WIRKLICH leer ist.
+            #
+            # "odoo build" laedt nicht selbst hoch: enqueue_registry_uploads
+            # benennt das Image lokal um, legt einen Auftrag in
+            # ${run}/jobqueue/ und startet einen ABGEKOPPELTEN Arbeiter. Auf
+            # einem GitHub-Runner endet der Job unmittelbar danach, der
+            # Arbeiter stirbt mit ihm -- und in der Registry kommt nichts an.
+            #
+            # Genau so gesehen am 28.08.2026: der Lauf war gruen, die
+            # Tag-Liste der Registry danach unveraendert, und jede
+            # Kundenmaschine baute die Images weiter selbst. run-crontab ist
+            # der dafuer vorgesehene Notnagel und arbeitet die Warteschlange
+            # im Vordergrund ab.
+            odoo run-crontab
+            # run-crontab allein reicht nicht: der abgekoppelte Arbeiter hat
+            # die Auftraege in der Regel schon geklaut (sie heissen dann
+            # <job>.json.processing.<pid>), und run-crontab meldet "processed
+            # 0 job(s)", waehrend die Uploads noch laufen. Endet der Job
+            # jetzt, stirbt der Arbeiter mitten im Push.
+            #
+            # Also auf das Verzeichnis warten, bis weder ein wartender noch
+            # ein laufender Auftrag darin liegt.
+            qdir="$HOME/.odoo/run/$(basename "$project" | tr '.' '_')/jobqueue"
+            [ -d "$qdir" ] || qdir="$(find "$HOME/.odoo/run" -maxdepth 2 -type d -name jobqueue | head -1)"
+            if [ -n "${qdir:-}" ] && [ -d "$qdir" ]; then
+              for _ in $(seq 1 120); do
+                offen=$(find "$qdir" -maxdepth 1 \
+                  \( -name '*.json' -o -name '*.json.processing.*' \) | wc -l)
+                [ "$offen" -eq 0 ] && break
+                echo "warte auf $offen Upload(s) ..."
+                sleep 10
+              done
+              odoo run-crontab
+              uebrig=$(find "$qdir" -maxdepth 1 \
+                \( -name '*.json' -o -name '*.json.processing.*' -o -name '*.failed.*' \) | wc -l)
+              if [ "$uebrig" -ne 0 ]; then
+                echo "::error::$uebrig Upload(s) nicht abgeschlossen -- die Images fehlen in der Registry."
+                find "$qdir" -maxdepth 1 -type f -printf '%f\\n' || true
+                # Ohne die Protokolle des Arbeiters raet man hinterher, woran
+                # es lag -- und der Runner ist dann weg.
+                for f in "$qdir"/log/*; do
+                  [ -f "$f" ] || continue
+                  echo "----- $(basename "$f")"
+                  tail -40 "$f"
+                done
+                exit 1
+              fi
+            fi
             cd /
             rm -rf "$project"
             echo "::endgroup::"
