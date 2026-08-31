@@ -245,7 +245,21 @@ def _turn_into_subvolume(config):
     shutil.move(fullpath, filename)
     try:
         subprocess.check_output(
-            root_cmd(zfs, "create", "-o", f"mountpoint={fullpath}", fullpath_zfs)
+            root_cmd(
+                zfs,
+                "create",
+                "-o",
+                f"mountpoint={fullpath}",
+                # xattr=sa keeps extended attributes in the dnode instead of a
+                # hidden directory per file; docker sets xattrs on volume dirs
+                # and the dir based default costs additional IOs for each of
+                # them. acltype=posixacl belongs to it.
+                "-o",
+                "xattr=sa",
+                "-o",
+                "acltype=posixacl",
+                fullpath_zfs,
+            )
         )
         click.secho(
             "\n"

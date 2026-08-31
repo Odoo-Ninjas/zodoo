@@ -361,3 +361,9 @@ odoo snapshots delete <name>   # delete snapshot
 ```
 
 Requires btrfs or zfs filesystem for the postgres data volume.
+
+On zfs the dataset is created with `xattr=sa acltype=posixacl`. The linux
+default `xattr=on` stores every extended attribute as a hidden directory with
+one file per attribute, which costs additional IOs on every access. If you
+prepare the dataset yourself, set those two properties as well - they only
+apply to newly written attributes, existing files keep the old layout.
