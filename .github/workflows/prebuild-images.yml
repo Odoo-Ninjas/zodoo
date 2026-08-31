@@ -92,7 +92,25 @@ jobs:
 
       - name: Build and push generic images
         env:
-          REGISTRY_URL: ${{ vars.ZODOO_REGISTRY_URL || 'registry.zebroo.de' }}
+          # Der PUSH-Weg, nicht der Pull-Weg.
+          #
+          # registry.zebroo.de bedient /v2/ und die zodoo-*-Abbilder bewusst
+          # anonym, damit eine frische Maschine ohne Zugangsdaten ziehen
+          # kann. Der klassische docker-Client fragt zu Beginn einer
+          # Push-Sitzung /v2/ ab, bekommt 200 und schickt danach die ganze
+          # Sitzung ueber KEINE Zugangsdaten -- das abschliessende Ablegen
+          # des Manifests scheitert dann mit 401. Nur Clients mit
+          # containerd-Bildspeicher sind davon nicht betroffen, was lange
+          # verschleiert hat, worum es geht: auf einer Maschine ging es, auf
+          # allen anderen nicht.
+          #
+          # registry-push.zebroo.de zeigt auf denselben Registry-Server,
+          # verlangt aber ueberall Anmeldung. Damit funktioniert der Push mit
+          # jedem Client. Gezogen wird weiterhin ueber den alten Namen -- es
+          # ist derselbe Bestand, nachgeprueft am 31.08.2026: ueber den
+          # Push-Weg hochgeladen, ueber den anonymen Weg abrufbar.
+          REGISTRY_URL: ${{ vars.ZODOO_REGISTRY_PUSH_URL || 'registry-push.zebroo.de' }}
+          POSTGRES_VERSION: ${{ vars.ZODOO_PREBUILD_POSTGRES || '17' }}
           REGISTRY_USERNAME: ${{ secrets.ZODOO_REGISTRY_USERNAME }}
           REGISTRY_PASSWORD: ${{ secrets.ZODOO_REGISTRY_PASSWORD }}
         run: |
@@ -127,19 +145,6 @@ jobs:
           print("credsStore:", c.get("credsStore") or "(keiner)")
           print("credHelpers:", c.get("credHelpers") or "(keine)")'
 
-          # Direkter Push unmittelbar nach der Anmeldung.
-          #
-          # Trennt zwei Moeglichkeiten, die von aussen gleich aussehen: liegt
-          # es an docker/Registry, scheitert schon dieser Push. Geht er
-          # durch, liegt es an dem, was zwischen Anmeldung und zodoos Push
-          # passiert -- und dann ist der Zugang unterwegs verlorengegangen.
-          docker pull -q alpine:3.20 >/dev/null
-          docker tag alpine:3.20 "$REGISTRY_URL/zodoo-probe:ci-$GITHUB_RUN_ID"
-          if docker push "$REGISTRY_URL/zodoo-probe:ci-$GITHUB_RUN_ID"; then
-            echo "PROBE: direkter Push GEHT"
-          else
-            echo "PROBE: direkter Push scheitert schon hier"
-          fi
 
           # Nur die projektunabhaengigen Dienste. "odoo" fehlt hier bewusst
           # (Tag haengt am Projekt), ebenso alles, was ohnehin nicht auf einer
@@ -205,7 +210,14 @@ jobs:
             # Hier eingeschaltet zu sein hat keine Nebenwirkung: das Projekt
             # ist ein Wegwerf-Kontext, gestartet wird nichts, gebraucht wird
             # nur die richtige Berechnung der Tags.
-            odoo setting "RUN_PGBACKREST=1"
+            # Ausdruecklich, nicht der Voreinstellung ueberlassen: die haengt an
+          # ~/.odoo/settings der jeweiligen Maschine. Am 31.08.2026 baute
+          # dieselbe Anweisung auf einem anderen Rechner Postgres 14 --
+          # die Images landeten in der Registry und passten zu keiner
+          # einzigen Kundenmaschine, weil die 17 fahren. Aufgefallen waere
+          # es nur daran, dass niemand sie je zieht.
+          odoo setting "POSTGRES_VERSION=$POSTGRES_VERSION"
+          odoo setting "RUN_PGBACKREST=1"
             odoo setting "RUN_OFFSITE=1"
             odoo setting "RUN_DASHBOARD=1"
             odoo reload
