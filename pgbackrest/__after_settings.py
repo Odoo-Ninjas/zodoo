@@ -54,6 +54,7 @@ def after_settings(settings, config):
             "CRONJOB_PGBACKREST_FULL",
             "CRONJOB_PGBACKREST_DIFF",
             "CRONJOB_PGBACKREST_INCR",
+            "CRONJOB_PGBACKREST_CHECK",
         ):
             settings[key] = ""
     elif not (settings.get("PGBR_INCR_CRON") or "").strip():

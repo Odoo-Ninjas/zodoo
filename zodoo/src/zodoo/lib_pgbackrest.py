@@ -186,10 +186,50 @@ def pgbackrest_info(config):
         "worth anything."
     ),
 )
+@click.option(
+    "--record",
+    is_flag=True,
+    help=(
+        "also write the outcome to <run>/pgbackrest-check.json, which "
+        "`odoo backup-metrics` turns into a metric. That is how a broken "
+        "archive path becomes visible without anybody running a command."
+    ),
+)
 @pass_config
-def pgbackrest_check(config):
-    _check_versions_match(config)
-    _pgbr(config, ["check"])
+def pgbackrest_check(config, record):
+    fehler = None
+    try:
+        _check_versions_match(config)
+        _pgbr(config, ["check"])
+    except Exception as ex:  # noqa: BLE001
+        fehler = f"{type(ex).__name__}: {ex}"[-500:]
+    if record:
+        _check_ablegen(config, fehler)
+    if fehler:
+        # Weiterreichen, damit der Zeitplan den Fehlschlag ebenfalls meldet -
+        # die abgelegte Datei ersetzt die Meldung nicht, sie ergaenzt sie.
+        abort(f"pgbackrest check fehlgeschlagen: {fehler}")
+
+
+def _check_ablegen(config, fehler):
+    """Das Ergebnis des Checks dorthin legen, wo die Kennzahlen es finden.
+
+    Bewusst mit Zeitpunkt: laeuft der Check nicht mehr, altert der Wert und
+    faellt auf. Ein blosses ok/nicht-ok stuende sonst fuer immer auf seinem
+    letzten Stand - und ein Check, der seit Wochen nicht lief, saehe aus wie
+    einer, der eben erst bestanden hat.
+    """
+    run_dir = config.dirs.get("run")
+    if not run_dir:
+        return
+    ziel = Path(run_dir) / "pgbackrest-check.json"
+    daten = {"ok": fehler is None, "at": int(time.time())}
+    if fehler:
+        daten["error"] = fehler
+    neben = ziel.with_suffix(".json.neu")
+    neben.write_text(json.dumps(daten, indent=1, sort_keys=True) + "\n")
+    neben.chmod(0o644)
+    os.replace(neben, ziel)
 
 
 def _binary_version(config, service):
