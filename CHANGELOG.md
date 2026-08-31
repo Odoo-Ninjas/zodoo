@@ -1,5 +1,11 @@
 # Changelog
 
+## 10.6.2
+
+
+- **Internal**: Der prebuild-Ablauf meldet Docker jetzt selbst am Registry an, statt sich darauf zu verlassen, dass zodoo es tut. Am 31.08.2026 meldete zodoo Stored registry credentials und der Push scheiterte trotzdem mit unauthorized; im Apache-Protokoll war zu sehen, dass die CI den 401 nie mit Zugangsdaten wiederholte, waehrend derselbe Push auf einem gewoehnlichen Linux mit denselben Daten durchging. Dazu gibt der Ablauf aus, was docker gespeichert hat (nur die Schluessel, nie die Werte), damit ein naechster Fehlschlag nicht wieder blind ist.
+
+
 ## 10.6.1
 
 
