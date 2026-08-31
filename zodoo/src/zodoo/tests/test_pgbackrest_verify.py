@@ -1071,90 +1071,138 @@ def test_the_two_stores_do_not_share_a_file_name(tmp_path, monkeypatch):
 # kaputtes Repository ein gruenes Ergebnis.
 
 
-AUSGABE_OK = """\
-2026-08-31 18:53:15.864 P00   INFO: verify command begin 2.59.1
-2026-08-31 18:53:15.889 P00   INFO: stanza: kunde-a
-                                    status: ok
-2026-08-31 18:53:15.889 P00   INFO: verify command end: completed successfully
+AUSGABE_SAUBER = """\
+2026-08-31 19:39:03.383 P00   INFO: verify command begin 2.59.1
+2026-08-31 19:39:03.383 P00 DETAIL: archiveId: 17-1, wal start: 000000020000000000000014, wal stop: 000000020000000000000032
+2026-08-31 19:39:03.383 P00 DETAIL: statistics: {"http.client":{"total":1}}
+2026-08-31 19:39:03.383 P00   INFO: verify command end: completed successfully (999ms)
+"""
+
+# Echte Ausgabe vom 31.08.2026 (gekuerzt): DREI Abschnitte statt einem, weil
+# WAL fehlt. pgBackRest nennt das NICHT Fehler und endet mit 0.
+AUSGABE_LUECKEN = """\
+2026-08-31 19:39:03.383 P00   INFO: verify command begin 2.59.1
+2026-08-31 19:39:03.383 P00 DETAIL: archiveId: 17-1, wal start: 000000020000000000000014, wal stop: 000000020000000000000021
+2026-08-31 19:39:03.383 P00 DETAIL: archiveId: 17-1, wal start: 000000020000000000000023, wal stop: 000000020000000000000024
+2026-08-31 19:39:03.383 P00 DETAIL: archiveId: 17-1, wal start: 00000002000000000000002B, wal stop: 00000002000000000000002F
+2026-08-31 19:39:03.383 P00   INFO: verify command end: completed successfully (999ms)
 """
 
 AUSGABE_KAPUTT = """\
 2026-08-31 18:53:15.864 P00   INFO: verify command begin 2.59.1
 2026-08-31 18:53:15.889 P00   INFO: stanza: kunde-a
                                     status: error
-                                      missing WAL segment 0000000100000000000000AB
-                                      invalid checksum in backup 20260825-212040F
+                                      No usable backup.info file
 2026-08-31 18:53:15.889 P00   INFO: verify command end: completed successfully
 """
 
+AUSGABE_ABGEBROCHEN = """\
+2026-08-31 18:53:15.864 P00   INFO: verify command begin 2.59.1
+"""
 
-def test_the_verdict_comes_from_the_output_not_the_exit_code():
-    urteil, meldungen = lp._verify_ausgabe_lesen(AUSGABE_OK, "kunde-a")
+
+def test_a_clean_run_has_no_verdict_line():
+    """Der Fund, der die erste Fassung widerlegt hat.
+
+    verify gibt bei heilem Bestand GAR KEINE Statuszeile aus. Wer auf
+    "status: ok" wartet, haelt jeden gesunden Bestand fuer kaputt - und
+    schaltet den Waechter nach der dritten Fehlmeldung ab.
+    """
+    urteil, meldungen, bereiche = lp._verify_ausgabe_lesen(
+        AUSGABE_SAUBER, "kunde-a")
     assert urteil == "ok"
     assert meldungen == []
+    assert len(bereiche) == 1
 
-    urteil, meldungen = lp._verify_ausgabe_lesen(AUSGABE_KAPUTT, "kunde-a")
+
+def test_gaps_are_counted_but_are_not_a_failure():
+    """Luecken sind die eigentliche Frage - aber kein Fehlschlag.
+
+    Vor der ersten Sicherung ist eine Luecke normal; ein harter Fehlschlag
+    darauf waere ein Waechter, der bei jeder neuen Instanz schreit. Gezaehlt
+    und gemeldet wird sie trotzdem: zwischen zwei Abschnitten fuehrt kein Weg
+    auf einen Zeitpunkt zurueck.
+    """
+    urteil, meldungen, bereiche = lp._verify_ausgabe_lesen(
+        AUSGABE_LUECKEN, "kunde-a")
+    assert urteil == "ok"
+    assert len(bereiche) == 3
+    assert lp._luecken(bereiche) == 2
+    assert lp._luecken([]) == 0
+    # Zwei archiveIds mit je einem Abschnitt sind KEINE Luecke.
+    assert lp._luecken([{"archive": "17-1", "von": "a", "bis": "b"},
+                        {"archive": "16-1", "von": "c", "bis": "d"}]) == 0
+
+
+def test_a_damaged_repository_is_a_failure_even_though_pgbackrest_exits_zero_2():
+    urteil, meldungen, _ = lp._verify_ausgabe_lesen(AUSGABE_KAPUTT, "kunde-a")
     assert urteil == "error"
-    assert any("missing WAL" in m for m in meldungen), meldungen
-    assert any("invalid checksum" in m for m in meldungen), meldungen
+    assert any("No usable backup.info" in m for m in meldungen), meldungen
 
 
-def test_a_damaged_repository_is_a_failure_even_though_pgbackrest_exits_zero(
-        monkeypatch, tmp_path):
-    """Der Fall, um den es geht - Rueckgabewert 0, Bestand kaputt."""
+def test_a_run_that_never_finished_is_not_ok():
+    """Kein 'command end' heisst: wir wissen nichts. Nicht 'heil'."""
+    urteil, _, _ = lp._verify_ausgabe_lesen(AUSGABE_ABGEBROCHEN, "kunde-a")
+    assert urteil is None
+
+
+def _bench_umgebung_faelschen(monkeypatch, ausgabe):
     monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
     monkeypatch.setattr(
         lp, "_bench_umgebung",
         lambda bench, stanza, ordner: {
             "pgbackrest_image": "bild", "postgres_image": "bild",
-            "mounts": [], "run_user": "pgbackrest:pgbackrest",
+            "mounts": [], "run_user": None,
         },
     )
     monkeypatch.setattr(
         lp, "_docker",
-        lambda *a, **kw: mock.Mock(stdout=AUSGABE_KAPUTT, stderr="",
-                                   returncode=0),
+        lambda *a, **kw: mock.Mock(stdout=ausgabe, stderr="", returncode=0),
     )
+
+
+def test_the_result_carries_the_gaps(monkeypatch):
+    """Das Ergebnis muss die Luecken tragen, sonst sieht sie niemand."""
+    _bench_umgebung_faelschen(monkeypatch, AUSGABE_LUECKEN)
     e = lp.run_repo_verify_bench(dict(BENCH_S3, store="zweitbestand"),
                                  "kunde-a")
-    assert e["result"] == "failed", e
-    assert "missing WAL" in e["error"]
+    assert e["result"] == "passed"
+    assert e["wal_luecken"] == 2
+    assert len(e["wal_bereiche"]) == 3
     assert e["store"] == "zweitbestand"
     assert e["kind"] == "repo-verify"
 
 
-def test_a_healthy_repository_passes(monkeypatch):
-    monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
-    monkeypatch.setattr(
-        lp, "_bench_umgebung",
-        lambda bench, stanza, ordner: {
-            "pgbackrest_image": "bild", "postgres_image": "bild",
-            "mounts": [], "run_user": None,
-        },
-    )
-    monkeypatch.setattr(
-        lp, "_docker",
-        lambda *a, **kw: mock.Mock(stdout=AUSGABE_OK, stderr="", returncode=0),
-    )
-    e = lp.run_repo_verify_bench(dict(BENCH_S3), "kunde-a")
-    assert e["result"] == "passed", e
-
-
-def test_output_without_a_verdict_is_not_silently_green(monkeypatch):
-    """Abgebrochene Ausgabe darf nicht als 'heil' durchgehen."""
-    monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
-    monkeypatch.setattr(
-        lp, "_bench_umgebung",
-        lambda bench, stanza, ordner: {
-            "pgbackrest_image": "bild", "postgres_image": "bild",
-            "mounts": [], "run_user": None,
-        },
-    )
-    monkeypatch.setattr(
-        lp, "_docker",
-        lambda *a, **kw: mock.Mock(stdout="irgendwas", stderr="",
-                                   returncode=0),
-    )
+def test_a_damaged_repository_still_fails(monkeypatch):
+    _bench_umgebung_faelschen(monkeypatch, AUSGABE_KAPUTT)
     e = lp.run_repo_verify_bench(dict(BENCH_S3), "kunde-a")
     assert e["result"] == "failed"
-    assert "kein Urteil" in e["error"]
+    assert "No usable backup.info" in e["error"]
+
+
+def test_an_aborted_run_fails_rather_than_passing(monkeypatch):
+    _bench_umgebung_faelschen(monkeypatch, AUSGABE_ABGEBROCHEN)
+    e = lp.run_repo_verify_bench(dict(BENCH_S3), "kunde-a")
+    assert e["result"] == "failed"
+    assert "nicht durchgelaufen" in e["error"]
+
+
+def test_verify_runs_with_detail_logging(monkeypatch):
+    """Ohne detail stehen die WAL-Bereiche gar nicht im Log."""
+    gerufen = []
+    monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
+    monkeypatch.setattr(
+        lp, "_bench_umgebung",
+        lambda bench, stanza, ordner: {
+            "pgbackrest_image": "bild", "postgres_image": "bild",
+            "mounts": [], "run_user": None,
+        },
+    )
+
+    def fake_docker(*a, **kw):
+        gerufen.append(a)
+        return mock.Mock(stdout=AUSGABE_SAUBER, stderr="", returncode=0)
+
+    monkeypatch.setattr(lp, "_docker", fake_docker)
+    lp.run_repo_verify_bench(dict(BENCH_S3), "kunde-a")
+    assert any("--log-level-console=detail" in a for a in gerufen[0]), gerufen
