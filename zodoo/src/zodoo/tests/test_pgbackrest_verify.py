@@ -978,3 +978,85 @@ def test_the_working_folder_belongs_to_the_container_user_in_both_shapes(
         arbeit.mkdir()
         lp._bench_umgebung(bench, "k", str(arbeit))
         assert str(arbeit) in gesehen, (name, gesehen)
+
+
+# --------------------------------------------------------------------------- #
+# Welcher Bestand geprueft wurde                                               #
+# --------------------------------------------------------------------------- #
+#
+# Seit es zwei Bestaende gibt (Repo-Host und gespiegelter Objektspeicher),
+# entstehen je Bereich ZWEI Nachweise. Sehen die gleich aus, nimmt die
+# Ueberwachung den juengsten bestandenen - und ein durchgefallener
+# Zweitbestand verschwindet hinter dem bestandenen Erstbestand. Die Probe
+# waere dann genau das, was sie aufdecken soll: eine Vermutung.
+
+
+def test_the_name_of_the_store_comes_from_the_configuration():
+    """Ein eigener Name schlaegt die Art - 's3' unterscheidet zwei S3 nicht."""
+    assert lp._bestandsname({"repo_type": "s3", "store": "zweitbestand"}) == \
+        "zweitbestand"
+    assert lp._bestandsname({"repo_type": "s3"}) == "s3"
+    assert lp._bestandsname({"repo_host": "db.backup"}) == "tls"
+    # Leerraum ist keine Benennung.
+    assert lp._bestandsname({"store": "  ", "repo_type": "s3"}) == "s3"
+
+
+def test_every_result_says_which_store_it_came_from(monkeypatch, compose,
+                                                    tmp_path):
+    """Auch der Fehlerfall - gerade der.
+
+    Ein Nachweis ohne Bestand ist im Ablageordner nicht zuzuordnen, und
+    'gescheitert' ohne die Angabe WO ist keine brauchbare Nachricht.
+    """
+    monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
+    # Ohne Zertifikatsordner scheitert die Vorbereitung - genau der Pfad, der
+    # frueher gar kein 'store' getragen hat.
+    kaputt = lp.run_verify_bench(
+        dict(BENCH_S3, store="zweitbestand", s3_bucket=""), "kunde-a"
+    )
+    assert kaputt["result"] == "failed"
+    assert kaputt["store"] == "zweitbestand"
+
+    gerufen = []
+    monkeypatch.setattr(
+        lp, "_probe",
+        lambda umgebung, stanza: gerufen.append(umgebung) or
+        {"result": "passed"},
+    )
+    lp.run_verify(FakeConfig())
+    assert gerufen[0]["store"] == "projekt"
+
+
+def test_the_two_stores_do_not_share_a_file_name(tmp_path, monkeypatch):
+    """Zwei Nachweise desselben Bereichs muessen nebeneinander liegen koennen.
+
+    Gleicher Name hiesse: der zweite ueberschreibt den ersten, und die
+    Ueberwachung sieht nur noch einen der beiden Bestaende.
+    """
+    from click.testing import CliRunner
+
+    ergebnisse = [
+        {"area": "kunde-a", "store": "erstbestand", "result": "passed",
+         "backup": "b", "rows": 1, "table": "t", "seconds": 1},
+        {"area": "kunde-a", "store": "zweitbestand", "result": "passed",
+         "backup": "b", "rows": 1, "table": "t", "seconds": 1},
+    ]
+    monkeypatch.setattr(lp, "run_verify_bench",
+                        lambda bench, stanza: ergebnisse.pop(0))
+    conf = tmp_path / "bench.json"
+    conf.write_text(json.dumps({"stanzas": {"kunde-a": {}}}))
+    ziel = tmp_path / "ergebnisse"
+
+    # Zweimal aufrufen, wie es der Laeufer je Konfiguration tut.
+    runner = CliRunner()
+    for _ in range(2):
+        runner.invoke(
+            lp.pgbackrest_verify,
+            ["--bench-config", str(conf), "--report-to", str(ziel)],
+            obj=FakeConfig(), standalone_mode=False,
+        )
+
+    namen = sorted(p.name for p in ziel.glob("*.json"))
+    assert len(namen) == 2, namen
+    assert any("-erstbestand-" in n for n in namen), namen
+    assert any("-zweitbestand-" in n for n in namen), namen
