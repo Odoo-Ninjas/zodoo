@@ -158,11 +158,12 @@ def _repo_section(settings):
                             backup server, which runs backup and expire. Not
                             being able to delete is the point of this shape.
 
-    repo host, pushed       repo1-host, still no repo1-path and still no
-    (BACKUP_FROM=here)      retention. This machine runs the backup, but the
-                            backup server manages the disk and therefore the
-                            retention, from its own scheduled `expire`. One
-                            place, on the machine that watches the space.
+    repo host, pushed       repo1-host and no repo1-path, but WITH retention.
+    (BACKUP_FROM=here)      This machine runs backup and expire, so this is
+                            where retention has to be. It used to be left out
+                            here on the theory that the backup server manages
+                            the disk and therefore the retention - see below
+                            for why that does not work.
     """
     host = (settings.get("PGBR_REPO_HOST") or "").strip()
     lines = []
@@ -209,6 +210,28 @@ def _repo_section(settings):
                 "# The PGBR_RETENTION_* settings are therefore ignored",
                 "# in this mode - see docs/12-pgbackrest.md.",
             ]
+        if not pulled:
+            # Aufbewahrung gehoert hierher, nicht auf den Repo-Host.
+            #
+            # Frueher stand hier nichts, mit der Begruendung: die Maschine,
+            # der die Platte gehoert, verwaltet auch die Aufbewahrung. Das
+            # klingt richtig und funktioniert trotzdem nicht - `expire` muss
+            # `backup.info` LESEN, und die ist clientseitig verschluesselt.
+            # Auf dem Repo-Host endet der Versuch mit
+            # `FormatError: key/value found outside of section at line 1:
+            # Salted__...`, genau wie `verify`. Dass er die Datei nicht
+            # oeffnen kann, ist der Sinn des Aufbaus, kein Mangel.
+            #
+            # Ergebnis bis 2026-08-31: es lief NIRGENDS ein expire. Genau der
+            # Fehler, vor dem _retention_lines im Kommentar warnt - eine
+            # Aufraeumung, die eingerichtet, aber nie wirksam war.
+            #
+            # Diese Maschine kann es dagegen: sie hat die Passphrase, und
+            # pgBackRest laesst nach jeder Sicherung ohnehin `expire` mit
+            # laufen (sichtbar als "expire command end" im Sicherungslog) -
+            # es fand bisher nur keine Regel vor. Neue Befugnis entsteht
+            # dadurch nicht: `odoo pgbackrest expire` gibt es hier laengst.
+            lines += _retention_lines(settings)
         lines += _cipher_lines(settings)
         return "\n".join(lines)
 
