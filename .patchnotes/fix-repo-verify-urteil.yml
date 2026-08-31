@@ -1,0 +1,32 @@
+type: bugfix
+breaking: false
+description: |
+  `odoo pgbackrest repo-verify` hielt beim ersten echten Lauf JEDEN gesunden
+  Bestand fuer kaputt. Behoben - und dabei kam heraus, wonach eigentlich zu
+  suchen ist.
+
+  Die Annahme war, `pgbackrest verify` gebe je Bereich ein Urteil
+  ("status: ok" bzw. "status: error") aus. Das tut es nur, wenn etwas nicht
+  stimmt. Bei heilem Bestand protokolliert es die gefundenen WAL-Bereiche und
+  endet - ohne Statuszeile. Wer auf "ok" wartet, meldet also jeden gesunden
+  Bestand als Fehlschlag, und ein Waechter, der grundlos schreit, wird nach
+  der dritten Meldung abgeschaltet.
+
+  Gelesen wird jetzt auf PROBLEME statt auf ein Urteil. Ein Lauf ohne
+  "verify command end" gilt weiterhin als Fehlschlag: kein Ende heisst, wir
+  wissen nichts - nicht "heil".
+
+  Neu und eigentlich der Gewinn: das Ergebnis fuehrt die zusammenhaengenden
+  WAL-Abschnitte (`wal_bereiche`) und ihre Zahl (`wal_luecken`). Steht dort
+  mehr als ein Abschnitt je archiveId, FEHLEN WAL-Segmente dazwischen, und
+  zwischen zwei Abschnitten laesst sich auf keinen Zeitpunkt wiederherstellen.
+  Dafuer laeuft verify jetzt mit `--log-level-console=detail` - auf INFO
+  stehen die Bereiche gar nicht im Log.
+
+  Beim ersten Lauf auf dem Pruefstand hat genau das zugeschlagen und im
+  Testbereich drei Abschnitte statt einem gefunden.
+
+  Worauf zu achten ist: eine Luecke ist KEIN Fehlschlag. Vor der ersten
+  Sicherung ist sie normal, und pgBackRest nennt sie ebenfalls nicht Fehler.
+  Sie wird gezaehlt und gemeldet (gelbe Zeile mit den Abschnitten), damit
+  jemand hinsieht - nicht, damit ein Alarm losgeht.

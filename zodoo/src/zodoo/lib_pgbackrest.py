@@ -1558,29 +1558,69 @@ def run_verify_bench(bench, stanza):
 
 
 def _verify_ausgabe_lesen(text, stanza):
-    """Das Urteil aus der Ausgabe von `pgbackrest verify` holen.
+    """Was `pgbackrest verify` wirklich sagt - und was es nicht sagt.
 
-    NICHT aus dem Rueckgabewert: `verify` meldet `status: error` und beendet
-    sich trotzdem mit 0 ("completed successfully"). Wer den Rueckgabewert
-    prueft, bekommt fuer ein kaputtes Repository ein gruenes Ergebnis - der
-    stillste denkbare Fehlschlag.
+    Beim ersten echten Lauf zeigte sich, dass die naheliegende Annahme falsch
+    ist: verify gibt bei einem sauberen Bestand **keine** Statuszeile aus.
+    Es protokolliert die gefundenen WAL-Bereiche und endet mit "verify command
+    end: completed successfully" - fertig. Eine Zeile "stanza: X / status: ..."
+    erscheint nur, wenn etwas nicht stimmt.
+
+    Deshalb wird hier auf PROBLEME gelesen, nicht auf ein Urteil. Und weil
+    verify sich auch bei Maengeln mit 0 beendet, ist der Rueckgabewert
+    weiterhin unbrauchbar.
+
+    Zurueck kommt (urteil, meldungen, bereiche):
+      urteil    "ok", "error", oder None wenn der Lauf gar nicht durchlief
+      meldungen die beanstandeten Zeilen
+      bereiche  die zusammenhaengenden WAL-Abschnitte je archiveId
+
+    Die Bereiche sind der eigentliche Gewinn dieser Pruefung. Steht dort mehr
+    als ein Abschnitt je archiveId, fehlen WAL-Segmente dazwischen - und
+    zwischen zwei Abschnitten laesst sich auf keinen Zeitpunkt
+    wiederherstellen. pgBackRest nennt das nicht Fehler (vor der ersten
+    Sicherung ist eine Luecke normal), fuer uns ist es die Frage, wegen der
+    wir ueberhaupt pruefen.
     """
-    zeilen = [z.strip() for z in text.splitlines()]
-    urteil = None
+    bereiche = []
     meldungen = []
-    gesehen = False
-    for zeile in zeilen:
-        if zeile.endswith("stanza: %s" % stanza) or zeile == "stanza: %s" % stanza:
-            gesehen = True
+    lief_durch = False
+    in_status = False
+
+    for zeile in text.splitlines():
+        blank = zeile.strip()
+        if "verify command end" in blank:
+            lief_durch = True
+        if "wal start:" in blank and "archiveId:" in blank:
+            teil = blank.split("archiveId:", 1)[1]
+            kennung = teil.split(",", 1)[0].strip()
+            start = teil.split("wal start:", 1)[1].split(",", 1)[0].strip()
+            stop = teil.rsplit("wal stop:", 1)[1].strip()
+            bereiche.append({"archive": kennung, "von": start, "bis": stop})
             continue
-        if not gesehen:
+        if "ERROR:" in blank:
+            meldungen.append(blank.split("ERROR:", 1)[1].strip())
             continue
-        if "status:" in zeile:
-            urteil = zeile.split("status:", 1)[1].strip()
+        if "status:" in blank:
+            in_status = blank.split("status:", 1)[1].strip() != "ok"
+            if in_status:
+                meldungen.append("status: " + blank.split("status:", 1)[1].strip())
             continue
-        if urteil and zeile and not zeile.startswith(("20", "-")):
-            meldungen.append(zeile)
-    return urteil, meldungen
+        # Die Einzelheiten stehen eingerueckt UNTER der Statuszeile.
+        if in_status and blank and not blank[:4].isdigit():
+            meldungen.append(blank)
+
+    if not lief_durch:
+        return None, meldungen, bereiche
+    return ("error" if meldungen else "ok"), meldungen, bereiche
+
+
+def _luecken(bereiche):
+    """Fehlende WAL-Abschnitte: je archiveId ein Abschnitt weniger als noetig."""
+    je_kennung = {}
+    for b in bereiche:
+        je_kennung[b["archive"]] = je_kennung.get(b["archive"], 0) + 1
+    return sum(max(0, n - 1) for n in je_kennung.values())
 
 
 def run_repo_verify_bench(bench, stanza):
@@ -1619,20 +1659,25 @@ def run_repo_verify_bench(bench, stanza):
             *_pgbr_als_benutzer(umgebung["pgbackrest_image"],
                                 umgebung.get("run_user")),
             "--stanza", stanza, "verify",
+            # detail, weil erst auf dieser Stufe die WAL-Bereiche im Log
+            # stehen - und damit die Luecken, um die es geht.
+            "--log-level-console=detail",
             timeout=14400,
         )
         text = (out.stdout or "") + (out.stderr or "")
-        urteil, meldungen = _verify_ausgabe_lesen(text, stanza)
+        urteil, meldungen, bereiche = _verify_ausgabe_lesen(text, stanza)
+        ergebnis["wal_bereiche"] = bereiche
+        ergebnis["wal_luecken"] = _luecken(bereiche)
         if urteil is None:
             ergebnis["result"] = "failed"
             ergebnis["error"] = (
-                "verify hat kein Urteil zur Stanza ausgegeben:\n" + text[-1500:]
+                "verify ist nicht durchgelaufen:\n" + text[-1500:]
             )
         elif urteil == "ok":
             ergebnis["result"] = "passed"
         else:
             ergebnis["result"] = "failed"
-            ergebnis["error"] = "; ".join(meldungen)[:2000] or urteil
+            ergebnis["error"] = "; ".join(meldungen)[:2000]
         ergebnis["meldungen"] = meldungen[:20]
     except VerifyFailed as ex:
         ergebnis["result"] = "failed"
@@ -1800,11 +1845,25 @@ def pgbackrest_repo_verify(config, stanza, as_json, report_to, bench_config):
         if as_json:
             click.echo(json.dumps(ergebnis, indent=1, sort_keys=True))
         elif ergebnis["result"] == "passed":
+            luecken = ergebnis.get("wal_luecken") or 0
             click.secho(
                 f"{ergebnis['area']} ({ergebnis['store']}): Bestand heil "
                 f"({ergebnis['seconds']}s).",
                 fg="green",
             )
+            if luecken:
+                # Kein Fehlschlag - pgBackRest nennt das nicht Fehler, und vor
+                # der ersten Sicherung ist eine Luecke normal. Aber es muss
+                # dastehen: zwischen zwei Abschnitten fuehrt kein Weg auf
+                # einen Zeitpunkt zurueck.
+                click.secho(
+                    f"  ACHTUNG: {luecken} Luecke(n) im WAL - "
+                    + ", ".join(
+                        f"{b['von']}..{b['bis']}"
+                        for b in ergebnis.get("wal_bereiche") or []
+                    ),
+                    fg="yellow",
+                )
         else:
             click.secho(
                 f"{ergebnis['area']} ({ergebnis['store']}): Bestand BEANSTANDET"
