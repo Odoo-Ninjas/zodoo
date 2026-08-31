@@ -394,15 +394,28 @@ def test_no_port_published_without_a_repo_host(after_compose, tmp_path):
     assert "ports" not in yml["services"]["pgbackrest"]
 
 
-def test_pushing_to_a_repo_host_still_leaves_retention_over_there(
+def test_pushing_to_a_repo_host_carries_its_own_retention(
     after_compose, tmp_path
 ):
-    """BACKUP_FROM=here: outbound only, and STILL no retention on this side.
+    """BACKUP_FROM=here: outbound only, but WITH retention on this side.
 
-    Retention belongs to whoever manages the disk, which is the backup server
-    in both repo-host modes. Emitting it here would mean the same number
-    maintained on every Odoo host, drifting from the one that actually governs
-    the free space. The backup server runs its own scheduled `expire` instead.
+    Bis 2026-08-31 stand hier das Gegenteil, mit der Begruendung: die
+    Aufbewahrung gehoere der Maschine, der die Platte gehoert, und der
+    Backup-Server fahre seinen eigenen `expire`. Das klingt richtig und war
+    nachweislich falsch:
+
+    `expire` muss `backup.info` LESEN, und die ist clientseitig
+    verschluesselt. Auf dem Repo-Host endet der Versuch mit
+    `FormatError: key/value found outside of section at line 1: Salted__...`.
+    Dass er sie nicht oeffnen kann, ist der Sinn des ganzen Aufbaus.
+
+    Ergebnis: es lief NIRGENDS ein expire, und beide Bestaende wuchsen
+    unbegrenzt - waehrend die Doku 14 Tage versprach.
+
+    Diese Maschine kann es: sie hat die Passphrase, und pgBackRest laesst
+    nach jeder Sicherung ohnehin `expire` mitlaufen. Es fand nur nie eine
+    Regel vor. Neue Loeschbefugnis entsteht dadurch nicht - `odoo pgbackrest
+    expire` gibt es hier laengst.
     """
     yml = {"services": {"postgres": {"environment": {}}, "pgbackrest": {}}}
     after_compose(
@@ -418,7 +431,9 @@ def test_pushing_to_a_repo_host_still_leaves_retention_over_there(
     )
     directives = _directives(tmp_path)
     assert "repo1-host=backup.example" in directives
-    assert not any(d.startswith("repo1-retention") for d in directives)
+    # Die gesetzte Zahl wird uebernommen, nicht die Vorgabe.
+    assert "repo1-retention-full=30" in directives
+    assert "repo1-retention-full-type=time" in directives
     # the repository still lives over there
     assert not any(d.startswith("repo1-path") for d in directives)
     # nothing listens here, so no server certificate and no open port

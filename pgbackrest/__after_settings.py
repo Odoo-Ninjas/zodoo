@@ -63,27 +63,24 @@ def after_settings(settings, config):
         # which the daemon cannot parse at all.
         settings["CRONJOB_PGBACKREST_INCR"] = ""
 
-    # With a repo host, retention is not configured here - which is a
-    # deliberate hole and therefore has to be said out loud once. Nothing on
-    # this machine will ever expire a backup, and if the backup server has no
-    # scheduled expire either, the repository grows until the disk is full.
-    # That is the same failure that filled the dump directory with 3.4 TB, so
-    # it gets a message rather than a comment in a file nobody opens.
+    # Bei BACKUP_FROM=repo-host sichert und raeumt der Backup-Server auf -
+    # dann muss ER die Aufbewahrung kennen. Mit einem verschluesselten
+    # Repository kann er das allerdings nicht: `expire` muss backup.info
+    # lesen. Also einmal laut sagen, statt es in einer Datei zu verstecken,
+    # die niemand oeffnet.
     if (
         _truthy(settings.get("RUN_PGBACKREST", "0"))
         and (settings.get("PGBR_REPO_HOST") or "").strip()
+        and (settings.get("PGBR_BACKUP_FROM") or "").strip() == "repo-host"
     ):
         click.secho(
-            "pgbackrest: the repository lives on "
-            f"{settings['PGBR_REPO_HOST']}, so retention is configured "
-            "THERE, not here - the machine that manages the disk manages the "
-            "retention.\n"
-            "  -> the backup server needs repo1-retention-* in its own "
-            "pgbackrest.conf and a scheduled `pgbackrest --stanza="
-            f"{_stanza(settings)} expire`."
-            "\n"
-            "The PGBR_RETENTION_* settings are ignored in this mode; "
-            "without an expire on the backup server nothing is ever deleted.",
+            "pgbackrest: der Repo-Host sichert selbst (BACKUP_FROM=repo-host), "
+            "also gehoert die Aufbewahrung DORTHIN - hier ist sie wirkungslos.\n"
+            "  -> ist das Repository verschluesselt, kann er sie NICHT "
+            "durchsetzen: expire muss backup.info lesen und scheitert an der "
+            "Verschluesselung. Dann entweder unverschluesselt sichern (nicht "
+            "empfohlen) oder mit BACKUP_FROM=here arbeiten, wo diese Maschine "
+            "sichert und aufraeumt.",
             fg="yellow",
         )
 
