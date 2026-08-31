@@ -1162,6 +1162,12 @@ def _probe(umgebung, stanza):
         "area": stanza,
         "bench": umgebung.get("bench") or socket.gethostname(),
         "checked_at": int(begonnen),
+        # WELCHER Bestand geprueft wurde. Ohne das sehen die Nachweise aus
+        # Erst- und Zweitbestand gleich aus, und die Ueberwachung nimmt je
+        # Bereich den juengsten bestandenen - ein durchgefallener Zweitbestand
+        # waere dann hinter dem bestandenen Erstbestand unsichtbar. Genau die
+        # Sorte Luecke, wegen der es diese Probe ueberhaupt gibt.
+        "store": umgebung.get("store") or "-",
     }
     try:
         ergebnis["backup"] = _verify_latest_backup(
@@ -1225,6 +1231,7 @@ def run_verify(config, stanza=None):
             "mounts": _verify_mounts(config),
             "run_user": None,  # im Projektabbild fuehrt gosu zum Ziel
             "bench": socket.gethostname(),
+            "store": "projekt",
         }
     except VerifyFailed as ex:
         # Auch das ist ein ERGEBNIS, kein Absturz - sonst sieht die
@@ -1236,6 +1243,7 @@ def run_verify(config, stanza=None):
             "result": "failed",
             "error": str(ex)[-2000:],
             "seconds": 0,
+            "store": "projekt",
         }
     except Exception as ex:  # noqa: BLE001
         return {
@@ -1245,6 +1253,7 @@ def run_verify(config, stanza=None):
             "result": "failed",
             "error": f"{type(ex).__name__}: {ex}"[-2000:],
             "seconds": 0,
+            "store": "projekt",
         }
     return _probe(umgebung, stanza)
 
@@ -1506,6 +1515,17 @@ def _aus_umschlag(bench, stanza):
     return ergaenzt
 
 
+def _bestandsname(bench):
+    """Wie der gepruefte Bestand in den Nachweisen heisst.
+
+    Frei benennbar, weil "s3" ueber mehrere Bestaende hinweg nichts
+    unterscheidet, sobald es zwei davon gibt. Ohne Angabe bleibt die Art
+    uebrig - das ist immer noch besser als gar nichts.
+    """
+    name = (bench.get("store") or "").strip()
+    return name or ("s3" if bench.get("repo_type") == "s3" else "tls")
+
+
 def run_verify_bench(bench, stanza):
     """Eine Rueckspielprobe des PRUEFSTANDS an einem fremden Bereich."""
     eigen = dict(bench)
@@ -1514,6 +1534,7 @@ def run_verify_bench(bench, stanza):
     try:
         eigen = _aus_umschlag(eigen, stanza)
         umgebung = _bench_umgebung(eigen, stanza, arbeitsordner)
+        umgebung["store"] = _bestandsname(eigen)
     except VerifyFailed as ex:
         shutil.rmtree(arbeitsordner, ignore_errors=True)
         return {
@@ -1523,6 +1544,7 @@ def run_verify_bench(bench, stanza):
             "result": "failed",
             "error": str(ex)[-2000:],
             "seconds": 0,
+            "store": _bestandsname(eigen),
         }
     try:
         return _probe(umgebung, stanza)
@@ -1592,7 +1614,13 @@ def pgbackrest_verify(config, stanza, as_json, report_to, bench_config):
             ziel = Path(report_to)
             ziel.mkdir(parents=True, exist_ok=True)
             stempel = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-            datei = ziel / f"{ergebnis['area']}-{stempel}.json"
+            # Der Bestand gehoert in den NAMEN, nicht nur in die Datei: die
+            # Ablage sammelt die Nachweise mehrerer Bestaende im selben Ordner,
+            # und wer dort hinschaut soll ohne Aufmachen sehen, was fehlt.
+            datei = ziel / (
+                f"{ergebnis['area']}-{ergebnis.get('store') or '-'}"
+                f"-{stempel}.json"
+            )
             datei.write_text(
                 json.dumps(ergebnis, indent=1, sort_keys=True) + "\n"
             )
