@@ -1,4 +1,5 @@
 import traceback
+import re
 import socket
 
 import threading
@@ -603,7 +604,75 @@ def _do_compose(
     )
 
 
+def _running_in_container():
+    """True when this process runs inside a docker container."""
+    return Path("/.dockerenv").exists()
+
+
+def _abort_if_rewriting_from_foreign_container(config, yamlcompose):
+    """Refuse to rewrite docker-compose.yml with container-internal paths.
+
+    The bind mount sources in the compose file are resolved by the docker
+    daemon on the HOST. When zodoo runs inside a container whose home differs
+    from the host's, it writes the paths it sees in there - e.g. the robot
+    image's user has ``/opt/robot`` as home, so every source turns into
+    ``/opt/robot/.odoo/...``, which does not exist on the host. The containers
+    then start with empty mounts, i.e. without their code, and die with
+    ``ModuleNotFoundError: No module named 'zodoo'`` - while the visible
+    symptom is only that the instance never answers again.
+
+    Detection compares the home prefix of the *existing* file against ours;
+    that is what makes a mismatch provable instead of guessed. Nothing to
+    compare (no file yet) means nothing to protect against.
+    """
+    if not _running_in_container():
+        return
+    if os.getenv("ZODOO_ALLOW_CONTAINER_RECONFIG") == "1":
+        return
+
+    dest_file = config.files["docker_compose"]
+    if not dest_file.exists():
+        return
+
+    marker = "/.odoo/"
+    current_home = str(Path.home())
+    foreign = set()
+    for match in re.finditer(r"source: (\S+)" + re.escape(marker), dest_file.read_text()):
+        prefix = match.group(1)
+        if prefix and prefix != current_home:
+            foreign.add(prefix)
+    if not foreign:
+        return
+
+    click.secho(
+        "\n".join(
+            [
+                "",
+                "Refusing to rewrite the docker-compose file from inside a container.",
+                "",
+                f"  paths in the existing file: {', '.join(sorted(foreign))}",
+                f"  home of this process:       {current_home}",
+                "",
+                "Bind mount sources are resolved by the docker daemon on the host.",
+                "Rewriting them from in here would point every mount at a path that",
+                "does not exist there - the containers would come up without their",
+                "code and the instance would stop answering.",
+                "",
+                "Run this command on the host instead. Commands that only talk to a",
+                "running instance (odoo shell, psql, robot run, ORM access) are fine",
+                "from in here.",
+                "",
+                "If you really know better, set ZODOO_ALLOW_CONTAINER_RECONFIG=1.",
+                "",
+            ]
+        ),
+        fg="red",
+    )
+    sys.exit(-1)
+
+
 def _dump_yamlcompose(config, yamlcompose):
+    _abort_if_rewriting_from_foreign_container(config, yamlcompose)
     dest_file = config.files["docker_compose"]
     from .tools import atomic_write
 
