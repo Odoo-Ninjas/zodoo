@@ -2,16 +2,31 @@
 set -e
 
 USERNAME=coder
+OWNER_UID="${OWNER_UID:-1000}"
 OPENVSCODE="/home/.openvscode-server/bin/openvscode-server"
 TRIGGER_URL="${TRIGGER_URL:-http://coding_trigger:8090}"
 
-# Create unprivileged user matching host UID
-groupadd -f "$USERNAME"
-useradd -g "$USERNAME" -m "$USERNAME" -u "${OWNER_UID:-1000}" -s /bin/bash 2>/dev/null || true
+# We need to run as a user whose UID is the host owner's, so that files
+# written in the workspace belong to them. The base image
+# (gitpod/openvscode-server) already ships `openvscode-server` with UID 1000
+# - and 1000 is the usual OWNER_UID, being the first user on the host. In
+# that case `useradd -u` refuses the duplicate UID, so insisting on our own
+# name leaves no `coder` at all: every following `chown coder:coder` then
+# fails with "invalid user" and the container dies under `set -e`.
+# So take over whoever already holds the UID, and only create `coder` when
+# the UID is free.
+existing_user="$(getent passwd "$OWNER_UID" | cut -d: -f1)"
+if [ -n "$existing_user" ]; then
+    USERNAME="$existing_user"
+else
+    groupadd -f "$USERNAME"
+    useradd -g "$USERNAME" -m "$USERNAME" -u "$OWNER_UID" -s /bin/bash
+fi
+USERGROUP="$(id -gn "$USERNAME")"
 
 # Give user ownership of workspace and server dir
-chown -R "$USERNAME:$USERNAME" /home/.openvscode-server
-chown -R "$USERNAME:$USERNAME" /opt/src 2>/dev/null || true
+chown -R "$USERNAME:$USERGROUP" /home/.openvscode-server
+chown -R "$USERNAME:$USERGROUP" /opt/src 2>/dev/null || true
 
 # Create .vscode config for debugging via trigger sidecar
 VSCODE_DIR="/opt/src/.vscode"
@@ -95,7 +110,7 @@ else
         sed -i 's/^{$/{\n  "robotcode.python": "\/opt\/robotenv\/bin\/python",/' "$VSCODE_DIR/settings.json"
     fi
 fi
-chown -R "$USERNAME:$USERNAME" "$VSCODE_DIR"
+chown -R "$USERNAME:$USERGROUP" "$VSCODE_DIR"
 
 # Start vim toggle server in background as unprivileged user
 NODE="/home/.openvscode-server/node"
