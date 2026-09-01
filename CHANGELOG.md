@@ -1,5 +1,12 @@
 # Changelog
 
+## 11.0.1
+
+
+- |
+- **Fix**: Die docker-compose.yml wird nicht mehr aus einem Container heraus neu geschrieben, dessen Home vom Host-Home abweicht. Bind-Mount-Quellen loest der Docker-Daemon auf dem Host auf; zodoo schrieb aber die Pfade, die es im Container sah - ein 'odoo reload' aus dem robot-Image (Home /opt/robot) machte aus jeder Quelle ein /opt/robot/.odoo/..., das es auf dem Host nicht gibt. Die Container starteten danach ohne ihren Code und starben mit 'ModuleNotFoundError: No module named zodoo'; sichtbar war nur, dass die Instanz nicht mehr antwortet. Das Schreiben bricht jetzt mit einer Meldung ab, die beide Pfade nennt. Zum Pruefen: 'odoo reload' auf dem Host laeuft unveraendert durch; aus einem Robot-/Console-Container heraus kommt der Abbruch mit Erklaerung. Befehle, die nur mit einer laufenden Instanz sprechen (odoo shell, psql, robot run), sind nicht betroffen, und ZODOO_ALLOW_CONTAINER_RECONFIG=1 hebt die Pruefung auf.
+
+
 ## 11.0.0
 
 
