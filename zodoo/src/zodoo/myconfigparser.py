@@ -146,16 +146,27 @@ class MyConfigParser:
         # dieser Kommentar oben als die teuerste nennt. Auf einer produktiven
         # Instanz lag die Datei damit weiter auf 0664.
         #
-        # Absichtlich "CIPHER" und nicht "CIPHER_PASS": das trifft auch
-        # PGBR_CIPHER_TYPE, was kein Geheimnis ist. Eine Datei zu eng zu
-        # ziehen kostet nichts, eine zu weit gelassene kostet alles.
-        "CIPHER",
+        # "CIPHER_PASS" und nicht bloss "CIPHER": letzteres trifft auch
+        # PGBR_CIPHER_TYPE, und der hat IMMER einen Wert. Damit waere jede
+        # Einstellungsdatei verengt worden, auch ohne ein Geheimnis darin -
+        # im Bake-Lauf ist das aufgefallen. "Zu eng kostet nichts" war ein
+        # Trugschluss.
+        "CIPHER_PASS",
     )
 
     def _holds_secret(self):
+        """Steht ein Geheimnis mit INHALT darin?
+
+        Der Wert zaehlt, nicht nur der Name. In jeder Projektdatei stehen
+        Schluessel wie PGBR_CIPHER_PASS oder DEFAULT_DEV_PASSWORD auch dann,
+        wenn sie leer sind - eine leere Passphrase ist aber kein Geheimnis.
+        Ohne diese Pruefung wuerde jede Einstellungsdatei verengt, sobald der
+        Schluessel bloss existiert. Das ist breiter als noetig, und im
+        Bake-Lauf ist es aufgefallen.
+        """
         return any(
-            hint in key.upper()
-            for key in self.configOptions
+            hint in key.upper() and str(value).strip()
+            for key, value in self.configOptions.items()
             for hint in self.SECRET_KEY_HINTS
         )
 

@@ -98,12 +98,24 @@ def test_the_pgbackrest_passphrase_counts_as_a_secret(tmp_path, monkeypatch):
     assert "PGBR_CIPHER_PASS=geheim" in path.read_text()
 
 
-def test_the_cipher_type_alone_also_tightens(tmp_path, monkeypatch):
-    """Absichtlich zu eng statt zu weit.
+def test_the_cipher_type_alone_does_not_tighten():
+    """PGBR_CIPHER_TYPE ist kein Geheimnis - und hat IMMER einen Wert.
 
-    PGBR_CIPHER_TYPE ist kein Geheimnis. Dass die Datei dadurch trotzdem
-    verengt wird, ist der billigere Fehler - und in der Praxis stehen beide
-    ohnehin nebeneinander.
+    Erst stand hier das Gegenteil, mit dem Argument "zu eng kostet nichts".
+    Es kostet doch: mit "CIPHER" als Hinweiswort waere jede
+    Einstellungsdatei verengt worden, weil die Art immer gesetzt ist. Der
+    Bake-Lauf ist daran gescheitert.
+    """
+    # Fachlich deckt das der Test unten mit ab (leere Passphrase, gesetzte
+    # Art -> keine Verengung); hier bleibt nur die Begruendung stehen.
+
+
+def test_an_empty_secret_is_not_a_secret(tmp_path, monkeypatch):
+    """Der Schluessel allein genuegt nicht, der Wert muss da sein.
+
+    In jeder Projektdatei stehen PGBR_CIPHER_PASS und DEFAULT_DEV_PASSWORD
+    auch leer. Wuerde schon der Name verengen, waere jede Einstellungsdatei
+    betroffen - breiter als noetig, und im Bake-Lauf hat es gestoert.
     """
     monkeypatch.setenv("HOME", str(tmp_path))
     path = tmp_path / "settings"
@@ -111,7 +123,8 @@ def test_the_cipher_type_alone_also_tightens(tmp_path, monkeypatch):
     path.chmod(0o664)
 
     cfg = MyConfigParser(path)
+    cfg["PGBR_CIPHER_PASS"] = ""
     cfg["PGBR_CIPHER_TYPE"] = "aes-256-cbc"
     cfg.write()
 
-    assert _mode(path) == 0o600
+    assert _mode(path) == 0o664

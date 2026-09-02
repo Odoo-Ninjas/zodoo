@@ -19,6 +19,12 @@ description: |
   naechsten Schreiben verengt, nicht rueckwirkend - bei Bedarf einmal von Hand
   `chmod 600`.
 
-  Worauf zu achten ist: das Hinweiswort ist "CIPHER" und nicht "CIPHER_PASS".
-  Damit trifft es auch `PGBR_CIPHER_TYPE`, was kein Geheimnis ist. Eine Datei
-  zu eng zu ziehen kostet nichts, eine zu weit gelassene kostet alles.
+  Zweite Aenderung im selben Zug: geprueft wird jetzt der WERT, nicht nur der
+  Schluesselname. In jeder Projektdatei stehen `PGBR_CIPHER_PASS` und
+  `DEFAULT_DEV_PASSWORD` auch dann, wenn sie leer sind - eine leere Passphrase
+  ist kein Geheimnis. Vorher haette der bloss vorhandene Name genuegt.
+
+  Worauf zu achten ist: das Hinweiswort ist "CIPHER_PASS" und nicht "CIPHER".
+  Letzteres trifft auch `PGBR_CIPHER_TYPE`, und der hat IMMER einen Wert -
+  damit waere jede Einstellungsdatei verengt worden, auch ohne Geheimnis
+  darin. Der Bake-Lauf ist daran gescheitert.
