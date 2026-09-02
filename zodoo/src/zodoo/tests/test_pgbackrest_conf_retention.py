@@ -128,3 +128,67 @@ def test_it_also_runs_with_pgbackrest_switched_off():
     yml = _yml_mit_passphrase()
     m.after_compose(None, {"RUN_PGBACKREST": "0"}, yml, {})
     assert "PGBR_CIPHER_PASS" not in yml["services"]["grafana"]["environment"]
+
+
+# --------------------------------------------------------------------------- #
+# Die Passphrase steht nicht in der gemounteten Konfiguration                  #
+# --------------------------------------------------------------------------- #
+#
+# Die pgbackrest.conf wird nach /etc/pgbackrest der Container gemountet und
+# muss fuer den Container-Benutzer lesbar bleiben - 0644. Das Verzeichnis
+# enger zu ziehen hilft nicht, dann kommt der Container selbst nicht mehr hin.
+# Also gehoert das Geheimnis nicht in diese Datei, sondern in die Umgebung
+# der zwei Dienste, die es brauchen. Nachgewiesen am 02.09.2026: pgBackRest
+# oeffnet ein verschluesseltes Repository allein mit
+# PGBACKREST_REPO1_CIPHER_PASS aus der Umgebung.
+
+
+def test_the_conf_has_the_cipher_type_but_not_the_passphrase():
+    m = _modul()
+    text = m._repo_section(dict(BASIS, PGBR_BACKUP_FROM="here"))
+    assert "repo1-cipher-type=aes-256-cbc" in text
+    assert "repo1-cipher-pass=" not in text
+    assert "geheim" not in text
+
+
+def test_only_postgres_and_the_sidecar_get_the_passphrase():
+    m = _modul()
+    yml = {"services": {
+        "postgres": {"environment": {}},
+        "pgbackrest": {"environment": {}},
+        "grafana": {"environment": {}},
+        "odoo": {"environment": {}},
+    }}
+    assert m._passphrase_injizieren(yml, {"PGBR_CIPHER_PASS": "geheim"}) == 2
+    assert yml["services"]["postgres"]["environment"][m.CIPHER_ENV] == "geheim"
+    assert yml["services"]["pgbackrest"]["environment"][m.CIPHER_ENV] == "geheim"
+    assert m.CIPHER_ENV not in yml["services"]["grafana"]["environment"]
+    assert m.CIPHER_ENV not in yml["services"]["odoo"]["environment"]
+
+
+def test_without_a_passphrase_nothing_is_injected():
+    """Unverschluesselt ist eine eigene Lage, kein leerer Wert ueberall."""
+    m = _modul()
+    yml = {"services": {"postgres": {"environment": {}}}}
+    assert m._passphrase_injizieren(yml, {"PGBR_CIPHER_PASS": ""}) == 0
+    assert yml["services"]["postgres"]["environment"] == {}
+
+
+def test_a_missing_sidecar_is_no_problem():
+    m = _modul()
+    yml = {"services": {"postgres": {"environment": {}}}}
+    assert m._passphrase_injizieren(yml, {"PGBR_CIPHER_PASS": "geheim"}) == 1
+
+
+def test_switched_off_puts_the_passphrase_nowhere():
+    """Der Reihenfolge-Fehler, den ich beim Bauen erst falsch hatte."""
+    m = _modul()
+    yml = {"services": {
+        "postgres": {"environment": {"PGBR_CIPHER_PASS": "geheim"}},
+        "grafana": {"environment": {"PGBR_CIPHER_PASS": "geheim"}},
+    }}
+    m.after_compose(None, {"RUN_PGBACKREST": "0",
+                           "PGBR_CIPHER_PASS": "geheim"}, yml, {})
+    for name, service in yml["services"].items():
+        assert "PGBR_CIPHER_PASS" not in service["environment"], name
+        assert m.CIPHER_ENV not in service["environment"], name

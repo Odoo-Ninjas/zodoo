@@ -141,8 +141,50 @@ def _cipher_lines(settings):
         "# passphrase - losing it here makes the backups unreadable, so it",
         "# belongs in the hosting record before the first backup runs.",
         f"repo1-cipher-type={kind}",
-        f"repo1-cipher-pass={passphrase}",
+        "#",
+        "# Die PASSPHRASE steht bewusst NICHT hier, sondern kommt als",
+        "# PGBACKREST_REPO1_CIPHER_PASS aus der Umgebung - und zwar nur in den",
+        "# zwei Diensten, die sie brauchen (siehe _passphrase_injizieren).",
+        "#",
+        "# Warum: diese Datei wird nach /etc/pgbackrest der Container",
+        "# gemountet und muss fuer den Container-Benutzer lesbar bleiben, also",
+        "# 0644. Das Verzeichnis enger zu ziehen hilft nicht - dann kaeme der",
+        "# Container selbst nicht mehr hin. Also gehoert das Geheimnis nicht in",
+        "# diese Datei. pgBackRest liest jede Option auch aus der Umgebung",
+        "# (PGBACKREST_<OPTION>); nachgewiesen am 02.09.2026 mit einem echten",
+        "# `info` gegen ein verschluesseltes Repository.",
     ]
+
+
+# pgBackRest bildet jede Option auf PGBACKREST_<OPTION> ab.
+CIPHER_ENV = "PGBACKREST_REPO1_CIPHER_PASS"
+
+
+def _passphrase_injizieren(yml, settings):
+    """Die Passphrase nur den Diensten geben, die sie brauchen.
+
+    Das sind genau zwei: der pgbackrest-Sidecar, und postgres - weil das
+    archive_command im postgres-Container laeuft und dort selbst
+    `pgbackrest archive-push` aufruft.
+
+    Alles andere - Grafana, Proxy, Konsole, Cronjobs, odoo - hat sie nie
+    gebraucht und bekommt sie nicht.
+    """
+    passphrase = (settings.get("PGBR_CIPHER_PASS") or "").strip()
+    if not passphrase:
+        return 0
+    gesetzt = 0
+    for name in ("postgres", "pgbackrest"):
+        service = (yml.get("services") or {}).get(name)
+        if service is None:
+            continue
+        umgebung = service.setdefault("environment", {})
+        if isinstance(umgebung, dict):
+            umgebung[CIPHER_ENV] = passphrase
+        else:
+            umgebung.append(f"{CIPHER_ENV}={passphrase}")
+        gesetzt += 1
+    return gesetzt
 
 
 def _repo_section(settings):
@@ -357,6 +399,12 @@ def after_compose(config, settings, yml, globals):
         return
     if "postgres" not in yml.get("services", {}):
         return
+
+    # Nach dem Aufraeumen und NACH den Ausstiegen: ist pgBackRest aus, hat die
+    # Passphrase in keiner Umgebung etwas zu suchen - auch nicht in der von
+    # postgres. Steht sie in den Einstellungen, weil die Funktion nur
+    # zeitweise abgeschaltet ist, bleibt sie dort und wandert nirgendwohin.
+    _passphrase_injizieren(yml, settings)
 
     run_dir = Path(settings["HOST_RUN_DIR"])
     _render_conf(settings, run_dir)
