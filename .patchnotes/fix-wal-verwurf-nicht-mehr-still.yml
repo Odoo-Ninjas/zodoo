@@ -1,0 +1,51 @@
+type: fix
+breaking: false
+description: |
+  WAL-Verwurf: die Grenze war zu eng, der Kommentar daneben falsch, und nach
+  einem Verwurf passierte nichts.
+
+  Hintergrund. `archive-push-queue-max` ist keine Bremse, sondern ein
+  Verlustmechanismus. pgBackRest sagt es selbst:
+
+    "pgBackRest will notify PostgreSQL that the WAL was successfully archived,
+     then DROP IT. [...] In asynchronous mode the entire queue will be dropped."
+
+  Wird der Spool groesser als die Grenze, wird also die GANZE Warteschlange
+  weggeworfen und postgres bekommt Erfolg gemeldet. Es fehlt danach nicht eine
+  Datei, sondern ein Stueck Kette - und ab da ist keine Wiederherstellung auf
+  einen Zeitpunkt mehr moeglich, bis eine neue Basissicherung existiert.
+
+  Drei Aenderungen:
+
+  1. `PGBR_ARCHIVE_PUSH_QUEUE_MAX` steht jetzt auf 16GB statt 1GB. Die Grenze
+     soll die Platte schuetzen; bei 1GB griff sie, waehrend noch Dutzende
+     Gigabyte frei waren. Ein Netzproblem von einer Stunde auf einer belebten
+     Instanz reichte, um die Kette zu reissen. Der Wert gehoert pro Maschine
+     an den ECHTEN freien Platz von pg_wal angepasst - 16GB ist ein
+     Kompromiss, keine Wahrheit.
+
+  2. Neu: `PGBR_ARCHIVE_PUSH_BATCH_SIZE` (256MB). Die Grenze wird nur zu
+     BEGINN eines Laufs geprueft; mit pgBackRests Vorgabe von 16GiB je Lauf
+     kann die Warteschlange weit darueber hinauswachsen, bevor jemand wieder
+     nachsieht. Ein kleinerer Stapel laesst den Prozess enden und neu starten,
+     und damit erneut pruefen.
+
+  3. Nach einem Verwurf stoesst der stuendliche `odoo pgbackrest check
+     --record` eine Vollsicherung an - die Kette ist ohnehin gerissen, und je
+     frueher die neue Basis steht, desto kleiner das Loch. Zwei Bedingungen
+     verhindern, dass das schadet: es zaehlt der ANSTIEG des Zaehlers (sonst
+     liefe jede Stunde eine Vollsicherung, solange er ueber Null steht), und
+     der Spool muss LEER sein (sonst verlaengert die Vollsicherung die
+     Warteschlange und provoziert den naechsten Verwurf; dann wartet sie auf
+     den naechsten Lauf).
+
+  Worauf beim Testen zu achten ist: in der erzeugten `pgbackrest.conf` der
+  Instanz muessen jetzt beide Zeilen stehen, `archive-push-queue-max` und
+  `archive-push-batch-size`. Der Zustand des Verwurf-Zaehlers liegt in
+  `<run>/pgbackrest-verwurf.json`; beim ersten Lauf wird er nur gemerkt, damit
+  ein Altbestand im Logfile nicht als frischer Anstieg gilt.
+
+  Ausserdem korrigiert: der Kommentar in `pgbackrest.conf.template` behauptete,
+  die Grenze lasse `archive-push` "laut scheitern" - das Gegenteil trifft zu.
+  Wer danach den Wert einstellte, hielt den gefaehrlichsten Zustand der Anlage
+  fuer einen lauten Fehler.

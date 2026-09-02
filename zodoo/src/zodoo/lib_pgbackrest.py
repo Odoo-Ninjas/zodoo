@@ -205,6 +205,7 @@ def pgbackrest_check(config, record):
         fehler = f"{type(ex).__name__}: {ex}"[-500:]
     if record:
         _check_ablegen(config, fehler)
+        _nach_verwurf_vollsicherung(config)
     if fehler:
         # Weiterreichen, damit der Zeitplan den Fehlschlag ebenfalls meldet -
         # die abgelegte Datei ersetzt die Meldung nicht, sie ergaenzt sie.
@@ -230,6 +231,91 @@ def _check_ablegen(config, fehler):
     neben.write_text(json.dumps(daten, indent=1, sort_keys=True) + "\n")
     neben.chmod(0o644)
     os.replace(neben, ziel)
+
+
+def _nach_verwurf_vollsicherung(config):
+    """Nach einem WAL-Verwurf sofort eine neue Vollsicherung anstossen.
+
+    **Warum automatisch.** Ueberschreitet der Spool `archive-push-queue-max`,
+    wirft pgbackrest die GANZE Warteschlange weg und meldet postgres Erfolg.
+    Ab da ist keine Wiederherstellung auf einen Zeitpunkt mehr moeglich - und
+    sie bleibt unmoeglich, bis eine neue BASIS existiert. Der Schaden waechst
+    also mit jeder Stunde, in der niemand hinsieht, und der naechste geplante
+    Volllauf ist im schlechtesten Fall sechs Tage entfernt.
+
+    **Zwei Bedingungen, ohne die das schadet:**
+
+    1. Es geht um den ANSTIEG des Zaehlers, nicht um seinen Stand. Sonst liefe
+       nach jedem stuendlichen Check eine neue Vollsicherung, solange der
+       Zaehler ueber Null steht.
+    2. Der Spool muss LEER sein. Steht die Archivierung noch, macht eine
+       Vollsicherung die Warteschlange laenger und provoziert den naechsten
+       Verwurf - erst wenn der Weg wieder traegt, hat eine neue Basis Bestand.
+       In dem Fall wird der Zaehler bewusst NICHT quittiert, damit der naechste
+       Lauf es erneut versucht.
+
+    Der Zaehler kommt aus dem Logfile und faellt bei dessen Rotation zurueck;
+    ein Ruecksetzer ist deshalb kein Anstieg und loest nichts aus.
+    """
+    run_dir = config.dirs.get("run")
+    if not run_dir:
+        return
+    from .lib_backup_metrics import _spool_und_verworfen
+
+    warteschlange, verworfen = _spool_und_verworfen(config)
+    if verworfen is None:
+        return
+
+    ziel = Path(run_dir) / "pgbackrest-verwurf.json"
+    try:
+        vorher = json.loads(ziel.read_text()).get("verworfen")
+    except (OSError, ValueError, AttributeError):
+        vorher = None
+
+    def merken(gesichert):
+        daten = {
+            "verworfen": verworfen,
+            "at": int(time.time()),
+            "vollsicherung_angestossen": gesichert,
+        }
+        neben = ziel.with_suffix(".json.neu")
+        neben.write_text(json.dumps(daten, indent=1, sort_keys=True) + "\n")
+        neben.chmod(0o644)
+        os.replace(neben, ziel)
+
+    # Erster Lauf: nur merken. Ohne das gilt ein Altbestand im Log als
+    # frischer Anstieg und es liefe sofort eine unnoetige Vollsicherung.
+    if vorher is None or verworfen <= vorher:
+        merken(False)
+        return
+
+    click.secho(
+        f"WAL VERWORFEN: der Zaehler ist von {vorher} auf {verworfen} "
+        "gestiegen. Die WAL-Kette ist unterbrochen - bis eine neue "
+        "Basissicherung steht, ist keine Wiederherstellung auf einen Zeitpunkt "
+        "moeglich.",
+        fg="red",
+    )
+    if warteschlange:
+        click.secho(
+            f"Noch {warteschlange} Segment(e) im Spool: die Archivierung "
+            "traegt noch nicht. Die Vollsicherung wartet auf den naechsten "
+            "Lauf - jetzt wuerde sie die Warteschlange nur verlaengern.",
+            fg="yellow",
+        )
+        return
+
+    click.secho("Starte eine Vollsicherung, um die Kette neu zu setzen.", fg="yellow")
+    try:
+        _pgbr(config, ["--type", "full", "backup"])
+    except Exception as ex:  # noqa: BLE001 - der naechste Lauf versucht es erneut
+        click.secho(
+            f"Vollsicherung nach dem Verwurf fehlgeschlagen: {ex}. Der Zaehler "
+            "bleibt unquittiert, der naechste Check versucht es erneut.",
+            fg="red",
+        )
+        return
+    merken(True)
 
 
 def _binary_version(config, service):
