@@ -2061,6 +2061,109 @@ def _enroll_call(config, method, path, payload=None):
 
 
 @pgbackrest.command(
+    name="envelope",
+    help=(
+        "Open an age envelope and print one field - the way to get a "
+        "passphrase back. Works WITHOUT a bench: point it at an envelope "
+        "file and an age key, which is what a real recovery looks like."
+    ),
+)
+@click.option(
+    "--file", "datei", default=None,
+    type=click.Path(exists=True, dir_okay=False),
+    help="the envelope itself (*.age)",
+)
+@click.option("--area", default=None, help="stanza; newest envelope wins")
+@click.option(
+    "--envelope-dir", "ordner", default=None,
+    type=click.Path(exists=True, file_okay=False),
+    help="where the envelopes are, when --area is used",
+)
+@click.option(
+    "--age-key", "schluessel", default=None,
+    type=click.Path(exists=True, dir_okay=False),
+    help="the PRIVATE age key",
+)
+@click.option(
+    "--bench-config", default=None,
+    type=click.Path(exists=True, dir_okay=False),
+    help="take key and envelope directory from a bench config",
+)
+@click.option(
+    "--field", "feld", default="cipher_pass",
+    help="which field to print (default: cipher_pass)",
+)
+@click.option(
+    "--list-fields", "auflisten", is_flag=True,
+    help="print the field NAMES only, no values",
+)
+@pass_config
+def pgbackrest_envelope(
+    config, datei, area, ordner, schluessel, bench_config, feld, auflisten
+):
+    """Den Umschlag oeffnen - der Weg, eine Passphrase zurueckzubekommen.
+
+    Warum es diesen Befehl gibt: `umschlag_oeffnen()` existierte schon, aber
+    nur als Funktion, die der Pruefstand benutzt. Um von Hand an eine
+    Passphrase zu kommen, musste man Python schreiben. Deshalb hat niemand den
+    Umschlag als Ablageort betrachtet - und deshalb wurde die Passphrase
+    zusaetzlich im Klartext an mehreren Stellen gehalten.
+
+    Bewusst OHNE Pruefstand benutzbar: im Ernstfall ist der Pruefstand
+    vielleicht das, was fehlt. Dann hat man den Schluessel aus dem Tresor, den
+    Umschlag von irgendwo - aus dem Anhang am Projekt in hosting.zebroo.de,
+    von der Backup-Maschine, aus dem Zweitbestand - und braucht sonst nichts.
+    """
+    if bench_config:
+        with open(bench_config) as fh:
+            bench = json.load(fh)
+        schluessel = schluessel or bench.get("age_identity")
+        ordner = ordner or bench.get("envelope_dir")
+
+    if not datei:
+        if not area:
+            abort("entweder --file <umschlag.age> oder --area <bereich>")
+        if not ordner:
+            abort(
+                "zu --area fehlt --envelope-dir (oder --bench-config, das "
+                "beides mitbringt)"
+            )
+        datei = neuester_umschlag(ordner, area)
+        if not datei:
+            abort(f"in {ordner} liegt kein Umschlag fuer '{area}'")
+
+    if not schluessel:
+        abort(
+            "es fehlt der private age-Schluessel: --age-key <datei> "
+            "(auf dem Pruefstand /etc/pgbr-pruefstand/age.key, sonst aus "
+            "1Password, Item 'Restic Repo Key assymetrische "
+            "Verschluesselung Master Key')"
+        )
+
+    try:
+        daten = umschlag_oeffnen(schluessel, datei)
+    except VerifyFailed as ex:
+        abort(str(ex))
+
+    if auflisten:
+        # Nur die Namen. Wer wissen will, was drin ist, muss nicht alles
+        # ausgeben lassen.
+        for name in sorted(daten):
+            click.echo(name)
+        return
+
+    if feld not in daten:
+        abort(
+            f"das Feld '{feld}' steht nicht im Umschlag. Vorhanden: "
+            + ", ".join(sorted(daten))
+        )
+
+    # Roh auf stdout, ohne Zierrat: der Wert soll sich weiterverwenden
+    # lassen. Und ohne Logzeile - ein Geheimnis gehoert in kein Protokoll.
+    click.echo(daten[feld])
+
+
+@pgbackrest.command(
     name="register",
     help=(
         "Request a stanza on the backup server and collect the credentials. "
