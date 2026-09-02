@@ -473,15 +473,40 @@ def test_a_local_repository_always_gets_retention(after_compose, tmp_path):
     assert "repo1-retention-full=14" in _directives(tmp_path)
 
 
-def test_cipher_emitted_in_global_for_both_shapes(after_compose, tmp_path):
-    """Encryption belongs in [global], and to both repository shapes.
+def test_cipher_type_in_the_conf_passphrase_only_in_the_environment(
+    after_compose, tmp_path
+):
+    """Die Art in die Datei, die Passphrase in die Umgebung.
 
-    [global] rather than the stanza section because the pgBackRest guide says
-    so: `info` has to be able to read every stanza. And to both shapes because
-    encryption is what makes a repository on somebody else's storage
-    acceptable - which is exactly the repo-host case.
+    Bis 02.09.2026 stand `repo1-cipher-pass` in der pgbackrest.conf - und die
+    wird nach /etc/pgbackrest der Container gemountet und muss fuer den
+    Container-Benutzer lesbar bleiben, also 0644. Das Verzeichnis enger zu
+    ziehen hilft nicht: dann kaeme der Container selbst nicht mehr hin.
+
+    Also gehoert das Geheimnis nicht in diese Datei. pgBackRest liest jede
+    Option auch aus der Umgebung; nachgewiesen mit einem echten `info` gegen
+    ein verschluesseltes Repository, das allein mit
+    PGBACKREST_REPO1_CIPHER_PASS geoeffnet wurde.
+
+    `repo1-cipher-type` bleibt in [global] - dort gehoert es laut
+    pgBackRest-Handbuch hin, damit `info` jede Stanza lesen kann, und es ist
+    kein Geheimnis.
     """
+    from importlib.util import module_from_spec, spec_from_file_location
+
+    quelle = (
+        Path(__file__).resolve().parents[4]
+        / "pgbackrest"
+        / "__after_compose.py"
+    )
+    spec = spec_from_file_location("pgbr_ac", quelle)
+    modul = module_from_spec(spec)
+    spec.loader.exec_module(modul)
+
     for extra in ({}, {"PGBR_REPO_HOST": "backup.example"}):
+        yml = {"services": {"postgres": {"environment": {}},
+                            "pgbackrest": {"environment": {}},
+                            "grafana": {"environment": {}}}}
         after_compose(
             None,
             _enabled_settings(
@@ -489,16 +514,27 @@ def test_cipher_emitted_in_global_for_both_shapes(after_compose, tmp_path):
                 PGBR_CIPHER_PASS="s3cret-passphrase",
                 **extra,
             ),
-            {"services": {"postgres": {"environment": {}}}},
+            yml,
             {},
         )
         conf = (tmp_path / "pgbackrest" / "pgbackrest.conf").read_text()
         directives = _directives(tmp_path)
+
         assert "repo1-cipher-type=aes-256-cbc" in directives
-        assert "repo1-cipher-pass=s3cret-passphrase" in directives
-        # in [global], not inside the stanza section
+        # Die Art in [global], nicht in der Stanza-Sektion.
         head = conf.split("[" + _enabled_settings()["PGBR_STANZA"] + "]")[0]
-        assert "repo1-cipher-pass" in head
+        assert "repo1-cipher-type" in head
+        # Und die Passphrase nirgends in der Datei.
+        assert "repo1-cipher-pass" not in conf
+        assert "s3cret-passphrase" not in conf
+
+        # Sondern in genau den zwei Diensten, die sie brauchen.
+        for dienst in ("postgres", "pgbackrest"):
+            assert (
+                yml["services"][dienst]["environment"][modul.CIPHER_ENV]
+                == "s3cret-passphrase"
+            ), dienst
+        assert modul.CIPHER_ENV not in yml["services"]["grafana"]["environment"]
 
 
 def test_no_cipher_without_a_passphrase(after_compose, tmp_path):
