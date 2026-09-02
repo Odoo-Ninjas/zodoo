@@ -99,6 +99,32 @@ services:
     image: gcr.io/cadvisor/cadvisor:v0.49.1
     restart: unless-stopped
     privileged: true
+    # Auf Hosts mit Docker-zfs-Storage-Driver ermittelt cadvisor die
+    # Dateisystem-Metriken pro Container ueber ZFS-Abfragen und iteriert dabei
+    # ueber tausende Layer-Datasets. Ergebnis: der cadvisor-Prozess und zwei
+    # zfs-Prozesse laufen dauerhaft mit 100% CPU.
+    # Gemessen auf hy-odooprod: 7 Tage 14 h CPU-Zeit in 13 Tagen Laufzeit,
+    # also permanent ein ganzer Kern pro Instanz. Mit zwei Instanzen lag die
+    # Maschine bei Load 14 statt 2,5 und SSH-Verbindungen brachen weg.
+    #
+    # disk/diskIO liefern container_fs_* und container_blkio_*. Den
+    # Pool-Fuellstand und die ZFS-Statistik deckt der node_exporter ohnehin ab
+    # (node_filesystem_*, node_zfs_* - 266 Metriken), und das ist die Ebene,
+    # die fuer Kapazitaet zaehlt. Der Verbrauch pro Container-Layer ist dafuer
+    # redundant.
+    # housekeeping_interval: Default ist 1s - fuer Container-CPU/RAM/Netz
+    # braucht das niemand.
+    #
+    # Wirkung (gemessen): CPU pro cadvisor von >100% auf 0,8-3%, CPU-Zeit von
+    # ~14 h/Tag auf ~40 min/Tag, dauerhafte zfs-Prozesse auf null. Es bleiben
+    # container_cpu_*, container_memory_* und die Netzwerk-Metriken, damit sind
+    # vier der sechs Panels in zodoo-overview.json weiter befuellt; leer bleiben
+    # nur die beiden container_fs_*-Panels.
+    command:
+      - --disable_metrics=disk,diskIO
+      - --housekeeping_interval=30s
+      - --docker_only=true
+      - --store_container_labels=false
     expose:
       - 8080
     volumes:
