@@ -141,6 +141,15 @@ class MyConfigParser:
         "SECRET",
         "TOKEN",
         "PRIVATE_KEY",
+        # PGBR_CIPHER_PASS heisst weder ...PASSPHRASE noch ...PASSWORD und
+        # fiel deshalb durch dieses Raster - ausgerechnet die Passphrase, die
+        # dieser Kommentar oben als die teuerste nennt. Auf einer produktiven
+        # Instanz lag die Datei damit weiter auf 0664.
+        #
+        # Absichtlich "CIPHER" und nicht "CIPHER_PASS": das trifft auch
+        # PGBR_CIPHER_TYPE, was kein Geheimnis ist. Eine Datei zu eng zu
+        # ziehen kostet nichts, eine zu weit gelassene kostet alles.
+        "CIPHER",
     )
 
     def _holds_secret(self):

@@ -75,3 +75,43 @@ def test_already_tight_stays_tight(tmp_path, monkeypatch):
 
     assert _mode(path) == 0o400
     assert os.access(path, os.R_OK)
+
+
+def test_the_pgbackrest_passphrase_counts_as_a_secret(tmp_path, monkeypatch):
+    """PGBR_CIPHER_PASS fiel durch das Raster.
+
+    Es heisst weder ...PASSPHRASE noch ...PASSWORD, also griff das Verengen
+    nicht - ausgerechnet bei der Passphrase, die den ganzen Datenbankbestand
+    eines Kunden aufschliesst. Auf einer produktiven Instanz lag die Datei
+    deshalb weiter auf 0664, gerettet nur von den Rechten des Home.
+    """
+    monkeypatch.setenv("HOME", str(tmp_path))
+    path = tmp_path / "settings"
+    path.write_text("")
+    path.chmod(0o664)
+
+    cfg = MyConfigParser(path)
+    cfg["PGBR_CIPHER_PASS"] = "geheim"
+    cfg.write()
+
+    assert _mode(path) == 0o600
+    assert "PGBR_CIPHER_PASS=geheim" in path.read_text()
+
+
+def test_the_cipher_type_alone_also_tightens(tmp_path, monkeypatch):
+    """Absichtlich zu eng statt zu weit.
+
+    PGBR_CIPHER_TYPE ist kein Geheimnis. Dass die Datei dadurch trotzdem
+    verengt wird, ist der billigere Fehler - und in der Praxis stehen beide
+    ohnehin nebeneinander.
+    """
+    monkeypatch.setenv("HOME", str(tmp_path))
+    path = tmp_path / "settings"
+    path.write_text("")
+    path.chmod(0o664)
+
+    cfg = MyConfigParser(path)
+    cfg["PGBR_CIPHER_TYPE"] = "aes-256-cbc"
+    cfg.write()
+
+    assert _mode(path) == 0o600

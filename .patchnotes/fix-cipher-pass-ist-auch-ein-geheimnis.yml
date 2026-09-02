@@ -1,0 +1,24 @@
+type: bugfix
+breaking: false
+description: |
+  Einstellungsdateien mit der pgBackRest-Passphrase werden jetzt auch wirklich
+  auf 0600 verengt.
+
+  Hintergrund: zodoo verengt Einstellungsdateien, sobald ein Geheimnis darin
+  steht - erkannt an Hinweiswoertern im Schluesselnamen (PASSPHRASE, PASSWORD,
+  SECRET, TOKEN, PRIVATE_KEY). `PGBR_CIPHER_PASS` heisst weder ...PASSPHRASE
+  noch ...PASSWORD und fiel deshalb durch dieses Raster - ausgerechnet die
+  Passphrase, die den ganzen Datenbankbestand eines Kunden aufschliesst. Auf
+  einer produktiven Instanz lag die Datei damit weiter auf 0664,
+  gruppenschreibbar und fuer alle lesbar, gerettet allein von den Rechten des
+  Home-Verzeichnisses.
+
+  Zum Nachsehen: `ls -l ~/.odoo/settings.<projekt>` nach dem naechsten
+  Schreibvorgang (etwa `odoo pgbackrest register` oder
+  `odoo setting PGBR_CIPHER_PASS=...`). Vorhandene Dateien werden erst beim
+  naechsten Schreiben verengt, nicht rueckwirkend - bei Bedarf einmal von Hand
+  `chmod 600`.
+
+  Worauf zu achten ist: das Hinweiswort ist "CIPHER" und nicht "CIPHER_PASS".
+  Damit trifft es auch `PGBR_CIPHER_TYPE`, was kein Geheimnis ist. Eine Datei
+  zu eng zu ziehen kostet nichts, eine zu weit gelassene kostet alles.
