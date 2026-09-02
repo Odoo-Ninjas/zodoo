@@ -1,4 +1,5 @@
 import platform
+import re
 import inspect
 import os
 from pathlib import Path
@@ -304,12 +305,31 @@ def _render_conf(settings, run_dir):
             settings.get("PGBR_ARCHIVE_ASYNC") or "y"
         ).strip(),
         "PGBR_ARCHIVE_PUSH_QUEUE_MAX": (
-            settings.get("PGBR_ARCHIVE_PUSH_QUEUE_MAX") or "1GB"
+            settings.get("PGBR_ARCHIVE_PUSH_QUEUE_MAX") or "16GB"
+        ).strip(),
+        "PGBR_ARCHIVE_PUSH_BATCH_SIZE": (
+            settings.get("PGBR_ARCHIVE_PUSH_BATCH_SIZE") or "256MB"
         ).strip(),
         "PGDATA": "/var/lib/postgresql/data/pgdata",
         "DB_PORT": str(settings.get("DB_PORT") or "5432").strip(),
     }
     conf = Template(template).safe_substitute(values)
+    # Jeder Platzhalter MUSS aufgeloest sein. safe_substitute laesst einen
+    # unbekannten Schluessel woertlich stehen - dann steht in der erzeugten
+    # Datei etwa `archive-push-batch-size=${PGBR_ARCHIVE_PUSH_BATCH_SIZE}`,
+    # pgbackrest verwirft die Zeile als ungueltige Groesse, und JEDER
+    # archive-push scheitert. Sichtbar wird das erst als "WAL segment was not
+    # archived before the timeout" - weit weg von der Ursache. Genau so ist am
+    # 02.09.2026 eine neue Option in die Vorlage geraten, ohne dass sie hier
+    # eingetragen war. Lieber hier laut scheitern als eine Instanz mit einer
+    # kaputten Archivierung hochfahren.
+    uebrig = sorted(set(re.findall(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", conf)))
+    if uebrig:
+        raise Exception(
+            "pgbackrest.conf.template: kein Wert fuer "
+            + ", ".join(uebrig)
+            + " - in _render_conf() nachtragen (mit Rueckfallwert)."
+        )
 
     target_dir = run_dir / "pgbackrest"
     target_dir.mkdir(parents=True, exist_ok=True)

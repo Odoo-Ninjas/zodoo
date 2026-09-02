@@ -49,3 +49,14 @@ description: |
   die Grenze lasse `archive-push` "laut scheitern" - das Gegenteil trifft zu.
   Wer danach den Wert einstellte, hielt den gefaehrlichsten Zustand der Anlage
   fuer einen lauten Fehler.
+
+  Dazu ein Riegel in `_render_conf()`: die Vorlage wird mit `safe_substitute`
+  gefuellt, und ein Platzhalter ohne Wert bleibt dort WOERTLICH stehen. In der
+  erzeugten Datei steht dann z.B.
+  `archive-push-batch-size=${PGBR_ARCHIVE_PUSH_BATCH_SIZE}`, pgbackrest
+  verwirft die Zeile als ungueltige Groesse, und JEDER archive-push scheitert -
+  sichtbar erst als "WAL segment was not archived before the timeout", weit weg
+  von der Ursache. Genau so ist diese Option beim ersten Anlauf in die Vorlage
+  geraten, ohne dass sie im Wertepaar-Verzeichnis stand. Bleibt jetzt ein
+  Platzhalter uebrig, scheitert `odoo reload` laut und nennt den Namen, statt
+  eine Instanz mit kaputter Archivierung hochzufahren.
