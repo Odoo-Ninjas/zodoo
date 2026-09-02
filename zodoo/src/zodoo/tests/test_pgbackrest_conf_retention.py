@@ -71,3 +71,60 @@ def test_the_pusher_never_gets_a_repo_path():
     text = m._repo_section(dict(BASIS, PGBR_BACKUP_FROM="here"))
     assert "repo1-path" not in text
     assert "repo1-host=db.backup.zebroo.de" in text
+
+
+# --------------------------------------------------------------------------- #
+# Die Passphrase gehoert in keine Dienst-Umgebung                              #
+# --------------------------------------------------------------------------- #
+#
+# zodoo haengt jedem Dienst die Einstellungsdatei als env_file an, und
+# `docker compose config` loest sie auf. Auf einer produktiven Instanz stand
+# PGBR_CIPHER_PASS damit 18 Mal in der erzeugten docker-compose.yml (0644) und
+# in der Umgebung von Grafana, Proxy, Konsole und allem anderen. Gelesen wird
+# sie von dort NIRGENDS.
+
+
+def _yml_mit_passphrase():
+    return {"services": {
+        "postgres": {"environment": {"PGBR_CIPHER_PASS": "geheim",
+                                     "DB_PORT": "5432"}},
+        "grafana": {"environment": {"PGBR_CIPHER_PASS": "geheim"}},
+        "proxy": {"environment": ["PGBR_CIPHER_PASS=geheim", "FOO=bar"]},
+        "ohne": {},
+    }}
+
+
+def test_the_passphrase_is_stripped_from_every_service():
+    m = _modul()
+    yml = _yml_mit_passphrase()
+    assert m._passphrase_aus_umgebungen_entfernen(yml) == 3
+    for name, service in yml["services"].items():
+        u = service.get("environment")
+        if isinstance(u, dict):
+            assert "PGBR_CIPHER_PASS" not in u, name
+        elif isinstance(u, list):
+            assert not any("PGBR_CIPHER_PASS" in e for e in u), name
+
+
+def test_other_variables_survive():
+    """Nur die Passphrase, nicht das halbe Environment."""
+    m = _modul()
+    yml = _yml_mit_passphrase()
+    m._passphrase_aus_umgebungen_entfernen(yml)
+    assert yml["services"]["postgres"]["environment"]["DB_PORT"] == "5432"
+    assert "FOO=bar" in yml["services"]["proxy"]["environment"]
+
+
+def test_a_service_without_environment_is_no_problem():
+    m = _modul()
+    yml = {"services": {"leer": {}}}
+    assert m._passphrase_aus_umgebungen_entfernen(yml) == 0
+
+
+def test_it_also_runs_with_pgbackrest_switched_off():
+    """Sonst bleibt die leere Variable ueberall stehen - und ist wieder da,
+    sobald jemand einschaltet."""
+    m = _modul()
+    yml = _yml_mit_passphrase()
+    m.after_compose(None, {"RUN_PGBACKREST": "0"}, yml, {})
+    assert "PGBR_CIPHER_PASS" not in yml["services"]["grafana"]["environment"]

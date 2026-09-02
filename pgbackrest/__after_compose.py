@@ -291,6 +291,43 @@ def _render_conf(settings, run_dir):
     return conf_file
 
 
+def _passphrase_aus_umgebungen_entfernen(yml):
+    """PGBR_CIPHER_PASS aus den Dienst-Umgebungen loeschen.
+
+    zodoo haengt jedem Dienst die Einstellungsdatei als `env_file` an, und
+    `docker compose config` loest sie auf. Damit steht die Passphrase in der
+    erzeugten docker-compose.yml einmal pro Dienst - auf einer produktiven
+    Instanz waren es 18 Mal - und in der Umgebung von Grafana, Proxy,
+    Konsole, Cronjobs und allem anderen, das sie nie braucht. Die Datei liegt
+    mit 0644 auf der Platte.
+
+    Gebraucht wird sie NIRGENDS als Umgebungsvariable: gelesen wird sie beim
+    Erzeugen der Konfiguration aus den EINSTELLUNGEN, und getragen wird sie
+    von der `pgbackrest.conf`, die dorthin gemountet wird, wo sie hingehoert.
+    Also raus damit.
+
+    Was das nicht loest (und was hier auch nicht hingehoert): die
+    Einstellungsdatei selbst und die gemountete Konfiguration. Die conf muss
+    fuer den Container-Benutzer lesbar bleiben; sie enger zu ziehen geht nur
+    ueber das Verzeichnis, nicht ueber die Datei.
+    """
+    entfernt = 0
+    for name, service in (yml.get("services") or {}).items():
+        umgebung = service.get("environment")
+        if isinstance(umgebung, dict):
+            if umgebung.pop("PGBR_CIPHER_PASS", None) is not None:
+                entfernt += 1
+        elif isinstance(umgebung, list):
+            vorher = len(umgebung)
+            service["environment"] = [
+                e for e in umgebung
+                if not (isinstance(e, str) and e.split("=", 1)[0] == "PGBR_CIPHER_PASS")
+            ]
+            if len(service["environment"]) != vorher:
+                entfernt += 1
+    return entfernt
+
+
 def after_compose(config, settings, yml, globals):
     """Wire pgBackRest into postgres.
 
@@ -309,6 +346,13 @@ def after_compose(config, settings, yml, globals):
     Everything here is gated on RUN_PGBACKREST=1: with the feature off, the
     postgres service keeps its stock configuration and its stock mounts.
     """
+    # ZUERST, und ausdruecklich VOR den Ausstiegen unten: die Passphrase hat
+    # in keiner Dienst-Umgebung etwas zu suchen, auch nicht als leerer Wert
+    # bei abgeschaltetem pgBackRest. Sonst steht sie in der erzeugten
+    # docker-compose.yml wieder ueberall, sobald jemand die Funktion
+    # einschaltet und vorher ein reload lief.
+    _passphrase_aus_umgebungen_entfernen(yml)
+
     if not _truthy(settings.get("RUN_PGBACKREST", "0")):
         return
     if "postgres" not in yml.get("services", {}):

@@ -1,0 +1,28 @@
+type: bugfix
+breaking: false
+description: |
+  Die Backup-Passphrase steht nicht mehr in der Umgebung jedes Dienstes.
+
+  Hintergrund: zodoo haengt jedem Dienst die Einstellungsdatei als `env_file`
+  an, und `docker compose config` loest sie auf. Damit stand
+  `PGBR_CIPHER_PASS` in der erzeugten `docker-compose.yml` einmal pro Dienst -
+  auf einer produktiven Instanz 18 Mal - und in der Umgebung von Grafana,
+  Proxy, Konsole, Cronjobs und allem anderen, das sie nie braucht. Die Datei
+  liegt mit 0644 auf der Platte.
+
+  Gebraucht wird sie dort NIRGENDS: gelesen wird sie beim Erzeugen der
+  Konfiguration aus den Einstellungen, und getragen wird sie von der
+  `pgbackrest.conf`, die nur dorthin gemountet wird, wo sie hingehoert.
+
+  Zum Nachsehen: `grep -c PGBR_CIPHER_PASS <run-dir>/docker-compose.yml`.
+  Vorher die Zahl der Dienste, nachher 0.
+
+  Worauf zu achten ist: das Entfernen laeuft auch bei RUN_PGBACKREST=0. Sonst
+  bliebe die leere Variable ueberall stehen und waere wieder da, sobald
+  jemand die Funktion einschaltet.
+
+  Zwei Stellen bleiben offen und gehoeren nicht hierher: die
+  Einstellungsdatei selbst (auf odooprod 0664, gerettet nur vom Home mit
+  0750) und die gemountete `pgbackrest.conf`, die fuer den Container-Benutzer
+  lesbar bleiben muss - enger ziehen laesst sie sich nur ueber das
+  Verzeichnis, und das ist Sache des zodoo-Kerns.
