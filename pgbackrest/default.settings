@@ -260,7 +260,34 @@ PGBR_BUNDLE=y
 # parallel. Without it a burst of WAL serialises through one process and
 # pg_wal starts growing - the classic way a busy instance fills its disk.
 PGBR_ARCHIVE_ASYNC=y
-PGBR_ARCHIVE_PUSH_QUEUE_MAX=1GB
+#
+# The queue cap is a LOSS mechanism, not a brake. Read pgbackrest's own words
+# for archive-push-queue-max before changing it:
+#
+#   "pgBackRest will notify PostgreSQL that the WAL was successfully archived,
+#    then DROP IT. [...] In asynchronous mode the entire queue will be dropped."
+#
+# So when the spool passes this size, the whole queue is thrown away and
+# postgres is told everything is fine. PITR is impossible past that point until
+# a new base backup exists. That trade is deliberate on pgbackrest's side -
+# better to lose the backup than have postgres stop when pg_wal fills the disk -
+# but it only makes sense if the cap sits near the disk limit. At 1GB (the
+# previous default) it fired while tens of gigabytes were still free: a network
+# hiccup of an hour on a busy instance was enough to break the chain.
+#
+# 16GB is a compromise, not a truth. Set it per machine from the ACTUAL free
+# space of the pg_wal filesystem; it should be the last line of defence before
+# the disk fills, nothing tighter.
+PGBR_ARCHIVE_PUSH_QUEUE_MAX=16GB
+#
+# How much WAL one asynchronous run may process. This exists only because the
+# queue cap above is checked ONLY at the start of a run: with pgbackrest's
+# default (16GiB, effectively unlimited) a single run can push far past the cap
+# before anyone looks again. Capping the batch makes the process exit and be
+# respawned, which rechecks the queue. 256MB is 16 segments - frequent enough
+# that the queue cannot overshoot much, cheap enough that respawning does not
+# matter.
+PGBR_ARCHIVE_PUSH_BATCH_SIZE=256MB
 #
 # ---------------------------------------------------------------------- misc --
 #

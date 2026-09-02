@@ -16,12 +16,22 @@ compress-level=${PGBR_COMPRESS_LEVEL}
 process-max=${PGBR_PROCESS_MAX}
 
 # Asynchronous WAL archiving. The archive_command drops the segment in the
-# spool directory and returns at once; background workers do the pushing. The
-# queue cap is the safety valve: past it, archive-push starts failing loudly
-# instead of letting pg_wal grow until the disk is full.
+# spool directory and returns at once; background workers do the pushing.
+#
+# The queue cap does NOT make archive-push fail loudly - it does the opposite,
+# and this comment claimed the opposite until 2026-09-02. Past the cap
+# pgbackrest DROPS the entire queue and reports SUCCESS to postgres, which then
+# recycles those segments. The gap is silent and only shows up when someone
+# needs point-in-time recovery. See PGBR_ARCHIVE_PUSH_QUEUE_MAX in
+# default.settings, the zodoo_wal_dropped_total metric, and the Disaster-level
+# alert that watches it.
+#
+# The batch size is what keeps the cap honest: the cap is checked only at the
+# start of each asynchronous run, so an unbounded run can sail past it.
 archive-async=${PGBR_ARCHIVE_ASYNC}
 spool-path=/var/spool/pgbackrest
 archive-push-queue-max=${PGBR_ARCHIVE_PUSH_QUEUE_MAX}
+archive-push-batch-size=${PGBR_ARCHIVE_PUSH_BATCH_SIZE}
 
 # Wait for the required WAL to actually arrive in the repository before
 # declaring a backup done, and fail the backup if it does not. This is the
