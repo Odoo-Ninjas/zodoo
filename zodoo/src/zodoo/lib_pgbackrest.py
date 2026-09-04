@@ -204,15 +204,15 @@ def pgbackrest_check(config, record):
     except Exception as ex:  # noqa: BLE001
         fehler = f"{type(ex).__name__}: {ex}"[-500:]
     if record:
-        _check_ablegen(config, fehler)
-        _nach_verwurf_vollsicherung(config)
+        _record_check(config, fehler)
+        _full_backup_after_drop(config)
     if fehler:
         # Weiterreichen, damit der Zeitplan den Fehlschlag ebenfalls meldet -
         # die abgelegte Datei ersetzt die Meldung nicht, sie ergaenzt sie.
         abort(f"pgbackrest check fehlgeschlagen: {fehler}")
 
 
-def _check_ablegen(config, fehler):
+def _record_check(config, fehler):
     """Das Ergebnis des Checks dorthin legen, wo die Kennzahlen es finden.
 
     Bewusst mit Zeitpunkt: laeuft der Check nicht mehr, altert der Wert und
@@ -233,7 +233,7 @@ def _check_ablegen(config, fehler):
     os.replace(neben, ziel)
 
 
-def _nach_verwurf_vollsicherung(config):
+def _full_backup_after_drop(config):
     """Nach einem WAL-Verwurf sofort eine neue Vollsicherung anstossen.
 
     **Warum automatisch.** Ueberschreitet der Spool `archive-push-queue-max`,
@@ -260,9 +260,9 @@ def _nach_verwurf_vollsicherung(config):
     run_dir = config.dirs.get("run")
     if not run_dir:
         return
-    from .lib_backup_metrics import _spool_und_verworfen
+    from .lib_backup_metrics import _spool_and_dropped
 
-    warteschlange, verworfen = _spool_und_verworfen(config)
+    warteschlange, verworfen = _spool_and_dropped(config)
     if verworfen is None:
         return
 
@@ -1460,7 +1460,7 @@ def bench_conf_text(bench, stanza):
     return "\n".join(zeilen)
 
 
-def _bench_umgebung(bench, stanza, arbeitsordner):
+def _bench_environment(bench, stanza, arbeitsordner):
     """Konfiguration und Zertifikat fuer EINEN Bereich bereitlegen.
 
     Die abgelegten Dateien gehoeren dem Benutzer, unter dem der Container
@@ -1517,7 +1517,7 @@ def _bench_umgebung(bench, stanza, arbeitsordner):
 
     # Das Zertifikat kommt entweder aus dem Umschlag des Bereichs (dann ist es
     # das des KUNDEN und gilt nur fuer dessen Stanza) oder aus einem Ordner.
-    # Der Umschlag ist der bessere Weg - siehe umschlag_oeffnen().
+    # Der Umschlag ist der bessere Weg - siehe open_envelope().
     aus_umschlag = {
         "client.crt": bench.get("client_cert"),
         "client.key": bench.get("client_key"),
@@ -1548,7 +1548,7 @@ def _bench_umgebung(bench, stanza, arbeitsordner):
     }
 
 
-def umschlag_oeffnen(identity, pfad):
+def open_envelope(identity, pfad):
     """Einen age-Umschlag lesen.
 
     Der Anmeldedienst legt beim Freigeben eines Bereichs einen Umschlag ab,
@@ -1586,7 +1586,7 @@ def umschlag_oeffnen(identity, pfad):
         raise VerifyFailed(f"der Umschlag enthaelt kein JSON: {ex}") from ex
 
 
-def neuester_umschlag(ordner, stanza):
+def newest_envelope(ordner, stanza):
     """Der juengste Umschlag eines Bereichs, oder None.
 
     Eine zweite Freigabe legt eine zweite Datei an, statt die erste zu
@@ -1602,7 +1602,7 @@ def neuester_umschlag(ordner, stanza):
     return os.path.join(ordner, treffer[-1]) if treffer else None
 
 
-def umschlag_bereiche(ordner):
+def envelope_areas(ordner):
     """Welche Bereiche im Umschlag-Ordner liegen."""
     if not ordner or not os.path.isdir(ordner):
         return []
@@ -1613,16 +1613,16 @@ def umschlag_bereiche(ordner):
     return sorted(namen)
 
 
-def _aus_umschlag(bench, stanza):
+def _from_envelope(bench, stanza):
     """Die Angaben eines Bereichs aus seinem Umschlag ergaenzen.
 
     Was schon in der Konfiguration steht, bleibt stehen - so laesst sich ein
     einzelner Wert von Hand uebersteuern, ohne den Umschlag anzufassen.
     """
-    pfad = neuester_umschlag(bench.get("envelope_dir"), stanza)
+    pfad = newest_envelope(bench.get("envelope_dir"), stanza)
     if not pfad:
         return bench
-    daten = umschlag_oeffnen(bench.get("age_identity"), pfad)
+    daten = open_envelope(bench.get("age_identity"), pfad)
 
     ergaenzt = dict(bench)
     for aus, nach in (
@@ -1641,7 +1641,7 @@ def _aus_umschlag(bench, stanza):
     return ergaenzt
 
 
-def _bestandsname(bench):
+def _store_name(bench):
     """Wie der gepruefte Bestand in den Nachweisen heisst.
 
     Frei benennbar, weil "s3" ueber mehrere Bestaende hinweg nichts
@@ -1658,9 +1658,9 @@ def run_verify_bench(bench, stanza):
     eigen.update((bench.get("stanzas") or {}).get(stanza) or {})
     arbeitsordner = tempfile.mkdtemp(prefix=f"verify-{stanza}-")
     try:
-        eigen = _aus_umschlag(eigen, stanza)
-        umgebung = _bench_umgebung(eigen, stanza, arbeitsordner)
-        umgebung["store"] = _bestandsname(eigen)
+        eigen = _from_envelope(eigen, stanza)
+        umgebung = _bench_environment(eigen, stanza, arbeitsordner)
+        umgebung["store"] = _store_name(eigen)
     except VerifyFailed as ex:
         shutil.rmtree(arbeitsordner, ignore_errors=True)
         return {
@@ -1670,7 +1670,7 @@ def run_verify_bench(bench, stanza):
             "result": "failed",
             "error": str(ex)[-2000:],
             "seconds": 0,
-            "store": _bestandsname(eigen),
+            "store": _store_name(eigen),
         }
     try:
         return _probe(umgebung, stanza)
@@ -1683,7 +1683,7 @@ def run_verify_bench(bench, stanza):
 # --------------------------------------------------------------------------- #
 
 
-def _verify_ausgabe_lesen(text, stanza):
+def _read_verify_output(text, stanza):
     """Was `pgbackrest verify` wirklich sagt - und was es nicht sagt.
 
     Beim ersten echten Lauf zeigte sich, dass die naheliegende Annahme falsch
@@ -1741,7 +1741,7 @@ def _verify_ausgabe_lesen(text, stanza):
     return ("error" if meldungen else "ok"), meldungen, bereiche
 
 
-def _luecken(bereiche):
+def _wal_gaps(bereiche):
     """Fehlende WAL-Abschnitte: je archiveId ein Abschnitt weniger als noetig."""
     je_kennung = {}
     for b in bereiche:
@@ -1774,11 +1774,11 @@ def run_repo_verify_bench(bench, stanza):
         "bench": eigen.get("bench") or socket.gethostname(),
         "checked_at": int(begonnen),
         "kind": "repo-verify",
-        "store": _bestandsname(eigen),
+        "store": _store_name(eigen),
     }
     try:
-        eigen = _aus_umschlag(eigen, stanza)
-        umgebung = _bench_umgebung(eigen, stanza, arbeitsordner)
+        eigen = _from_envelope(eigen, stanza)
+        umgebung = _bench_environment(eigen, stanza, arbeitsordner)
         out = _docker(
             "run", "--rm",
             *sum((["-v", m] for m in umgebung["mounts"]), []),
@@ -1791,9 +1791,9 @@ def run_repo_verify_bench(bench, stanza):
             timeout=14400,
         )
         text = (out.stdout or "") + (out.stderr or "")
-        urteil, meldungen, bereiche = _verify_ausgabe_lesen(text, stanza)
+        urteil, meldungen, bereiche = _read_verify_output(text, stanza)
         ergebnis["wal_bereiche"] = bereiche
-        ergebnis["wal_luecken"] = _luecken(bereiche)
+        ergebnis["wal_gaps"] = _wal_gaps(bereiche)
         if urteil is None:
             ergebnis["result"] = "failed"
             ergebnis["error"] = (
@@ -1862,7 +1862,7 @@ def pgbackrest_verify(config, stanza, as_json, report_to, bench_config):
             [stanza] if stanza
             else sorted(
                 set(bench.get("stanzas") or {})
-                | set(umschlag_bereiche(bench.get("envelope_dir")))
+                | set(envelope_areas(bench.get("envelope_dir")))
             )
         )
         if not bereiche:
@@ -1943,7 +1943,7 @@ def pgbackrest_repo_verify(config, stanza, as_json, report_to, bench_config):
         [stanza] if stanza
         else sorted(
             set(bench.get("stanzas") or {})
-            | set(umschlag_bereiche(bench.get("envelope_dir")))
+            | set(envelope_areas(bench.get("envelope_dir")))
         )
     )
     if not bereiche:
@@ -1971,19 +1971,19 @@ def pgbackrest_repo_verify(config, stanza, as_json, report_to, bench_config):
         if as_json:
             click.echo(json.dumps(ergebnis, indent=1, sort_keys=True))
         elif ergebnis["result"] == "passed":
-            luecken = ergebnis.get("wal_luecken") or 0
+            gaps = ergebnis.get("wal_gaps") or 0
             click.secho(
                 f"{ergebnis['area']} ({ergebnis['store']}): Bestand heil "
                 f"({ergebnis['seconds']}s).",
                 fg="green",
             )
-            if luecken:
+            if gaps:
                 # Kein Fehlschlag - pgBackRest nennt das nicht Fehler, und vor
                 # der ersten Sicherung ist eine Luecke normal. Aber es muss
                 # dastehen: zwischen zwei Abschnitten fuehrt kein Weg auf
                 # einen Zeitpunkt zurueck.
                 click.secho(
-                    f"  ACHTUNG: {luecken} Luecke(n) im WAL - "
+                    f"  ACHTUNG: {gaps} Luecke(n) im WAL - "
                     + ", ".join(
                         f"{b['von']}..{b['bis']}"
                         for b in ergebnis.get("wal_bereiche") or []
@@ -2189,7 +2189,7 @@ def pgbackrest_envelope(
 ):
     """Den Umschlag oeffnen - der Weg, eine Passphrase zurueckzubekommen.
 
-    Warum es diesen Befehl gibt: `umschlag_oeffnen()` existierte schon, aber
+    Warum es diesen Befehl gibt: `open_envelope()` existierte schon, aber
     nur als Funktion, die der Pruefstand benutzt. Um von Hand an eine
     Passphrase zu kommen, musste man Python schreiben. Deshalb hat niemand den
     Umschlag als Ablageort betrachtet - und deshalb wurde die Passphrase
@@ -2214,7 +2214,7 @@ def pgbackrest_envelope(
                 "zu --area fehlt --envelope-dir (oder --bench-config, das "
                 "beides mitbringt)"
             )
-        datei = neuester_umschlag(ordner, area)
+        datei = newest_envelope(ordner, area)
         if not datei:
             abort(f"in {ordner} liegt kein Umschlag fuer '{area}'")
 
@@ -2227,7 +2227,7 @@ def pgbackrest_envelope(
         )
 
     try:
-        daten = umschlag_oeffnen(schluessel, datei)
+        daten = open_envelope(schluessel, datei)
     except VerifyFailed as ex:
         abort(str(ex))
 

@@ -61,7 +61,7 @@ def test_spool_and_dropped_are_read(monkeypatch):
     import zodoo.tools as tools
     monkeypatch.setattr(tools, "__dc_out", lambda *a, **kw: "7\n3\n",
                         raising=False)
-    warteschlange, verworfen = bm._spool_und_verworfen(FakeConfig())
+    warteschlange, verworfen = bm._spool_and_dropped(FakeConfig())
     assert warteschlange == 7
     assert verworfen == 3
 
@@ -73,7 +73,7 @@ def test_unreadable_spool_is_none(monkeypatch):
         raise OSError("kein Container")
 
     monkeypatch.setattr(tools, "__dc_out", kaputt, raising=False)
-    assert bm._spool_und_verworfen(FakeConfig()) == (None, None)
+    assert bm._spool_and_dropped(FakeConfig()) == (None, None)
 
 
 def test_the_check_state_is_read_from_the_run_dir(tmp_path):
