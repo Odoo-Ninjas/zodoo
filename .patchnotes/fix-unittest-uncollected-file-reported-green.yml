@@ -1,0 +1,12 @@
+type: fix
+description: >-
+  Ein Test, den niemand in tests/__init__.py importiert, wurde von Odoo
+  stillschweigend uebersprungen -- und der Lauf meldete trotzdem Erfolg. Wer
+  eine neue Testdatei anlegte und den Import vergass, bekam einen gruenen
+  Lauf ohne einen einzigen ausgefuehrten Test.
+
+  Zum Pruefen: eine Testdatei anlegen, sie NICHT in tests/__init__.py
+  importieren und `odoo unittest <datei>` aufrufen. Statt eines gruenen
+  Laufs kommt jetzt eine rote Meldung mit dem fehlenden Import im Klartext
+  ("Add 'from . import <datei>' there").
+breaking: false
