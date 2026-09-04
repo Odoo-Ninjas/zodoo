@@ -1,0 +1,34 @@
+type: fix
+breaking: false
+description: |
+  Die postgres-Abbilder stehen jetzt auf Debian 12 "bookworm" statt auf
+  "bullseye".
+
+  Grund: **Debian 11 bullseye hat am 31.08.2026 sein Lebensende erreicht.**
+  Seit September gibt es keine Sicherheitsaktualisierungen mehr, und der
+  Paketbestand wird abgeraeumt. Der Index wird noch ausgeliefert, die Pakete
+  dahinter nicht - `apt-get install` scheitert mit
+
+      E: Failed to fetch .../debian-security/pool/.../libperl5.32_...deb  404
+
+  und zwar je nach Paket mal so und mal so. Jeder Neubau war damit ein
+  Gluecksspiel.
+
+  Betrifft alle sechs Fassungen (11, 12, 13, 14, 16, 17). Vorher geprueft:
+  fuer jede gibt es ein `postgres:<n>-bookworm`, und pgdg liefert dort alle
+  benoetigten Pakete - `pgbackrest=2.59.1-1.pgdg12+1`, postgis, pgvector und
+  server-dev. Die alten Postgres-Fassungen bekommen aeltere postgis- und
+  pgvector-Staende (11 etwa postgis 3.3 statt 3.6); das ist die Folge davon,
+  dass diese Postgres-Fassungen selbst am Ende sind, und kein Rueckschritt
+  gegenueber bullseye.
+
+  Nachgestellt und bestaetigt: auf `postgres:17-bookworm` installieren sich
+  alle Pakete, und pgbackrest UEBERLEBT den Aufraeum-Block aus purge und
+  autoremove. Damit ist auch klar, was pgbackrest vorher hat verschwinden
+  lassen - nicht das Aufraeumen, sondern die gescheiterte Installation, deren
+  Fehler das Semikolon vor `rm -rf` verschluckt hat. Der Nachweis-Schritt aus
+  dem vorigen Patch faengt genau diesen Fall.
+
+  Worauf beim Testen zu achten ist: `odoo build` muss durchlaufen, und in der
+  Ausgabe steht am Ende die pgbackrest-Version. Die Abbilder werden dabei neu
+  gebaut, das dauert laenger als sonst.
