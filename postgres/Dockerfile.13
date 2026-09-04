@@ -27,3 +27,23 @@ COPY run.sh /run.sh
 COPY init/* /docker-entrypoint-initdb.d/
 RUN chown -R postgres:postgres /docker-entrypoint-initdb.d && \
     chmod a+x /docker-entrypoint-initdb.d/*.sh /run.sh
+
+# Nachweis, dass pgbackrest den Aufraeumblock ueberlebt hat.
+#
+# Warum das noetig ist: der Installations- und Aufraeumblock oben endet mit
+# `find ... 2>/dev/null;` - einem SEMIKOLON. Der Rueckgabewert des ganzen RUN
+# ist damit der des abschliessenden `rm -rf`, und der gelingt praktisch immer.
+# Scheitert weiter oben etwas - etwa `apt-get install pgbackrest=<version>-*`,
+# weil der Debian-Spiegel genau diese Version nicht mehr fuehrt, oder weil ein
+# `purge` sie mitreisst - dann BAUT DAS ABBILD TROTZDEM DURCH, nur ohne
+# pgbackrest.
+#
+# Sichtbar wird das erst im Betrieb, und zwar weit weg von der Ursache: das
+# archive_command stirbt mit `pgbackrest: command not found` (exit 127), und
+# was man sieht, ist "WAL segment was not archived before the timeout". Wer
+# darauf den Timeout hochsetzt, behandelt das Symptom.
+#
+# Am 04.09.2026 hat genau das die pgBackRest-e2e-Tests gekippt (auf main und
+# auf einem Zweig, im selben Commit mal rot mal gruen) - und vorher eine echte
+# Instanz getroffen, deren Archivierung nach dem Bauen nie lief.
+RUN command -v pgbackrest && pgbackrest version
