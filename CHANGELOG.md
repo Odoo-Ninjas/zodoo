@@ -1,5 +1,13 @@
 # Changelog
 
+## 11.2.0
+
+
+- **Feature**: |
+- **Fix**: |
+- **Internal**: |
+
+
 ## 11.1.1
 
 
