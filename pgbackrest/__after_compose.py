@@ -145,7 +145,7 @@ def _cipher_lines(settings):
         "#",
         "# Die PASSPHRASE steht bewusst NICHT hier, sondern kommt als",
         "# PGBACKREST_REPO1_CIPHER_PASS aus der Umgebung - und zwar nur in den",
-        "# zwei Diensten, die sie brauchen (siehe _passphrase_injizieren).",
+        "# zwei Diensten, die sie brauchen (siehe _inject_passphrase).",
         "#",
         "# Warum: diese Datei wird nach /etc/pgbackrest der Container",
         "# gemountet und muss fuer den Container-Benutzer lesbar bleiben, also",
@@ -161,7 +161,7 @@ def _cipher_lines(settings):
 CIPHER_ENV = "PGBACKREST_REPO1_CIPHER_PASS"
 
 
-def _passphrase_injizieren(yml, settings):
+def _inject_passphrase(yml, settings):
     """Die Passphrase nur den Diensten geben, die sie brauchen.
 
     Das sind genau zwei: der pgbackrest-Sidecar, und postgres - weil das
@@ -353,7 +353,7 @@ def _render_conf(settings, run_dir):
     return conf_file
 
 
-def _passphrase_aus_umgebungen_entfernen(yml):
+def _strip_passphrase_from_environments(yml):
     """PGBR_CIPHER_PASS aus den Dienst-Umgebungen loeschen.
 
     zodoo haengt jedem Dienst die Einstellungsdatei als `env_file` an, und
@@ -413,7 +413,7 @@ def after_compose(config, settings, yml, globals):
     # bei abgeschaltetem pgBackRest. Sonst steht sie in der erzeugten
     # docker-compose.yml wieder ueberall, sobald jemand die Funktion
     # einschaltet und vorher ein reload lief.
-    _passphrase_aus_umgebungen_entfernen(yml)
+    _strip_passphrase_from_environments(yml)
 
     if not _truthy(settings.get("RUN_PGBACKREST", "0")):
         return
@@ -424,7 +424,7 @@ def after_compose(config, settings, yml, globals):
     # Passphrase in keiner Umgebung etwas zu suchen - auch nicht in der von
     # postgres. Steht sie in den Einstellungen, weil die Funktion nur
     # zeitweise abgeschaltet ist, bleibt sie dort und wandert nirgendwohin.
-    _passphrase_injizieren(yml, settings)
+    _inject_passphrase(yml, settings)
 
     run_dir = Path(settings["HOST_RUN_DIR"])
     _render_conf(settings, run_dir)

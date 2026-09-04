@@ -34,7 +34,7 @@ INHALT = {
 
 def _lauf(args, inhalt=INHALT, seiteneffekt=None):
     with mock.patch.object(
-        lp, "umschlag_oeffnen",
+        lp, "open_envelope",
         side_effect=seiteneffekt or (lambda i, p: inhalt),
     ):
         return CliRunner().invoke(

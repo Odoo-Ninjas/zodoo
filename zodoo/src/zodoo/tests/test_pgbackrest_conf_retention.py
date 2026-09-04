@@ -97,7 +97,7 @@ def _yml_mit_passphrase():
 def test_the_passphrase_is_stripped_from_every_service():
     m = _modul()
     yml = _yml_mit_passphrase()
-    assert m._passphrase_aus_umgebungen_entfernen(yml) == 3
+    assert m._strip_passphrase_from_environments(yml) == 3
     for name, service in yml["services"].items():
         u = service.get("environment")
         if isinstance(u, dict):
@@ -110,7 +110,7 @@ def test_other_variables_survive():
     """Nur die Passphrase, nicht das halbe Environment."""
     m = _modul()
     yml = _yml_mit_passphrase()
-    m._passphrase_aus_umgebungen_entfernen(yml)
+    m._strip_passphrase_from_environments(yml)
     assert yml["services"]["postgres"]["environment"]["DB_PORT"] == "5432"
     assert "FOO=bar" in yml["services"]["proxy"]["environment"]
 
@@ -118,7 +118,7 @@ def test_other_variables_survive():
 def test_a_service_without_environment_is_no_problem():
     m = _modul()
     yml = {"services": {"leer": {}}}
-    assert m._passphrase_aus_umgebungen_entfernen(yml) == 0
+    assert m._strip_passphrase_from_environments(yml) == 0
 
 
 def test_it_also_runs_with_pgbackrest_switched_off():
@@ -159,7 +159,7 @@ def test_only_postgres_and_the_sidecar_get_the_passphrase():
         "grafana": {"environment": {}},
         "odoo": {"environment": {}},
     }}
-    assert m._passphrase_injizieren(yml, {"PGBR_CIPHER_PASS": "geheim"}) == 2
+    assert m._inject_passphrase(yml, {"PGBR_CIPHER_PASS": "geheim"}) == 2
     assert yml["services"]["postgres"]["environment"][m.CIPHER_ENV] == "geheim"
     assert yml["services"]["pgbackrest"]["environment"][m.CIPHER_ENV] == "geheim"
     assert m.CIPHER_ENV not in yml["services"]["grafana"]["environment"]
@@ -170,14 +170,14 @@ def test_without_a_passphrase_nothing_is_injected():
     """Unverschluesselt ist eine eigene Lage, kein leerer Wert ueberall."""
     m = _modul()
     yml = {"services": {"postgres": {"environment": {}}}}
-    assert m._passphrase_injizieren(yml, {"PGBR_CIPHER_PASS": ""}) == 0
+    assert m._inject_passphrase(yml, {"PGBR_CIPHER_PASS": ""}) == 0
     assert yml["services"]["postgres"]["environment"] == {}
 
 
 def test_a_missing_sidecar_is_no_problem():
     m = _modul()
     yml = {"services": {"postgres": {"environment": {}}}}
-    assert m._passphrase_injizieren(yml, {"PGBR_CIPHER_PASS": "geheim"}) == 1
+    assert m._inject_passphrase(yml, {"PGBR_CIPHER_PASS": "geheim"}) == 1
 
 
 def test_switched_off_puts_the_passphrase_nowhere():
