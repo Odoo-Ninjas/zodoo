@@ -21,6 +21,10 @@ on:
       - "zodoo/src/**"
       - "odoo/**"
       - "pgbackrest/**"
+      # Die postgres-Abbilder baut dieser Test selbst - eine Aenderung dort
+      # ist genau das, was gebacken gehoert. Fehlte hier, und deshalb lief
+      # der Bake bei einer Aenderung an postgres/Dockerfile.* NICHT.
+      - "postgres/**"
       - "templates/customs_template/**"
       - ".github/workflows/bake-test.yml"
   workflow_dispatch:

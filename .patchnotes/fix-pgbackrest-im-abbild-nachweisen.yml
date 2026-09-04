@@ -27,3 +27,9 @@ description: |
   `command -v pgbackrest` ab, wenn die Binaerdatei fehlt. In der Bauausgabe
   steht danach die pgbackrest-Version - taucht sie nicht auf, ist das Abbild
   nicht brauchbar. Betrifft alle sechs Postgres-Fassungen (11 bis 17).
+
+  Ausserdem: `postgres/**` fehlte in den Pfadfiltern des Bake-Tests. Eine
+  Aenderung an den postgres-Dockerfiles - also genau an den Abbildern, die
+  dieser Test baut - hat den Test bisher NICHT ausgeloest. Aufgefallen daran,
+  dass dieser PR zuerst ohne Bake durchlief.
+
