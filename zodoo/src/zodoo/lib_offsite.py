@@ -214,22 +214,47 @@ def offsite_backup(config):
             fg="yellow",
         )
         return
+    wo_files = _wo_configured(config)
+    wo_db = _wo_db_configured(config)
+    has_repo = bool((config.OFFSITE_REPO or "").strip())
+
     # Both streams write-only means restic is not used at all - then a run must
     # not demand a repository or a passphrase. The passphrase is the most
     # expensive secret in the whole setup, and whoever does not need it should
     # not have to hold it.
-    if _wo_configured(config) and _wo_db_configured(config):
+    if wo_files and wo_db:
         _state_dir(config)
         _offsite_run_raw(config, ["backup"])
         return
 
-    if not (config.OFFSITE_REPO or "").strip():
-        click.secho(
-            "Offsite backup is enabled but neither OFFSITE_REPO nor a complete "
-            "write-only target is configured - nothing is being backed up.",
-            fg="red",
+    if not has_repo:
+        # One stream write-only, no restic repository. This used to fall
+        # through to the OFFSITE_REPO check below and back up NOTHING - with a
+        # message on stdout and exit code 0, so the nightly cronjob reported
+        # success. It is also our normal arrangement: the database goes to
+        # pgBackRest, only the filestore goes offsite. Run the stream that is
+        # configured instead of nothing.
+        if wo_files and not wo_db and not _truthy(
+            getattr(config, "run_pgbackrest", "0")
+        ):
+            abort(
+                "Only the filestore has a write-only target, and the database "
+                "is covered by neither pgBackRest (RUN_PGBACKREST=1) nor "
+                "OFFSITE_WO_DB_RECIPIENT. That would back up the attachments "
+                "and leave the database behind."
+            )
+        if wo_files or wo_db:
+            _state_dir(config)
+            _offsite_run_raw(config, ["filestore" if wo_files else "db"])
+            return
+        # RUN_OFFSITE=1 says someone asked for an offsite backup. Having asked
+        # for one and getting none is a fault, not a quiet no-op - the quiet
+        # case is RUN_OFFSITE=0 and was handled above.
+        abort(
+            "Offsite backup is enabled (RUN_OFFSITE=1) but no target is "
+            "configured - neither OFFSITE_REPO nor a write-only target. "
+            "Nothing would be backed up."
         )
-        return
 
     # Without pgbackrest there is no database state for the container to pick
     # up - so we create it here. With OFFSITE_INCLUDE_DUMPS=1 all of DUMPS_PATH
