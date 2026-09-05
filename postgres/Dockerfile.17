@@ -25,16 +25,16 @@ RUN chown -R postgres:postgres /docker-entrypoint-initdb.d && \
 
 # Install + Cleanup in einem Layer um dead layers zu vermeiden
 RUN #___SNIPPET_APT_INSTALL___ \
-    postgresql-server-dev-17 python-dev build-essential git python3-pip procps sockstat && \
+    postgresql-server-dev-17 python3-dev build-essential git python3-pip procps sockstat && \
     #___SNIPPET_APT_INSTALL___ \
     postgresql-17-postgis-3 postgresql-17-pgvector "pgbackrest${PGBR_VERSION:+=${PGBR_VERSION}-*}" ncdu python3 && \
     apt-get purge -y git git-core gnupg gnupg2 binutils && \
     (apt-get purge -y libgdal* libarmadillo* libogdi* libasan* libtsan* libubsan* || true) && \
-    apt-get purge -y build-essential gcc g++ libpq-dev postgresql-server-dev-17 python-dev && \
+    apt-get purge -y build-essential gcc g++ libpq-dev postgresql-server-dev-17 python3-dev && \
     apt-get autoremove -y && \
     apt-get clean -y && \
     find /usr -name '*.a' -delete && \
-    find / -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; \
+    (find / -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true) && \
     rm -rf \
       /usr/share/perl \
       /usr/share/doc \
