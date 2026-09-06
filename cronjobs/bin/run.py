@@ -70,19 +70,49 @@ def replace_params(text):
     return text
 
 
+def _lauf(job_cmd, job_name):
+    """Befehl ausfuehren UND den Rueckgabewert auswerten.
+
+    Vorher stand hier ein blankes os.system(). Ein gescheiterter Job sah im
+    Protokoll damit genauso aus wie ein gelungener - es gab nur die Zeile
+    "Execution took 0.04 seconds". Genau so blieb am 04./05.09.2026 zwei
+    Naechte lang unbemerkt, dass auf einer Instanz JEDER Job sofort mit
+    Rueckgabewert 1 abbrach.
+
+    Ein Cronjob, der scheitert, muss laut sein.
+    """
+    rc = os.system(job_cmd)
+    # os.system liefert den wait()-Status, nicht den Rueckgabewert.
+    code = os.waitstatus_to_exitcode(rc) if rc else 0
+    if code:
+        logger.error(
+            f"Job {job_name or job_cmd} ist mit Rueckgabewert {code} "
+            f"gescheitert: {job_cmd}"
+        )
+    return code
+
+
 def execute(job_cmd, job_name=None):
     logger.info(f"Executing: {job_cmd}")
 
     job_cmd = replace_params(job_cmd)
     if job_cmd.startswith("odoo "):
+        # PYTHONSAFEPATH: das `cd /opt/src` stellt sonst das Projektverzeichnis
+        # an den Anfang von sys.path, und eine dort abgelegte Datei beschattet
+        # das gleichnamige Standardmodul. Am 04.09.2026 lag in einem Projekt
+        # ein Shell-Schnipsel namens `inspect.py` - zodoo starb daraufhin beim
+        # Start mit "NameError: name 'env' is not defined", und ZWEI NAECHTE
+        # lang lief auf dieser Instanz kein einziger Cronjob mehr: keine
+        # Sicherung, kein check, kein Offsite, kein Dump. Das Projekt wird per
+        # -p uebergeben, cwd auf sys.path braucht niemand.
         job_cmd = (
             "cd /opt/src;"
-            "odoo "
+            "PYTHONSAFEPATH=1 odoo "
             f"-p {os.environ['PROJECT_NAME']} "
             f"{job_cmd[5:]}"
         )
     if not job_name:
-        os.system(job_cmd)
+        _lauf(job_cmd, job_name)
         return
     # One instance per job. The daemon scheduler itself cannot overlap a
     # job with itself (one thread per job, execute() blocks the loop), but
@@ -100,7 +130,7 @@ def execute(job_cmd, job_name=None):
             f"Could not open lock file {lock_file} ({ex}) — "
             f"running {job_name} without overlap protection."
         )
-        os.system(job_cmd)
+        _lauf(job_cmd, job_name)
         return
     with lockf:
         try:
@@ -115,7 +145,7 @@ def execute(job_cmd, job_name=None):
                 f"flock not available for {lock_file} ({ex}) — "
                 f"running {job_name} without overlap protection."
             )
-        os.system(job_cmd)
+        _lauf(job_cmd, job_name)
 
 
 @cli.command(name="run")
