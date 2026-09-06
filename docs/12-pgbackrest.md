@@ -204,6 +204,13 @@ append-only target, because it never touches the repository storage at all.
 
 **`here` is the shape that survives a restrictive network**, and it is the
 default because a misconfigured `repo-host` fails silently until backup time.
+
+> **At Zebroo, `repo-host` is theory.** Our backup server is deliberately built
+> so it cannot run in that mode: it carries no `pg1-host` for any stanza, and —
+> more to the point — **no `repo1-cipher-pass`**. Pulling requires the repo host
+> to decrypt, and refusing it that ability is the whole design. Both instances
+> therefore run `BACKUP_FROM=here`. Read the `repo-host` column as *what
+> pgbackrest and zodoo support*, not as an option that is one setting away.
 The delete rights it hands this machine are only acceptable if something
 downstream keeps a copy the machine cannot reach — see *Where the protection
 lives* below.
