@@ -78,38 +78,22 @@ jobs:
           CURRENT_VERSION=$(cat VERSION)
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
 
+          # Fragmente einsammeln - per YAML-Parser, nicht per grep. Die
+          # Blockschreibweise `description: |` hat der alte grep zu einem
+          # einzelnen "|" gemacht und den Text weggeworfen; 36 Changelog-
+          # Eintraege sind so entstanden (siehe scripts/collect_patchnotes.py).
+          python3 -c "import yaml" 2>/dev/null || python3 -m pip install --quiet pyyaml
+          GESAMMELT=$(python3 scripts/collect_patchnotes.py .patchnotes)
+          BUMP=$(echo "$GESAMMELT" | python3 -c "import json,sys; print(json.load(sys.stdin)['bump'])")
+          CHANGELOG_ENTRIES=$(echo "$GESAMMELT" | python3 -c "import json,sys; print('\\n'.join(json.load(sys.stdin)['entries']))")
+
+          # if/fi und nicht `[ ... ] && x=y`: unter `set -e` ist eine nicht
+          # zutreffende Bedingung der Rueckgabewert der ganzen Zeile und
+          # beendet den Schritt.
           HAS_BREAKING=false
           HAS_FEATURE=false
-          CHANGELOG_ENTRIES=""
-
-          # Recursive: notes also live in subfolders (.patchnotes/fix/*.yml).
-          # The delete step below is recursive too — collecting only the top
-          # level silently dropped nested notes from the changelog.
-          while IFS= read -r f; do
-            [ -f "$f" ] || continue
-
-            TYPE=$(grep '^type:' "$f" | head -1 | sed 's/type: *//;s/"//g;s/ *$//')
-            DESC=$(grep '^description:' "$f" | head -1 | sed 's/description: *//;s/"//g;s/ *$//')
-            BREAKING=$(grep '^breaking:' "$f" | head -1 | sed 's/breaking: *//;s/"//g;s/ *$//')
-            BREAKING_DESC=$(grep '^breaking_description:' "$f" | head -1 | sed 's/breaking_description: *//;s/"//g;s/ *$//' || true)
-
-            if [ "$BREAKING" = "true" ]; then
-              HAS_BREAKING=true
-              CHANGELOG_ENTRIES="${CHANGELOG_ENTRIES}\n- **BREAKING**: ${DESC}"
-              if [ -n "$BREAKING_DESC" ]; then
-                CHANGELOG_ENTRIES="${CHANGELOG_ENTRIES} — ${BREAKING_DESC}"
-              fi
-            else
-              case "$TYPE" in
-                feature) HAS_FEATURE=true; CHANGELOG_ENTRIES="${CHANGELOG_ENTRIES}\n- **Feature**: ${DESC}" ;;
-                fix)     CHANGELOG_ENTRIES="${CHANGELOG_ENTRIES}\n- **Fix**: ${DESC}" ;;
-                docs)    CHANGELOG_ENTRIES="${CHANGELOG_ENTRIES}\n- **Docs**: ${DESC}" ;;
-                internal) CHANGELOG_ENTRIES="${CHANGELOG_ENTRIES}\n- **Internal**: ${DESC}" ;;
-                breaking) HAS_BREAKING=true; CHANGELOG_ENTRIES="${CHANGELOG_ENTRIES}\n- **BREAKING**: ${DESC}" ;;
-                *)       CHANGELOG_ENTRIES="${CHANGELOG_ENTRIES}\n- ${DESC}" ;;
-              esac
-            fi
-          done < <(find .patchnotes -name '*.yml' -not -name '*.template' | sort)
+          if [ "$BUMP" = "major" ]; then HAS_BREAKING=true; fi
+          if [ "$BUMP" = "minor" ]; then HAS_FEATURE=true; fi
 
           if [ "$HAS_BREAKING" = "true" ]; then
             MAJOR=$((MAJOR + 1))
@@ -136,7 +120,7 @@ jobs:
             echo ""
             echo "## ${NEW_VERSION}"
             echo ""
-            echo -e "$CHANGELOG_ENTRIES"
+            printf '%s\n' "$CHANGELOG_ENTRIES"
             echo ""
             # Append old changelog without the first line (# Changelog)
             tail -n +2 CHANGELOG.md

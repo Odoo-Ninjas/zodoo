@@ -1,0 +1,29 @@
+type: fix
+breaking: false
+description: |
+  Mehrzeilige Patchnotes landen wieder im Changelog. Bisher wurden sie
+  stillschweigend weggeworfen.
+
+  Die Release-Automatik las die Beschreibung mit
+  `grep '^description:' | sed 's/description: *//'`. Bei der
+  YAML-Blockschreibweise `description: |` steht in dieser Zeile aber nur ein
+  Pipe-Zeichen - der eigentliche Text folgt eingerueckt darunter. Ergebnis war
+  ein Changelog-Eintrag "- **Fix**: |", und zwar bei JEDER mehrzeilig
+  geschriebenen Patchnote. Am 06.09.2026 waren 36 der 308 Eintraege so leer.
+
+  Aufgefallen ist es nur zufaellig, weil beim Nachsehen einer Version die
+  Changelog-Ausgabe angeschaut wurde. Ein Changelog liest im Alltag niemand
+  gegen, deshalb konnte das lange laufen.
+
+  Jetzt liest `scripts/collect_patchnotes.py` die Fragmente mit einem
+  YAML-Parser, zieht Absaetze sauber zusammen und bricht ab, wenn eine
+  Beschreibung fehlt oder leer ist - lieber ein roter Release-Lauf als ein
+  leerer Eintrag.
+
+  Worauf beim Testen zu achten ist: Dieser Eintrag hier ist selbst mehrzeilig.
+  Steht er nach dem naechsten Release vollstaendig im CHANGELOG.md, hat die
+  Korrektur funktioniert; steht dort "- **Fix**: |", nicht.
+
+  Die 36 alten Eintraege bleiben vorerst leer. Ihre Fragmente liegen noch in
+  der Git-Historie (jeweils im Eltern-Commit des Release-Commits), sie liessen
+  sich also nachtraeglich rekonstruieren - das ist ein eigenes Vorhaben.
