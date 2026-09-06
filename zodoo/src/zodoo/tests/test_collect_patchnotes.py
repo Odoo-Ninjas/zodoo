@@ -50,6 +50,51 @@ description: |
     assert "|" not in eintrag
 
 
+def test_aufzaehlung_bleibt_eine_aufzaehlung(tmp_path):
+    """Beim ersten Anlauf wurden die fuenf Spiegelstriche einer Patchnote zu
+    einem einzigen Absatz zusammengezogen - im Changelog hintereinander weg."""
+    schreibe(tmp_path, "a.yml", """
+type: fix
+description: |
+  Dabei aufgefallen:
+
+  - erster Punkt
+  - zweiter Punkt, der ueber zwei Zeilen geht
+    und hier weitergeht
+  - dritter Punkt
+""".lstrip())
+    eintrag = sammle(tmp_path)["entries"][0]
+    zeilen = [z.strip() for z in eintrag.split("\n") if z.strip()]
+    # zeilen[0] ist der Spiegelstrich des Changelogs selbst ("- **Fix**: ...")
+    spiegelstriche = [z for z in zeilen[1:] if z.startswith("- ")]
+    assert len(spiegelstriche) == 3, zeilen
+    # die Fortsetzung haengt an ihrem eigenen Punkt, nicht am naechsten
+    assert "zweiter Punkt, der ueber zwei Zeilen geht und hier weitergeht" in eintrag
+    assert "dritter Punkt" in spiegelstriche[2]
+
+
+def test_nummerierte_aufzaehlung_ebenso(tmp_path):
+    schreibe(tmp_path, "a.yml", """
+type: fix
+description: |
+  1. eins
+  2. zwei
+""".lstrip())
+    eintrag = sammle(tmp_path)["entries"][0]
+    assert eintrag.count("\n") >= 1, eintrag
+
+
+def test_fliesstext_wird_weiterhin_zusammengezogen(tmp_path):
+    """Die Gegenrichtung: normale Zeilen duerfen NICHT zerfallen."""
+    schreibe(tmp_path, "a.yml", """
+type: fix
+description: |
+  Erste Zeile.
+  Zweite Zeile.
+""".lstrip())
+    assert sammle(tmp_path)["entries"][0] == "- **Fix**: Erste Zeile. Zweite Zeile."
+
+
 def test_einzeilige_beschreibung_funktioniert_weiter(tmp_path):
     schreibe(tmp_path, "a.yml", 'type: feature\ndescription: "Kurz und knapp"\nbreaking: false\n')
     d = sammle(tmp_path)
