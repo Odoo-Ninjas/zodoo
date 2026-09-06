@@ -218,6 +218,11 @@ Run a backup now. The same command runs nightly via `OFFSITE_BACKUP_CRON`
 (default 04:00, after the pgBackRest backup) and is a quiet no-op on projects
 without `RUN_OFFSITE=1`.
 
+It runs **whichever streams are configured** — filestore, database, or both.
+With `RUN_OFFSITE=1` but no target at all it fails loudly instead of returning
+success; so does a filestore-only target when the database is covered by
+neither pgBackRest nor `OFFSITE_WO_DB_RECIPIENT`.
+
 ### `odoo offsite list` / `odoo offsite info`
 
 List the archives in the repository / show repository stats (size,
