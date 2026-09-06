@@ -41,8 +41,8 @@ cd ~/projects/my-odoo
 gimera apply
 
 # 3. Apply settings for local dev
-odoo setting DEVMODE 1
-odoo setting ODOO_DEMO 1
+odoo setting DEVMODE=1
+odoo setting ODOO_DEMO=1
 
 # 4. Reload and build
 odoo reload

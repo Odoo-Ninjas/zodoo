@@ -2030,11 +2030,13 @@ def _complete_setting_name(ctx, param, incomplete):
         "Read or write settings. Pass KEY=VALUE to write, KEY alone to read. "
         "Without arguments shows all effective settings. "
         "Triggers reload after write unless --no-reload is set.\n\n"
+        "Writing NEEDS the equals sign. Without it every argument is read as "
+        "a key to look up, so `odoo setting DEVMODE 1` reads two settings "
+        "and writes nothing - silently.\n\n"
         "Examples:\n\n"
-        "  odoo setting DEVMODE 1\n\n"
         "  odoo setting DEVMODE=1\n\n"
         "  odoo setting PROXY_PORT\n\n"
-        "  odoo setting -u HUB_URL registry.example.com:443/myproject"
+        "  odoo setting -u HUB_URL=registry.example.com:443/myproject"
     )
 )
 @pass_config
