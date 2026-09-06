@@ -69,10 +69,10 @@ Regenerate `docker-compose.yml` from current settings. **Run this after every se
 Set a project setting. Writes to `./.odoo/settings` and triggers reload.
 
 ```bash
-odoo setting DEVMODE 1
-odoo setting PROXY_PORT 18069
-odoo setting ODOO_PYTHON_VERSION 3.12
-odoo setting HUB_URL registry.example.com:443/myproject
+odoo setting DEVMODE=1
+odoo setting PROXY_PORT=18069
+odoo setting ODOO_PYTHON_VERSION=3.12
+odoo setting HUB_URL=registry.example.com:443/myproject
 ```
 
 Flags:
@@ -218,6 +218,11 @@ Run a backup now. The same command runs nightly via `OFFSITE_BACKUP_CRON`
 (default 04:00, after the pgBackRest backup) and is a quiet no-op on projects
 without `RUN_OFFSITE=1`.
 
+It runs **whichever streams are configured** — filestore, database, or both.
+With `RUN_OFFSITE=1` but no target at all it fails loudly instead of returning
+success; so does a filestore-only target when the database is covered by
+neither pgBackRest nor `OFFSITE_WO_DB_RECIPIENT`.
+
 ### `odoo offsite list` / `odoo offsite info`
 
 List the archives in the repository / show repository stats (size,
@@ -280,9 +285,14 @@ Then:
 
 See [Debug Mode Guide](./05-debug-mode.md) for full details.
 
-### `odoo odoo-shell`
+### `odoo shell`
 
 Open an interactive Odoo Python shell inside the running container.
+
+> Written as `odoo-shell` here until 06.09.2026. That is the name the
+> command carries in zodoo's internal registry
+> (`Commands.register(shell, "odoo-shell")`), not the one the CLI answers
+> to — typing `odoo odoo-shell` gets you a usage error.
 
 ```python
 # Example usage inside shell:

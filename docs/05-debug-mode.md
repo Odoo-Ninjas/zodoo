@@ -72,6 +72,6 @@ See [Local Odoo Development Setup on Mac](./07-mac-setup.md) for configuring VS 
 Configure the log level inside the debug container:
 
 ```bash
-odoo setting ODOO_DEBUG_LOGLEVEL debug
+odoo setting ODOO_DEBUG_LOGLEVEL=debug
 # options: info, warning, error, debug
 ```

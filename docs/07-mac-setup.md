@@ -23,8 +23,8 @@ cd ~/projects/my-odoo
 ## 3. Configure for local development
 
 ```bash
-odoo setting DEVMODE 1       # disables mail/cronjobs on restore, resets passwords
-odoo setting ODOO_DEMO 1     # load demo data (optional)
+odoo setting DEVMODE=1       # disables mail/cronjobs on restore, resets passwords
+odoo setting ODOO_DEMO=1     # load demo data (optional)
 odoo reload
 odoo build
 ```
@@ -82,7 +82,7 @@ brew install rsync
 ### Python version issues
 
 ```bash
-odoo setting ODOO_PYTHON_VERSION 3.12
+odoo setting ODOO_PYTHON_VERSION=3.12
 odoo reload && odoo build
 ```
 

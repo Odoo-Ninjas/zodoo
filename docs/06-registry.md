@@ -7,8 +7,8 @@ zodoo can push and pull all Docker images (including base images like postgres, 
 ### 1. Configure the registry URL
 
 ```bash
-odoo setting HUB_URL registry.zebroo.de:443/myprojectname
-odoo setting DOCKER_IMAGE_TAG latest
+odoo setting HUB_URL=registry.zebroo.de:443/myprojectname
+odoo setting DOCKER_IMAGE_TAG=latest
 ```
 
 ### 2. Login
@@ -32,6 +32,28 @@ what makes anonymous pulling possible), so the client reports success for any
 password. zodoo checks the credentials itself against an endpoint that is still
 protected and says so when they are rejected.
 
+### When a push ends in 401
+
+The same anonymous `/v2/` bites harder on the way out. The classic docker
+client probes `/v2/` at the start of a push session, gets `200`, concludes no
+authentication is needed — and then sends the **entire session without
+credentials**. Everything appears to upload, and the final manifest PUT fails
+with `401`. Only clients using the containerd image store are unaffected,
+which is what made this so confusing: it worked on one machine and on no other.
+
+`registry-push.zebroo.de` points at the same server but demands
+authentication everywhere, so a push works with any client:
+
+```bash
+docker login registry-push.zebroo.de
+```
+
+Verified on 06.09.2026: both names resolve to 46.254.140.82; `/v2/` answers
+`200` on `registry.zebroo.de` and `401` on `registry-push.zebroo.de`. Pull
+over the anonymous name, push over the other one — it is the same stock, which
+is what the CI does (`ZODOO_REGISTRY_PUSH_URL`, see
+`.github/workflows/prebuild-images.yml`).
+
 ### 3. Build images
 
 ```bash
@@ -53,9 +75,9 @@ All images (Odoo, postgres, proxy, etc.) are pushed. Image tags include a SHA-ba
 ### 1. Configure the same registry URL and enable registry mode
 
 ```bash
-odoo setting HUB_URL registry.zebroo.de:443/myprojectname
-odoo setting REGISTRY 1
-odoo setting DOCKER_IMAGE_TAG latest
+odoo setting HUB_URL=registry.zebroo.de:443/myprojectname
+odoo setting REGISTRY=1
+odoo setting DOCKER_IMAGE_TAG=latest
 ```
 
 `REGISTRY=1` rewrites all image references to point to `HUB_URL` and disables local builds.

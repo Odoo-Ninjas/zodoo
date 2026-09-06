@@ -1,0 +1,40 @@
+type: fix
+breaking: false
+description: |
+  `odoo setting KEY VALUE` schreibt nichts - die Doku und die Hilfe des
+  Befehls lehrten trotzdem genau diese Form.
+
+  `_parse_settings` teilt an `=`. Ein Argument ohne Gleichheitszeichen landet
+  im LESE-Modus, `odoo setting DEVMODE 1` liest also die zwei Einstellungen
+  "DEVMODE" und "1" und schreibt nichts. Ohne Fehlermeldung: der Befehl endet
+  mit 0 und gibt nichts aus, weil ungesetzte Schluessel eben leer sind.
+
+  Nachgemessen am 06.09.2026 mit einem bedeutungslosen Schluessel:
+  `odoo setting ZZTESTKEY 7` hinterlaesst 0 Zeilen in der Einstellungsdatei,
+  `odoo setting ZZTESTKEY=7` hinterlaesst `ZZTESTKEY=7`.
+
+  Korrigiert an 18 Stellen in der Doku und in der Hilfe des Befehls selbst -
+  die fuehrte beide Formen als gleichwertige Beispiele auf und stand damit
+  im Widerspruch zum eigenen Rumpf.
+
+  Beim Durchsehen der uebrigen Doku (01 bis 10) ausserdem:
+
+  - `odoo odoo-shell` gibt es nicht. So heisst der Befehl nur in zodoos
+    interner Registry (`Commands.register(shell, "odoo-shell")`); tippen muss
+    man `odoo shell`. Die CLI weist die dokumentierte Form ab.
+  - Der Odoo-Container heisst `<projekt>_odoo`, nicht `<projekt>_odoo_1`.
+  - `ODOO_INSTALL_LIBPOSTAL` ist wirkungslos - nichts liest die Einstellung
+    mehr, sie wird aus settings.txt aber weiter in jedes Projekt geschrieben.
+    Als wirkungslos markiert statt stillschweigend entfernt.
+  - Der Registry-Abschnitt erklaerte, warum `docker login` nichts beweist,
+    aber nicht die haertere Folge: der klassische docker-Client bekommt auf
+    `/v2/` eine 200, schickt daraufhin die ganze Sitzung OHNE Zugangsdaten
+    und scheitert erst am Manifest mit 401. Dafuer gibt es
+    `registry-push.zebroo.de` (derselbe Server, verlangt ueberall Anmeldung).
+    Beide Namen am 06.09.2026 nachgeprueft: 200 gegen 401.
+  - `docs.zebroo.de` war als "blockiert" gefuehrt; die Seite gibt es gar
+    nicht mehr.
+
+  Worauf beim Testen zu achten ist: `odoo setting --help` nennt jetzt nur
+  noch die Form mit Gleichheitszeichen und sagt ausdruecklich, was ohne
+  passiert.

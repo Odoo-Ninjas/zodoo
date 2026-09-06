@@ -123,8 +123,9 @@ differential the rest of the week (`PGBR_FULL_CRON`, `PGBR_DIFF_CRON`).
 
 ### What you do not have to do
 
-* **Set retention.** It lives on the backup server, which owns the disk. The
-  client deliberately ships none - see below.
+* **Set retention.** `register` leaves the documented default in place
+  (14 days, time-based). Where it is *enforced* depends on who holds the
+  passphrase - see below.
 * **Set `RUN_PGBACKREST`.** `register` does it.
 * **Create the stanza.** The sidecar does it on startup.
 
@@ -195,7 +196,7 @@ retention is configured.
 | connections | **all outbound** | outbound WAL **plus inbound** on `PGBR_TLS_SERVER_PORT` |
 | open port on this machine | none | yes |
 | can this machine delete backups? | **yes** | no |
-| retention configured | on the backup server | on the backup server |
+| retention configured | **on this machine** | on the backup server |
 
 **`repo-host` is the stronger shape.** This machine holds no repository
 passphrase, has no delete rights, and can only push WAL — stronger than an
@@ -203,6 +204,13 @@ append-only target, because it never touches the repository storage at all.
 
 **`here` is the shape that survives a restrictive network**, and it is the
 default because a misconfigured `repo-host` fails silently until backup time.
+
+> **At Zebroo, `repo-host` is theory.** Our backup server is deliberately built
+> so it cannot run in that mode: it carries no `pg1-host` for any stanza, and —
+> more to the point — **no `repo1-cipher-pass`**. Pulling requires the repo host
+> to decrypt, and refusing it that ability is the whole design. Both instances
+> therefore run `BACKUP_FROM=here`. Read the `repo-host` column as *what
+> pgbackrest and zodoo support*, not as an option that is one setting away.
 The delete rights it hands this machine are only acceptable if something
 downstream keeps a copy the machine cannot reach — see *Where the protection
 lives* below.
@@ -212,32 +220,52 @@ Either way the certificate in `$HOST_RUN_DIR/pgbackrest/cert/` is an
 `tls-server-auth` binds one client certificate to one stanza, so a certificate
 signed by the same CA cannot back up somebody else's instance.
 
-### Retention lives on the backup server
+### Retention lives wherever the passphrase lives
 
-**With any repo host, retention is configured in exactly one place: on the
-backup server.** The rendered configuration on this machine deliberately
-contains no `repo1-retention-*` at all, in both `BACKUP_FROM` modes.
+`expire` has to **read** `backup.info`, and that file is encrypted by the
+client. That single fact decides where retention can run at all — and it comes
+out differently for the two `BACKUP_FROM` modes:
 
-The rule is *the machine that manages the disk manages the retention*. The
-backup server is the one that watches the free space, so it is the one that
-decides what goes. The alternative — the same number maintained on every Odoo
-host — drifts the moment somebody changes one of them.
+| | `here` (pushed) | `repo-host` (pulled) |
+| --- | --- | --- |
+| who holds the repository passphrase | this machine | the backup server |
+| who can therefore run `expire` | **this machine** | the backup server |
+| where `repo1-retention-*` is rendered | **here** | on the backup server |
 
-The mechanism is a property of pgBackRest rather than a trick: **without
-`repo1-retention-*` the expire step at the end of a backup does nothing.** So
-with `BACKUP_FROM=here` the Odoo machine takes the backup and expires nothing,
-and the backup server runs its own scheduled
+With `BACKUP_FROM=here` the backup server is a TLS storage endpoint and
+nothing more. It never sees the passphrase — that is the point of the shape —
+so an `expire` started there dies with
+
+    ERROR [029]: unable to load info file ... FormatError: ... Salted__
+
+Retention therefore belongs in this machine's own configuration, and
+pgBackRest appends an `expire` to every backup anyway; it simply needs a rule
+to apply. `PGBR_RETENTION_*` is rendered here for exactly that reason.
+
+**This was the other way round until 31.08.2026.** The rule then was *the
+machine that manages the disk manages the retention*, which sounds right and
+does not work: the backup server cannot read the file it would have to
+evaluate. The consequence was that expire ran **nowhere** — configured on
+neither side, a cleanup that existed on paper only, with the repository
+growing until somebody noticed the disk.
+
+**What this does not mean.** It is tempting to read the old arrangement as a
+safety control — "the instance cannot delete its own history". It never was
+one. An instance holds its passphrase and its own client certificate, so it
+can run
 
 ```bash
 pgbackrest --stanza=<stanza> expire
 ```
 
-against its own values. `expire` is a repository-only operation — it needs no
-reachable cluster, which is what makes this work at all.
+against the repository whether or not `repo1-retention-*` appears in its
+configuration; tried on 06.09.2026, it completes. What actually protects the
+history against a compromised instance is the **immutable second store**
+(object lock), not a missing config line — see *Where the protection lives*.
 
-`PGBR_RETENTION_*` therefore applies **only to a local repository**, where
-there is no other machine to do it. `odoo reload` says so in a yellow line
-whenever a repo host is configured.
+`PGBR_RETENTION_*` applies to a local repository and to `BACKUP_FROM=here`.
+Only with `BACKUP_FROM=repo-host`, where this machine holds no passphrase and
+no delete rights, does retention move to the backup server.
 
 > **The one thing to actually check:** if the backup server has no scheduled
 > `expire`, *nothing* expires — the Odoo side no longer does it and the backup
@@ -340,8 +368,9 @@ own end point.
 
 That is how to keep old states without paying for the gaps between them.
 
-These apply to a **local repository only**. With a repo host they are ignored
-and the repository's owner decides — see *Retention lives on the backup server*.
+These apply to a local repository and to `BACKUP_FROM=here`. Only with
+`BACKUP_FROM=repo-host` do they move to the backup server — see *Retention
+lives wherever the passphrase lives*.
 
 ### Expiry is not a separate job
 
@@ -354,6 +383,41 @@ For the same reason the configuration always emits `repo1-retention-full`, even
 when the setting is empty. pgBackRest without it expires **nothing**, says so
 once in a log line, and then keeps every backup forever.
 
+## The one setting that can silently lose WAL
+
+`PGBR_ARCHIVE_PUSH_QUEUE_MAX` (default `16GB`) is the most dangerous knob in
+this setup, and it is dangerous in a way that produces **no error**.
+
+When WAL cannot be shipped — the backup server is down, the network is out,
+a certificate expired — segments pile up in the spool directory. Once the pile
+passes this size, pgbackrest **throws the whole queue away and reports success
+to postgres**. Archiving continues from the next segment as if nothing had
+happened. The backup keeps looking healthy; what is gone is the *chain*, and
+with it point-in-time recovery, until the next base backup exists.
+
+That trade is pgbackrest's own and it is defensible: better to drop the backup
+than to let `pg_wal` fill the disk and stop the database. But it only makes
+sense if the cap sits **near the actual disk limit**. At the old 1 GB default
+it fired while tens of gigabytes were still free — an hour of network trouble
+on a busy instance was enough to break the chain.
+
+**Set it per machine, from the real free space of the `pg_wal` filesystem.**
+It is the last line of defence before the disk fills, and nothing tighter.
+16 GB is a compromise, not a truth.
+
+Two things follow:
+
+- **The gap is only detectable from the instance side.** The repository looks
+  fine — it has no way to know which segments were never offered. What finds
+  it is `odoo pgbackrest repo-verify`, which reads the WAL ranges out of the
+  log: more than one range per `archiveId` means WAL is missing in between.
+- **A queue that is filling is worth an alarm before it empties itself.**
+  Watch the spool directory, not just the last backup timestamp.
+
+`PGBR_ARCHIVE_PUSH_BATCH_SIZE` (default `256MB`) is the related knob: the
+queue is only measured when a push run starts, so a very large batch size
+delays the moment the cap is noticed.
+
 ## Commands
 
 ```bash
@@ -364,12 +428,42 @@ odoo pgbackrest restore               # interactive target picker
 odoo pgbackrest restore --target-time "2026-05-31 14:25:00"
 odoo pgbackrest restore --target-name pre_update_20260531120000
 odoo pgbackrest expire                # normally unnecessary
+odoo pgbackrest switch-wal            # force a segment, e.g. to test archiving
+
+odoo pgbackrest verify                # restore drill: bring a backup up and read it
+odoo pgbackrest repo-verify           # check the stored BYTES, without restoring
+odoo pgbackrest envelope              # the age envelope holding area, passphrase, cert
+
+odoo pgbackrest stanza-create         # normally done by the sidecar on startup
+odoo pgbackrest stanza-upgrade        # after a postgres major upgrade
 ```
 
 `odoo pgbackrest check` is the one worth running after any change. It verifies
 that the repository is reachable, that the `archive_command` works, and that a
 freshly switched segment really arrives — it is the command that says whether
 the backups are worth anything.
+
+### The two that check the backup itself
+
+`check` answers "does archiving work **now**". Neither of these does, and they
+answer different questions:
+
+| | what it does | what it finds |
+| --- | --- | --- |
+| `verify` | brings a backup up as a real postgres and reads from it | a backup that cannot actually be restored |
+| `repo-verify` | reads the stored bytes without restoring | gaps in the WAL chain, damaged blocks in older backups |
+
+Two traps in `repo-verify`, both learned the hard way:
+
+- **`pgbackrest verify` exits 0 even when it found problems.** The verdict is
+  in the output, not the exit code.
+- **A healthy repository produces no status line at all.** Code that waits for
+  `status: ok` declares every healthy repository broken. Read for *problems*.
+
+With `--log-level-console=detail` the WAL ranges appear in the log, and that is
+the real prize: **more than one range per `archiveId` means WAL is missing in
+between** — the only way to see a queue that was silently discarded (see *The
+one setting that can silently lose WAL*).
 
 ### Restoring
 
