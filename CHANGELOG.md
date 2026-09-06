@@ -1,5 +1,35 @@
 # Changelog
 
+## 11.2.5
+
+- **Fix**: `odoo setting KEY VALUE` schreibt nichts - die Doku und die Hilfe des Befehls lehrten trotzdem genau diese Form.
+
+  `_parse_settings` teilt an `=`. Ein Argument ohne Gleichheitszeichen landet im LESE-Modus, `odoo setting DEVMODE 1` liest also die zwei Einstellungen "DEVMODE" und "1" und schreibt nichts. Ohne Fehlermeldung: der Befehl endet mit 0 und gibt nichts aus, weil ungesetzte Schluessel eben leer sind.
+
+  Nachgemessen am 06.09.2026 mit einem bedeutungslosen Schluessel: `odoo setting ZZTESTKEY 7` hinterlaesst 0 Zeilen in der Einstellungsdatei, `odoo setting ZZTESTKEY=7` hinterlaesst `ZZTESTKEY=7`.
+
+  Korrigiert an 18 Stellen in der Doku und in der Hilfe des Befehls selbst - die fuehrte beide Formen als gleichwertige Beispiele auf und stand damit im Widerspruch zum eigenen Rumpf.
+
+  Beim Durchsehen der uebrigen Doku (01 bis 10) ausserdem:
+
+  - `odoo odoo-shell` gibt es nicht. So heisst der Befehl nur in zodoos interner Registry (`Commands.register(shell, "odoo-shell")`); tippen muss man `odoo shell`. Die CLI weist die dokumentierte Form ab. - Der Odoo-Container heisst `<projekt>_odoo`, nicht `<projekt>_odoo_1`. - `ODOO_INSTALL_LIBPOSTAL` ist wirkungslos - nichts liest die Einstellung mehr, sie wird aus settings.txt aber weiter in jedes Projekt geschrieben. Als wirkungslos markiert statt stillschweigend entfernt. - Der Registry-Abschnitt erklaerte, warum `docker login` nichts beweist, aber nicht die haertere Folge: der klassische docker-Client bekommt auf `/v2/` eine 200, schickt daraufhin die ganze Sitzung OHNE Zugangsdaten und scheitert erst am Manifest mit 401. Dafuer gibt es `registry-push.zebroo.de` (derselbe Server, verlangt ueberall Anmeldung). Beide Namen am 06.09.2026 nachgeprueft: 200 gegen 401. - `docs.zebroo.de` war als "blockiert" gefuehrt; die Seite gibt es gar nicht mehr.
+
+  Worauf beim Testen zu achten ist: `odoo setting --help` nennt jetzt nur noch die Form mit Gleichheitszeichen und sagt ausdruecklich, was ohne passiert.
+- **Docs**: Die pgBackRest- und Offsite-Doku sagt jetzt, was der Code tut. An drei Stellen sagte sie das Gegenteil.
+
+  Aufbewahrung: Doku und der in jede Instanz-Konfiguration gerenderte Kommentar behaupteten "Retention lives on the backup server" und "PGBR_RETENTION_* are therefore ignored in this mode" - und direkt darunter standen die Retention-Zeilen. Richtig ist: `expire` muss `backup.info` LESEN, und die ist clientseitig verschluesselt. Bei `BACKUP_FROM=here` (gepusht) hat nur die Instanz die Passphrase, also gehoert die Aufbewahrung dorthin; nur bei `BACKUP_FROM=repo-host` (gezogen) haelt der Backup-Server sie und kann selbst aufraeumen. Bis 31.08.2026 stand sie nirgends, und expire lief entsprechend nirgends.
+
+  Dazu ausgeraeumt: die Lesart, die Instanz koenne ihre Historie nicht loeschen. Sie kann - mit ihrem eigenen Zertifikat und ihrer Passphrase, ausprobiert. Was schuetzt, ist der unveraenderliche Zweitbestand, nicht eine fehlende Konfigurationszeile.
+
+  Offsite: der GEMISCHTE Fall fehlte ganz - Datenbank ueber pgBackRest, nur der Filestore write-only. Das ist unser Normalaufbau und war zugleich der, der nichts sicherte. Jetzt steht da, welcher Strom wann laeuft und welche zwei Faelle seit 05.09.2026 absichtlich laut sind.
+
+  Beim Durchsehen aufgefallen und ergaenzt:
+
+  - `PGBR_ARCHIVE_PUSH_QUEUE_MAX` stand in keiner Doku. Das ist die Einstellung, bei deren Ueberschreiten pgbackrest die GANZE WAL-Warteschlange wegwirft und postgres Erfolg meldet - der einzige Ausfall im System, der die Punkt-genau-Wiederherstellung still zerstoert. Mit dem Hinweis, dass man ihn pro Maschine an den echten freien Platz von pg_wal setzt. - Sechs Befehle fehlten in der Liste, darunter `verify` und `repo-verify` - also ausgerechnet die beiden, die pruefen, ob die Sicherung etwas taugt. Mit den zwei Fallen von `repo-verify`: es endet auch bei Maengeln mit 0, und ein heiler Bestand erzeugt gar keine Statuszeile.
+
+  Worauf beim Testen zu achten ist: `odoo reload` auf einer Instanz mit Repo-Host erzeugen und in der gerenderten `pgbackrest.conf` nachsehen - der Kommentarblock ueber den `repo1-retention-*`-Zeilen muss jetzt zu ihnen passen.
+
+
 ## 11.2.4
 
 - **Fix**: Cronjobs auf den Instanzen melden jetzt, wenn sie scheitern - und eine Datei im Projektverzeichnis kann den zodoo-Start nicht mehr verhindern.
