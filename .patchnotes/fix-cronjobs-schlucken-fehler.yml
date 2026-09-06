@@ -1,0 +1,34 @@
+type: fix
+breaking: false
+description: |
+  Cronjobs auf den Instanzen melden jetzt, wenn sie scheitern - und eine
+  Datei im Projektverzeichnis kann den zodoo-Start nicht mehr verhindern.
+
+  Was passiert war: In einem Projektverzeichnis lag ein odoo-shell-Schnipsel
+  namens `inspect.py`. Der Cron-Daemon ruft seine Jobs als
+  `cd /opt/src; odoo -p <projekt> ...` auf; damit steht das
+  Projektverzeichnis vorn in sys.path, und Pythons `import inspect` erwischte
+  den Schnipsel statt der Standardbibliothek. zodoo starb beim Start mit
+  "NameError: name 'env' is not defined", Rueckgabewert 1.
+
+  Betroffen war damit JEDER Job dieser Instanz: keine pgBackRest-Sicherung,
+  kein check, kein Offsite-Lauf, keine naechtlichen Dumps - zwei Naechte
+  lang. Aufgefallen ist es nur, weil beim Nachsehen einer ganz anderen Sache
+  auffiel, dass im Repository seit zwei Tagen keine Sicherung mehr lag.
+
+  Warum es niemand merkte: der Daemon rief `os.system()` auf und warf den
+  Rueckgabewert weg. Im Protokoll stand deshalb dieselbe Zeile wie bei
+  Erfolg - "Execution took 0.04 seconds".
+
+  Zwei Aenderungen:
+
+  - Der Aufruf setzt `PYTHONSAFEPATH=1`. Das Projektverzeichnis kommt damit
+    nicht mehr auf sys.path; welches Projekt gemeint ist, sagt ohnehin `-p`.
+  - Rueckgabewerte werden ausgewertet und ein gescheiterter Job als FEHLER
+    protokolliert, mit Job-Name, Rueckgabewert und Befehl.
+
+  Worauf beim Testen zu achten ist: eine Datei mit dem Namen eines
+  Standardmoduls (`inspect.py`, `grp.py`, `types.py`, ...) im
+  Projektverzeichnis darf die Cronjobs nicht mehr stoeren. Und ein
+  absichtlich fehlschlagender Job muss im Container-Protokoll als ERROR
+  auftauchen statt als stiller Erfolg.
