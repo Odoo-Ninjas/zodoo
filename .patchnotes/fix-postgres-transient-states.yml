@@ -1,0 +1,39 @@
+type: fix
+breaking: false
+description: |
+  zodoo wartet jetzt zuverlaessig, wenn postgres gerade nicht bedient - vorher
+  brach es sofort ab.
+
+  Anlass war ein Fehlschlag beim automatischen Testlauf: "odoo db reset" starb
+  mit "FATAL: the database system is shutting down". Der Datenbankserver fuhr
+  in dem Moment gerade herunter, was beim Zuruecksetzen normal ist - zodoo
+  haette einfach kurz warten muessen.
+
+  Zwei Stellen waren schuld. Die erste ist die Vorabpruefung in
+  tools._execute_sql: dort stand zwar eine Wiederholungslogik, die zugehoerige
+  Funktion hat ihren Fehler aber selbst abgefangen und nur rot ausgegeben.
+  Damit bekam die Wiederholung nie einen Fehler zu sehen und hat NIE
+  wiederholt - der Schutz war seit immer wirkungslos.
+
+  Die zweite ist der Verbindungsaufbau selbst: der hat nur auf "database
+  system is starting up" gewartet, ein herunterfahrender Server flog sofort
+  durch. Ausserdem war die Warteschleife dort endlos - bei einem Server, der
+  dauerhaft im Zustand "starting up" haengt, wartete zodoo unbegrenzt.
+
+  Jetzt gibt es eine gemeinsame Erkennung fuer Zustaende, die von allein
+  vergehen (herunterfahren, hochfahren, Wiederherstellung, Verbindung
+  abgewiesen, Verbindung vom Server geschlossen, Verbindung durch den
+  Administrator beendet). Nur die werden ausgesessen, und nur bis zu einer
+  Frist (60 Sekunden, ueber PSYCOPG_CONNECT_RETRY_SECONDS aenderbar). Ein
+  falsches Passwort oder eine fehlende Tabelle fuehrt weiterhin sofort zum
+  Abbruch - darauf zu warten hilft ja nicht.
+
+  Wichtig: wiederholt wird nur der Verbindungsaufbau, nicht die Ausfuehrung
+  einer Anweisung. Ein Wiederholen von Schreibvorgaengen koennte Daten doppelt
+  anlegen.
+
+  Zum Nachschauen: "odoo -f db reset" mehrfach hintereinander laufen lassen -
+  es darf nicht mehr mit "the database system is shutting down" abbrechen.
+  Waehrend eines Neustarts von postgres ("odoo restart postgres") sollte ein
+  paralleles "odoo psql" ein paar Sekunden warten und dann durchkommen statt
+  sofort zu scheitern.
