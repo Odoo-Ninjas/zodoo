@@ -46,6 +46,18 @@ CRONJOB_PGBACKREST_CHECK=17 * * * * $JOB_PGBACKREST_CHECK
 # RUN_OFFSITE=0 - der Befehl steigt dann still aus, damit Projekte ohne
 # Offsite-Ziel nicht jede Nacht einen Cron-Fehler melden. Laeuft nach dem
 # pgBackRest-Basisbackup, damit der frische Stand mitgeht.
+# Die vom Backup-Server vorgegebene Aufbewahrung holen. Die Instanz FUEHRT sie
+# aus (nur sie kann backup.info entschluesseln), BESTIMMEN soll sie der Server.
+#
+# Was dieser Job NICHT tut: wirksam machen. Der geholte Wert landet in den
+# Einstellungen und wird beim naechsten `odoo reload` in die pgbackrest.conf
+# gerendert - `odoo reload` aus einem Container heraus bricht seit 11.0.1
+# absichtlich ab (falsche Bind-Mount-Pfade), also kann dieser Job das nicht
+# selbst erledigen. Bis dahin gilt der alte Wert, und die LUECKE deckt die
+# Ueberwachung auf dem Backup-Server ab (backup.retention.tooshort).
+JOB_PGBACKREST_POLICY=odoo pgbackrest policy
+CRONJOB_PGBACKREST_POLICY=$PGBR_POLICY_CRON $JOB_PGBACKREST_POLICY
+
 JOB_OFFSITE_BACKUP=odoo offsite backup
 CRONJOB_OFFSITE_BACKUP=$OFFSITE_BACKUP_CRON $JOB_OFFSITE_BACKUP
 

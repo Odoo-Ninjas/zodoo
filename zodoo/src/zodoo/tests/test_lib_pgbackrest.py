@@ -315,6 +315,104 @@ def test_conf_written_with_local_repo(after_compose, tmp_path):
     assert not any(d.startswith("pg1-host") for d in directives)
 
 
+def test_policy_job_verschwindet_ohne_token(after_settings):
+    """Ein Job, der jede Woche scheitert, ist schlimmer als keiner.
+
+    Ohne Token kann die Instanz ihre Vorgabe nicht erfragen; seit der
+    Daemon Fehlschlaege protokolliert, waere das von der ersten Woche an
+    Laerm. Bereiche, die vor dem 07.09.2026 angemeldet wurden, haben keinen.
+    """
+    settings = {
+        "RUN_PGBACKREST": "1",
+        "RUN_POSTGRES": "1",
+        "PGBR_RETENTION_TOKEN": "",
+        "CRONJOB_PGBACKREST_POLICY": "40 3 * * 1 odoo pgbackrest policy",
+    }
+    after_settings(settings, None)
+    assert settings["CRONJOB_PGBACKREST_POLICY"] == ""
+
+
+def test_policy_job_bleibt_mit_token(after_settings):
+    settings = {
+        "RUN_PGBACKREST": "1",
+        "RUN_POSTGRES": "1",
+        "PGBR_RETENTION_TOKEN": "irgendein-token",
+        "CRONJOB_PGBACKREST_POLICY": "40 3 * * 1 odoo pgbackrest policy",
+    }
+    after_settings(settings, None)
+    assert settings["CRONJOB_PGBACKREST_POLICY"].endswith("odoo pgbackrest policy")
+
+
+def test_server_vorgabe_schlaegt_den_eigenen_wunsch(after_compose, tmp_path):
+    """Die Aufbewahrung bestimmt der Server, ausgefuehrt wird sie hier.
+
+    PGBR_RETENTION_FULL ist nur noch ein Wunsch. Hat der Anmeldedienst eine
+    Vorgabe geliefert, gilt die - sonst waere die Instanz wieder die
+    entscheidende Seite.
+    """
+    after_compose(
+        None,
+        _enabled_settings(
+            HOST_RUN_DIR=str(tmp_path),
+            PGBR_REPO_HOST="backup.example",
+            PGBR_BACKUP_FROM="here",
+            PGBR_RETENTION_FULL="3",                 # Wunsch: kurz
+            PGBR_RETENTION_FULL_EFFECTIVE="30",      # Server: lang
+            PGBR_RETENTION_TYPE_EFFECTIVE="time",
+        ),
+        {"services": {"postgres": {"environment": {}}}},
+        {},
+    )
+    directives = _directives(tmp_path)
+    assert "repo1-retention-full=30" in directives, directives
+    assert "repo1-retention-full=3" not in directives
+
+
+def test_ohne_server_vorgabe_gilt_der_wunsch(after_compose, tmp_path):
+    """Solange der Server nichts gesagt hat, zaehlt der eigene Wert.
+
+    Wichtig, damit eine Instanz nicht ohne jede Aufbewahrung dasteht, bevor
+    `odoo pgbackrest policy` einmal gelaufen ist.
+    """
+    after_compose(
+        None,
+        _enabled_settings(
+            HOST_RUN_DIR=str(tmp_path),
+            PGBR_REPO_HOST="backup.example",
+            PGBR_BACKUP_FROM="here",
+            PGBR_RETENTION_FULL="21",
+            PGBR_RETENTION_FULL_EFFECTIVE="",
+        ),
+        {"services": {"postgres": {"environment": {}}}},
+        {},
+    )
+    directives = _directives(tmp_path)
+    assert "repo1-retention-full=21" in directives, directives
+
+
+def test_weder_vorgabe_noch_wunsch_heisst_nicht_ohne_aufbewahrung(
+    after_compose, tmp_path
+):
+    """Leer bedeutet Vorgabe, niemals "alles behalten".
+
+    Ohne repo1-retention-full expired pgbackrest gar nichts - still.
+    """
+    after_compose(
+        None,
+        _enabled_settings(
+            HOST_RUN_DIR=str(tmp_path),
+            PGBR_REPO_HOST="backup.example",
+            PGBR_BACKUP_FROM="here",
+            PGBR_RETENTION_FULL="",
+            PGBR_RETENTION_FULL_EFFECTIVE="",
+        ),
+        {"services": {"postgres": {"environment": {}}}},
+        {},
+    )
+    directives = _directives(tmp_path)
+    assert "repo1-retention-full=14" in directives, directives
+
+
 def test_conf_written_with_repo_host(after_compose, tmp_path):
     """When the repo host PULLS there must be no repo1-path and no retention.
 
@@ -585,6 +683,9 @@ def test_pgbackrest_cli_group_registered():
         "restore",
         "switch-wal",
         "stanza-create",
+        # Holt die serverseitige Aufbewahrungs-Vorgabe. Ohne diesen Befehl
+        # gaebe es keinen Weg, eine Aenderung dort auf die Instanz zu bringen.
+        "policy",
     } <= set(grp.commands.keys())
 
 

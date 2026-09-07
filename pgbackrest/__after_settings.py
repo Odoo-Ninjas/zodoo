@@ -55,6 +55,7 @@ def after_settings(settings, config):
             "CRONJOB_PGBACKREST_DIFF",
             "CRONJOB_PGBACKREST_INCR",
             "CRONJOB_PGBACKREST_CHECK",
+            "CRONJOB_PGBACKREST_POLICY",
         ):
             settings[key] = ""
     elif not (settings.get("PGBR_INCR_CRON") or "").strip():
@@ -62,6 +63,14 @@ def after_settings(settings, config):
         # otherwise be a bare command with no cron expression in front of it,
         # which the daemon cannot parse at all.
         settings["CRONJOB_PGBACKREST_INCR"] = ""
+
+    # Ohne Token kann diese Instanz ihre Vorgabe nicht erfragen - der Befehl
+    # bricht dann ab. Ein Job, der jede Woche scheitert, ist schlimmer als
+    # keiner: seit 11.2.4 protokolliert der Daemon Fehlschlaege, und dieser
+    # waere von der ersten Woche an Laerm. Bereiche, die vor dem 07.09.2026
+    # angemeldet wurden, haben keinen Token.
+    if not (settings.get("PGBR_RETENTION_TOKEN") or "").strip():
+        settings["CRONJOB_PGBACKREST_POLICY"] = ""
 
     # Bei BACKUP_FROM=repo-host sichert und raeumt der Backup-Server auf -
     # dann muss ER die Aufbewahrung kennen. Mit einem verschluesselten

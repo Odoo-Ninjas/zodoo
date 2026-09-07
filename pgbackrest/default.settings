@@ -192,8 +192,29 @@ PGBR_CIPHER_PASS=
 # time is the better default: it describes what somebody actually promises a
 # customer ("we can go back 14 days to any second"), while a count silently
 # means something different as soon as the backup schedule changes.
+# WUNSCH, nicht Entscheidung.
+#
+# Wer die Platte verwaltet, bestimmt die Aufbewahrung - und das ist der
+# Backup-Server. Ausgefuehrt wird sie hier, weil nur diese Maschine
+# backup.info entschluesseln kann; WAS gilt, sagt der Server.
+#
+# Hat der Server eine Vorgabe geliefert (PGBR_RETENTION_FULL_EFFECTIVE, vom
+# Anmeldedienst geholt), gewinnt die. Sonst gilt dieser Wert. Absichtlich
+# NICHT umbenannt: eine Umbenennung haette jedes Projekt gebrochen, das die
+# Einstellung gesetzt hat, fuer eine Wirkung, die die Serverantwort ohnehin
+# ueberschreibt.
 PGBR_RETENTION_FULL_TYPE=time
 PGBR_RETENTION_FULL=14
+
+# Vom Server geholt, nicht von Hand zu setzen. `odoo pgbackrest policy`
+# schreibt es; leer heisst "noch nie gefragt", dann gilt der Wunsch oben.
+PGBR_RETENTION_FULL_EFFECTIVE=
+PGBR_RETENTION_TYPE_EFFECTIVE=
+
+# Berechtigt zum Abfragen der EIGENEN Vorgabe und zu nichts weiter. Kommt bei
+# der Freigabe mit; Bereiche, die vor dem 07.09.2026 angemeldet wurden, haben
+# keinen und behalten den Wunsch, bis sie neu angemeldet werden.
+PGBR_RETENTION_TOKEN=
 # Differential backups to keep. Empty = governed by the full retention alone.
 PGBR_RETENTION_DIFF=
 # WAL retention. Empty (the default) keeps the WAL needed for a CONTINUOUS
@@ -223,6 +244,10 @@ PGBR_RETENTION_ARCHIVE_TYPE=full
 # incrementals has to be read end to end on restore and one damaged link takes
 # all its successors with it. With block-level incrementals a diff costs barely
 # more than an incr.
+# Woechentlich reicht: die Vorgabe aendert sich selten, und wirksam wird sie
+# ohnehin erst beim naechsten reload.
+PGBR_POLICY_CRON=40 3 * * 1
+
 PGBR_FULL_CRON=0 2 * * 0
 PGBR_DIFF_CRON=0 2 * * 1-6
 # Intra-day incrementals. Empty = off. Worth switching on for write-heavy

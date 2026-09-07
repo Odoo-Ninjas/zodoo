@@ -97,8 +97,33 @@ def _retention_lines(settings):
     "keep everything".
     """
     lines = []
-    full_type = (settings.get("PGBR_RETENTION_FULL_TYPE") or "time").strip()
-    full = (settings.get("PGBR_RETENTION_FULL") or "").strip() or "14"
+
+    # Vorrang: was der SERVER gesagt hat, dann der Wunsch, dann die
+    # dokumentierte Vorgabe.
+    #
+    # Der Server bestimmt die Aufbewahrung, ausgefuehrt wird sie hier - nur
+    # diese Maschine kann backup.info entschluesseln. PGBR_RETENTION_FULL ist
+    # deshalb ein Wunsch: er zaehlt, solange der Anmeldedienst nichts
+    # geliefert hat (`odoo pgbackrest policy` holt es). Absichtlich in dieser
+    # Reihenfolge und nicht als Maximum beider Werte: sonst koennte eine
+    # Instanz durch einen hohen Wunsch die Vorgabe ueberbieten und der Server
+    # waere wieder nicht die entscheidende Seite.
+    effektiv = (settings.get("PGBR_RETENTION_FULL_EFFECTIVE") or "").strip()
+    typ_effektiv = (settings.get("PGBR_RETENTION_TYPE_EFFECTIVE") or "").strip()
+
+    full = effektiv or (settings.get("PGBR_RETENTION_FULL") or "").strip() or "14"
+    full_type = (
+        typ_effektiv
+        or (settings.get("PGBR_RETENTION_FULL_TYPE") or "").strip()
+        or "time"
+    )
+    if effektiv:
+        lines.append("# Aufbewahrung laut Backup-Server (PGBR_RETENTION_FULL_EFFECTIVE).")
+    else:
+        lines.append(
+            "# Aufbewahrung aus dem eigenen Wunsch - der Server hat noch keine"
+        )
+        lines.append("# Vorgabe geliefert. `odoo pgbackrest policy` holt sie.")
     lines.append(f"repo1-retention-full-type={full_type}")
     lines.append(f"repo1-retention-full={full}")
 

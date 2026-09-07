@@ -1,0 +1,48 @@
+type: feature
+breaking: false
+description: |
+  Die Aufbewahrung bestimmt ab jetzt der Backup-Server.
+  `PGBR_RETENTION_FULL` ist nur noch ein Wunsch.
+
+  Ausgefuehrt wird sie weiter auf der Instanz - nur die kann `backup.info`
+  entschluesseln. WAS gilt, sagt der Server, dem die Platte gehoert.
+  Reihenfolge beim Rendern:
+
+  1. `PGBR_RETENTION_FULL_EFFECTIVE` - was der Server geliefert hat
+  2. `PGBR_RETENTION_FULL` - der eigene Wunsch
+  3. die dokumentierte Vorgabe von 14 Tagen
+
+  Absichtlich in dieser Reihenfolge und NICHT als groesserer der beiden Werte:
+  sonst koennte eine Instanz mit einem hohen Wunsch die Vorgabe ueberbieten,
+  und der Server waere wieder nicht die entscheidende Seite.
+
+  **Nicht umbenannt.** Eine Umbenennung haette jedes Projekt gebrochen, das
+  die Einstellung gesetzt hat - fuer eine Wirkung, die die Serverantwort
+  ohnehin ueberschreibt.
+
+  Neu:
+
+  - `odoo pgbackrest policy` holt die geltende Vorgabe und legt sie ab. Sagt
+    ausserdem, wenn der eigene Wunsch abweicht und deshalb nicht gilt.
+  - `register` bringt Vorgabe und Token gleich mit. Der Token berechtigt zum
+    Erfragen der EIGENEN Vorgabe und zu nichts weiter.
+  - `CRONJOB_PGBACKREST_POLICY` fragt woechentlich nach.
+
+  Worauf beim Testen zu achten ist: `odoo pgbackrest policy` aufrufen, dann in
+  `~/.odoo/run/<projekt>/pgbackrest/pgbackrest.conf` nachsehen - nach
+  `odoo reload` muss dort der Wert des Servers stehen, nicht der eigene. Der
+  Kommentar ueber den Retention-Zeilen sagt, welcher der beiden gerade gilt.
+
+  Zwei Grenzen ausdruecklich:
+
+  - Der Cronjob macht die Vorgabe NICHT wirksam. Der geholte Wert wird erst
+    beim naechsten `odoo reload` gerendert; ein reload aus dem Container
+    bricht absichtlich ab (siehe 11.0.1). Die Luecke deckt die Ueberwachung
+    auf dem Backup-Server ab (`backup.retention.tooshort`).
+  - Eine clientseitige Konfiguration ist keine Kontrolle: root auf der Instanz
+    kann sie aendern. Durchgesetzt wird die Historie vom unveraenderlichen
+    Zweitbestand, nicht von dieser Einstellung.
+
+  Bereiche, die vor dem 07.09.2026 angemeldet wurden, haben keinen Token. Der
+  Befehl sagt das, und der Cron-Eintrag wird geleert statt jede Woche zu
+  scheitern.
