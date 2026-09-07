@@ -1,5 +1,56 @@
 # Changelog
 
+## 11.3.0
+
+- **Feature**: Die Aufbewahrung bestimmt ab jetzt der Backup-Server. `PGBR_RETENTION_FULL` ist nur noch ein Wunsch.
+
+  Ausgefuehrt wird sie weiter auf der Instanz - nur die kann `backup.info` entschluesseln. WAS gilt, sagt der Server, dem die Platte gehoert. Reihenfolge beim Rendern:
+
+  1. `PGBR_RETENTION_FULL_EFFECTIVE` - was der Server geliefert hat
+  2. `PGBR_RETENTION_FULL` - der eigene Wunsch
+  3. die dokumentierte Vorgabe von 14 Tagen
+
+  Absichtlich in dieser Reihenfolge und NICHT als groesserer der beiden Werte: sonst koennte eine Instanz mit einem hohen Wunsch die Vorgabe ueberbieten, und der Server waere wieder nicht die entscheidende Seite.
+
+  **Nicht umbenannt.** Eine Umbenennung haette jedes Projekt gebrochen, das die Einstellung gesetzt hat - fuer eine Wirkung, die die Serverantwort ohnehin ueberschreibt.
+
+  Neu:
+
+  - `odoo pgbackrest policy` holt die geltende Vorgabe und legt sie ab. Sagt ausserdem, wenn der eigene Wunsch abweicht und deshalb nicht gilt.
+  - `register` bringt Vorgabe und Token gleich mit. Der Token berechtigt zum Erfragen der EIGENEN Vorgabe und zu nichts weiter.
+  - `CRONJOB_PGBACKREST_POLICY` fragt woechentlich nach.
+
+  Worauf beim Testen zu achten ist: `odoo pgbackrest policy` aufrufen, dann in `~/.odoo/run/<projekt>/pgbackrest/pgbackrest.conf` nachsehen - nach `odoo reload` muss dort der Wert des Servers stehen, nicht der eigene. Der Kommentar ueber den Retention-Zeilen sagt, welcher der beiden gerade gilt.
+
+  Zwei Grenzen ausdruecklich:
+
+  - Der Cronjob macht die Vorgabe NICHT wirksam. Der geholte Wert wird erst beim naechsten `odoo reload` gerendert; ein reload aus dem Container bricht absichtlich ab (siehe 11.0.1). Die Luecke deckt die Ueberwachung auf dem Backup-Server ab (`backup.retention.tooshort`).
+  - Eine clientseitige Konfiguration ist keine Kontrolle: root auf der Instanz kann sie aendern. Durchgesetzt wird die Historie vom unveraenderlichen Zweitbestand, nicht von dieser Einstellung.
+
+  Bereiche, die vor dem 07.09.2026 angemeldet wurden, haben keinen Token. Der Befehl sagt das, und der Cron-Eintrag wird geleert statt jede Woche zu scheitern.
+- **Feature**: Neuer Assistent "odoo router vhost new" legt einen Virtual Host im Dialog an, und ein fehlendes Feld in der vhosts.yml fliegt jetzt auf, statt eine kaputte nginx-Konfiguration zu erzeugen.
+
+  Bisher liess sich ein vHost nur aus einer fertigen Datei einlesen ("odoo router vhost add <datei>") - man musste also wissen, welche Felder das jeweilige Template braucht, und die stehen nur in den Templates selbst. Der Assistent fragt der Reihe nach ab: Art des vHosts, Domain, Backend-Adresse und -Port, Zeitlimit, Let's-Encrypt-Zertifikat, IP-Freigabeliste und Basic Auth. Er prueft die Eingaben, zeigt den fertigen vHost als YAML und schreibt ihn auf Wunsch in die vhosts.yml und rollt ihn aus.
+
+  Mit "--dry-run" gibt er den vHost nur aus und aendert nichts - dafuer braucht es auch keinen installierten Router. Das ist der schnellste Weg, sich ein korrektes Schnipsel fuer die vhosts.yml zu erzeugen.
+
+  Zwei Eingaben werden geprueft, weil sie erfahrungsgemaess schiefgehen: der Upstream-Name darf nur Buchstaben, Ziffern und Unterstriche enthalten (er wird zu einem nginx-Variablennamen, mit Punkt oder Bindestrich laedt nginx die Konfiguration nicht - und das merkt man erst beim Reload), und die Ports muessen echte Ports sein.
+
+  Ausserdem gerendert wird jetzt mit StrictUndefined. Das war zwar schon importiert, aber nie gesetzt - ein fehlendes Feld wurde deshalb still zu einem leeren Text, und heraus kam eine kaputte Konfiguration mit Zeilen wie "server :;" und "proxy_pass http://$var_;", ohne jede Meldung. Fehlt ein Feld, nennt das Rendern nun den vHost und das Feld und bricht ab. ACHTUNG beim Aktualisieren: wer bisher eine unvollstaendige vhosts.yml hatte, bekommt bei "odoo router apply-vhosts" jetzt einen Fehler statt eines stillen Teilergebnisses. Der betroffene vHost hat vorher nicht funktioniert - die Zeile muss ergaenzt werden.
+
+  Zum Nachschauen: "odoo router vhost new --dry-run" durchklicken, dabei als Upstream-Namen bewusst "meine.domain.de" eingeben - das muss abgelehnt werden. Am Ende steht der vHost als YAML auf dem Bildschirm und in der vhosts.yml steht unveraendert das Alte. Danach ohne --dry-run anlegen, "odoo router vhost list" zeigt ihn, und die Datei unter sites-enabled enthaelt Backend-Adresse und -Port an den richtigen Stellen.
+
+  Neu dazu: eine vollstaendig kommentierte Beispielkonfiguration (router_global/vhosts.example.yml) und die Doku docs/13-web-router.md - fuer den Router gab es bisher gar keine.
+
+  Dazu gibt es "odoo router config": ein gefuehrtes Menue, das man mit den Pfeiltasten bedient. Darin kann man vHosts anlegen, bearbeiten, loeschen und anzeigen, die Konfiguration ausrollen und Zertifikate holen. Es bleibt offen, bis man "Quit" waehlt, und wenn dann noch nicht ausgerollte Aenderungen offen sind, fragt es danach.
+
+  Die Liste zeigt zu jedem vHost, wohin er zeigt, und markiert unvollstaendige ("incomplete: upstream_server, timeout") - so sieht man die kaputten Eintraege aus der Zeit vor der Pruefung sofort. Beim Bearbeiten steht der aktuelle Wert als Vorgabe drin; noch nicht gesetzte Felder werden mit "+" und einer kurzen Erklaerung angeboten. Leert man ein optionales Feld, wird es entfernt und nicht als leerer Wert gespeichert.
+
+  Beim Neuanlegen macht der Assistent Vorschlaege: die Backend-Adresse aus dem, worauf die anderen vHosts zeigen, den Port eine Nummer ueber dem hoechsten bereits benutzten, und den Upstream-Namen aus der Domain.
+
+  Nebenbei korrigiert: die Eingabepruefungen haben nicht geprueft. inquirer betrachtet jeden Rueckgabewert von "validate" als gueltig, solange er nicht leer ist - der uebliche Einzeiler "... or 'Must be a valid port'" liefert bei falscher Eingabe also einen Text zurueck, und der gilt als "in Ordnung". Die Pruefungen im Router-Assistenten loesen jetzt einen Fehler aus, damit die Eingabe wirklich abgelehnt und die Begruendung angezeigt wird.
+
+
 ## 11.2.9
 
 - **Fix**: "odoo build" sagt jetzt selbst, wenn ein Docker-Plugin fehlt - mit dem Befehl zum Nachinstallieren.
