@@ -17,17 +17,19 @@ as the ansible `web_router.virtual_hosts` list). It can be loaded via
 """
 
 import json
+import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 import click
+import inquirer
 import yaml
 
 from .cli import cli, pass_config
 from .lib_clickhelpers import AliasedGroup
-from .tools import abort, update_setting
+from .tools import abort, is_interactive, update_setting
 
 DEFAULT_GLOBAL_INSTALL_DIR = Path("/opt/proxy")
 ROUTER_FILES_SUBDIR = "router_global"
@@ -266,7 +268,10 @@ def setup_(
     _patch_compose_networks(install_dir, list(networks))
     if config.WORKING_DIR:
         update_setting(config, "RUN_PROXY_PUBLISHED", "0")
-        click.secho("Set RUN_PROXY_PUBLISHED=0 (proxy ports not published; router handles public traffic).", fg="yellow")
+        click.secho(
+            "Set RUN_PROXY_PUBLISHED=0 (proxy ports not published; router handles public traffic).",
+            fg="yellow",
+        )
 
     if vhosts_file:
         data = yaml.safe_load(Path(vhosts_file).read_text()) or []
@@ -466,3 +471,266 @@ def vhost_add(ctx, config, is_global, install_dir, vhost_file):
     vhosts.append(new_vhost)
     _save_vhosts(d, vhosts)
     ctx.invoke(apply_vhosts, is_global=is_global, install_dir=install_dir)
+
+
+# ---------------------------------------------------------------------------
+# vhost wizard
+# ---------------------------------------------------------------------------
+
+VHOST_TEMPLATES = [
+    ("upstream_direct_odoo", "Odoo instance (adds the chat upstream on 8072)"),
+    ("upstream", "any service behind the proxy"),
+    ("redirect", "redirect to another address"),
+    ("static_files", "serve a directory"),
+    ("existing_ssl_certificates", "certificate block only, no backend"),
+]
+
+# `upstream_name` ends up in an nginx variable (`set $var_<name>`), so a dot or
+# a dash in it produces a config nginx refuses to load.
+_UPSTREAM_NAME_RE = re.compile(r"^[A-Za-z0-9_]+$")
+
+
+def _ask_port(key, message, default):
+    return inquirer.Text(
+        key,
+        message=message,
+        default=default,
+        validate=lambda _, x: (x.isdigit() and 1 <= int(x) <= 65535)
+        or "Must be a port between 1 and 65535",
+    )
+
+
+def _ask_upstream_fields(server_name):
+    suggested = re.sub(r"[^A-Za-z0-9_]", "_", server_name.split(".")[0])
+    answers = inquirer.prompt(
+        [
+            inquirer.Text(
+                "upstream_name",
+                message="Upstream name (letters, digits, underscore)",
+                default=suggested,
+                validate=lambda _, x: bool(_UPSTREAM_NAME_RE.match(x))
+                or "Only letters, digits and underscore - it becomes an "
+                "nginx variable name",
+            ),
+            inquirer.Text(
+                "upstream_server",
+                message="Backend address (LAN ip of the machine, not the VPN one)",
+                validate=lambda _, x: bool(x.strip()) or "Required",
+            ),
+            _ask_port("upstream_port", "Backend port", "8069"),
+            _ask_port("timeout", "Proxy timeout in seconds", "600"),
+        ]
+    )
+    if not answers:
+        abort("Aborted.")
+    answers["upstream_port"] = int(answers["upstream_port"])
+    answers["timeout"] = int(answers["timeout"])
+    return answers
+
+
+def _ask_protection(vhost):
+    """IP allowlist and basic auth - both easy to get wrong by hand."""
+    answers = inquirer.prompt(
+        [
+            inquirer.Text(
+                "allowed_ips",
+                message="Restrict to these networks (comma separated, "
+                "empty = open)",
+                default="",
+            ),
+            inquirer.Confirm(
+                "want_basic_auth", message="Add basic auth?", default=False
+            ),
+        ]
+    )
+    if not answers:
+        abort("Aborted.")
+    if answers["allowed_ips"].strip():
+        vhost["allowed_ips"] = answers["allowed_ips"].strip()
+        public = inquirer.prompt(
+            [
+                inquirer.Text(
+                    "allowlist_public_paths",
+                    message="Paths that stay open despite the allowlist "
+                    "(comma separated, empty = none)",
+                    default="",
+                )
+            ]
+        )
+        if public and public["allowlist_public_paths"].strip():
+            vhost["allowlist_public_paths"] = public[
+                "allowlist_public_paths"
+            ].strip()
+    if answers["want_basic_auth"]:
+        creds = inquirer.prompt(
+            [
+                inquirer.Text(
+                    "user",
+                    message="Basic auth user",
+                    validate=lambda _, x: bool(x.strip()) or "Required",
+                ),
+                inquirer.Password(
+                    "password",
+                    message="Basic auth password",
+                    validate=lambda _, x: bool(x) or "Required",
+                ),
+            ]
+        )
+        if not creds:
+            abort("Aborted.")
+        vhost["basic_auth"] = {creds["user"]: creds["password"]}
+
+
+@vhost.command(
+    name="new",
+    help="Assemble a vhost interactively. --dry-run just prints it, so it "
+    "also works as a reference for the vhosts.yml schema.",
+)
+@click.option("--global", "is_global", is_flag=True)
+@click.option("--install-dir", default=None)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Print the vhost and change nothing (no router needed).",
+)
+@pass_config
+@click.pass_context
+def vhost_new(ctx, config, is_global, install_dir, dry_run):
+    if not is_interactive():
+        abort("This is a wizard - it needs an interactive terminal.")
+
+    chosen = inquirer.prompt(
+        [
+            inquirer.List(
+                "template",
+                message="What kind of vhost?",
+                choices=[
+                    (f"{name} - {desc}", name)
+                    for name, desc in VHOST_TEMPLATES
+                ],
+            ),
+            inquirer.Text(
+                "server_name",
+                message="Domain (server_name)",
+                validate=lambda _, x: bool(x.strip()) or "Required",
+            ),
+        ]
+    )
+    if not chosen:
+        abort("Aborted.")
+    template = chosen["template"]
+    vhost_data = {
+        "template": template,
+        "server_name": chosen["server_name"].strip(),
+    }
+
+    if template in ("upstream", "upstream_direct_odoo"):
+        vhost_data.update(_ask_upstream_fields(vhost_data["server_name"]))
+    elif template == "redirect":
+        answers = inquirer.prompt(
+            [
+                inquirer.Text(
+                    "redirect_to",
+                    message="Redirect to (a path in it means: land exactly "
+                    "there, e.g. zebroo.de/experience)",
+                    validate=lambda _, x: bool(x.strip()) or "Required",
+                )
+            ]
+        )
+        if not answers:
+            abort("Aborted.")
+        vhost_data["redirect_to"] = answers["redirect_to"].strip()
+    elif template == "static_files":
+        answers = inquirer.prompt(
+            [
+                inquirer.Text(
+                    "folder",
+                    message="Directory to serve",
+                    validate=lambda _, x: bool(x.strip()) or "Required",
+                )
+            ]
+        )
+        if not answers:
+            abort("Aborted.")
+        vhost_data["folder"] = answers["folder"].strip()
+
+    certbot = inquirer.prompt(
+        [
+            inquirer.Confirm(
+                "use_certbot",
+                message="Get a Let's Encrypt certificate (odoo router ssl)?",
+                default=True,
+            )
+        ]
+    )
+    if certbot and certbot["use_certbot"]:
+        vhost_data["use_certbot"] = True
+
+    if template in ("upstream", "upstream_direct_odoo"):
+        _ask_protection(vhost_data)
+
+    click.secho("\nThis is the vhost:\n", fg="green")
+    click.echo(yaml.safe_dump([vhost_data], sort_keys=False))
+    click.secho(
+        "Rarely used fields (locations, headers, before_server_conf, "
+        "client_max_body_size, rate_limit, custom certificates) are not asked "
+        "for - add them by hand, see router_global/vhosts.example.yml.",
+        fg="yellow",
+    )
+    if dry_run:
+        return
+
+    confirm = inquirer.prompt(
+        [
+            inquirer.Confirm(
+                "save", message="Write this into vhosts.yml?", default=True
+            )
+        ]
+    )
+    if not confirm or not confirm["save"]:
+        click.secho("Nothing written.", fg="yellow")
+        return
+
+    d = _install_dir_from_opts(config, is_global, install_dir)
+    vhosts = _load_vhosts(d)
+    replaced = any(
+        v["server_name"] == vhost_data["server_name"] for v in vhosts
+    )
+    if replaced:
+        overwrite = inquirer.prompt(
+            [
+                inquirer.Confirm(
+                    "yes",
+                    message=f"{vhost_data['server_name']} already exists - "
+                    "replace it?",
+                    default=False,
+                )
+            ]
+        )
+        if not overwrite or not overwrite["yes"]:
+            click.secho("Nothing written.", fg="yellow")
+            return
+        vhosts = [
+            v for v in vhosts if v["server_name"] != vhost_data["server_name"]
+        ]
+    vhosts.append(vhost_data)
+    _save_vhosts(d, vhosts)
+    click.secho(f"Written to {d / 'vhosts.yml'}.", fg="green")
+
+    apply_now = inquirer.prompt(
+        [
+            inquirer.Confirm(
+                "apply",
+                message="Render and reload nginx now?",
+                default=True,
+            )
+        ]
+    )
+    if apply_now and apply_now["apply"]:
+        ctx.invoke(apply_vhosts, is_global=is_global, install_dir=install_dir)
+        if vhost_data.get("use_certbot"):
+            click.secho(
+                "Certificate is not issued yet - run: "
+                f"odoo router ssl{' --global' if is_global else ''}",
+                fg="yellow",
+            )

@@ -1,6 +1,7 @@
 import sys
 import shutil
 import os
+import re as re_module
 import click
 from .tools import __dcrun
 from .tools import _askcontinue
@@ -804,6 +805,8 @@ def build(
     """
     no parameter all machines, first parameter machine name and passes other params; e.g. ./odoo build asterisk --no-cache"
     """
+    _check_docker_build_tooling()
+
     options = []
     if pull:
         options += ["--pull"]
@@ -864,14 +867,66 @@ _BUILD_NETWORK_ERROR_PATTERN = (
 )
 
 
-def _is_buildx_available():
+# What docker prints when BuildKit is on (the default) but the buildx plugin
+# is not installed. The build dies right there, so the base image is never
+# created and the *next* step fails with "pull access denied ... odoo_base_...",
+# which sends people looking at registry credentials instead of the real cause.
+_BUILDX_MISSING_PATTERN = re_module.compile(
+    r"BuildKit is enabled but the buildx component is missing or broken"
+)
+
+
+def _is_docker_plugin_available(plugin):
     try:
         subprocess.check_output(
-            ["docker", "buildx", "version"], stderr=subprocess.DEVNULL
+            ["docker", plugin, "version"], stderr=subprocess.DEVNULL
         )
         return True
     except (subprocess.CalledProcessError, FileNotFoundError, OSError):
         return False
+
+
+def _is_buildx_available():
+    return _is_docker_plugin_available("buildx")
+
+
+def _check_docker_build_tooling():
+    """Say up front which docker cli plugin is missing, and how to get it.
+
+    Without compose nothing works at all; without buildx the build dies on
+    the first Dockerfile with a message that does not name the real problem.
+    Checked here rather than deeper down so the hint arrives before we pull
+    base images over the network.
+    """
+    if not _is_docker_plugin_available("compose"):
+        abort(_docker_plugin_hint("compose"))
+    if not _is_docker_plugin_available("buildx"):
+        click.secho(
+            _docker_plugin_hint("buildx")
+            + "\nWithout it we fall back to 'docker compose build'. Docker "
+            "turns BuildKit on by default and on a current docker that "
+            "fallback cannot build either (verified on docker 29 / Ubuntu "
+            "26.04), so expect this build to fail.",
+            fg="yellow",
+        )
+
+
+def _docker_plugin_hint(plugin):
+    """How to install a missing docker cli plugin.
+
+    The apt package names differ between the distro's docker.io and docker's
+    own repository, and both are in use on our machines.
+    """
+    packages = {
+        "buildx": ("docker-buildx", "docker-buildx-plugin"),
+        "compose": ("docker-compose-v2", "docker-compose-plugin"),
+    }[plugin]
+    return (
+        f"'docker {plugin}' is not available on this machine.\n"
+        f"  Ubuntu/Debian with docker.io: sudo apt install {packages[0]}\n"
+        f"  with docker's own repo:       sudo apt install {packages[1]}\n"
+        f"  macOS: part of Docker Desktop"
+    )
 
 
 def _compose_opts_to_bake_opts(options):
@@ -1080,6 +1135,13 @@ def _build_with_network_retry(config, options, machines, env):
     rc, log, cmd = _run(options)
     if rc == 0:
         return
+    if _BUILDX_MISSING_PATTERN.search(log):
+        abort(
+            "The build failed because docker has no working buildx.\n"
+            + _docker_plugin_hint("buildx")
+            + "\nDon't be fooled by a follow-up 'pull access denied ... "
+            "odoo_base_...': the base image was simply never built."
+        )
     if "--no-cache" not in options and pattern.search(log):
         click.secho(
             "Build failed with a transient network error (Launchpad / DNS) — "
