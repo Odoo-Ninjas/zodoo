@@ -1,0 +1,27 @@
+type: fix
+description: |
+  Das Abbild des apt-Zwischenspeichers (`apt_cacher`) liess sich sporadisch
+  nicht mehr bauen: `apt-get install squid-deb-proxy` brach mit einer Reihe
+  von 404 ab. Ursache ist nicht unser Dockerfile, sondern Debian 11: bullseye
+  ist seit Ende August 2026 EOL, die Sicherheitspakete verschwinden von den
+  Spiegeln und liegen noch nicht auf archive.debian.org. Waehrend dieses
+  Uebergangs nennt der Paketindex Versionen, deren .deb schon weg ist - und
+  je nach CDN-Knoten mal so, mal so. Am 07.09.2026 hat das den Release-Lauf
+  von v11.3.1 gerissen.
+
+  Das Abbild baut jetzt gegen einen Debian-Schnappschuss
+  (`snapshot.debian.org`, Datum im Build-Argument `SNAPSHOT_DATE`), der Index
+  und Pool aus demselben Moment liefert. Ein Wechsel auf ein neueres Debian
+  hilft hier nicht: `squid-deb-proxy` ist aus Debian entfernt und existiert
+  weder in bookworm noch in trixie.
+
+  Zum Nachvollziehen: `docker build apt_cacher` muss durchlaufen und der
+  Container auf Port 8000 als Proxy antworten. Wer die Sicherheitslage des
+  Abbilds nachziehen will, hebt `SNAPSHOT_DATE`.
+
+  Ausserdem: schlaegt der Start des apt- oder pypi-Zwischenspeichers fehl,
+  bricht `odoo build` nicht mehr ab, sondern warnt und baut ohne ihn weiter -
+  beide sparen nur Bauzeit. Vorher landete der Fehlschlag in einem Future,
+  das niemand abfragte: der Build lief ohne Beschleuniger weiter, ohne dass
+  irgendwo stand, warum.
+breaking: false
