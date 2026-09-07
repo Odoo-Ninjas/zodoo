@@ -17,8 +17,15 @@ brew install --cask docker
 On Ubuntu/Debian:
 
 ```bash
-sudo apt-get install git pipx rsync docker.io
+sudo apt-get install git pipx rsync docker.io docker-buildx docker-compose-v2
 ```
+
+`docker-buildx` is easy to miss and hard to diagnose: Docker 29 (Ubuntu 26.04)
+enables BuildKit by default but the `docker.io` package does not pull buildx in.
+`odoo build` then aborts with "BuildKit is enabled but the buildx component is
+missing or broken", the base image is never built, and the next step tries to
+pull it from Docker Hub — which surfaces as a misleading
+`pull access denied ... odoo_base_<version>_...`.
 
 ## Install zodoo
 

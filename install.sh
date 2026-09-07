@@ -81,6 +81,12 @@ fi
 pipx install -e "$SRC_DIR" --force ${PYTHONARG[@]} || \
 pipx install -e "$SRC_DIR" ${PYTHONARG[@]}
 
+# gimera manages the vendored/pinned submodules of our odoo projects and is
+# needed for everyday work ("gimera apply"). "odoo setup reinstall" has always
+# injected it, the installer did not - so a fresh machine had no gimera.
+echo "📦 Injecting gimera..."
+pipx inject --force zodoo gimera
+
 # Setting up completion
 odoo completion -x
 

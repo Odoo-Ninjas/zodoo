@@ -285,6 +285,7 @@ def run(config, ctx, one):
         _set_projectname()
         module = data["next"]
         result = None
+        stop = False
         try:
             try:
                 _reset(module, data)
@@ -313,12 +314,13 @@ def run(config, ctx, one):
                 else:
                     ctx.invoke(bad)
                     if data["stop_after_first_error"]:
-                        break
+                        stop = True
 
-            data = _get_file()
-            _get_next(data)
-            _save(data)
-        if one:
+            if not stop:
+                data = _get_file()
+                _get_next(data)
+                _save(data)
+        if stop or one:
             break
         ctx.invoke(bisect_status)
 

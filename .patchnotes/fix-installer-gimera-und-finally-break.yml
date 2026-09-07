@@ -1,0 +1,26 @@
+type: fix
+breaking: false
+description: |
+  Der Installer installiert gimera jetzt mit, und "odoo bisect" stolpert nicht
+  mehr ueber eine Warnung von Python 3.14.
+
+  Das "pipx inject zodoo gimera" gab es bisher nur in "odoo setup reinstall".
+  Wer eine Maschine frisch mit install.sh aufgesetzt hat, hatte deshalb gar
+  kein gimera - "gimera apply" ging erst, nachdem man einmal reinstall
+  aufgerufen hatte. Auf einer neu aufgesetzten Ubuntu 26.04 nachgestellt.
+
+  In lib_bisect.py stand ein "break" in einem finally-Block. Python 3.14 warnt
+  darueber, und eine spaetere Version macht daraus einen Fehler, weil so ein
+  Sprung eine noch anstehende Exception verschluckt. Die Schleife merkt sich
+  den Abbruch jetzt in einer Variablen und bricht nach dem finally ab.
+
+  Zum Nachschauen: nach dem Installer muss "gimera --version" direkt
+  funktionieren, ohne vorher "odoo setup reinstall" aufzurufen. "odoo bisect"
+  verhaelt sich unveraendert - inklusive Abbruch nach dem ersten Fehler, wenn
+  "stop_after_first_error" gesetzt ist.
+
+  In der Installationsanleitung stehen fuer Ubuntu jetzt zusaetzlich
+  docker-buildx und docker-compose-v2. Ohne buildx bricht "odoo build" auf
+  Ubuntu 26.04 ab ("BuildKit is enabled but the buildx component is missing"),
+  und weil das Basis-Image dadurch nie entsteht, kommt der Folgefehler als
+  irrefuehrendes "pull access denied ... odoo_base_..." an.
