@@ -4,11 +4,10 @@
 
 - **Docker** (Docker Desktop on Mac, Docker Engine on Linux)
 - **git**
-- **Python 3.11–3.14** — CI runs the test suite against 3.11, 3.12, 3.13
-  and 3.14, and a release requires all four to be green. On macOS the
-  installer pins the version from `darwin_python_version` (3.12). Older
-  pythons (3.10 on Ubuntu 22.04) are not tested any more but not known to
-  be broken either.
+- **Python 3.10–3.14** — CI runs the test suite against every one of them and
+  a release requires all of them to be green. 3.10 is in there because Ubuntu
+  22.04 still ships it. On macOS the installer pins the version from
+  `darwin_python_version` (3.12).
 - **pipx** (for isolated CLI tool installation)
 
 On macOS:
