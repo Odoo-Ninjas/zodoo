@@ -23,3 +23,17 @@ description: |
   muss 3.12.x stehen, auch wenn "python3 --version" 3.14 sagt. Der Installer
   schreibt die gewaehlte Variante ausserdem als Zeile mit ins Log
   ("Using python 3.12 (...)" bzw. "letting pipx download python 3.12").
+
+  Zwei Sachen fielen beim Testen auf einer frischen Ubuntu 26.04 auf und sind
+  gleich mit drin:
+
+  Der Installer hat gimera nie mitinstalliert - das machte bisher nur
+  "odoo setup reinstall". Auf einer neu aufgesetzten Maschine fehlte damit
+  "gimera apply", bis man einmal reinstall aufgerufen hat. install.sh macht
+  jetzt selbst ein "pipx inject zodoo gimera".
+
+  In lib_bisect.py stand ein "break" in einem finally-Block. Python 3.14
+  warnt darueber (SyntaxWarning) und eine spaetere Version macht daraus einen
+  Fehler, weil so ein Sprung eine noch anstehende Exception verschluckt. Die
+  Schleife merkt sich den Abbruch jetzt in einer Variablen und bricht nach dem
+  finally ab; "odoo bisect" verhaelt sich unveraendert.
