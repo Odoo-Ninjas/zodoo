@@ -267,6 +267,43 @@ history against a compromised instance is the **immutable second store**
 Only with `BACKUP_FROM=repo-host`, where this machine holds no passphrase and
 no delete rights, does retention move to the backup server.
 
+### The value is the server's; this setting is a wish
+
+Since 07.09.2026 the backup server **decides** the retention, even though the
+instance **executes** it. `PGBR_RETENTION_FULL` is therefore a wish, and the
+precedence when the configuration is rendered is:
+
+| | |
+| --- | --- |
+| 1. | `PGBR_RETENTION_FULL_EFFECTIVE` — what the server said |
+| 2. | `PGBR_RETENTION_FULL` — the wish |
+| 3. | the documented default (14 days) |
+
+Deliberately in that order and **not** the larger of the two: otherwise a high
+wish could outbid the policy and the server would be back to not deciding.
+
+```bash
+odoo pgbackrest policy      # fetch the policy in force and store it
+odoo reload                 # it takes effect from here
+```
+
+`register` already brings the policy along, plus a token that authorises
+asking again later — a change on the server reaches an existing instance no
+other way. `CRONJOB_PGBACKREST_POLICY` re-asks weekly.
+
+**The setting was deliberately not renamed.** A rename would have broken every
+project that had set it, for an effect the server's answer overrides anyway.
+
+**What the cron job does not do is make it effective.** The fetched value lands
+in the settings and is rendered at the next `odoo reload`; a reload from inside
+a container aborts on purpose (wrong bind-mount paths, see 11.0.1), so the job
+cannot do it itself. Until then the old value applies — and that gap is what
+`backup.retention.tooshort` on the backup server is for.
+
+An area enrolled before 07.09.2026 has no token. `odoo pgbackrest policy` then
+says so instead of failing quietly, and the cron entry is cleared rather than
+failing weekly.
+
 > **The one thing to actually check:** if the backup server has no scheduled
 > `expire`, *nothing* expires — the Odoo side no longer does it and the backup
 > server was never asked to. The repository then grows until the disk is full.

@@ -2249,6 +2249,65 @@ def pgbackrest_envelope(
     click.echo(daten[feld])
 
 
+def _speichere_vorgabe(config, vorgabe):
+    """Die vom Server gelieferte Aufbewahrung ablegen.
+
+    Getrennt von PGBR_RETENTION_FULL, das der WUNSCH bleibt. Beim Rendern hat
+    dieser Wert Vorrang (siehe pgbackrest/__after_compose.py).
+    """
+    tage = str(vorgabe.get("full_days") or "").strip()
+    typ = str(vorgabe.get("full_type") or "").strip()
+    if not tage:
+        return None
+    update_setting(config, "PGBR_RETENTION_FULL_EFFECTIVE", tage)
+    if typ:
+        update_setting(config, "PGBR_RETENTION_TYPE_EFFECTIVE", typ)
+    return tage
+
+
+@pgbackrest.command(
+    name="policy",
+    help="Die vom Backup-Server vorgegebene Aufbewahrung holen und ablegen.",
+)
+@pass_config
+def pgbackrest_policy(config):
+    """Holt die geltende Aufbewahrung und schreibt sie in die Einstellungen.
+
+    Warum es diesen Befehl braucht: die Aufbewahrung MUSS hier ausgefuehrt
+    werden, weil nur diese Maschine backup.info entschluesseln kann -
+    bestimmen soll sie aber der Server, dem die Platte gehoert. Bei der
+    Anmeldung kommt die Vorgabe einmal mit; aendert der Server sie spaeter,
+    erreicht das diese Maschine nur ueber diesen Abruf.
+    """
+    stanza = _stanza(config)
+    token = (getattr(config, "PGBR_RETENTION_TOKEN", "") or "").strip()
+    if not token:
+        abort(
+            "PGBR_RETENTION_TOKEN ist leer - dieser Bereich kann seine Vorgabe "
+            "nicht erfragen.\n"
+            "Bereiche, die vor dem 07.09.2026 angemeldet wurden, haben keinen "
+            "Token; bis zur Neuanmeldung gilt PGBR_RETENTION_FULL als Wunsch."
+        )
+
+    antwort = _enroll_call(
+        config, "GET", f"/api/retention?area={stanza}&token={token}"
+    )
+    vorgabe = antwort.get("retention") or {}
+    tage = _speichere_vorgabe(config, vorgabe)
+    if not tage:
+        abort(f"Der Anmeldedienst hat keine Aufbewahrung geliefert: {antwort}")
+
+    wunsch = (getattr(config, "PGBR_RETENTION_FULL", "") or "").strip()
+    click.secho(f"Aufbewahrung laut Backup-Server: {tage} Tage", fg="green")
+    if wunsch and wunsch != tage:
+        click.secho(
+            f"Der eigene Wunsch ({wunsch} Tage) weicht ab und wird NICHT "
+            "verwendet - die Vorgabe des Servers gilt.",
+            fg="yellow",
+        )
+    click.secho("Wirksam wird das mit `odoo reload`.", fg="green")
+
+
 @pgbackrest.command(
     name="register",
     help=(
@@ -2364,6 +2423,13 @@ def pgbackrest_register(config, name, note):
     # it - it does not serve one.
     update_setting(config, "PGBR_BACKUP_FROM", "here")
     update_setting(config, "RUN_PGBACKREST", "1")
+
+    # Die Aufbewahrung bestimmt der Server. Der Token berechtigt dazu, die
+    # EIGENE Vorgabe spaeter erneut zu erfragen - eine Aenderung dort erreicht
+    # diese Maschine sonst nie.
+    if answer.get("retention_token"):
+        update_setting(config, "PGBR_RETENTION_TOKEN", answer["retention_token"])
+    _speichere_vorgabe(config, answer.get("retention") or {})
 
     # Second stream: the filestore goes to the write-only receiver. One
     # approval covers both, so the answer carries both - and a machine that
