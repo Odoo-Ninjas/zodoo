@@ -69,6 +69,23 @@ The `MANIFEST` file lives at the **project root** and controls which Odoo module
 | `odoo_dir`            | Where the Odoo source is cloned (default: `odoo`).          |
 | `upgrade_path`        | Path to upgrade-utils for OpenUpgrade migrations.           |
 
+### Running Odoo from a non-standard directory
+
+By default the Odoo source is cloned into `odoo/` inside the project. Set
+`odoo_dir` to use a different folder — useful when you keep several Odoo
+versions side by side in one project, or when a custom Docker setup expects
+the source somewhere else:
+
+```json
+{
+    "odoo_dir": "odoo2"
+}
+```
+
+zodoo resolves the server directory from this value at runtime; there is no
+separate setting for it. Remember to keep `addons_paths` in step, since the
+`<odoo_dir>/odoo/addons` and `<odoo_dir>/addons` paths are derived from it.
+
 ## OCA addons
 
 OCA modules are managed via gimera. Add the desired OCA repo to `addons_paths` (uncomment in template), then run:

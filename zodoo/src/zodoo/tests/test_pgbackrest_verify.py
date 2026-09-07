@@ -542,7 +542,7 @@ def test_a_stanza_can_carry_its_own_passphrase(monkeypatch, tmp_path):
         lp, "_probe", lambda umgebung, stanza: {"result": "passed"}
     )
     monkeypatch.setattr(
-        lp, "_bench_umgebung",
+        lp, "_bench_environment",
         lambda bench, stanza, ordner: gesehen.setdefault(stanza, bench) and {},
     )
     for b in ("kunde-a", "kunde-b"):
@@ -554,7 +554,7 @@ def test_a_stanza_can_carry_its_own_passphrase(monkeypatch, tmp_path):
 def test_the_bench_config_must_be_complete(tmp_path):
     """Fehlt etwas, wird es benannt - nicht erst von pgbackrest gemeldet."""
     with pytest.raises(lp.VerifyFailed) as ex:
-        lp._bench_umgebung({"repo_host": "x"}, "kunde-a", str(tmp_path))
+        lp._bench_environment({"repo_host": "x"}, "kunde-a", str(tmp_path))
     assert "cert_dir" in str(ex.value)
     assert "pgbackrest_image" in str(ex.value)
 
@@ -563,7 +563,7 @@ def test_a_missing_certificate_is_named(tmp_path, monkeypatch):
     monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
     bench = dict(BENCH, cert_dir=str(tmp_path / "gibtsnicht"))
     with pytest.raises(lp.VerifyFailed) as ex:
-        lp._bench_umgebung(bench, "kunde-a", str(tmp_path))
+        lp._bench_environment(bench, "kunde-a", str(tmp_path))
     assert "Zertifikat" in str(ex.value)
 
 
@@ -583,7 +583,7 @@ def test_the_bench_environment_carries_the_user_and_one_image(tmp_path,
     arbeit = tmp_path / "arbeit"
     arbeit.mkdir()
 
-    u = lp._bench_umgebung(bench, "kunde-a", str(arbeit))
+    u = lp._bench_environment(bench, "kunde-a", str(arbeit))
     assert u["run_user"] == "999:999"
     assert u["pgbackrest_image"] == u["postgres_image"] == "pgbr-pruefstand:2.59.1"
     assert u["mounts"] == [f"{arbeit}:/etc/pgbackrest:ro"]
@@ -603,7 +603,7 @@ def test_the_bench_never_mounts_a_data_volume(tmp_path, monkeypatch):
         (cert / f).write_text("x")
     arbeit = tmp_path / "arbeit2"
     arbeit.mkdir()
-    u = lp._bench_umgebung(dict(BENCH, cert_dir=str(cert)), "kunde-a",
+    u = lp._bench_environment(dict(BENCH, cert_dir=str(cert)), "kunde-a",
                            str(arbeit))
     assert not any("postgresql/data" in m for m in u["mounts"]), u["mounts"]
 
@@ -690,7 +690,7 @@ def test_the_newest_envelope_wins(tmp_path):
         "kunde-a-20260815T000000Z.age",
         "kunde-b-20260901T000000Z.age",
     )
-    assert lp.neuester_umschlag(d, "kunde-a").endswith(
+    assert lp.newest_envelope(d, "kunde-a").endswith(
         "kunde-a-20260815T000000Z.age"
     )
 
@@ -704,12 +704,12 @@ def test_areas_are_derived_from_the_envelopes(tmp_path):
     d = _umschlag_ordner(
         tmp_path, "kunde-a-20260101T000000Z.age", "kunde-b-20260101T000000Z.age"
     )
-    assert lp.umschlag_bereiche(d) == ["kunde-a", "kunde-b"]
+    assert lp.envelope_areas(d) == ["kunde-a", "kunde-b"]
 
 
 def test_no_envelope_directory_is_not_an_error(tmp_path):
-    assert lp.umschlag_bereiche(None) == []
-    assert lp.neuester_umschlag(str(tmp_path / "weg"), "kunde-a") is None
+    assert lp.envelope_areas(None) == []
+    assert lp.newest_envelope(str(tmp_path / "weg"), "kunde-a") is None
 
 
 def test_the_envelope_supplies_passphrase_and_certificate(monkeypatch,
@@ -721,8 +721,8 @@ def test_the_envelope_supplies_passphrase_and_certificate(monkeypatch,
     Sammelzertifikat duerfte also ueberall auch schreiben.
     """
     d = _umschlag_ordner(tmp_path, "kunde-a-20260101T000000Z.age")
-    monkeypatch.setattr(lp, "umschlag_oeffnen", lambda i, p: UMSCHLAG)
-    ergaenzt = lp._aus_umschlag(
+    monkeypatch.setattr(lp, "open_envelope", lambda i, p: UMSCHLAG)
+    ergaenzt = lp._from_envelope(
         {"envelope_dir": d, "age_identity": "/etc/age.key"}, "kunde-a"
     )
     assert ergaenzt["cipher_pass"] == "aus-dem-umschlag"
@@ -735,8 +735,8 @@ def test_the_envelope_supplies_passphrase_and_certificate(monkeypatch,
 def test_explicit_configuration_beats_the_envelope(monkeypatch, tmp_path):
     """Ein Wert von Hand laesst sich uebersteuern, ohne den Umschlag anzufassen."""
     d = _umschlag_ordner(tmp_path, "kunde-a-20260101T000000Z.age")
-    monkeypatch.setattr(lp, "umschlag_oeffnen", lambda i, p: UMSCHLAG)
-    ergaenzt = lp._aus_umschlag(
+    monkeypatch.setattr(lp, "open_envelope", lambda i, p: UMSCHLAG)
+    ergaenzt = lp._from_envelope(
         {"envelope_dir": d, "age_identity": "/k", "cipher_pass": "von-hand"},
         "kunde-a",
     )
@@ -747,11 +747,11 @@ def test_a_missing_age_key_is_named_plainly(tmp_path):
     """Ohne privaten Schluessel geht es nicht - und das soll dastehen."""
     d = _umschlag_ordner(tmp_path, "kunde-a-20260101T000000Z.age")
     with pytest.raises(lp.VerifyFailed) as ex:
-        lp._aus_umschlag({"envelope_dir": d}, "kunde-a")
+        lp._from_envelope({"envelope_dir": d}, "kunde-a")
     assert "age_identity" in str(ex.value)
 
     with pytest.raises(lp.VerifyFailed) as ex:
-        lp._aus_umschlag(
+        lp._from_envelope(
             {"envelope_dir": d, "age_identity": str(tmp_path / "weg.key")},
             "kunde-a",
         )
@@ -769,7 +769,7 @@ def test_an_unopenable_envelope_says_so(monkeypatch, tmp_path):
                                    stdout=""),
     )
     with pytest.raises(lp.VerifyFailed) as ex:
-        lp.umschlag_oeffnen(str(identity), str(tmp_path / "u.age"))
+        lp.open_envelope(str(identity), str(tmp_path / "u.age"))
     assert "nicht oeffnen" in str(ex.value)
     assert "no identity matched" in str(ex.value)
 
@@ -792,7 +792,7 @@ def test_the_certificate_from_the_envelope_is_written_not_copied(monkeypatch,
     (tmp_path / "cert").mkdir()
     (tmp_path / "cert" / "ca.crt").write_text("CA")
 
-    lp._bench_umgebung(bench, "kunde-a", str(arbeit))
+    lp._bench_environment(bench, "kunde-a", str(arbeit))
     assert "kunde-a" in (arbeit / "cert" / "client.crt").read_text()
     assert "kunde-a" in (arbeit / "cert" / "client.key").read_text()
     assert (arbeit / "cert" / "ca.crt").read_text() == "CA"
@@ -814,7 +814,7 @@ def test_the_private_age_key_is_never_mounted(monkeypatch, tmp_path):
         "client_cert": "c", "client_key": "k", "cipher_pass": "x",
         "cert_dir": str(tmp_path / "cert"),
     }
-    u = lp._bench_umgebung(bench, "kunde-a", str(arbeit))
+    u = lp._bench_environment(bench, "kunde-a", str(arbeit))
     assert not any(bench["age_identity"] in m for m in u["mounts"]), u["mounts"]
     # Und auch sonst nichts aus /etc/pgbr-pruefstand - dort liegt der
     # Schluessel, und eingehaengt wird nur der Wegwerf-Ordner.
@@ -889,7 +889,7 @@ def test_an_incomplete_s3_config_names_what_is_missing(tmp_path, monkeypatch):
     arbeit = tmp_path / "a"
     arbeit.mkdir()
     with pytest.raises(lp.VerifyFailed) as ex:
-        lp._bench_umgebung(
+        lp._bench_environment(
             {"repo_type": "s3", "s3_endpoint": "x"}, "kunde-a", str(arbeit)
         )
     fehlt = str(ex.value)
@@ -904,7 +904,7 @@ def test_s3_needs_no_client_certificate(tmp_path, monkeypatch):
     monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
     arbeit = tmp_path / "b"
     arbeit.mkdir()
-    u = lp._bench_umgebung(BENCH_S3, "kunde-a", str(arbeit))
+    u = lp._bench_environment(BENCH_S3, "kunde-a", str(arbeit))
     assert u["mounts"] == [f"{arbeit}:/etc/pgbackrest:ro"]
     assert not (arbeit / "cert" / "client.crt").exists()
 
@@ -916,7 +916,7 @@ def test_the_storage_ca_is_copied_into_the_throwaway_folder(tmp_path,
     ca.write_text("CA-INHALT")
     arbeit = tmp_path / "c"
     arbeit.mkdir()
-    lp._bench_umgebung(
+    lp._bench_environment(
         dict(BENCH_S3, storage_ca_file=str(ca)), "kunde-a", str(arbeit)
     )
     assert (arbeit / "cert" / "storage-ca.crt").read_text() == "CA-INHALT"
@@ -927,7 +927,7 @@ def test_a_missing_storage_ca_is_named(tmp_path, monkeypatch):
     arbeit = tmp_path / "d"
     arbeit.mkdir()
     with pytest.raises(lp.VerifyFailed) as ex:
-        lp._bench_umgebung(
+        lp._bench_environment(
             dict(BENCH_S3, storage_ca_file=str(tmp_path / "weg.crt")),
             "kunde-a", str(arbeit),
         )
@@ -946,8 +946,8 @@ def test_both_repository_kinds_produce_the_same_shape_of_environment(
     a, b = tmp_path / "ea", tmp_path / "eb"
     a.mkdir(); b.mkdir()
 
-    tls = lp._bench_umgebung(dict(BENCH, cert_dir=str(cert)), "k", str(a))
-    s3 = lp._bench_umgebung(BENCH_S3, "k", str(b))
+    tls = lp._bench_environment(dict(BENCH, cert_dir=str(cert)), "k", str(a))
+    s3 = lp._bench_environment(BENCH_S3, "k", str(b))
     assert set(tls) == set(s3)
 
 
@@ -976,7 +976,7 @@ def test_the_working_folder_belongs_to_the_container_user_in_both_shapes(
         gesehen.clear()
         arbeit = tmp_path / name
         arbeit.mkdir()
-        lp._bench_umgebung(bench, "k", str(arbeit))
+        lp._bench_environment(bench, "k", str(arbeit))
         assert str(arbeit) in gesehen, (name, gesehen)
 
 
@@ -993,12 +993,12 @@ def test_the_working_folder_belongs_to_the_container_user_in_both_shapes(
 
 def test_the_name_of_the_store_comes_from_the_configuration():
     """Ein eigener Name schlaegt die Art - 's3' unterscheidet zwei S3 nicht."""
-    assert lp._bestandsname({"repo_type": "s3", "store": "zweitbestand"}) == \
+    assert lp._store_name({"repo_type": "s3", "store": "zweitbestand"}) == \
         "zweitbestand"
-    assert lp._bestandsname({"repo_type": "s3"}) == "s3"
-    assert lp._bestandsname({"repo_host": "db.backup"}) == "tls"
+    assert lp._store_name({"repo_type": "s3"}) == "s3"
+    assert lp._store_name({"repo_host": "db.backup"}) == "tls"
     # Leerraum ist keine Benennung.
-    assert lp._bestandsname({"store": "  ", "repo_type": "s3"}) == "s3"
+    assert lp._store_name({"store": "  ", "repo_type": "s3"}) == "s3"
 
 
 def test_every_result_says_which_store_it_came_from(monkeypatch, compose,
@@ -1080,7 +1080,7 @@ AUSGABE_SAUBER = """\
 
 # Echte Ausgabe vom 31.08.2026 (gekuerzt): DREI Abschnitte statt einem, weil
 # WAL fehlt. pgBackRest nennt das NICHT Fehler und endet mit 0.
-AUSGABE_LUECKEN = """\
+OUTPUT_WITH_GAPS = """\
 2026-08-31 19:39:03.383 P00   INFO: verify command begin 2.59.1
 2026-08-31 19:39:03.383 P00 DETAIL: archiveId: 17-1, wal start: 000000020000000000000014, wal stop: 000000020000000000000021
 2026-08-31 19:39:03.383 P00 DETAIL: archiveId: 17-1, wal start: 000000020000000000000023, wal stop: 000000020000000000000024
@@ -1108,7 +1108,7 @@ def test_a_clean_run_has_no_verdict_line():
     "status: ok" wartet, haelt jeden gesunden Bestand fuer kaputt - und
     schaltet den Waechter nach der dritten Fehlmeldung ab.
     """
-    urteil, meldungen, bereiche = lp._verify_ausgabe_lesen(
+    urteil, meldungen, bereiche = lp._read_verify_output(
         AUSGABE_SAUBER, "kunde-a")
     assert urteil == "ok"
     assert meldungen == []
@@ -1123,33 +1123,33 @@ def test_gaps_are_counted_but_are_not_a_failure():
     und gemeldet wird sie trotzdem: zwischen zwei Abschnitten fuehrt kein Weg
     auf einen Zeitpunkt zurueck.
     """
-    urteil, meldungen, bereiche = lp._verify_ausgabe_lesen(
-        AUSGABE_LUECKEN, "kunde-a")
+    urteil, meldungen, bereiche = lp._read_verify_output(
+        OUTPUT_WITH_GAPS, "kunde-a")
     assert urteil == "ok"
     assert len(bereiche) == 3
-    assert lp._luecken(bereiche) == 2
-    assert lp._luecken([]) == 0
+    assert lp._wal_gaps(bereiche) == 2
+    assert lp._wal_gaps([]) == 0
     # Zwei archiveIds mit je einem Abschnitt sind KEINE Luecke.
-    assert lp._luecken([{"archive": "17-1", "von": "a", "bis": "b"},
+    assert lp._wal_gaps([{"archive": "17-1", "von": "a", "bis": "b"},
                         {"archive": "16-1", "von": "c", "bis": "d"}]) == 0
 
 
 def test_a_damaged_repository_is_a_failure_even_though_pgbackrest_exits_zero_2():
-    urteil, meldungen, _ = lp._verify_ausgabe_lesen(AUSGABE_KAPUTT, "kunde-a")
+    urteil, meldungen, _ = lp._read_verify_output(AUSGABE_KAPUTT, "kunde-a")
     assert urteil == "error"
     assert any("No usable backup.info" in m for m in meldungen), meldungen
 
 
 def test_a_run_that_never_finished_is_not_ok():
     """Kein 'command end' heisst: wir wissen nichts. Nicht 'heil'."""
-    urteil, _, _ = lp._verify_ausgabe_lesen(AUSGABE_ABGEBROCHEN, "kunde-a")
+    urteil, _, _ = lp._read_verify_output(AUSGABE_ABGEBROCHEN, "kunde-a")
     assert urteil is None
 
 
-def _bench_umgebung_faelschen(monkeypatch, ausgabe):
+def _fake_bench_environment(monkeypatch, ausgabe):
     monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
     monkeypatch.setattr(
-        lp, "_bench_umgebung",
+        lp, "_bench_environment",
         lambda bench, stanza, ordner: {
             "pgbackrest_image": "bild", "postgres_image": "bild",
             "mounts": [], "run_user": None,
@@ -1163,25 +1163,25 @@ def _bench_umgebung_faelschen(monkeypatch, ausgabe):
 
 def test_the_result_carries_the_gaps(monkeypatch):
     """Das Ergebnis muss die Luecken tragen, sonst sieht sie niemand."""
-    _bench_umgebung_faelschen(monkeypatch, AUSGABE_LUECKEN)
+    _fake_bench_environment(monkeypatch, OUTPUT_WITH_GAPS)
     e = lp.run_repo_verify_bench(dict(BENCH_S3, store="zweitbestand"),
                                  "kunde-a")
     assert e["result"] == "passed"
-    assert e["wal_luecken"] == 2
+    assert e["wal_gaps"] == 2
     assert len(e["wal_bereiche"]) == 3
     assert e["store"] == "zweitbestand"
     assert e["kind"] == "repo-verify"
 
 
 def test_a_damaged_repository_still_fails(monkeypatch):
-    _bench_umgebung_faelschen(monkeypatch, AUSGABE_KAPUTT)
+    _fake_bench_environment(monkeypatch, AUSGABE_KAPUTT)
     e = lp.run_repo_verify_bench(dict(BENCH_S3), "kunde-a")
     assert e["result"] == "failed"
     assert "No usable backup.info" in e["error"]
 
 
 def test_an_aborted_run_fails_rather_than_passing(monkeypatch):
-    _bench_umgebung_faelschen(monkeypatch, AUSGABE_ABGEBROCHEN)
+    _fake_bench_environment(monkeypatch, AUSGABE_ABGEBROCHEN)
     e = lp.run_repo_verify_bench(dict(BENCH_S3), "kunde-a")
     assert e["result"] == "failed"
     assert "nicht durchgelaufen" in e["error"]
@@ -1192,7 +1192,7 @@ def test_verify_runs_with_detail_logging(monkeypatch):
     gerufen = []
     monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
     monkeypatch.setattr(
-        lp, "_bench_umgebung",
+        lp, "_bench_environment",
         lambda bench, stanza, ordner: {
             "pgbackrest_image": "bild", "postgres_image": "bild",
             "mounts": [], "run_user": None,

@@ -1,4 +1,5 @@
 import platform
+import re
 import inspect
 import os
 from pathlib import Path
@@ -96,8 +97,33 @@ def _retention_lines(settings):
     "keep everything".
     """
     lines = []
-    full_type = (settings.get("PGBR_RETENTION_FULL_TYPE") or "time").strip()
-    full = (settings.get("PGBR_RETENTION_FULL") or "").strip() or "14"
+
+    # Vorrang: was der SERVER gesagt hat, dann der Wunsch, dann die
+    # dokumentierte Vorgabe.
+    #
+    # Der Server bestimmt die Aufbewahrung, ausgefuehrt wird sie hier - nur
+    # diese Maschine kann backup.info entschluesseln. PGBR_RETENTION_FULL ist
+    # deshalb ein Wunsch: er zaehlt, solange der Anmeldedienst nichts
+    # geliefert hat (`odoo pgbackrest policy` holt es). Absichtlich in dieser
+    # Reihenfolge und nicht als Maximum beider Werte: sonst koennte eine
+    # Instanz durch einen hohen Wunsch die Vorgabe ueberbieten und der Server
+    # waere wieder nicht die entscheidende Seite.
+    effektiv = (settings.get("PGBR_RETENTION_FULL_EFFECTIVE") or "").strip()
+    typ_effektiv = (settings.get("PGBR_RETENTION_TYPE_EFFECTIVE") or "").strip()
+
+    full = effektiv or (settings.get("PGBR_RETENTION_FULL") or "").strip() or "14"
+    full_type = (
+        typ_effektiv
+        or (settings.get("PGBR_RETENTION_FULL_TYPE") or "").strip()
+        or "time"
+    )
+    if effektiv:
+        lines.append("# Aufbewahrung laut Backup-Server (PGBR_RETENTION_FULL_EFFECTIVE).")
+    else:
+        lines.append(
+            "# Aufbewahrung aus dem eigenen Wunsch - der Server hat noch keine"
+        )
+        lines.append("# Vorgabe geliefert. `odoo pgbackrest policy` holt sie.")
     lines.append(f"repo1-retention-full-type={full_type}")
     lines.append(f"repo1-retention-full={full}")
 
@@ -141,8 +167,50 @@ def _cipher_lines(settings):
         "# passphrase - losing it here makes the backups unreadable, so it",
         "# belongs in the hosting record before the first backup runs.",
         f"repo1-cipher-type={kind}",
-        f"repo1-cipher-pass={passphrase}",
+        "#",
+        "# Die PASSPHRASE steht bewusst NICHT hier, sondern kommt als",
+        "# PGBACKREST_REPO1_CIPHER_PASS aus der Umgebung - und zwar nur in den",
+        "# zwei Diensten, die sie brauchen (siehe _inject_passphrase).",
+        "#",
+        "# Warum: diese Datei wird nach /etc/pgbackrest der Container",
+        "# gemountet und muss fuer den Container-Benutzer lesbar bleiben, also",
+        "# 0644. Das Verzeichnis enger zu ziehen hilft nicht - dann kaeme der",
+        "# Container selbst nicht mehr hin. Also gehoert das Geheimnis nicht in",
+        "# diese Datei. pgBackRest liest jede Option auch aus der Umgebung",
+        "# (PGBACKREST_<OPTION>); nachgewiesen am 02.09.2026 mit einem echten",
+        "# `info` gegen ein verschluesseltes Repository.",
     ]
+
+
+# pgBackRest bildet jede Option auf PGBACKREST_<OPTION> ab.
+CIPHER_ENV = "PGBACKREST_REPO1_CIPHER_PASS"
+
+
+def _inject_passphrase(yml, settings):
+    """Die Passphrase nur den Diensten geben, die sie brauchen.
+
+    Das sind genau zwei: der pgbackrest-Sidecar, und postgres - weil das
+    archive_command im postgres-Container laeuft und dort selbst
+    `pgbackrest archive-push` aufruft.
+
+    Alles andere - Grafana, Proxy, Konsole, Cronjobs, odoo - hat sie nie
+    gebraucht und bekommt sie nicht.
+    """
+    passphrase = (settings.get("PGBR_CIPHER_PASS") or "").strip()
+    if not passphrase:
+        return 0
+    gesetzt = 0
+    for name in ("postgres", "pgbackrest"):
+        service = (yml.get("services") or {}).get(name)
+        if service is None:
+            continue
+        umgebung = service.setdefault("environment", {})
+        if isinstance(umgebung, dict):
+            umgebung[CIPHER_ENV] = passphrase
+        else:
+            umgebung.append(f"{CIPHER_ENV}={passphrase}")
+        gesetzt += 1
+    return gesetzt
 
 
 def _repo_section(settings):
@@ -199,16 +267,23 @@ def _repo_section(settings):
             lines += [
                 "",
                 "# Pushed from here: this machine runs backup, and the expire",
-                "# step at the end of it. Deliberately WITHOUT retention.",
+                "# step at the end of it - WITH retention, see below.",
                 "#",
-                "# Retention belongs to whoever manages the disk, and that is",
-                "# the backup server. Without repo1-retention-* the expire",
-                "# step is a no-op, which is exactly right here: the backup",
-                "# server runs `pgbackrest --stanza=... expire` from its own",
-                "# cron, against its own retention values, in one place.",
+                "# Retention has to live wherever the passphrase lives, and in",
+                "# this mode that is here. `expire` must READ backup.info, and",
+                "# that file is encrypted client-side; on the repo host the",
+                "# attempt ends in `FormatError: ... Salted__`. Not being able",
+                "# to open it is the point of that machine, not a defect.",
                 "#",
-                "# The PGBR_RETENTION_* settings are therefore ignored",
-                "# in this mode - see docs/12-pgbackrest.md.",
+                "# It was the other way round until 31.08.2026, on the theory",
+                "# that whoever owns the disk owns the retention. The result",
+                "# was that expire ran NOWHERE and the repository just grew.",
+                "#",
+                "# No new power is handed out here: this machine holds the",
+                "# passphrase and its own certificate either way, and can run",
+                "# expire against its stanza whether or not these lines exist.",
+                "# What protects the history from a compromised instance is the",
+                "# immutable second store, not the absence of a config line.",
             ]
         if not pulled:
             # Aufbewahrung gehoert hierher, nicht auf den Repo-Host.
@@ -262,12 +337,31 @@ def _render_conf(settings, run_dir):
             settings.get("PGBR_ARCHIVE_ASYNC") or "y"
         ).strip(),
         "PGBR_ARCHIVE_PUSH_QUEUE_MAX": (
-            settings.get("PGBR_ARCHIVE_PUSH_QUEUE_MAX") or "1GB"
+            settings.get("PGBR_ARCHIVE_PUSH_QUEUE_MAX") or "16GB"
+        ).strip(),
+        "PGBR_ARCHIVE_PUSH_BATCH_SIZE": (
+            settings.get("PGBR_ARCHIVE_PUSH_BATCH_SIZE") or "256MB"
         ).strip(),
         "PGDATA": "/var/lib/postgresql/data/pgdata",
         "DB_PORT": str(settings.get("DB_PORT") or "5432").strip(),
     }
     conf = Template(template).safe_substitute(values)
+    # Jeder Platzhalter MUSS aufgeloest sein. safe_substitute laesst einen
+    # unbekannten Schluessel woertlich stehen - dann steht in der erzeugten
+    # Datei etwa `archive-push-batch-size=${PGBR_ARCHIVE_PUSH_BATCH_SIZE}`,
+    # pgbackrest verwirft die Zeile als ungueltige Groesse, und JEDER
+    # archive-push scheitert. Sichtbar wird das erst als "WAL segment was not
+    # archived before the timeout" - weit weg von der Ursache. Genau so ist am
+    # 02.09.2026 eine neue Option in die Vorlage geraten, ohne dass sie hier
+    # eingetragen war. Lieber hier laut scheitern als eine Instanz mit einer
+    # kaputten Archivierung hochfahren.
+    uebrig = sorted(set(re.findall(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}", conf)))
+    if uebrig:
+        raise Exception(
+            "pgbackrest.conf.template: kein Wert fuer "
+            + ", ".join(uebrig)
+            + " - in _render_conf() nachtragen (mit Rueckfallwert)."
+        )
 
     target_dir = run_dir / "pgbackrest"
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -291,6 +385,43 @@ def _render_conf(settings, run_dir):
     return conf_file
 
 
+def _strip_passphrase_from_environments(yml):
+    """PGBR_CIPHER_PASS aus den Dienst-Umgebungen loeschen.
+
+    zodoo haengt jedem Dienst die Einstellungsdatei als `env_file` an, und
+    `docker compose config` loest sie auf. Damit steht die Passphrase in der
+    erzeugten docker-compose.yml einmal pro Dienst - auf einer produktiven
+    Instanz waren es 18 Mal - und in der Umgebung von Grafana, Proxy,
+    Konsole, Cronjobs und allem anderen, das sie nie braucht. Die Datei liegt
+    mit 0644 auf der Platte.
+
+    Gebraucht wird sie NIRGENDS als Umgebungsvariable: gelesen wird sie beim
+    Erzeugen der Konfiguration aus den EINSTELLUNGEN, und getragen wird sie
+    von der `pgbackrest.conf`, die dorthin gemountet wird, wo sie hingehoert.
+    Also raus damit.
+
+    Was das nicht loest (und was hier auch nicht hingehoert): die
+    Einstellungsdatei selbst und die gemountete Konfiguration. Die conf muss
+    fuer den Container-Benutzer lesbar bleiben; sie enger zu ziehen geht nur
+    ueber das Verzeichnis, nicht ueber die Datei.
+    """
+    entfernt = 0
+    for name, service in (yml.get("services") or {}).items():
+        umgebung = service.get("environment")
+        if isinstance(umgebung, dict):
+            if umgebung.pop("PGBR_CIPHER_PASS", None) is not None:
+                entfernt += 1
+        elif isinstance(umgebung, list):
+            vorher = len(umgebung)
+            service["environment"] = [
+                e for e in umgebung
+                if not (isinstance(e, str) and e.split("=", 1)[0] == "PGBR_CIPHER_PASS")
+            ]
+            if len(service["environment"]) != vorher:
+                entfernt += 1
+    return entfernt
+
+
 def after_compose(config, settings, yml, globals):
     """Wire pgBackRest into postgres.
 
@@ -309,10 +440,23 @@ def after_compose(config, settings, yml, globals):
     Everything here is gated on RUN_PGBACKREST=1: with the feature off, the
     postgres service keeps its stock configuration and its stock mounts.
     """
+    # ZUERST, und ausdruecklich VOR den Ausstiegen unten: die Passphrase hat
+    # in keiner Dienst-Umgebung etwas zu suchen, auch nicht als leerer Wert
+    # bei abgeschaltetem pgBackRest. Sonst steht sie in der erzeugten
+    # docker-compose.yml wieder ueberall, sobald jemand die Funktion
+    # einschaltet und vorher ein reload lief.
+    _strip_passphrase_from_environments(yml)
+
     if not _truthy(settings.get("RUN_PGBACKREST", "0")):
         return
     if "postgres" not in yml.get("services", {}):
         return
+
+    # Nach dem Aufraeumen und NACH den Ausstiegen: ist pgBackRest aus, hat die
+    # Passphrase in keiner Umgebung etwas zu suchen - auch nicht in der von
+    # postgres. Steht sie in den Einstellungen, weil die Funktion nur
+    # zeitweise abgeschaltet ist, bleibt sie dort und wandert nirgendwohin.
+    _inject_passphrase(yml, settings)
 
     run_dir = Path(settings["HOST_RUN_DIR"])
     _render_conf(settings, run_dir)

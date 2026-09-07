@@ -16,6 +16,7 @@ ARG ODOO_PYTHON_VERSION
 COPY python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
 WORKDIR /usr/local/src/python/Python-${ODOO_PYTHON_VERSION}
 
+#___SNIPPET_DEBIAN_SNAPSHOT___
 RUN apt-get update && \
 apt-get install -y \
     software-properties-common \
@@ -56,6 +57,7 @@ ARG ODOO_FRAMEWORK_REQUIREMENTS
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
 
+#___SNIPPET_DEBIAN_SNAPSHOT___
 RUN apt-get update && apt-get install -y \
     libxml2-dev \
     libxslt1-dev \
@@ -107,6 +109,7 @@ ARG ODOO_PROJECT_REQUIREMENTS
 ARG ODOO_PROJECT_DEB_REQUIREMENTS
 ARG CUSTOMS_SHA
 
+#___SNIPPET_DEBIAN_SNAPSHOT___
 #___SNIPPET_APT_PROXY___
 
 ENV LANG=C.UTF-8
@@ -189,13 +192,16 @@ RUN make install
 RUN rm /usr/local/bin/python3 /usr/bin/python3
 
 RUN echo "$ODOO_PROJECT_DEB_REQUIREMENTS"  | base64 --decode > /root/project_deb_requirements.txt
-#___SNIPPET_DEB_REQUIERMENTS___
+#___SNIPPET_DEB_REQUIREMENTS___
 
 # RUN python3 -mpip install cython
-RUN apt-get update; apt-get install -y \
+# `;` instead of `&&` would let install run on a stale package list after a
+# failed update. And python-dev is the Python-2 transitional package, which
+# bullseye no longer has at all - Python 2 was dropped from Debian with it.
+RUN apt-get update && apt-get install -y \
 libpq-dev \
 libxml2-dev libxslt1-dev \
-libsasl2-dev python-dev libldap2-dev libssl-dev \
+libsasl2-dev python3-dev libldap2-dev libssl-dev \
 g++
 RUN \
 python3 -mpip install psycopg2-binary==2.8 && \

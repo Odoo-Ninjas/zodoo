@@ -13,6 +13,23 @@ Source: https://github.com/Odoo-Ninjas/zodoo
 - Encrypted offsite backup with restic, append-only against our backup
   server (see [11-offsite-backup.md](./11-offsite-backup.md))
 
+## When to use zodoo
+
+- Running an Odoo instance locally (development, testing, demoing) without
+  polluting your host system.
+- Reproducing production environments consistently across Mac, Windows
+  (via WSL2) and Linux dev machines.
+- Iterating quickly on custom modules with built-in code reload, demo data
+  and database resets.
+- Wiring Odoo into CI/CD pipelines (zCICD, zSYNC) with the same commands
+  used locally.
+- Managing multiple Odoo projects on one machine, each with its own version,
+  port and Postgres database.
+
+If your goal is just to *call* an Odoo API from a script, you don't need
+zodoo — use Odoo's XML-RPC/JSON-RPC directly or a thin client library.
+zodoo's value is running and managing the Odoo instance itself.
+
 ## Architecture
 
 ```
@@ -79,3 +96,20 @@ stopped instead of arming a respawn loop — the child would only exit again
 ("Queue-Jobs shall not run"), and each attempt costs a full config render.
 `odoo kill odoo_queuejobs` stops a running role; the user's stop intent also
 wins over the watchdog.
+
+## Developer tips
+
+- Learn Odoo's APIs first. zodoo orchestrates Odoo — it doesn't replace it.
+  The ORM, security model and view system you debug inside the container are
+  vanilla Odoo.
+- Pin your versions. Set `ODOO_PYTHON_VERSION` and `POSTGRES_VERSION`
+  explicitly so your team and CI run the exact same stack you do.
+- Use one project per repo — don't share `~/.odoo/settings.*` between
+  projects; let `odoo init` and `odoo setup next-port` keep them isolated.
+- Run heavy operations in the background: `odoo up -d` is friendlier than
+  blocking your terminal.
+- The same commands you use locally (`odoo reload`, `odoo build`,
+  `odoo update`) are the building blocks of zCICD pipelines — keep local and
+  CI workflows symmetrical.
+- Reset early, reset often: `odoo -f db reset` is fast and gives a clean
+  state, which beats chasing migration bugs in a stale local DB.

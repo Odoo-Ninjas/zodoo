@@ -16,6 +16,7 @@ import stat
 from contextlib import contextmanager
 import re
 import inquirer
+import inquirer.errors
 
 from pathlib import Path
 from typing import Union
@@ -351,11 +352,24 @@ class DBConnection:
         return result
 
     def get_psyco_connection(self, db=None):
+        """Verbinden und dabei die Zustaende aussitzen, die von allein vergehen.
+
+        Vorher wurde nur "database system is starting up" abgewartet - ein
+        herunterfahrendes postgres ("the database system is shutting down",
+        etwa waehrend `db reset` den Container neu startet) flog sofort durch.
+        Und das `while True` hatte kein Ende: bei einem dauerhaften
+        "starting up" haette es fuer immer gewartet.
+
+        Ein neuer Versuch ist hier gefahrlos, es ist noch kein SQL gelaufen.
+        """
         import psycopg2
 
+        deadline = time.time() + int(
+            os.getenv("PSYCOPG_CONNECT_RETRY_SECONDS", "60")
+        )
         while True:
             try:
-                conn = psycopg2.connect(
+                return psycopg2.connect(
                     dbname=db or self.dbname,
                     user=self.user,
                     password=self.pwd,
@@ -363,13 +377,10 @@ class DBConnection:
                     port=self.port or None,
                     connect_timeout=int(os.getenv("PSYCOPG_TIMEOUT", "3")),
                 )
-                break
             except psycopg2.OperationalError as ex:
-                if "database system is starting up" in str(ex):
-                    time.sleep(2)
-                else:
+                if not is_transient_pg_error(ex) or time.time() >= deadline:
                     raise
-        return conn
+                time.sleep(2)
 
     @contextmanager
     def connect(self, db=None):
@@ -464,6 +475,57 @@ def table_exists(conn, table):
     return True
 
 
+# Zustaende, in denen postgres antwortet, aber (noch) nicht bedient. Die
+# gehen von allein weg - dafuer lohnt das Warten. Ein "password
+# authentication failed" dagegen wird durch Warten nie besser.
+_TRANSIENT_PG_ERROR = re.compile(
+    r"the database system is (shutting down|starting up|in recovery)"
+    r"|the database system is not yet accepting connections"
+    r"|could not connect to server"
+    r"|connection refused"
+    r"|server closed the connection unexpectedly"
+    r"|terminating connection due to administrator command"
+    r"|no route to host",
+    re.IGNORECASE,
+)
+
+
+def is_transient_pg_error(ex):
+    return bool(_TRANSIENT_PG_ERROR.search(str(ex)))
+
+
+def _try_connect(connection):
+    """Warten, bis postgres wirklich bedient - aber nur bei Zustaenden, die
+    von allein vergehen.
+
+    Vorher stand der @retry auf einer Funktion, die ihre Exception selbst
+    abgefangen und nur rot ausgegeben hat. Damit sah retrying nie einen
+    Fehler und hat NIE wiederholt: der eine Versuch scheiterte, und der
+    eigentliche Aufruf danach lief in denselben Fehler. So ist am 07.09.2026
+    der bake-Test gescheitert, weil postgres beim `db reset` gerade
+    herunterfuhr ("FATAL: the database system is shutting down").
+    """
+
+    @retry(
+        retry_on_exception=is_transient_pg_error,
+        wait_random_min=500,
+        wait_random_max=800,
+        stop_max_delay=30000,
+    )
+    def _probe():
+        conn = connection
+        if hasattr(conn, "clone"):
+            conn = conn.clone(dbname="postgres")
+        _execute_sql(conn, "SELECT * FROM pg_catalog.pg_tables;", no_try=True)
+
+    try:
+        _probe()
+    except Exception as ex:
+        # Wie bisher: melden und weitermachen. Ob es wirklich nicht geht,
+        # entscheidet der eigentliche Aufruf gleich danach.
+        click.secho(str(ex), fg="red")
+
+
 def _execute_sql(
     connection,
     sql,
@@ -474,19 +536,8 @@ def _execute_sql(
     params=None,
     return_columns=False,
 ):
-    @retry(wait_random_min=500, wait_random_max=800, stop_max_delay=30000)
-    def try_connect(connection):
-        try:
-            if hasattr(connection, "clone"):
-                connection = connection.clone(dbname="postgres")
-            _execute_sql(
-                connection, "SELECT * FROM pg_catalog.pg_tables;", no_try=True
-            )
-        except Exception as e:
-            click.secho(str(e), fg="red")
-
     if not no_try:
-        try_connect(connection)
+        _try_connect(connection)
 
     def _call_cr(cr):
         cr.execute(sql, params)
@@ -2538,6 +2589,36 @@ def _get_available_modules(ctx, param, incomplete):
     if incomplete:
         modules = [x for x in modules if incomplete in x]
     return sorted(modules)
+
+
+def validation_error(reason):
+    """Reject an inquirer answer with a reason.
+
+    inquirer treats ANY truthy return from a `validate` callable as "this is
+    fine". The tempting one-liner
+
+        validate=lambda _, x: x.isdigit() or "Must be a number"
+
+    therefore ACCEPTS every wrong answer: on failure it returns the error
+    text, which is truthy. Raising is the only way to reject, and it is what
+    shows the reason to the user.
+    """
+    raise inquirer.errors.ValidationError("", reason=reason)
+
+
+def validate_nonempty(_, value):
+    """Use directly as `validate=validate_nonempty`."""
+    if not str(value).strip():
+        validation_error("Required")
+    return True
+
+
+def validate_port(_, value):
+    """Use directly as `validate=validate_port`."""
+    value = str(value).strip()
+    if not (value.isdigit() and 1 <= int(value) <= 65535):
+        validation_error("Must be a port between 1 and 65535")
+    return True
 
 
 def is_interactive():

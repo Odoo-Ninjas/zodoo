@@ -46,7 +46,7 @@ Or edit the files directly. Run `odoo reload` after manual edits.
 | `ODOO_DEBUG_LOGLEVEL`    | `info`  | Log level inside the debug container.                            |
 | `ODOO_WORKERS_WEB`       | `6`     | Number of Odoo web worker processes.                             |
 | `ODOO_PYTHON_VERSION`    | —       | Python version for the Odoo container (e.g. `3.12`).             |
-| `ODOO_INSTALL_LIBPOSTAL` | `0`     | `1` = install libpostal for address parsing.                     |
+| `ODOO_INSTALL_LIBPOSTAL` | `0`     | **Wirkungslos.** Nichts liest sie mehr (geprueft 06.09.2026); libpostal wurde aus den Odoo-Abbildern entfernt. Sie wird aus `settings.txt` weiter in jedes Projekt geschrieben. |
 
 ## Containers
 

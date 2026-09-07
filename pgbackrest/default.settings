@@ -192,8 +192,29 @@ PGBR_CIPHER_PASS=
 # time is the better default: it describes what somebody actually promises a
 # customer ("we can go back 14 days to any second"), while a count silently
 # means something different as soon as the backup schedule changes.
+# WUNSCH, nicht Entscheidung.
+#
+# Wer die Platte verwaltet, bestimmt die Aufbewahrung - und das ist der
+# Backup-Server. Ausgefuehrt wird sie hier, weil nur diese Maschine
+# backup.info entschluesseln kann; WAS gilt, sagt der Server.
+#
+# Hat der Server eine Vorgabe geliefert (PGBR_RETENTION_FULL_EFFECTIVE, vom
+# Anmeldedienst geholt), gewinnt die. Sonst gilt dieser Wert. Absichtlich
+# NICHT umbenannt: eine Umbenennung haette jedes Projekt gebrochen, das die
+# Einstellung gesetzt hat, fuer eine Wirkung, die die Serverantwort ohnehin
+# ueberschreibt.
 PGBR_RETENTION_FULL_TYPE=time
 PGBR_RETENTION_FULL=14
+
+# Vom Server geholt, nicht von Hand zu setzen. `odoo pgbackrest policy`
+# schreibt es; leer heisst "noch nie gefragt", dann gilt der Wunsch oben.
+PGBR_RETENTION_FULL_EFFECTIVE=
+PGBR_RETENTION_TYPE_EFFECTIVE=
+
+# Berechtigt zum Abfragen der EIGENEN Vorgabe und zu nichts weiter. Kommt bei
+# der Freigabe mit; Bereiche, die vor dem 07.09.2026 angemeldet wurden, haben
+# keinen und behalten den Wunsch, bis sie neu angemeldet werden.
+PGBR_RETENTION_TOKEN=
 # Differential backups to keep. Empty = governed by the full retention alone.
 PGBR_RETENTION_DIFF=
 # WAL retention. Empty (the default) keeps the WAL needed for a CONTINUOUS
@@ -223,6 +244,10 @@ PGBR_RETENTION_ARCHIVE_TYPE=full
 # incrementals has to be read end to end on restore and one damaged link takes
 # all its successors with it. With block-level incrementals a diff costs barely
 # more than an incr.
+# Woechentlich reicht: die Vorgabe aendert sich selten, und wirksam wird sie
+# ohnehin erst beim naechsten reload.
+PGBR_POLICY_CRON=40 3 * * 1
+
 PGBR_FULL_CRON=0 2 * * 0
 PGBR_DIFF_CRON=0 2 * * 1-6
 # Intra-day incrementals. Empty = off. Worth switching on for write-heavy
@@ -260,7 +285,34 @@ PGBR_BUNDLE=y
 # parallel. Without it a burst of WAL serialises through one process and
 # pg_wal starts growing - the classic way a busy instance fills its disk.
 PGBR_ARCHIVE_ASYNC=y
-PGBR_ARCHIVE_PUSH_QUEUE_MAX=1GB
+#
+# The queue cap is a LOSS mechanism, not a brake. Read pgbackrest's own words
+# for archive-push-queue-max before changing it:
+#
+#   "pgBackRest will notify PostgreSQL that the WAL was successfully archived,
+#    then DROP IT. [...] In asynchronous mode the entire queue will be dropped."
+#
+# So when the spool passes this size, the whole queue is thrown away and
+# postgres is told everything is fine. PITR is impossible past that point until
+# a new base backup exists. That trade is deliberate on pgbackrest's side -
+# better to lose the backup than have postgres stop when pg_wal fills the disk -
+# but it only makes sense if the cap sits near the disk limit. At 1GB (the
+# previous default) it fired while tens of gigabytes were still free: a network
+# hiccup of an hour on a busy instance was enough to break the chain.
+#
+# 16GB is a compromise, not a truth. Set it per machine from the ACTUAL free
+# space of the pg_wal filesystem; it should be the last line of defence before
+# the disk fills, nothing tighter.
+PGBR_ARCHIVE_PUSH_QUEUE_MAX=16GB
+#
+# How much WAL one asynchronous run may process. This exists only because the
+# queue cap above is checked ONLY at the start of a run: with pgbackrest's
+# default (16GiB, effectively unlimited) a single run can push far past the cap
+# before anyone looks again. Capping the batch makes the process exit and be
+# respawned, which rechecks the queue. 256MB is 16 segments - frequent enough
+# that the queue cannot overshoot much, cheap enough that respawning does not
+# matter.
+PGBR_ARCHIVE_PUSH_BATCH_SIZE=256MB
 #
 # ---------------------------------------------------------------------- misc --
 #

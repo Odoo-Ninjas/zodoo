@@ -6,6 +6,7 @@ from .cli import cli, pass_config
 from .lib_clickhelpers import AliasedGroup
 import subprocess
 from .tools import abort
+from .tools import validate_port
 import inquirer
 
 APT_CACHER_CONTAINER_NAME = "squid-deb-proxy"
@@ -193,8 +194,7 @@ def start_container(
                     if result.returncode != 0:
                         abort(result.stderr or str(result.returncode))
             elif (
-                "endpoint with name" in err
-                and "already exists" in err
+                "endpoint with name" in err and "already exists" in err
             ) or "endpoint already exists" in err:
                 click.secho(
                     f"Stale endpoint detected for '{container_name}' on "
@@ -369,17 +369,13 @@ def setup(ctx, config):
             "apt_port",
             message="Enter APT proxy port",
             default="3142",
-            validate=lambda _, x: x.isdigit()
-            and 1 <= int(x) <= 65535
-            or "Must be a valid port number",
+            validate=validate_port,
         ),
         inquirer.Text(
             "pypi_port",
             message="Enter PyPI proxy port",
             default="3143",
-            validate=lambda _, x: x.isdigit()
-            and 1 <= int(x) <= 65535
-            or "Must be a valid port number",
+            validate=validate_port,
         ),
     ]
 

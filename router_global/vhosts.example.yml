@@ -1,0 +1,71 @@
+# Beispiel fuer <install_dir>/vhosts.yml  (global: /opt/proxy/vhosts.yml)
+# Es ist eine LISTE von vHosts. Gleiches Schema wie web_router.virtual_hosts
+# in ansible. JSON geht genauso - vhosts.yml wird mit yaml.safe_load gelesen,
+# und YAML ist eine Obermenge von JSON.
+#
+# Anwenden:  odoo router apply-vhosts --global
+# Einzeln:   odoo router vhost add --global <datei-mit-einem-dict>.yml
+# Zertifikate: odoo router ssl --global      (nur fuer use_certbot: true)
+
+# ---------------------------------------------------------------------------
+# 1. Odoo-Instanz - dafuer gibt es ein eigenes Template, das gleich den
+#    Longpolling-/Chat-Upstream auf Port 8072 mitanlegt.
+# ---------------------------------------------------------------------------
+- template: upstream_direct_odoo
+  server_name: kunde.zebroo.de
+  upstream_name: kunde_odoo # nur [A-Za-z0-9_]! Siehe Hinweis unten.
+  upstream_server: 192.168.77.130 # LAN-IP der Maschine, nicht die VPN-IP
+  upstream_port: 6000 # proxy_port der Instanz
+  timeout: 600
+  use_certbot: true
+
+# ---------------------------------------------------------------------------
+# 2. Normaler Dienst, abgeschottet: nur aus unseren Netzen erreichbar,
+#    zusaetzlich Basic Auth und eine Ratenbegrenzung.
+# ---------------------------------------------------------------------------
+- template: upstream
+  server_name: grafana.zebroo.de
+  upstream_name: grafana
+  upstream_server: 192.168.77.6
+  upstream_port: 8080
+  timeout: 120
+  use_certbot: true
+  # STRING, nicht Liste - komma- oder semikolongetrennt:
+  allowed_ips: "10.222.0.0/22, 192.168.77.0/24"
+  # Pfade, die trotz Allowlist offen bleiben (z.B. eine API von aussen):
+  allowlist_public_paths: "/api/webhook"
+  # DICT username -> Klartextpasswort; wird per openssl passwd -apr1 gehasht:
+  basic_auth:
+    zebroo: bitte-aendern
+  rate_limit: 30r/m
+  rate_limit_burst: 20
+  client_max_body_size: 512M
+
+# ---------------------------------------------------------------------------
+# 3. Weiterleitung auf eine andere Domain oder eine bestimmte Seite.
+#    Steht im Ziel ein Pfad (also ein "/"), landet alles genau dort;
+#    ohne Pfad wird der aufgerufene Pfad angehaengt.
+# ---------------------------------------------------------------------------
+- template: redirect
+  server_name: alt.zebroo.de
+  redirect_to: zebroo.de/zebroo-experience
+  use_certbot: true
+
+# ---------------------------------------------------------------------------
+# 4. Statische Dateien aus einem Verzeichnis.
+# ---------------------------------------------------------------------------
+- template: static_files
+  server_name: downloads.zebroo.de
+  folder: /var/www/downloads
+  certificate_name: downloads.zebroo.de
+  ssl_key_is_on_destination: true
+
+# ---------------------------------------------------------------------------
+# 5. Das absolute Minimum fuer einen Upstream - mehr braucht es nicht.
+# ---------------------------------------------------------------------------
+- template: upstream
+  server_name: minimal.zebroo.de
+  upstream_name: minimal
+  upstream_server: 127.0.0.1
+  upstream_port: 8069
+  timeout: 600

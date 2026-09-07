@@ -1,3 +1,4 @@
+{% set target = item.redirect_to | default('', true) %}
 server {
  listen 80;
  #server_name www.raumschmiede.de raumschmiede.de;
@@ -8,7 +9,16 @@ server {
  proxy_send_timeout 720s;
  client_max_body_size 50M;
 
+{% if '/' in target %}
+ # Das Ziel bringt einen eigenen Pfad mit, deshalb ohne $request_uri: sonst
+ # haengt nginx den Pfad des Aufrufs noch hinten dran und aus
+ # /irgendwas wird zielhost/zielpfad/irgendwas - eine Adresse, die es beim
+ # Ziel nicht gibt. Eine Domain, die auf eine bestimmte Seite zeigen soll,
+ # schickt also alles genau dorthin.
+ return 301 https://{{ target }};
+{% else %}
  #return 301 https://www.raumschmiede.de$request_uri;
- return 301 https://{{ item.redirect_to }}$request_uri;
+ return 301 https://{{ target }}$request_uri;
+{% endif %}
 
 }

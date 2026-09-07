@@ -11,7 +11,7 @@ odoo setup status
 ### View container logs
 
 ```bash
-docker logs <project_name>_odoo_1 --tail 100 -f
+docker logs <project_name>_odoo --tail 100 -f
 ```
 
 ### Rebuild everything from scratch
@@ -59,7 +59,7 @@ odoo up -d
 Check logs:
 
 ```bash
-docker logs <project_name>_odoo_1
+docker logs <project_name>_odoo
 ```
 
 Common causes:
@@ -125,7 +125,7 @@ odoo up -d
 ### Python version mismatch
 
 ```bash
-odoo setting ODOO_PYTHON_VERSION 3.12
+odoo setting ODOO_PYTHON_VERSION=3.12
 odoo reload && odoo build
 ```
 
@@ -136,8 +136,8 @@ odoo reload && odoo build
 ### Workers and memory
 
 ```bash
-odoo setting ODOO_WORKERS_WEB 4
-odoo setting LIMIT_MEMORY_HARD_WEB 8053063680
+odoo setting ODOO_WORKERS_WEB=4
+odoo setting LIMIT_MEMORY_HARD_WEB=8053063680
 odoo reload
 odoo restart
 ```
@@ -156,7 +156,9 @@ $ZODOO_PYTHON -m kernprof -l -v odoo reload
 Claude Code runs in a network sandbox. Some URLs are blocked:
 
 - ✅ `github.com`, `pypi.org`, `npmjs.org` — accessible
-- ❌ `docs.zebroo.de` — blocked (not in Anthropic's egress allowlist)
+- ❌ `docs.zebroo.de` — **gone entirely.** The old Document360 site was retired;
+  internal documentation lives in Odoo Knowledge on `odoo.zebroo.de`, which is
+  not reachable from the sandbox either
 
 **Solution:** All documentation is available in this `docs/` folder and in `CLAUDE.md` at the project root. AI tools can read these local files directly.
 

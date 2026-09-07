@@ -125,7 +125,7 @@ def _archiv_werte(config):
         return None
 
 
-def _spool_und_verworfen(config):
+def _spool_and_dropped(config):
     """(warteschlange, verworfen) aus dem Sidecar.
 
     warteschlange: WAL-Segmente, die noch im Spool liegen. Waechst der Wert,
@@ -296,7 +296,7 @@ def backup_metrics(config, stdout):
                     ),
                 ]
 
-        warteschlange, verworfen = _spool_und_verworfen(config)
+        warteschlange, verworfen = _spool_and_dropped(config)
         if warteschlange is not None:
             zeilen += [
                 "# HELP zodoo_wal_spool_files Wartende WAL-Segmente im Spool. "

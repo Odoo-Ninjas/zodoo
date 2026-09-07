@@ -1,34 +1,507 @@
 # Changelog
 
+## 11.3.4
+
+- **Fix**: Die Abbilder fuer Odoo 12 und 13 bauen auf Debian bullseye und liefen in dasselbe Loch wie der apt-Zwischenspeicher: bullseye ist EOL, die Sicherheitspakete verschwinden von den Spiegeln und liegen noch nicht im Archiv, `apt-get install` bricht dadurch sporadisch mit 404 ab. Beide holen ihre Pakete jetzt von einem Debian-Schnappschuss - ueber den neuen Schnipsel `common_snippets/debian_snapshot`, einmal je Build-Stufe.
+
+  Dabei kamen zwei Fehler mit heraus, die beide Abbilder unabhaengig davon unbaubar gemacht haben:
+
+  - `odoo/config/12` und `odoo/config/14` schrieben die Schnipsel-Marke `DEB_REQUIERMENTS` statt `DEB_REQUIREMENTS`. Eine unbekannte Marke wird nicht ersetzt; die Ersetzungsschleife laeuft 100 Runden leer und bricht dann mit "Not resolved or endless loop" ab - eine Meldung, die auf eine Endlosschleife deutet statt auf den Tippfehler. Ein neuer Test prueft jetzt fuer alle Dockerfiles, dass jede Marke eine Datei hat.
+  - `odoo/config/12` installierte `python-dev`. Das ist das Python-2-Uebergangspaket, und Python 2 ist mit bullseye aus Debian entfernt worden - das Paket gibt es dort also gar nicht. Jetzt `python3-dev`. In derselben Zeile stand `apt-get update; apt-get install` mit Semikolon, womit die Installation auch nach einem gescheiterten Update mit veralteter Paketliste weitergelaufen waere; jetzt `&&`.
+
+  Zum Nachvollziehen: eine Odoo-12- bzw. -13-Instanz bauen (`odoo build`). Vorher brach das mit "Not resolved or endless loop" ab.
+
+
+## 11.3.3
+
+- **Fix**: Das Abbild des apt-Zwischenspeichers (`apt_cacher`) liess sich sporadisch nicht mehr bauen: `apt-get install squid-deb-proxy` brach mit einer Reihe von 404 ab. Ursache ist nicht unser Dockerfile, sondern Debian 11: bullseye ist seit Ende August 2026 EOL, die Sicherheitspakete verschwinden von den Spiegeln und liegen noch nicht auf archive.debian.org. Waehrend dieses Uebergangs nennt der Paketindex Versionen, deren .deb schon weg ist - und je nach CDN-Knoten mal so, mal so. Am 07.09.2026 hat das den Release-Lauf von v11.3.1 gerissen.
+
+  Das Abbild baut jetzt gegen einen Debian-Schnappschuss (`snapshot.debian.org`, Datum im Build-Argument `SNAPSHOT_DATE`), der Index und Pool aus demselben Moment liefert. Ein Wechsel auf ein neueres Debian hilft hier nicht: `squid-deb-proxy` ist aus Debian entfernt und existiert weder in bookworm noch in trixie.
+
+  Zum Nachvollziehen: `docker build apt_cacher` muss durchlaufen und der Container auf Port 8000 als Proxy antworten. Wer die Sicherheitslage des Abbilds nachziehen will, hebt `SNAPSHOT_DATE`.
+
+  Ausserdem: schlaegt der Start des apt- oder pypi-Zwischenspeichers fehl, bricht `odoo build` nicht mehr ab, sondern warnt und baut ohne ihn weiter - beide sparen nur Bauzeit. Vorher landete der Fehlschlag in einem Future, das niemand abfragte: der Build lief ohne Beschleuniger weiter, ohne dass irgendwo stand, warum.
+- **Fix**: zodoo wartet jetzt zuverlaessig, wenn postgres gerade nicht bedient - vorher brach es sofort ab.
+
+  Anlass war ein Fehlschlag beim automatischen Testlauf: "odoo db reset" starb mit "FATAL: the database system is shutting down". Der Datenbankserver fuhr in dem Moment gerade herunter, was beim Zuruecksetzen normal ist - zodoo haette einfach kurz warten muessen.
+
+  Zwei Stellen waren schuld. Die erste ist die Vorabpruefung in tools._execute_sql: dort stand zwar eine Wiederholungslogik, die zugehoerige Funktion hat ihren Fehler aber selbst abgefangen und nur rot ausgegeben. Damit bekam die Wiederholung nie einen Fehler zu sehen und hat NIE wiederholt - der Schutz war seit immer wirkungslos.
+
+  Die zweite ist der Verbindungsaufbau selbst: der hat nur auf "database system is starting up" gewartet, ein herunterfahrender Server flog sofort durch. Ausserdem war die Warteschleife dort endlos - bei einem Server, der dauerhaft im Zustand "starting up" haengt, wartete zodoo unbegrenzt.
+
+  Jetzt gibt es eine gemeinsame Erkennung fuer Zustaende, die von allein vergehen (herunterfahren, hochfahren, Wiederherstellung, Verbindung abgewiesen, Verbindung vom Server geschlossen, Verbindung durch den Administrator beendet). Nur die werden ausgesessen, und nur bis zu einer Frist (60 Sekunden, ueber PSYCOPG_CONNECT_RETRY_SECONDS aenderbar). Ein falsches Passwort oder eine fehlende Tabelle fuehrt weiterhin sofort zum Abbruch - darauf zu warten hilft ja nicht.
+
+  Wichtig: wiederholt wird nur der Verbindungsaufbau, nicht die Ausfuehrung einer Anweisung. Ein Wiederholen von Schreibvorgaengen koennte Daten doppelt anlegen.
+
+  Zum Nachschauen: "odoo -f db reset" mehrfach hintereinander laufen lassen - es darf nicht mehr mit "the database system is shutting down" abbrechen. Waehrend eines Neustarts von postgres ("odoo restart postgres") sollte ein paralleles "odoo psql" ein paar Sekunden warten und dann durchkommen statt sofort zu scheitern.
+- **Docs**: Richtigstellung zu einem Hinweis von heute Vormittag: in der Installationsanleitung stand, unter Python 3.10 sei der Schutz des Cron-Daemons gegen beschattete Standardmodule unwirksam. Das ist so zu pauschal und verunsichert ohne Grund.
+
+  Richtig ist: PYTHONSAFEPATH gibt es tatsaechlich erst ab Python 3.11, und aeltere Interpreter ignorieren die Variable stillschweigend - deshalb wird der zugehoerige Test unter 3.10 uebersprungen. Die Cronjobs laufen davon aber unberuehrt, denn der Cronjob-Container baut sein eigenes venv mit python3.11 und ruft odoo daraus auf. Welches Python auf dem Host installiert ist, spielt dafuer keine Rolle.
+
+  Ausserdem steht jetzt dabei, warum es den Schutz ueberhaupt braucht: der Aufruf im Container ist "python3 -m zodoo", und bei "-m" landet das aktuelle Verzeichnis in sys.path. Zusammen mit dem "cd /opt/src" des Cron-Daemons wuerde eine Datei im Projektverzeichnis, die wie ein Standardmodul heisst (inspect.py, grp.py, ...), das echte Modul verdecken und jeden Cronjob der Instanz lahmlegen.
+
+  Zum Nachschauen: docs/02-installation.md, Abschnitt Prerequisites. Die Begruendung des uebersprungenen Tests in test_cronjobs_run.py sagt jetzt dasselbe, damit niemand aus dem "skipped" auf eine Luecke im Betrieb schliesst.
+
+
+## 11.3.2
+
+- **Fix**: Abfragen im Terminal pruefen die Eingabe jetzt wirklich, und die Testlaeufe auf GitHub decken zusaetzlich Python 3.10 ab.
+
+  Bei den Rueckfragen, die zodoo im Terminal stellt, wurde eine falsche Eingabe bisher teilweise einfach angenommen. Der Grund ist eine Tuecke der verwendeten Bibliothek: sie betrachtet jeden Rueckgabewert der Pruefung als "in Ordnung", solange er nicht leer ist. Die naheliegende Schreibweise "pruefung ... oder 'Muss eine Zahl sein'" liefert bei falscher Eingabe aber genau diesen Text zurueck - und der gilt damit als Zustimmung. Betroffen waren die beiden Portabfragen beim Einrichten des APT-/PyPI-Zwischenspeichers ("odoo setup apt-proxy"): dort war jede Eingabe erlaubt, auch "abc" oder "70000", und die Begruendung wurde nie angezeigt.
+
+  Es gibt jetzt drei gemeinsame Pruefungen in tools.py (Pflichtfeld, Port, sowie die Hilfsfunktion, die eine Eingabe mit Begruendung ablehnt). Der Router-Assistent nutzt sie ebenfalls, statt eigene mitzuschleppen.
+
+  Zum Nachschauen: "odoo setup apt-proxy" aufrufen und bei der Portabfrage "abc" eingeben - das muss jetzt mit "Must be a port between 1 and 65535" abgelehnt werden, statt die Eingabe zu uebernehmen. Ein Test haelt die Tuecke ausserdem fest, damit die Pruefungen nicht wieder zu Einzeilern zusammengefasst werden.
+
+  Ausserdem laufen die Tests auf GitHub jetzt gegen Python 3.10 bis 3.14 (vorher 3.11 bis 3.14). 3.10 ist dabei, weil Ubuntu 22.04 das noch mitbringt; vorab gemessen: die Suite ist dort gruen.
+
+  Beim Aufnehmen von 3.10 in die Testlaeufe ist dabei ein Test aufgefallen, der nicht das geprueft hat, was er prueft: Der Nachweis, dass PYTHONSAFEPATH das Beschatten von Standardmodulen verhindert, rief "python3" aus dem Suchpfad auf statt den Interpreter, unter dem zodoo laeuft. Auf einer Maschine mit Python 3.10 und einem neueren python3 daneben waere er gruen geworden, obwohl der Schutz gar nicht greift - denn PYTHONSAFEPATH gibt es erst ab 3.11, aeltere Versionen ignorieren die Variable stillschweigend. Der Test nimmt jetzt sys.executable und wird unter 3.10 uebersprungen.
+
+  Das heisst zugleich: **unter Python 3.10 schuetzt der Cron-Daemon nicht davor, dass eine Datei mit dem Namen eines Standardmoduls im Projektverzeichnis (inspect.py, grp.py, ...) alle Cronjobs lahmlegt.** Auf Maschinen mit Cronjobs also besser 3.11 oder neuer. Steht so auch in der Installationsanleitung.
+- **Fix**: `odoo pgbackrest policy` holt die Aufbewahrungs-Vorgabe vom Backup-Server und legt sie als `PGBR_RETENTION_FULL_EFFECTIVE` in den Einstellungen ab. Der Befehl brach dabei bisher mit `NameError: name 'update_setting' is not defined` ab - der Helfer, der schreibt, hatte den Import nicht (in dieser Datei wird `update_setting` in jeder Funktion einzeln importiert).
+
+  Zum Nachvollziehen: auf einer registrierten Instanz `odoo pgbackrest policy` aufrufen. Erwartet wird die Meldung mit den vorgegebenen Tagen; danach steht in `~/.odoo/settings.<projekt>` ein `PGBR_RETENTION_FULL_EFFECTIVE`, und nach `odoo reload` taucht der Wert als `repo1-retention-full` in der erzeugten `pgbackrest.conf` auf.
+
+
+## 11.3.1
+
+- **Internal**: Die Testlaeufe auf GitHub laufen jetzt gegen Python 3.11, 3.12, 3.13 und 3.14 statt nur gegen 3.11 - und ein Release kommt nur heraus, wenn alle vier gruen sind.
+
+  Bisher lief die Testsuite in beiden Workflows (Pytest und Release on merge) fest unter 3.11. Ob zodoo mit einem neueren Python zurechtkommt, hat also niemand gemessen - was unangenehm ist, seit die aktuellen Systeme 3.13 bzw. 3.14 mitbringen (Ubuntu 26.04 hat gar kein aelteres Paket mehr).
+
+  Der Release haengt unveraendert an "needs: [test, bake]". Weil sich das bei einer Matrix auf alle Varianten bezieht, blockiert eine einzige rote Version den Release. "fail-fast" ist bewusst aus: schlaegt eine Version fehl, laufen die anderen weiter, damit man sieht, ob es an der einen Version haengt oder an allen.
+
+  Zum Nachschauen: in einem Pull Request stehen unter den Checks jetzt vier Eintraege "unit (3.11)" bis "unit (3.14)" statt einem. In der Installationsanleitung stand ausserdem noch "Python 3.13 not yet supported" - das ist mit den Laeufen widerlegt und korrigiert.
+
+
+## 11.3.0
+
+- **Feature**: Die Aufbewahrung bestimmt ab jetzt der Backup-Server. `PGBR_RETENTION_FULL` ist nur noch ein Wunsch.
+
+  Ausgefuehrt wird sie weiter auf der Instanz - nur die kann `backup.info` entschluesseln. WAS gilt, sagt der Server, dem die Platte gehoert. Reihenfolge beim Rendern:
+
+  1. `PGBR_RETENTION_FULL_EFFECTIVE` - was der Server geliefert hat
+  2. `PGBR_RETENTION_FULL` - der eigene Wunsch
+  3. die dokumentierte Vorgabe von 14 Tagen
+
+  Absichtlich in dieser Reihenfolge und NICHT als groesserer der beiden Werte: sonst koennte eine Instanz mit einem hohen Wunsch die Vorgabe ueberbieten, und der Server waere wieder nicht die entscheidende Seite.
+
+  **Nicht umbenannt.** Eine Umbenennung haette jedes Projekt gebrochen, das die Einstellung gesetzt hat - fuer eine Wirkung, die die Serverantwort ohnehin ueberschreibt.
+
+  Neu:
+
+  - `odoo pgbackrest policy` holt die geltende Vorgabe und legt sie ab. Sagt ausserdem, wenn der eigene Wunsch abweicht und deshalb nicht gilt.
+  - `register` bringt Vorgabe und Token gleich mit. Der Token berechtigt zum Erfragen der EIGENEN Vorgabe und zu nichts weiter.
+  - `CRONJOB_PGBACKREST_POLICY` fragt woechentlich nach.
+
+  Worauf beim Testen zu achten ist: `odoo pgbackrest policy` aufrufen, dann in `~/.odoo/run/<projekt>/pgbackrest/pgbackrest.conf` nachsehen - nach `odoo reload` muss dort der Wert des Servers stehen, nicht der eigene. Der Kommentar ueber den Retention-Zeilen sagt, welcher der beiden gerade gilt.
+
+  Zwei Grenzen ausdruecklich:
+
+  - Der Cronjob macht die Vorgabe NICHT wirksam. Der geholte Wert wird erst beim naechsten `odoo reload` gerendert; ein reload aus dem Container bricht absichtlich ab (siehe 11.0.1). Die Luecke deckt die Ueberwachung auf dem Backup-Server ab (`backup.retention.tooshort`).
+  - Eine clientseitige Konfiguration ist keine Kontrolle: root auf der Instanz kann sie aendern. Durchgesetzt wird die Historie vom unveraenderlichen Zweitbestand, nicht von dieser Einstellung.
+
+  Bereiche, die vor dem 07.09.2026 angemeldet wurden, haben keinen Token. Der Befehl sagt das, und der Cron-Eintrag wird geleert statt jede Woche zu scheitern.
+- **Feature**: Neuer Assistent "odoo router vhost new" legt einen Virtual Host im Dialog an, und ein fehlendes Feld in der vhosts.yml fliegt jetzt auf, statt eine kaputte nginx-Konfiguration zu erzeugen.
+
+  Bisher liess sich ein vHost nur aus einer fertigen Datei einlesen ("odoo router vhost add <datei>") - man musste also wissen, welche Felder das jeweilige Template braucht, und die stehen nur in den Templates selbst. Der Assistent fragt der Reihe nach ab: Art des vHosts, Domain, Backend-Adresse und -Port, Zeitlimit, Let's-Encrypt-Zertifikat, IP-Freigabeliste und Basic Auth. Er prueft die Eingaben, zeigt den fertigen vHost als YAML und schreibt ihn auf Wunsch in die vhosts.yml und rollt ihn aus.
+
+  Mit "--dry-run" gibt er den vHost nur aus und aendert nichts - dafuer braucht es auch keinen installierten Router. Das ist der schnellste Weg, sich ein korrektes Schnipsel fuer die vhosts.yml zu erzeugen.
+
+  Zwei Eingaben werden geprueft, weil sie erfahrungsgemaess schiefgehen: der Upstream-Name darf nur Buchstaben, Ziffern und Unterstriche enthalten (er wird zu einem nginx-Variablennamen, mit Punkt oder Bindestrich laedt nginx die Konfiguration nicht - und das merkt man erst beim Reload), und die Ports muessen echte Ports sein.
+
+  Ausserdem gerendert wird jetzt mit StrictUndefined. Das war zwar schon importiert, aber nie gesetzt - ein fehlendes Feld wurde deshalb still zu einem leeren Text, und heraus kam eine kaputte Konfiguration mit Zeilen wie "server :;" und "proxy_pass http://$var_;", ohne jede Meldung. Fehlt ein Feld, nennt das Rendern nun den vHost und das Feld und bricht ab. ACHTUNG beim Aktualisieren: wer bisher eine unvollstaendige vhosts.yml hatte, bekommt bei "odoo router apply-vhosts" jetzt einen Fehler statt eines stillen Teilergebnisses. Der betroffene vHost hat vorher nicht funktioniert - die Zeile muss ergaenzt werden.
+
+  Zum Nachschauen: "odoo router vhost new --dry-run" durchklicken, dabei als Upstream-Namen bewusst "meine.domain.de" eingeben - das muss abgelehnt werden. Am Ende steht der vHost als YAML auf dem Bildschirm und in der vhosts.yml steht unveraendert das Alte. Danach ohne --dry-run anlegen, "odoo router vhost list" zeigt ihn, und die Datei unter sites-enabled enthaelt Backend-Adresse und -Port an den richtigen Stellen.
+
+  Neu dazu: eine vollstaendig kommentierte Beispielkonfiguration (router_global/vhosts.example.yml) und die Doku docs/13-web-router.md - fuer den Router gab es bisher gar keine.
+
+  Dazu gibt es "odoo router config": ein gefuehrtes Menue, das man mit den Pfeiltasten bedient. Darin kann man vHosts anlegen, bearbeiten, loeschen und anzeigen, die Konfiguration ausrollen und Zertifikate holen. Es bleibt offen, bis man "Quit" waehlt, und wenn dann noch nicht ausgerollte Aenderungen offen sind, fragt es danach.
+
+  Die Liste zeigt zu jedem vHost, wohin er zeigt, und markiert unvollstaendige ("incomplete: upstream_server, timeout") - so sieht man die kaputten Eintraege aus der Zeit vor der Pruefung sofort. Beim Bearbeiten steht der aktuelle Wert als Vorgabe drin; noch nicht gesetzte Felder werden mit "+" und einer kurzen Erklaerung angeboten. Leert man ein optionales Feld, wird es entfernt und nicht als leerer Wert gespeichert.
+
+  Beim Neuanlegen macht der Assistent Vorschlaege: die Backend-Adresse aus dem, worauf die anderen vHosts zeigen, den Port eine Nummer ueber dem hoechsten bereits benutzten, und den Upstream-Namen aus der Domain.
+
+  Nebenbei korrigiert: die Eingabepruefungen haben nicht geprueft. inquirer betrachtet jeden Rueckgabewert von "validate" als gueltig, solange er nicht leer ist - der uebliche Einzeiler "... or 'Must be a valid port'" liefert bei falscher Eingabe also einen Text zurueck, und der gilt als "in Ordnung". Die Pruefungen im Router-Assistenten loesen jetzt einen Fehler aus, damit die Eingabe wirklich abgelehnt und die Begruendung angezeigt wird.
+
+
+## 11.2.9
+
+- **Fix**: "odoo build" sagt jetzt selbst, wenn ein Docker-Plugin fehlt - mit dem Befehl zum Nachinstallieren.
+
+  Anlass war eine frische Ubuntu 26.04: dort bringt das Paket docker.io (Docker 29) kein buildx mit. Docker fährt BuildKit aber als Standard, also bricht der Build sofort mit "BuildKit is enabled but the buildx component is missing or broken" ab. Bitter wird es danach: weil das Basis-Image dadurch nie entsteht, versucht der nächste Schritt es aus der Registry zu ziehen, und man sieht nur noch "pull access denied ... odoo_base_17_..." - man sucht dann bei den Registry-Zugangsdaten, obwohl bloß ein Paket fehlt.
+
+  Jetzt prüft "odoo build" vor dem Start, ob "docker compose" und "docker buildx" da sind. Fehlt compose, bricht es sofort ab (ohne compose läuft gar nichts). Fehlt buildx, kommt eine gelbe Warnung samt Hinweis, dass der Rückfallweg auf aktuellem Docker ebenfalls nicht baut. Und wenn der Build doch an der buildx-Meldung stirbt, endet er mit dem Klartext-Hinweis statt mit dem irreführenden Folgefehler. In der Meldung stehen beide Paketnamen, weil sie sich je nach Docker-Quelle unterscheiden: docker-buildx / docker-compose-v2 (Distributions-Docker) bzw. docker-buildx-plugin / docker-compose-plugin (Docker-eigenes Repo).
+
+  Zum Nachschauen: auf einer Maschine mit Docker, aber ohne buildx (z.B. Ubuntu 26.04 nach "apt install docker.io"), im Projekt "odoo build" aufrufen. Es muss gleich am Anfang die gelbe Meldung mit dem apt-install-Befehl kommen, nicht erst nach Minuten ein Fehler über eine Registry. Nach "apt install docker-buildx" ist die Meldung weg und der Build läuft normal durch. In der Installationsanleitung stehen die Pakete inzwischen ebenfalls.
+
+
+## 11.2.8
+
+- **Docs**: Dokumentiert, warum die Odoo-Basisabbilder auf alten Distributionen stehen - und warum bullseye JETZT nicht umgestellt werden darf.
+
+  Jede Odoo-Generation hat eine Basis ihrer Epoche: 11 auf buster, 12 bis 14 auf bullseye, 15 bis 19 auf Ubuntu 22.04. Das ist Absicht, altes Odoo braucht altes Python. 12 bis 14 auf bookworm zu heben ist keine Haertung, sondern ein Bruch: bookworm liefert Python 3.11, und Odoo 12 von 2018 laeuft darauf nicht.
+
+  Kaputt geht nicht der laufende Container, sondern der BAU - sobald Debian eine Fassung von deb.debian.org ins Archiv verschiebt. Bei buster ist das schon passiert; odoo/config/11 ueberlebt es, weil es seine Quellen vorher umschreibt. Das Rezept steht jetzt in der Doku, samt dem Teil, den man vergisst: `Acquire::Check-Valid-Until "false"`, weil die Release-Dateien im Archiv per Definition abgelaufen sind.
+
+  Fuer bullseye gilt am 07.09.2026 gemessen:
+
+  - deb.debian.org bedient bullseye UND bullseye-security vollstaendig
+  - archive.debian.org hat bullseye und bullseye-updates
+  - archive.debian.org hat bullseye-security NICHT (404)
+
+  Wer jetzt umstellt, macht den Bau kaputt statt ihn zu retten: `apt-get update` endet mit 100, weil der Security-Zweig wegfaellt. Nachgestellt, nicht vermutet. Umstellen also erst, wenn deb.debian.org bullseye nicht mehr fuehrt - und den Security-Zweig dann getrennt pruefen.
+
+  Ausserdem eine wirkungslose Zeile in odoo/config/11 entfernt: sie legte eine apt-Quelle als sources.list.d/dmtx ab, OHNE .list-Endung, und apt liest dort nur *.list. Die Zeile hat nie gewirkt. Nachgemessen: ohne Endung erwaehnt apt die URL null mal und endet mit 0, mit Endung dreimal und endet mit 100. libdmtx0b kommt aus buster main und laesst sich ohne die Quelle installieren (geprueft).
+
+  Worauf beim Testen zu achten ist: `odoo build` fuer ein Odoo-11-Projekt muss unveraendert durchlaufen.
+- **Fix**: Der Installer installiert gimera jetzt mit, und "odoo bisect" stolpert nicht mehr ueber eine Warnung von Python 3.14.
+
+  Das "pipx inject zodoo gimera" gab es bisher nur in "odoo setup reinstall". Wer eine Maschine frisch mit install.sh aufgesetzt hat, hatte deshalb gar kein gimera - "gimera apply" ging erst, nachdem man einmal reinstall aufgerufen hatte. Auf einer neu aufgesetzten Ubuntu 26.04 nachgestellt.
+
+  In lib_bisect.py stand ein "break" in einem finally-Block. Python 3.14 warnt darueber, und eine spaetere Version macht daraus einen Fehler, weil so ein Sprung eine noch anstehende Exception verschluckt. Die Schleife merkt sich den Abbruch jetzt in einer Variablen und bricht nach dem finally ab.
+
+  Zum Nachschauen: nach dem Installer muss "gimera --version" direkt funktionieren, ohne vorher "odoo setup reinstall" aufzurufen. "odoo bisect" verhaelt sich unveraendert - inklusive Abbruch nach dem ersten Fehler, wenn "stop_after_first_error" gesetzt ist.
+
+  In der Installationsanleitung stehen fuer Ubuntu jetzt zusaetzlich docker-buildx und docker-compose-v2. Ohne buildx bricht "odoo build" auf Ubuntu 26.04 ab ("BuildKit is enabled but the buildx component is missing"), und weil das Basis-Image dadurch nie entsteht, kommt der Folgefehler als irrefuehrendes "pull access denied ... odoo_base_..." an.
+
+
+## 11.2.7
+
+- **Docs**: Die 36 leeren Changelog-Eintraege sind wiederhergestellt. Der Changelog reicht damit erstmals lueckenlos bis 8.0.0 zurueck.
+
+  Bis zur Korrektur in 11.2.3 hat die Release-Automatik jede mehrzeilige Patchnote verschluckt und "- **Fix**: |" hinterlassen. Betroffen waren 36 Eintraege in 25 Fassungen.
+
+  Wiederherstellbar war das, weil jeder Release-Commit die Fragmente LOESCHT, die er verarbeitet hat - im Eltern-Commit stehen sie also noch. Das neue Werkzeug `scripts/rebuild_changelog_from_history.py` holt sie dort und laesst sie durch denselben Sammler laufen, der heute die Releases baut.
+
+  Zwei Vorkehrungen, damit dabei nichts verloren geht:
+
+  - Ein Abschnitt wird nur ersetzt, wenn JEDER vorhandene nicht-leere Eintrag im neu erzeugten Text wiederzufinden ist. Bei 8.0.0 hat das zunaechst angeschlagen - dort war ein zweiter Eintrag ebenfalls leer, nur in der Form "- **BREAKING**: | — |", die das Muster erst nicht erfasste.
+  - Das Werkzeug ist wiederholbar: ein zweiter Lauf findet nichts mehr und erzeugt denselben Stand.
+
+  Gegengeprueft: 131 Fassungs-Ueberschriften vorher wie nachher, die Fassungen ab 11.2.3 bitgleich, 0 leere Eintraege uebrig.
+
+  Worauf beim Testen zu achten ist: `CHANGELOG.md` von unten nach oben durchblaettern - vor 11.2.3 stand dort ueberwiegend nichts, jetzt steht ueberall der Text, der damals geschrieben wurde.
+
+
+## 11.2.6
+
+- **Fix**: Aufzaehlungen in Patchnotes bleiben im Changelog Aufzaehlungen.
+
+  Der neue Sammler zieht Zeilen innerhalb eines Absatzes zusammen, damit ein Eintrag nicht in Einzelzeilen zerfaellt. Bei einer Liste ist das genau falsch: in v11.2.5 landeten die fuenf Spiegelstriche einer Patchnote als ein einziger Absatz hintereinander weg.
+
+  Jetzt beginnt eine Zeile mit "- ", "* " oder "1. " eine neue Ausgabezeile; eingerueckte Fortsetzungen haengen sich an ihren eigenen Punkt. Fliesstext wird weiterhin zusammengezogen.
+
+  Diese Patchnote pruft es gleich selbst:
+
+  - erster Punkt
+  - zweiter Punkt, der absichtlich ueber zwei Zeilen geht und hier weiterlaeuft
+  - dritter Punkt
+
+  Stehen die drei nach dem Release untereinander, stimmt es; stehen sie in einer Zeile, nicht.
+
+
+## 11.2.5
+
+- **Fix**: `odoo setting KEY VALUE` schreibt nichts - die Doku und die Hilfe des Befehls lehrten trotzdem genau diese Form.
+
+  `_parse_settings` teilt an `=`. Ein Argument ohne Gleichheitszeichen landet im LESE-Modus, `odoo setting DEVMODE 1` liest also die zwei Einstellungen "DEVMODE" und "1" und schreibt nichts. Ohne Fehlermeldung: der Befehl endet mit 0 und gibt nichts aus, weil ungesetzte Schluessel eben leer sind.
+
+  Nachgemessen am 06.09.2026 mit einem bedeutungslosen Schluessel: `odoo setting ZZTESTKEY 7` hinterlaesst 0 Zeilen in der Einstellungsdatei, `odoo setting ZZTESTKEY=7` hinterlaesst `ZZTESTKEY=7`.
+
+  Korrigiert an 18 Stellen in der Doku und in der Hilfe des Befehls selbst - die fuehrte beide Formen als gleichwertige Beispiele auf und stand damit im Widerspruch zum eigenen Rumpf.
+
+  Beim Durchsehen der uebrigen Doku (01 bis 10) ausserdem:
+
+  - `odoo odoo-shell` gibt es nicht. So heisst der Befehl nur in zodoos interner Registry (`Commands.register(shell, "odoo-shell")`); tippen muss man `odoo shell`. Die CLI weist die dokumentierte Form ab. - Der Odoo-Container heisst `<projekt>_odoo`, nicht `<projekt>_odoo_1`. - `ODOO_INSTALL_LIBPOSTAL` ist wirkungslos - nichts liest die Einstellung mehr, sie wird aus settings.txt aber weiter in jedes Projekt geschrieben. Als wirkungslos markiert statt stillschweigend entfernt. - Der Registry-Abschnitt erklaerte, warum `docker login` nichts beweist, aber nicht die haertere Folge: der klassische docker-Client bekommt auf `/v2/` eine 200, schickt daraufhin die ganze Sitzung OHNE Zugangsdaten und scheitert erst am Manifest mit 401. Dafuer gibt es `registry-push.zebroo.de` (derselbe Server, verlangt ueberall Anmeldung). Beide Namen am 06.09.2026 nachgeprueft: 200 gegen 401. - `docs.zebroo.de` war als "blockiert" gefuehrt; die Seite gibt es gar nicht mehr.
+
+  Worauf beim Testen zu achten ist: `odoo setting --help` nennt jetzt nur noch die Form mit Gleichheitszeichen und sagt ausdruecklich, was ohne passiert.
+- **Docs**: Die pgBackRest- und Offsite-Doku sagt jetzt, was der Code tut. An drei Stellen sagte sie das Gegenteil.
+
+  Aufbewahrung: Doku und der in jede Instanz-Konfiguration gerenderte Kommentar behaupteten "Retention lives on the backup server" und "PGBR_RETENTION_* are therefore ignored in this mode" - und direkt darunter standen die Retention-Zeilen. Richtig ist: `expire` muss `backup.info` LESEN, und die ist clientseitig verschluesselt. Bei `BACKUP_FROM=here` (gepusht) hat nur die Instanz die Passphrase, also gehoert die Aufbewahrung dorthin; nur bei `BACKUP_FROM=repo-host` (gezogen) haelt der Backup-Server sie und kann selbst aufraeumen. Bis 31.08.2026 stand sie nirgends, und expire lief entsprechend nirgends.
+
+  Dazu ausgeraeumt: die Lesart, die Instanz koenne ihre Historie nicht loeschen. Sie kann - mit ihrem eigenen Zertifikat und ihrer Passphrase, ausprobiert. Was schuetzt, ist der unveraenderliche Zweitbestand, nicht eine fehlende Konfigurationszeile.
+
+  Offsite: der GEMISCHTE Fall fehlte ganz - Datenbank ueber pgBackRest, nur der Filestore write-only. Das ist unser Normalaufbau und war zugleich der, der nichts sicherte. Jetzt steht da, welcher Strom wann laeuft und welche zwei Faelle seit 05.09.2026 absichtlich laut sind.
+
+  Beim Durchsehen aufgefallen und ergaenzt:
+
+  - `PGBR_ARCHIVE_PUSH_QUEUE_MAX` stand in keiner Doku. Das ist die Einstellung, bei deren Ueberschreiten pgbackrest die GANZE WAL-Warteschlange wegwirft und postgres Erfolg meldet - der einzige Ausfall im System, der die Punkt-genau-Wiederherstellung still zerstoert. Mit dem Hinweis, dass man ihn pro Maschine an den echten freien Platz von pg_wal setzt. - Sechs Befehle fehlten in der Liste, darunter `verify` und `repo-verify` - also ausgerechnet die beiden, die pruefen, ob die Sicherung etwas taugt. Mit den zwei Fallen von `repo-verify`: es endet auch bei Maengeln mit 0, und ein heiler Bestand erzeugt gar keine Statuszeile.
+
+  Worauf beim Testen zu achten ist: `odoo reload` auf einer Instanz mit Repo-Host erzeugen und in der gerenderten `pgbackrest.conf` nachsehen - der Kommentarblock ueber den `repo1-retention-*`-Zeilen muss jetzt zu ihnen passen.
+
+
+## 11.2.4
+
+- **Fix**: Cronjobs auf den Instanzen melden jetzt, wenn sie scheitern - und eine Datei im Projektverzeichnis kann den zodoo-Start nicht mehr verhindern.
+
+  Was passiert war: In einem Projektverzeichnis lag ein odoo-shell-Schnipsel namens `inspect.py`. Der Cron-Daemon ruft seine Jobs als `cd /opt/src; odoo -p <projekt> ...` auf; damit steht das Projektverzeichnis vorn in sys.path, und Pythons `import inspect` erwischte den Schnipsel statt der Standardbibliothek. zodoo starb beim Start mit "NameError: name 'env' is not defined", Rueckgabewert 1.
+
+  Betroffen war damit JEDER Job dieser Instanz: keine pgBackRest-Sicherung, kein check, kein Offsite-Lauf, keine naechtlichen Dumps - zwei Naechte lang. Aufgefallen ist es nur, weil beim Nachsehen einer ganz anderen Sache auffiel, dass im Repository seit zwei Tagen keine Sicherung mehr lag.
+
+  Warum es niemand merkte: der Daemon rief `os.system()` auf und warf den Rueckgabewert weg. Im Protokoll stand deshalb dieselbe Zeile wie bei Erfolg - "Execution took 0.04 seconds".
+
+  Zwei Aenderungen:
+
+  - Der Aufruf setzt `PYTHONSAFEPATH=1`. Das Projektverzeichnis kommt damit nicht mehr auf sys.path; welches Projekt gemeint ist, sagt ohnehin `-p`. - Rueckgabewerte werden ausgewertet und ein gescheiterter Job als FEHLER protokolliert, mit Job-Name, Rueckgabewert und Befehl.
+
+  Worauf beim Testen zu achten ist: eine Datei mit dem Namen eines Standardmoduls (`inspect.py`, `grp.py`, `types.py`, ...) im Projektverzeichnis darf die Cronjobs nicht mehr stoeren. Und ein absichtlich fehlschlagender Job muss im Container-Protokoll als ERROR auftauchen statt als stiller Erfolg.
+
+
+## 11.2.3
+
+- **Fix**: Mehrzeilige Patchnotes landen wieder im Changelog. Bisher wurden sie stillschweigend weggeworfen.
+
+  Die Release-Automatik las die Beschreibung mit `grep '^description:' | sed 's/description: *//'`. Bei der YAML-Blockschreibweise `description: |` steht in dieser Zeile aber nur ein Pipe-Zeichen - der eigentliche Text folgt eingerueckt darunter. Ergebnis war ein Changelog-Eintrag "- **Fix**: |", und zwar bei JEDER mehrzeilig geschriebenen Patchnote. Am 06.09.2026 waren 36 der 308 Eintraege so leer.
+
+  Aufgefallen ist es nur zufaellig, weil beim Nachsehen einer Version die Changelog-Ausgabe angeschaut wurde. Ein Changelog liest im Alltag niemand gegen, deshalb konnte das lange laufen.
+
+  Jetzt liest `scripts/collect_patchnotes.py` die Fragmente mit einem YAML-Parser, zieht Absaetze sauber zusammen und bricht ab, wenn eine Beschreibung fehlt oder leer ist - lieber ein roter Release-Lauf als ein leerer Eintrag.
+
+  Worauf beim Testen zu achten ist: Dieser Eintrag hier ist selbst mehrzeilig. Steht er nach dem naechsten Release vollstaendig im CHANGELOG.md, hat die Korrektur funktioniert; steht dort "- **Fix**: |", nicht.
+
+  Die 36 alten Eintraege bleiben vorerst leer. Ihre Fragmente liegen noch in der Git-Historie (jeweils im Eltern-Commit des Release-Commits), sie liessen sich also nachtraeglich rekonstruieren - das ist ein eigenes Vorhaben.
+
+
+## 11.2.2
+
+- **Fix**: `odoo offsite backup` sichert jetzt auch dann, wenn nur EIN Strom write-only konfiguriert ist. Bisher hat es in dem Fall gar nichts gesichert und trotzdem Erfolg gemeldet.
+
+  Hintergrund: die Weiche verlangte `wo_files && wo_db` - also dass BEIDE Stroeme (Filestore und Datenbank) ein write-only Ziel haben. Unser Normalaufbau ist aber ein anderer: die Datenbank geht ueber pgBackRest, nur der Filestore geht offsite. `OFFSITE_WO_DB_RECIPIENT` ist dann absichtlich leer. Damit fiel der Lauf durch auf die Pruefung von `OFFSITE_REPO`, die im write-only Aufbau ebenfalls leer ist - und stieg mit einer Meldung auf stdout und Rueckgabewert 0 aus.
+
+  Der naechtliche Cronjob (`CRONJOB_OFFSITE_BACKUP`, 04:00) hat das jede Nacht getan und jedes Mal Erfolg gemeldet. Aufgefallen ist es nur daran, dass die angemeldeten Bereiche auf dem Backup-Server nach Tagen noch 0 Dateien hatten - beide Instanzen, seit dem 01. bzw. 02.09.2026, kein einziger PUT beim Empfaenger. Der Filestore war die ganze Zeit vollstaendig konfiguriert; er wurde nur nie angefasst.
+
+  Neu:
+
+  - Ist nur der Filestore write-only und die Datenbank liegt bei pgBackRest (`RUN_PGBACKREST=1`), laeuft der Filestore-Strom. Kein restic, keine Passphrase noetig.
+  - Ist nur der Filestore write-only und die Datenbank ist durch NICHTS gedeckt, bricht der Lauf ab. Die Anhaenge allein hochzuladen sieht aus wie ein Backup und ist keins.
+  - `RUN_OFFSITE=1` ohne jedes Ziel ist jetzt ein FEHLER statt eines stillen Erfolgs. Wer ein Offsite-Backup anfordert und keins bekommt, soll das merken. Der leise Fall bleibt `RUN_OFFSITE=0` - der steigt weiter wortlos aus, damit Projekte ohne Offsite-Ziel nicht jede Nacht einen Cron-Fehler melden.
+
+  Worauf beim Testen zu achten ist: auf einer Instanz mit pgBackRest und angemeldetem Filestore-Ziel `odoo offsite backup` von Hand starten. Danach muessen im Bereich auf dem Backup-Server Objekte liegen (vorher 0 Dateien). Wer ein `RUN_OFFSITE=1` ohne Ziel stehen hat, bekommt ab jetzt jede Nacht einen Cron-Fehler - das ist beabsichtigt und weist auf eine unfertige Anmeldung hin.
+
+
+## 11.2.1
+
+- **Fix**: Die postgres-Abbilder stehen jetzt auf Debian 12 "bookworm" statt auf "bullseye".
+
+  Grund: **Debian 11 bullseye hat am 31.08.2026 sein Lebensende erreicht.** Seit September gibt es keine Sicherheitsaktualisierungen mehr, und der Paketbestand wird abgeraeumt. Der Index wird noch ausgeliefert, die Pakete dahinter nicht - `apt-get install` scheitert mit
+
+  E: Failed to fetch .../debian-security/pool/.../libperl5.32_...deb  404
+
+  und zwar je nach Paket mal so und mal so. Jeder Neubau war damit ein Gluecksspiel.
+
+  Betrifft alle sechs Fassungen (11, 12, 13, 14, 16, 17). Vorher geprueft: fuer jede gibt es ein `postgres:<n>-bookworm`, und pgdg liefert dort alle benoetigten Pakete - `pgbackrest=2.59.1-1.pgdg12+1`, postgis, pgvector und server-dev. Die alten Postgres-Fassungen bekommen aeltere postgis- und pgvector-Staende (11 etwa postgis 3.3 statt 3.6); das ist die Folge davon, dass diese Postgres-Fassungen selbst am Ende sind, und kein Rueckschritt gegenueber bullseye.
+
+  Nachgestellt und bestaetigt: auf `postgres:17-bookworm` installieren sich alle Pakete, und pgbackrest UEBERLEBT den Aufraeum-Block aus purge und autoremove. Damit ist auch klar, was pgbackrest vorher hat verschwinden lassen - nicht das Aufraeumen, sondern die gescheiterte Installation, deren Fehler das Semikolon vor `rm -rf` verschluckt hat. Der Nachweis-Schritt aus dem vorigen Patch faengt genau diesen Fall.
+
+  Worauf beim Testen zu achten ist: `odoo build` muss durchlaufen, und in der Ausgabe steht am Ende die pgbackrest-Version. Die Abbilder werden dabei neu gebaut, das dauert laenger als sonst.
+
+
+## 11.2.0
+
+- **Feature**: Router: Redirect-vHosts koennen jetzt auf eine bestimmte Seite zeigen, nicht nur auf eine andere Domain.
+
+  Bisher hat das `redirect`-Template den Pfad des Aufrufs immer an das Ziel angehaengt (`$request_uri`). Fuer "Domain A zeigt auf Domain B" ist das richtig, fuer "Domain A zeigt auf genau diese Seite" nicht: aus `redirect_to: zebroo.de/zebroo-experience` wurde beim Aufruf von `/` die Adresse `zebroo.de/zebroo-experience/` und beim Aufruf von `/irgendwas` entsprechend `zebroo.de/zebroo-experience/irgendwas` - beides Adressen, die es beim Ziel so nicht gibt.
+
+  Steht im `Redirect To` ein Pfad (also ein `/` im Wert), wird `$request_uri` jetzt weggelassen und alles landet genau auf der angegebenen Seite. Ohne Pfad bleibt es beim alten Verhalten.
+
+  Zum Nachschauen: hosting.zebroo.de -> Web Router -> Virtual Hosts, ein vHost mit Template "Redirect". Bei `Redirect To` einen Pfad mitgeben, z.B. `zebroo.de/zebroo-experience`, deployen, dann die Domain aufrufen - der Browser muss direkt auf der Zielseite stehen (eine Weiterleitung, kein angehaengter Pfad, kein 404). Bestehende Redirects ohne Pfad im Ziel erzeugen unveraenderte nginx-Dateien.
+- **Fix**: Das postgres-Abbild wird jetzt beim BAUEN darauf geprueft, dass pgbackrest wirklich drin ist.
+
+  Hintergrund: der Installations- und Aufraeumblock in `postgres/Dockerfile.*` endet mit `find ... 2>/dev/null;` - einem SEMIKOLON. Der Rueckgabewert des ganzen RUN ist damit der des abschliessenden `rm -rf`, und der gelingt praktisch immer. Scheitert weiter oben etwas - etwa `apt-get install pgbackrest=<version>-*`, weil der Debian-Spiegel diese Version nicht mehr fuehrt - dann baut das Abbild trotzdem durch, nur ohne pgbackrest.
+
+  Was man dann sieht, ist nicht der Bau, sondern der Betrieb: das archive_command stirbt mit `pgbackrest: command not found` (exit 127), und in den Protokollen steht "WAL segment was not archived before the 60000ms timeout". Das sieht nach einem Zeitproblem aus und ist keins - wer darauf den `archive-timeout` hochsetzt, meldet denselben Ausfall nur spaeter.
+
+  Am 04.09.2026 hat genau das die pgBackRest-e2e-Tests gekippt, auf `main` und auf einem Zweig, im selben Commit einmal rot und einmal gruen - und vorher eine echte Instanz getroffen, deren Archivierung nach dem Bauen nie lief.
+
+  Worauf beim Testen zu achten ist: der Bau bricht jetzt mit `command -v pgbackrest` ab, wenn die Binaerdatei fehlt. In der Bauausgabe steht danach die pgbackrest-Version - taucht sie nicht auf, ist das Abbild nicht brauchbar. Betrifft alle sechs Postgres-Fassungen (11 bis 17).
+
+  Ausserdem: `postgres/**` fehlte in den Pfadfiltern des Bake-Tests. Eine Aenderung an den postgres-Dockerfiles - also genau an den Abbildern, die dieser Test baut - hat den Test bisher NICHT ausgeloest. Aufgefallen daran, dass dieser PR zuerst ohne Bake durchlief.
+- **Internal**: Die deutschen Funktionsnamen im pgBackRest-Teil heissen jetzt englisch.
+
+  Rein mechanisch, kein Verhalten geaendert - aber es betrifft Namen, die in Tracebacks und Logzeilen auftauchen, deshalb hier vermerkt:
+
+  _aus_umschlag                        -> _from_envelope _bench_umgebung                      -> _bench_environment _bestandsname                        -> _store_name _check_ablegen                       -> _record_check _luecken                             -> _wal_gaps _nach_verwurf_vollsicherung           -> _full_backup_after_drop _verify_ausgabe_lesen                -> _read_verify_output neuester_umschlag                    -> newest_envelope umschlag_bereiche                    -> envelope_areas umschlag_oeffnen                     -> open_envelope _spool_und_verworfen                 -> _spool_and_dropped _passphrase_aus_umgebungen_entfernen -> _strip_passphrase_from_environments _passphrase_injizieren               -> _inject_passphrase
+
+  Eine Aenderung ist mehr als ein Name: das Ergebnisfeld `wal_luecken` heisst jetzt **`wal_gaps`**. Es steht in den Ergebnisdateien von `odoo pgbackrest repo-verify`. Geprueft, dass es auf dem Pruefstand niemand ausliest (die Auswertung dort nimmt `result` und `kind`) - wer eigene Auswertungen darauf gebaut hat, muss nachziehen.
+
+  Deutsche PROSA in Kommentaren und in den HELP-Texten der Kennzahlen bleibt absichtlich stehen. Das sind Begruendungen fuer uns, keine Bezeichner, und die HELP-Texte liest ein Mensch in Grafana - sie zu uebersetzen haette Erklaerungen gekostet, ohne etwas zu verbessern.
+
+
+## 11.1.1
+
+- **Fix**: WAL-Verwurf: die Grenze war zu eng, der Kommentar daneben falsch, und nach einem Verwurf passierte nichts.
+
+  Hintergrund. `archive-push-queue-max` ist keine Bremse, sondern ein Verlustmechanismus. pgBackRest sagt es selbst:
+
+  "pgBackRest will notify PostgreSQL that the WAL was successfully archived, then DROP IT. [...] In asynchronous mode the entire queue will be dropped."
+
+  Wird der Spool groesser als die Grenze, wird also die GANZE Warteschlange weggeworfen und postgres bekommt Erfolg gemeldet. Es fehlt danach nicht eine Datei, sondern ein Stueck Kette - und ab da ist keine Wiederherstellung auf einen Zeitpunkt mehr moeglich, bis eine neue Basissicherung existiert.
+
+  Drei Aenderungen:
+
+  1. `PGBR_ARCHIVE_PUSH_QUEUE_MAX` steht jetzt auf 16GB statt 1GB. Die Grenze soll die Platte schuetzen; bei 1GB griff sie, waehrend noch Dutzende Gigabyte frei waren. Ein Netzproblem von einer Stunde auf einer belebten Instanz reichte, um die Kette zu reissen. Der Wert gehoert pro Maschine an den ECHTEN freien Platz von pg_wal angepasst - 16GB ist ein Kompromiss, keine Wahrheit.
+
+  2. Neu: `PGBR_ARCHIVE_PUSH_BATCH_SIZE` (256MB). Die Grenze wird nur zu BEGINN eines Laufs geprueft; mit pgBackRests Vorgabe von 16GiB je Lauf kann die Warteschlange weit darueber hinauswachsen, bevor jemand wieder nachsieht. Ein kleinerer Stapel laesst den Prozess enden und neu starten, und damit erneut pruefen.
+
+  3. Nach einem Verwurf stoesst der stuendliche `odoo pgbackrest check --record` eine Vollsicherung an - die Kette ist ohnehin gerissen, und je frueher die neue Basis steht, desto kleiner das Loch. Zwei Bedingungen verhindern, dass das schadet: es zaehlt der ANSTIEG des Zaehlers (sonst liefe jede Stunde eine Vollsicherung, solange er ueber Null steht), und der Spool muss LEER sein (sonst verlaengert die Vollsicherung die Warteschlange und provoziert den naechsten Verwurf; dann wartet sie auf den naechsten Lauf).
+
+  Worauf beim Testen zu achten ist: in der erzeugten `pgbackrest.conf` der Instanz muessen jetzt beide Zeilen stehen, `archive-push-queue-max` und `archive-push-batch-size`. Der Zustand des Verwurf-Zaehlers liegt in `<run>/pgbackrest-verwurf.json`; beim ersten Lauf wird er nur gemerkt, damit ein Altbestand im Logfile nicht als frischer Anstieg gilt.
+
+  Ausserdem korrigiert: der Kommentar in `pgbackrest.conf.template` behauptete, die Grenze lasse `archive-push` "laut scheitern" - das Gegenteil trifft zu. Wer danach den Wert einstellte, hielt den gefaehrlichsten Zustand der Anlage fuer einen lauten Fehler.
+
+  Dazu ein Riegel in `_render_conf()`: die Vorlage wird mit `safe_substitute` gefuellt, und ein Platzhalter ohne Wert bleibt dort WOERTLICH stehen. In der erzeugten Datei steht dann z.B. `archive-push-batch-size=${PGBR_ARCHIVE_PUSH_BATCH_SIZE}`, pgbackrest verwirft die Zeile als ungueltige Groesse, und JEDER archive-push scheitert - sichtbar erst als "WAL segment was not archived before the timeout", weit weg von der Ursache. Genau so ist diese Option beim ersten Anlauf in die Vorlage geraten, ohne dass sie im Wertepaar-Verzeichnis stand. Bleibt jetzt ein Platzhalter uebrig, scheitert `odoo reload` laut und nennt den Namen, statt eine Instanz mit kaputter Archivierung hochzufahren.
+
+
+## 11.1.0
+
+- cadvisor verbrennt auf Hosts mit Docker-zfs-Storage-Driver nicht mehr dauerhaft einen ganzen CPU-Kern pro Instanz.
+
+  Hintergrund: fuer die Dateisystem-Metriken pro Container fragt cadvisor ZFS ab und iteriert dabei ueber tausende Layer-Datasets. Neben dem cadvisor-Prozess selbst haengen zwei zfs-Prozesse mit je 100 Prozent CPU daran, und zwar rund um die Uhr. Gemessen auf hy-odooprod: 7 Tage 14 h CPU-Zeit in 13 Tagen Laufzeit. Mit zwei Instanzen mit Dashboard-Stack lag die Maschine bei Load 14 statt der ueblichen 2,5, und SSH-Verbindungen brachen zeitweise weg. Aufgefallen ist es erst nach 13 Tagen - solange nichts ausfaellt, sieht niemand auf die Last.
+
+  Der cadvisor-Container bekommt deshalb vier Argumente mit:
+
+  --disable_metrics=disk,diskIO     container_fs_* und container_blkio_* raus --housekeeping_interval=30s       Default war 1s --docker_only=true                keine fremden cgroups scannen --store_container_labels=false    weniger Kardinalitaet
+
+  Zum Nachsehen, auf einem Host mit Dashboard-Stack:
+
+  docker stats --no-stream <projekt>_cadvisor pgrep -c zfs
+
+  Erwartet werden 0,8 bis 3 Prozent CPU statt der bisherigen 100+ Prozent, und keine dauerhaften zfs-Prozesse mehr. Wer es genauer will, vergleicht die CPU-Zeit ueber einige Minuten:
+
+  ps -o etime=,time= -p $(docker inspect <projekt>_cadvisor -f '{{.State.Pid}}')
+
+  Worauf zu achten ist: in zodoo-overview.json bleiben die beiden Panels leer, die container_fs_reads_bytes_total und container_fs_writes_bytes_total abfragen. Die uebrigen vier Panels (CPU, Speicher, Netz rein/raus) haben weiter Daten, das Prometheus-Target bleibt up.
+
+  Das ist bewusst so: den Pool-Fuellstand und die ZFS-Statistik liefert der node_exporter ohnehin, mit node_filesystem_* und 266 node_zfs_*-Metriken - und das ist die Ebene, auf der Kapazitaet entschieden wird. Der Verbrauch pro Container-Layer ist dafuer redundant und war der teuerste Teil der Messung.
+
+  Wer die beiden Panels wirklich braucht, kann disk/diskIO fuer eine einzelne Instanz wieder zulassen und nur das Housekeeping-Intervall stehen lassen - dann bleibt die ZFS-Iteration aber grundsaetzlich bestehen.
+- **Feature**: Neuer Befehl `odoo pgbackrest envelope`: oeffnet einen age-Umschlag und gibt ein Feld aus - der Weg, eine Passphrase zurueckzubekommen.
+
+  Hintergrund: `umschlag_oeffnen()` gab es schon, aber nur als Funktion, die der Pruefstand benutzt. Um von Hand an eine Passphrase zu kommen, musste man Python schreiben. Deshalb hat niemand den Umschlag als Ablageort betrachtet - und deshalb wurde die Passphrase zusaetzlich im Klartext gehalten, unter anderem in einem Odoo-Feld.
+
+  Zum Ausprobieren, auf dem Pruefstand:
+
+  odoo pgbackrest envelope --area <bereich> \ --bench-config /etc/pgbr-pruefstand/config.json
+
+  gibt die Passphrase roh auf stdout aus, damit sie sich weiterverwenden laesst. `--field` waehlt ein anderes Feld, `--list-fields` zeigt die NAMEN ohne Werte.
+
+  Worauf zu achten ist - der eigentliche Entwurfspunkt: der Befehl geht auch OHNE Pruefstand.
+
+  odoo pgbackrest envelope --file <umschlag.age> --age-key <schluessel>
+
+  Im Ernstfall ist der Pruefstand vielleicht genau das, was fehlt. Dann hat man den Schluessel aus dem Tresor und den Umschlag von irgendwo - aus dem Anhang am Projekt in hosting.zebroo.de, von der Backup-Maschine, aus dem Zweitbestand - und braucht sonst nichts.
+
+  Fehlt der Schluessel, sagt der Befehl, wo er liegt (Pruefstand bzw. 1Password-Item). Fehlt ein Feld, nennt er die vorhandenen NAMEN - nie die Werte. Es wird nichts protokolliert: ein Geheimnis gehoert in kein Logfile.
+- Einstellungsdateien mit der pgBackRest-Passphrase werden jetzt auch wirklich auf 0600 verengt.
+
+  Hintergrund: zodoo verengt Einstellungsdateien, sobald ein Geheimnis darin steht - erkannt an Hinweiswoertern im Schluesselnamen (PASSPHRASE, PASSWORD, SECRET, TOKEN, PRIVATE_KEY). `PGBR_CIPHER_PASS` heisst weder ...PASSPHRASE noch ...PASSWORD und fiel deshalb durch dieses Raster - ausgerechnet die Passphrase, die den ganzen Datenbankbestand eines Kunden aufschliesst. Auf einer produktiven Instanz lag die Datei damit weiter auf 0664, gruppenschreibbar und fuer alle lesbar, gerettet allein von den Rechten des Home-Verzeichnisses.
+
+  Zum Nachsehen: `ls -l ~/.odoo/settings.<projekt>` nach dem naechsten Schreibvorgang (etwa `odoo pgbackrest register` oder `odoo setting PGBR_CIPHER_PASS=...`). Vorhandene Dateien werden erst beim naechsten Schreiben verengt, nicht rueckwirkend - bei Bedarf einmal von Hand `chmod 600`.
+
+  Zweite Aenderung im selben Zug: geprueft wird jetzt der WERT, nicht nur der Schluesselname. In jeder Projektdatei stehen `PGBR_CIPHER_PASS` und `DEFAULT_DEV_PASSWORD` auch dann, wenn sie leer sind - eine leere Passphrase ist kein Geheimnis. Vorher haette der bloss vorhandene Name genuegt.
+
+  Worauf zu achten ist: das Hinweiswort ist "CIPHER_PASS" und nicht "CIPHER". Letzteres trifft auch `PGBR_CIPHER_TYPE`, und der hat IMMER einen Wert - damit waere jede Einstellungsdatei verengt worden, auch ohne Geheimnis darin. Der Bake-Lauf ist daran gescheitert.
+- Die Passphrase steht nicht mehr in der gemounteten `pgbackrest.conf`, sondern nur noch in der Umgebung der zwei Dienste, die sie brauchen: `postgres` (dort laeuft das archive_command) und der pgbackrest-Sidecar.
+
+  Hintergrund: die Datei wird nach `/etc/pgbackrest` der Container gemountet und muss fuer den Container-Benutzer lesbar bleiben, also 0644. Das Verzeichnis enger zu ziehen hilft nicht - dann kaeme der Container selbst nicht mehr hin. Ein Geheimnis gehoert also nicht in diese Datei.
+
+  pgBackRest liest jede Option auch aus der Umgebung (`PGBACKREST_<OPTION>`). Nachgewiesen am 02.09.2026 mit einem echten `info` gegen ein verschluesseltes Repository, das allein mit `PGBACKREST_REPO1_CIPHER_PASS` geoeffnet wurde - ohne die Zeile in der conf.
+
+  `repo1-cipher-type` bleibt in der Datei und in `[global]`: dort gehoert es laut pgBackRest-Handbuch hin, damit `info` jede Stanza lesen kann, und es ist kein Geheimnis.
+
+  Zum Nachsehen nach `odoo reload`: `grep -c cipher-pass <run-dir>/pgbackrest/pgbackrest.conf` ergibt 0, und `grep -c PGBACKREST_REPO1_CIPHER_PASS <run-dir>/docker-compose.yml` ergibt 2.
+
+  Worauf zu achten ist: gesetzt wird erst NACH den Ausstiegen der Funktion. Ist pgBackRest abgeschaltet, wandert die Passphrase in keine einzige Umgebung - auch nicht in die von postgres.
+
+
+## 11.0.2
+
+- Die Backup-Passphrase steht nicht mehr in der Umgebung jedes Dienstes.
+
+  Hintergrund: zodoo haengt jedem Dienst die Einstellungsdatei als `env_file` an, und `docker compose config` loest sie auf. Damit stand `PGBR_CIPHER_PASS` in der erzeugten `docker-compose.yml` einmal pro Dienst - auf einer produktiven Instanz 18 Mal - und in der Umgebung von Grafana, Proxy, Konsole, Cronjobs und allem anderen, das sie nie braucht. Die Datei liegt mit 0644 auf der Platte.
+
+  Gebraucht wird sie dort NIRGENDS: gelesen wird sie beim Erzeugen der Konfiguration aus den Einstellungen, und getragen wird sie von der `pgbackrest.conf`, die nur dorthin gemountet wird, wo sie hingehoert.
+
+  Zum Nachsehen: `grep -c PGBR_CIPHER_PASS <run-dir>/docker-compose.yml`. Vorher die Zahl der Dienste, nachher 0.
+
+  Worauf zu achten ist: das Entfernen laeuft auch bei RUN_PGBACKREST=0. Sonst bliebe die leere Variable ueberall stehen und waere wieder da, sobald jemand die Funktion einschaltet.
+
+  Zwei Stellen bleiben offen und gehoeren nicht hierher: die Einstellungsdatei selbst (auf odooprod 0664, gerettet nur vom Home mit 0750) und die gemountete `pgbackrest.conf`, die fuer den Container-Benutzer lesbar bleiben muss - enger ziehen laesst sie sich nur ueber das Verzeichnis, und das ist Sache des zodoo-Kerns.
+
+
 ## 11.0.1
 
+- Der Code-/VSCode-Container einer Instanz startet wieder. Bisher ist er reproduzierbar mit Exit-Code 1 gestorben, im Log stand nur
 
-- |
+  chown: invalid user: 'coder:coder'
+
+  Ursache: das entrypoint-Skript legt einen unprivilegierten Benutzer `coder` mit der UID des Host-Eigentuemers an (`OWNER_UID`, in der Praxis fast immer 1000, weil das der erste Benutzer der Maschine ist). Das Basis-Image `gitpod/openvscode-server` bringt aber schon `openvscode-server` mit genau dieser UID mit, und `useradd -u` verweigert eine doppelte UID. Der Fehler wurde verschluckt (`2>/dev/null || true`), also existierte `coder` nie und das folgende `chown coder:coder` brach ab.
+
+  Jetzt uebernimmt das Skript den Benutzer, der die UID bereits haelt, und legt `coder` nur an, wenn die UID frei ist. Die Gruppe wird ueber `id -gn` ermittelt statt gleich dem Benutzernamen angenommen.
+
+  Zum Testen: an einer Instanz im CICD auf "Code" klicken. Der Container `<projekt>_coding` muss laufen bleiben (`docker ps`) und `/code/` die VSCode-Oberflaeche zeigen, statt in eine Fehlerseite zu laufen.
 - **Fix**: Die docker-compose.yml wird nicht mehr aus einem Container heraus neu geschrieben, dessen Home vom Host-Home abweicht. Bind-Mount-Quellen loest der Docker-Daemon auf dem Host auf; zodoo schrieb aber die Pfade, die es im Container sah - ein 'odoo reload' aus dem robot-Image (Home /opt/robot) machte aus jeder Quelle ein /opt/robot/.odoo/..., das es auf dem Host nicht gibt. Die Container starteten danach ohne ihren Code und starben mit 'ModuleNotFoundError: No module named zodoo'; sichtbar war nur, dass die Instanz nicht mehr antwortet. Das Schreiben bricht jetzt mit einer Meldung ab, die beide Pfade nennt. Zum Pruefen: 'odoo reload' auf dem Host laeuft unveraendert durch; aus einem Robot-/Console-Container heraus kommt der Abbruch mit Erklaerung. Befehle, die nur mit einer laufenden Instanz sprechen (odoo shell, psql, robot run), sind nicht betroffen, und ZODOO_ALLOW_CONTAINER_RECONFIG=1 hebt die Pruefung auf.
 
 
 ## 11.0.0
 
+- **BREAKING**: Die Aufbewahrung wird jetzt auch dann in die pgbackrest.conf der Instanz geschrieben, wenn gegen einen Repo-Host gesichert wird (BACKUP_FROM=here). Vorher blieb sie dort weg - und lief damit NIRGENDS.
 
-- **BREAKING**: |
+  Hintergrund: die Begruendung war, die Aufbewahrung gehoere der Maschine, der die Platte gehoert, und der Backup-Server fahre seinen eigenen `expire`. Das klingt richtig und funktioniert bei einem VERSCHLUeSSELTEN Repository nicht: `expire` muss `backup.info` lesen, und die ist clientseitig verschluesselt. Auf dem Repo-Host endet der Versuch mit `FormatError: key/value found outside of section at line 1: Salted__...` - genauso wie `verify`. Dass er die Datei nicht oeffnen kann, ist der Sinn des Aufbaus und kein Mangel.
+
+  Folge bis 2026-08-31: kein einziger `expire` lief, der Bestand wuchs unbegrenzt, und die Dokumentation versprach 14 Tage. Genau der Fehler, vor dem der Kommentar in `_retention_lines` seit jeher warnt - eine Aufraeumung, die eingerichtet, aber nie wirksam war.
+
+  ACHTUNG, das ist der breaking-Teil: nach `odoo reload && odoo up -d` beginnt die Instanz, Sicherungen aelter als `PGBR_RETENTION_FULL` (Vorgabe 14 Tage) zu entfernen - beim naechsten Sicherungslauf, denn pgBackRest laesst `expire` ohnehin mitlaufen. Wer laenger vorhalten will, setzt die Zahl VORHER. Empfehlung: einmal `odoo pgbackrest info` ansehen und pruefen, was wegfaellt.
+
+  Neue Loeschbefugnis entsteht dadurch nicht: `odoo pgbackrest expire` gibt es auf der Instanz laengst, und der unveraenderliche Zweitbestand nimmt an einem `expire` ohnehin nicht teil - dort wird nichts geloescht.
+
+  Bei `BACKUP_FROM=repo-host` (der Server zieht) bleibt die Aufbewahrung weiterhin drueben; dort weist der Reload jetzt darauf hin, dass sie mit einem verschluesselten Repository nicht durchsetzbar ist.
 
 
 ## 10.9.1
 
+- `odoo pgbackrest repo-verify` hielt beim ersten echten Lauf JEDEN gesunden Bestand fuer kaputt. Behoben - und dabei kam heraus, wonach eigentlich zu suchen ist.
 
-- |
+  Die Annahme war, `pgbackrest verify` gebe je Bereich ein Urteil ("status: ok" bzw. "status: error") aus. Das tut es nur, wenn etwas nicht stimmt. Bei heilem Bestand protokolliert es die gefundenen WAL-Bereiche und endet - ohne Statuszeile. Wer auf "ok" wartet, meldet also jeden gesunden Bestand als Fehlschlag, und ein Waechter, der grundlos schreit, wird nach der dritten Meldung abgeschaltet.
+
+  Gelesen wird jetzt auf PROBLEME statt auf ein Urteil. Ein Lauf ohne "verify command end" gilt weiterhin als Fehlschlag: kein Ende heisst, wir wissen nichts - nicht "heil".
+
+  Neu und eigentlich der Gewinn: das Ergebnis fuehrt die zusammenhaengenden WAL-Abschnitte (`wal_bereiche`) und ihre Zahl (`wal_luecken`). Steht dort mehr als ein Abschnitt je archiveId, FEHLEN WAL-Segmente dazwischen, und zwischen zwei Abschnitten laesst sich auf keinen Zeitpunkt wiederherstellen. Dafuer laeuft verify jetzt mit `--log-level-console=detail` - auf INFO stehen die Bereiche gar nicht im Log.
+
+  Beim ersten Lauf auf dem Pruefstand hat genau das zugeschlagen und im Testbereich drei Abschnitte statt einem gefunden.
+
+  Worauf zu achten ist: eine Luecke ist KEIN Fehlschlag. Vor der ersten Sicherung ist sie normal, und pgBackRest nennt sie ebenfalls nicht Fehler. Sie wird gezaehlt und gemeldet (gelbe Zeile mit den Abschnitten), damit jemand hinsieht - nicht, damit ein Alarm losgeht.
 
 
 ## 10.9.0
 
+- **Feature**: Die Instanz meldet jetzt auch den Zustand der WAL-ARCHIVIERUNG, nicht nur den ihrer Sicherungen - und prueft stuendlich selbst, ob der Weg zum Repository ueberhaupt funktioniert.
 
-- **Feature**: |
+  Hintergrund: bisher sagten die Kennzahlen, WANN zuletzt gesichert wurde. Eine Instanz kann aber taeglich sichern und trotzdem seit Tagen kein WAL mehr loswerden - dann gibt es Basisstaende, aber keinen lueckenlosen Weg dazwischen, und Wiederherstellung auf einen Zeitpunkt ist nicht mehr moeglich. Auf dem Backup-Server faellt ein stehengebliebener Archivierer erst nach Stunden auf, in der Instanz selbst bisher gar nicht.
+
+  Neu in `odoo backup-metrics`: `zodoo_wal_archived_total`, `zodoo_wal_failed_total`, `zodoo_wal_last_archived_timestamp_seconds`, `zodoo_wal_last_failed_timestamp_seconds` (aus `pg_stat_archiver`), `zodoo_wal_spool_files` (wartende Segmente), `zodoo_wal_dropped_total` und `zodoo_backup_check_success` / `zodoo_backup_check_timestamp_seconds`.
+
+  `zodoo_wal_dropped_total` ist die wichtigste davon: sie zaehlt, wie oft pgBackRest WAL WEGGEWORFEN hat, weil `archive-push-queue-max` ueberschritten war. In dem Fall meldet pgBackRest postgres ERFOLG, postgres gibt das Segment frei, danach laeuft alles weiter und sieht frisch aus - die Luecke faellt erst beim Wiederherstellen auf. Der Kompromiss ist bewusst so gewaehlt (sonst laeuft die Instanzplatte voll), aber jeder Anstieg dieses Zaehlers ist ein Zwischenfall.
+
+  Zum Ausprobieren: `odoo backup-metrics --stdout` zeigt die Datei, ohne sie zu schreiben. Der neue Zeitplan `CRONJOB_PGBACKREST_CHECK` laeuft stuendlich (`odoo pgbackrest check --record`) und legt sein Ergebnis unter `<run>/pgbackrest-check.json` ab; von Hand geht das mit demselben Befehl.
+
+  Worauf zu achten ist: laesst sich ein Wert nicht lesen, wird die Zeile WEGGELASSEN statt auf 0 gesetzt. Eine 0 bei "fehlgeschlagen" saehe aus wie "alles gut" - und das ist genau der Zustand, den diese Kennzahlen aufdecken sollen.
 
 
 ## 10.8.0
 
+- **Feature**: Neuer Befehl `odoo pgbackrest repo-verify --bench-config <datei>`: prueft die abgelegten Bytes selbst - Luecken im WAL, beschaedigte Bloecke in aelteren Sicherungen.
 
-- **Feature**: |
+  Hintergrund: die Rueckspielprobe (`verify`) faehrt die NEUESTE Sicherung hoch und spielt kein WAL nach. Sie beweist "die juengste Sicherung laeuft an" - nicht "PITR ueber die Aufbewahrungszeit funktioniert" und nicht "die aelteren Sicherungen sind heil". Genau dafuer gibt es `pgbackrest verify`, und es lief bei uns bisher nirgends.
+
+  Zum Ausprobieren: auf dem Pruefstand `odoo pgbackrest repo-verify --bench-config /etc/pgbr-pruefstand/config.json`. Laeuft ueber alle Bereiche, die sich aus den Umschlaegen ergeben, und legt mit `--report-to` je Bereich und Bestand einen Nachweis ab.
+
+  Worauf zu achten ist - zweierlei:
+
+  Erstens laeuft das NUR im Pruefstandsbetrieb, nicht auf dem Repo-Host. Der hat die Passphrase bewusst nicht, und `verify` muss die Dateien lesen, um ihre Pruefsummen nachzurechnen. Dort aufgerufen meldet es nur "No usable backup.info file" - was aussieht wie ein kaputtes Repository, aber nur heisst, dass der Host tut, was er soll.
+
+  Zweitens meldet `pgbackrest verify` ein `status: error` und beendet sich trotzdem mit 0 ("completed successfully"). Das Urteil wird deshalb aus der AUSGABE gelesen, nicht aus dem Rueckgabewert. Wer das andersherum baut, bekommt fuer ein kaputtes Repository ein gruenes Ergebnis - der stillste denkbare Fehlschlag. Eine Ausgabe ohne erkennbares Urteil gilt als Fehlschlag, nicht als heil.
 
 
 ## 10.7.2
@@ -45,8 +518,13 @@
 
 ## 10.7.0
 
+- **Feature**: Jeder Nachweis einer Rueckspielprobe sagt jetzt, aus WELCHEM Bestand er stammt - im Ergebnis (Feld `store`) und im Dateinamen (`<bereich>-<bestand>-<zeitstempel>.json`).
 
-- **Feature**: |
+  Hintergrund: seit der Pruefstand beide Bestaende prueft (Repo-Host und gespiegelten Objektspeicher), entstehen je Bereich zwei Nachweise - und die sahen gleich aus. Die Ueberwachung nimmt je Bereich den juengsten BESTANDENEN; ein durchgefallener Zweitbestand verschwand damit hinter dem bestandenen Erstbestand. Ausgerechnet die Probe, die eine Vermutung durch einen Nachweis ersetzen soll, haette also wieder eine Vermutung gedeckt.
+
+  Zum Ausprobieren: in der Pruefstand-Konfiguration `"store": "zweitbestand"` setzen (frei benennbar - `s3` unterscheidet zwei Objektspeicher nicht, sobald es zwei gibt) und einen Lauf mit `--report-to` machen. Im Ablageordner liegen danach zwei Dateien nebeneinander, deren Namen auseinanderhalten, was frueher uebereinander lag. Ohne Angabe bleibt die Art (`s3` bzw. `tls`), im Projektbetrieb steht `projekt`.
+
+  Worauf zu achten ist: auch der FEHLERFALL traegt den Bestand. "Gescheitert" ohne die Angabe wo ist keine brauchbare Nachricht - und frueher war es genau der Pfad, der gar kein `store` gesetzt hat.
 
 
 ## 10.6.4
@@ -70,8 +548,15 @@
 
 ## 10.6.1
 
+- **Fix**: Das Vorbauen der Images war gruen, aber in der Registry kam nichts an.
 
-- **Fix**: |
+  "odoo build" laedt nicht selbst hoch: enqueue_registry_uploads benennt das Image lokal um, legt einen Auftrag in ${run}/jobqueue/ und startet einen ABGEKOPPELTEN Arbeiter. Auf einem GitHub-Runner endet der Job unmittelbar nach dem Bauen, der Arbeiter stirbt mit ihm -- und der docker push passiert nie.
+
+  Nachweisbar am 28.08.2026: der Lauf lief durch, die Tag-Liste der Registry war danach unveraendert, und eine frisch aufgesetzte Kundenmaschine suchte weiterhin genau die Tags, die die CI selbst als "not in zodoo registry" gemeldet und gebaut hatte (postgres 17-20b751e7, cronjobs 17-ec190864, offsite e8e79952). Die Tags stimmen also ueberein -- es lud nur niemand hoch.
+
+  Der eigentliche Grund lag noch eine Ebene tiefer: _get_push_credentials liest ZODOO_REGISTRY_SUGGESTED ausschliesslich aus ~/.odoo/settings (_read_user_setting). Der Ablauf setzte es mit "odoo setting" im Projekt -- also in ./.odoo/settings. Ist der Schluessel in der Benutzerdatei leer und haengt kein Terminal dran, steigt die Funktion stillschweigend aus: kein Push, keine Meldung, gruener Lauf.
+
+  Der Ablauf schreibt die Registry-Einstellungen jetzt in ~/.odoo/settings und ruft am Ende zusaetzlich "odoo run-crontab", damit auch die in die Warteschlange gelegten Uploads noch im Vordergrund abgearbeitet werden, bevor der Runner abgeraeumt wird.
 
 
 ## 10.6.0
@@ -82,8 +567,13 @@
 
 ## 10.5.0
 
+- **Feature**: Der Pruefstand kann jetzt auch Bestaende in einem OBJEKTSPEICHER pruefen (S3 / MinIO), nicht nur ueber einen pgBackRest-Repo-Host.
 
-- **Feature**: |
+  Hintergrund: der unveraenderliche Zweitbestand liegt auf einem MinIO mit Object Lock. Ohne diese Erweiterung haetten wir eine Kopie, von der niemand laufend nachweist, dass sich daraus zurueckspielen laesst - genau der Zustand, den wir beim ersten Bestand gerade behoben haben.
+
+  Zum Ausprobieren: in der Pruefstand-Konfiguration `"repo_type": "s3"` setzen und `s3_endpoint`, `s3_bucket`, `s3_key`, `s3_key_secret` angeben, dazu optional `s3_path` (Praefix im Bucket) und `storage_ca_file`. Ein Client-Zertifikat entfaellt - ein Objektspeicher weist ueber ein Schluesselpaar aus.
+
+  Worauf zu achten ist: `s3_uri_style` steht auf `path`, weil MinIO Buckets ueber den Pfad adressiert. Bei einem Anbieter mit eigenem DNS je Bucket waere `host` richtig. Und die Verschluesselung bleibt bei uns: der Speicher sieht Chiffrat, egal ob eigener MinIO oder fremder Anbieter.
 
 
 ## 10.4.0
@@ -94,51 +584,108 @@
 
 ## 10.3.0
 
+- **Feature**: Der Pruefstand kann jetzt die age-Umschlaege des Anmeldedienstes oeffnen — und braucht dadurch KEIN eigenes Zertifikat mehr.
 
-- **Feature**: |
+  Beim Freigeben eines Bereichs legt der Anmeldedienst einen verschluesselten Umschlag ab. Darin steht nicht nur die Passphrase, sondern auch das Client-Zertifikat des Kunden. Das ist der eigentliche Gewinn: der Pruefstand nimmt je Bereich das Zertifikat des KUNDEN, statt eines Sammelzertifikats, das auf alle Bereiche berechtigt waere. pgBackRest kennt kein Nur-Lese-Zertifikat — ein Sammelzertifikat duerfte ueberall auch schreiben.
+
+  Zum Ausprobieren: in der Pruefstand-Konfiguration `age_identity` (privater Schluessel) und `envelope_dir` (Ordner mit den Umschlaegen) setzen; die Bereichsliste und `cert_dir` koennen dann entfallen. Ein Lauf ohne weitere Angaben prueft alle Bereiche, zu denen ein Umschlag liegt:
+
+  odoo pgbackrest verify --bench-config /etc/pgbr-pruefstand/config.json
+
+  Worauf zu achten ist: neue Kunden muessen NICHT nachgetragen werden — was nachgetragen werden muss, wird irgendwann vergessen, und ein Bereich, den niemand prueft, faellt nicht auf. Liegen mehrere Umschlaege eines Bereichs, gilt der juengste. Einzelne Werte lassen sich weiter von Hand uebersteuern.
+
+  Der private Schluessel wird NICHT in einen Container eingehaengt: geoeffnet wird auf der Maschine, hinein geht nur das Ergebnis.
 
 
 ## 10.2.0
 
+- **Feature**: `odoo pgbackrest verify` bekommt `--bench-config` — damit prueft ein eigener Pruefstand FREMDE Bereiche mit derselben Probe.
 
-- **Feature**: |
+  Bisher konnte die Rueckspielprobe nur die Sicherungen des Projekts pruefen, in dem sie aufgerufen wird. Die Maschine, die stellvertretend fuer alle Kunden prueft, hat aber gar kein Projekt - sie haette also eine zweite Umsetzung derselben Sache gebraucht. Zwei Umsetzungen laufen frueher oder spaeter auseinander, und dann prueft der Pruefstand etwas anderes als das, was getestet wurde.
+
+  Zum Ausprobieren: `odoo pgbackrest verify --bench-config <datei.json>`. Die Datei sagt, WOHER Repository, Zertifikat und Bereiche kommen; getan wird danach genau dasselbe wie im Projekt. Ohne Bereichsangabe werden alle Bereiche der Datei nacheinander geprueft, mit `--stanza` nur einer.
+
+  { "repo_host": "db.backup.zebroo.de", "repo_port": 443, "cert_dir": "/etc/pgbr-pruefstand/cert", "pgbackrest_image": "pgbr-pruefstand:2.59.1", "run_user": "999:999", "stanzas": {"kunde-a": {"cipher_pass": "..."}} }
+
+  Worauf zu achten ist: die Passphrase steht je Bereich, nicht global — jeder Kunde hat eine eigene. Die abgelegte Konfiguration bleibt 0600 und gehoert dem Benutzer, unter dem der Container laeuft; sie enthaelt Geheimnisse.
+
+  Fuer bestehende Aufrufe aendert sich nichts. Ohne `--bench-config` laeuft alles wie zuvor.
 
 
 ## 10.1.0
 
+- **Feature**: Neu: `odoo pgbackrest verify` — die Rueckspielprobe.
 
-- **Feature**: |
+  Bisher pruefte an den Sicherungen alles nur, ob die Bytes daliegen, die wir hingelegt haben: Groessen, Zeitstempel, Lueckenlosigkeit der WAL-Kette. Keine dieser Pruefungen sagt etwas darueber, ob sich aus dem Bestand je wieder ein Postgres starten laesst. Das sagt nur diese hier.
+
+  Zum Ausprobieren: im Projektverzeichnis `odoo pgbackrest verify` aufrufen. Die neueste Sicherung wird in ein Wegwerf-Volume zurueckgespielt, ein Postgres darauf gestartet und aus der groessten Nutztabelle der groessten Datenbank gelesen. Am Ende steht eine Zeile wie
+
+  Rueckspielprobe bestanden: Sicherung 20260825-212040F laeuft, 70000 Zeilen aus public.res_partner gelesen (15s).
+
+  Worauf zu achten ist: die LAUFENDE Instanz bleibt dabei unberuehrt - sie muss waehrend und nach der Probe unveraendert weiterlaufen. Das ist keine Sorgfaltsfrage, sondern eingebaut: das Datenvolume des Projekts wird gar nicht erst eingehaengt, und das Repository nur lesend. Was nicht eingehaengt ist, kann auch ein Fehler in diesem Code nicht ueberschreiben.
+
+  `--json` fuer die maschinenlesbare Form, `--report-to <ordner>` legt das Ergebnis als `<stanza>-<zeitstempel>.json` ab (das liest die Ueberwachung), `--stanza` prueft einen fremden Bereich - dafuer gibt es den Pruefstand.
+
+  Ein Fehlschlag ist ein Ergebnis, kein Absturz: es wird trotzdem eine Datei geschrieben. "Probe gescheitert" und "keine Probe gelaufen" sind sehr verschiedene Nachrichten, und die Ueberwachung muss sie unterscheiden koennen.
 
 
 ## 10.0.2
 
+- Das archive_command holt eine fehlende Stanza jetzt selbst nach, statt dauerhaft zu scheitern. Betroffen war jede Lage, in der postgres ohne den Sidecar laeuft - und es fiel nicht auf, weil postgres normal weiterbediente, waehrend sich das WAL staute.
 
-- |
-- **Fix**: |
+  Genau EINE Ursache wird geheilt (die vollstaendig fehlende Stanza), jeder andere Fehler geht unveraendert durch: ein archive_command, das Probleme verschluckt, wirft WAL weg, und die Luecke faellt erst beim Wiederherstellen auf.
+
+  Ein HALB zerstoertes Repository wird bewusst NICHT geflickt - fehlt nur archive.info, waehrend backup.info dasteht, scheitert es weiter und laut. Das gehoert vor menschliche Augen.
+
+  Abgedeckt von einem End-zu-Ende-Test im Bake-Lauf: Stanza im laufenden Projekt entfernen, WAL-Wechsel ausloesen, und pruefen, dass sie zurueckkommt, dass die Meldung im Log steht und dass danach wieder archiviert wird.
+
+  Von Hand nachvollziehbar mit `rm -rf /var/lib/pgbackrest/archive` im postgres-Container und `select pg_switch_wal()`.
+- **Fix**: Das Vorbauen der Images lief seit dem 24.08.2026 in jedem Lauf auf einen Fehler: "could not find any target matching 'pgbackrest'". Das Wegwerf- Projekt, in dem gebaut wird, hatte RUN_PGBACKREST nicht gesetzt -- damit schreibt "odoo reload" den Dienst gar nicht erst in die Compose-Datei, und der Bau bricht ab, bevor irgendetwas hochgeladen wird.
+
+  Die Folge war auf jeder Kundenmaschine zu sehen: postgres, cronjobs, cronjobshell, offsite und odoo_metrics_exporter meldete zodoo als "not in zodoo registry" und baute sie einzeln nach. Gemessen an einer frisch aufgesetzten Instanz sind das rund neun Minuten pro Aufsetzen statt anderthalb.
+
+  RUN_PGBACKREST, RUN_OFFSITE und RUN_DASHBOARD sind jetzt im Wegwerf-Projekt gesetzt. Das hat dort keine Nebenwirkung -- gestartet wird nichts, gebraucht wird nur die richtige Berechnung der Tags.
+
+  Ausserdem stehen cronjobshell, offsite und odoo_metrics_exporter jetzt mit in der Bauliste. Sie laufen auf jeder Kundenmaschine, fehlten aber.
 
 
 ## 10.0.1
 
+- **Internal**: Auch die VSCode-Erweiterung ist vom Privataccount marcwimmer nach Odoo-Ninjas umgezogen. Der Download-Link in `lib_composer.py` zeigt jetzt direkt dorthin statt ueber GitHubs Weiterleitung.
 
-- **Internal**: |
+  Damit verweist zodoo nur noch an einer einzigen Stelle auf den Privataccount: in einem Kommentar in `module_tools.py`, der die Syntax fuer direkte Git-URLs am Beispiel eines pymssql-Forks zeigt. Der hat keine Funktion.
 
 
 ## 10.0.0
 
+- Der Anmeldedienst laeuft jetzt oeffentlich unter enroll.backup.zebroo.de (443) statt auf Port 8445 im VPN. Damit entfaellt der Schritt, bei dem beim ersten Kontakt ein CA-Fingerabdruck angezeigt und bestaetigt werden musste - das Zertifikat ist oeffentlich ausgestellt.
 
-- |
-- |
-- |
+  Zum Testen: `odoo pgbackrest register` auf einer Instanz ohne VPN-Zugang zum Backup-Server aufrufen. Erwartet: die Anfrage geht durch. Die Freigabemaske ist von aussen NICHT erreichbar (404) - nur aus VPN und LAN.
+- Das Repository ist jetzt oeffentlich unter db.backup.zebroo.de auf Port 443 erreichbar - eine Instanz braucht fuer die Sicherung keine VPN-Mitgliedschaft mehr. PGBR_REPO_HOST_PORT steht deshalb auf 443.
+
+  Zum Testen: auf einer Instanz ohne VPN-Zugang zum Backup-Server `odoo pgbackrest check` aufrufen. Erwartet: die Pruefung laeuft durch und archiviert ein WAL-Segment.
+- Neu: `odoo pgbackrest register` meldet eine Instanz beim Backup-Server an. Der erste Aufruf stellt eine Anfrage, ein Admin gibt sie in der Maske des Anmeldedienstes frei, der zweite Aufruf holt Stanza, Client-Zertifikat und Passphrase ab und traegt alles in die Settings ein. Danach nur noch `odoo reload && odoo up -d && odoo pgbackrest check`.
+
+  Zum Testen: auf einer Instanz mit VPN-Zugang zum Backup-Server `odoo pgbackrest register` aufrufen. Beim ersten Kontakt wird der Fingerabdruck der CA angezeigt - der gehoert einmal gegen den Server geprueft. Erwartet: die Zugangsdaten werden genau EINMAL herausgegeben, ein zweiter Abholversuch liefert "delivered" und nichts weiter.
+
+  Eine Freigabe deckt beide Stroeme ab: Datenbank (pgBackRest) und Filestore (write-only Empfaenger). Liefert der Server keinen oeffentlichen age-Schluessel, bleibt der Filestore-Strom absichtlich AUS - sonst gingen Anhaenge im Klartext raus.
 - **BREAKING**: Datenbanksicherung von barman auf pgBackRest umgestellt: WAL-Archivierung statt Streaming, Inkrementelle auf Page-Ebene, Aufraeumen als Teil jedes Backups, und ein Repo-Host-Modus, bei dem weder Schluessel noch Loeschrecht auf der Kundenmaschine liegen.
-- |
-- |
-- |
+- Der vhost-Router kann jetzt Backends anbinden, die selbst TLS sprechen (`upstream_scheme=https`), und kennt zwei Einstellungen fuer grosse Uploads: `client_max_body_size` (z.B. "0" ohne Grenze) und `proxy_request_buffering` (aus = durchreichen statt erst auf Platte puffern).
+
+  Zum Testen: einen bestehenden vhost anschauen - er muss unveraendert rendern (http, 1024M, Pufferung an). Nur ein vhost, der die neuen Felder ausdruecklich setzt, bekommt anderes Verhalten.
+- Postgres zieht den pgBackRest-Sidecar beim Start mit hoch. Ohne das scheiterte die WAL-Archivierung dauerhaft, wenn jemand postgres allein startete (`docker compose up -d postgres`, ein Teil-Neustart, `odoo db reset`) - die Stanza legt naemlich der Sidecar an. Gemeldet hat sich dabei nichts: postgres lief weiter, das WAL staute sich, und die Sicherung, die alle fuer vorhanden hielten, gab es nicht.
+
+  Zum Testen: `odoo up -d postgres` auf einem Projekt mit RUN_PGBACKREST=1 - es muss der Sidecar mit hochkommen. Danach `odoo pgbackrest check`: die WAL-Archivierung muss durchlaufen.
+- Eingeschaltetes pgBackRest hat auf Linux die Verbindung zu postgres gekappt: `odoo psql`, `odoo db reset` und alles, was von aussen an die Datenbank will, scheiterten mit "No such file or directory" auf dem Socket. Ursache war ein Docker-Volume auf /var/run/postgresql, das den Host-Bind-Mount ueberdeckte, durch den zodoo selbst spricht.
+
+  Zum Testen auf einem Linux-Host: RUN_PGBACKREST=1 setzen, `odoo reload`, `odoo up -d`, dann `odoo psql`. Muss eine Sitzung oeffnen. Danach `odoo pgbackrest check` - der Sidecar muss postgres weiterhin erreichen.
 
 
 ## 9.4.4
 
+- Der vhost-Router kann jetzt je Absender-IP begrenzen: `rate_limit` (nginx-Syntax, z.B. "10r/s") und `rate_limit_burst`. Wer darueber liegt, bekommt 429.
 
-- |
+  Zum Testen: einen vhost ohne die Felder anschauen - er muss unveraendert rendern, ohne jede limit_req-Zeile. Nur ein vhost, der `rate_limit` setzt, bekommt Zone und Begrenzung.
 
 
 ## 9.4.3
@@ -149,8 +696,9 @@
 
 ## 9.4.2
 
+- Der vhost-Router kann jetzt Backends anbinden, die selbst TLS sprechen (`upstream_scheme=https`), und kennt zwei Einstellungen fuer grosse Uploads: `client_max_body_size` (z.B. "0" ohne Grenze) und `proxy_request_buffering` (aus = durchreichen statt erst auf Platte puffern).
 
-- |
+  Zum Testen: einen bestehenden vhost anschauen - er muss unveraendert rendern (http, 1024M, Pufferung an). Nur ein vhost, der die neuen Felder ausdruecklich setzt, bekommt anderes Verhalten.
 
 
 ## 9.4.1
@@ -222,14 +770,21 @@
 
 ## 8.0.5
 
-
-- **Fix**: |
+- **Fix**: `odoo down --cleanup-files` löscht den Filestore der Datenbank jetzt wirklich. Zum Nachstellen: Projekt mit `odoo down --cleanup-files` abräumen und danach in `<data_dir>/filestore/` schauen - vorher blieb dort der Ordner der Datenbank liegen und im Log stand `Failed to remove path ...: not allowed`, jetzt ist er weg. Auf Build-/CI-Rechnern, die pro Lauf eine neue Test-Datenbank anlegen, liefen dadurch die Platten voll.
 
 
 ## 8.0.4
 
+- **Fix**: Ein veralteter requirements.hash fuehrt nicht mehr stillschweigend dazu, dass Maschinen weiter das alte Image ziehen.
 
-- **Fix**: |
+  Hintergrund: der Image-Tag wird aus requirements.hash und requirements.txt.all berechnet - beide sind generierte Dateien. Wer requirements.static (oder eine Modul-Abhaengigkeit) aendert und kein "odoo reload" laufen laesst, behaelt denselben Tag, obwohl eine neue Bibliothek gefordert ist. Es kam keine Meldung, und die neue Lib fehlte in jedem Image.
+
+  Was sich fuer den Tester aendert:
+  - "odoo build" prueft das jetzt selbst und regeneriert die Dateien bei Bedarf (per "odoo reload --no-gimera-apply", also ohne Submodule anzufassen).
+  - Neues Kommando "odoo requirements-check" zum Pruefen ohne Build; mit "--fix" wird direkt regeneriert. Exit-Code 1, wenn veraltet - damit auch in CI oder pre-commit nutzbar.
+  - Sind die generierten Dateien nach dem Regenerieren nicht committed, kommt eine Warnung: sonst rechnen alle anderen Maschinen weiter mit dem alten Tag.
+
+  Zum Nachstellen: in einem Projekt eine Zeile in requirements.static ergaenzen, "odoo requirements-check" aufrufen - es muss die Abweichung mit altem und erwartetem Hash melden. Nach "odoo reload" ist die Meldung weg.
 - **Fix**: Der aus dem Verzeichnisnamen abgeleitete Projektname behaelt seine Unterstriche. _sanitize_project_name() hat sie bisher immer entfernt, auch wenn der Name die Laengengrenze gar nicht gerissen hat - aus dem Verzeichnis cicd_3dm_odoo_staging17 wurde so das Projekt cicd3dmodoostaging17. Dafuer gibt es kein ~/.odoo/run/<projekt>/settings, also lief jeder Aufruf ohne -p gegen ein unkonfiguriertes Projekt: Config.__getattribute__ findet keine settings-Datei und liefert None fuer jedes Setting. 'odoo filestore unshare' brach mit 'No filestore at None' ab, 'odoo psql' tat kommentarlos nichts - mit -p <verzeichnisname> lief dasselbe Kommando durch. Die Sanity-Pruefung in cli.py, die sonst bei abweichendem Verzeichnisnamen abbricht, hat den Fall ausdruecklich durchgewunken (name was auto-shortened from this directory), deshalb blieb es unbemerkt. Unterstriche sind in Docker-Compose-Projektnamen erlaubt; sie werden jetzt nur noch entfernt, wenn der Name sonst laenger als 50 Zeichen bliebe, und erst danach wird wie bisher aus der Mitte gekuerzt. Migration: wer ein solches Projekt bisher ohne -p benutzt hat, findet seinen Compose-Stand unter dem alten zusammengezogenen Namen in ~/.odoo/run/ und zieht ihn mit einem 'odoo reload' im Projektverzeichnis nach. Zum Testen: in einem Projektverzeichnis mit Unterstrichen im Namen 'odoo psql' bzw. 'odoo filestore unshare' ohne -p aufrufen - beides muss jetzt dasselbe tun wie mit -p <verzeichnisname>.
 
 
@@ -253,9 +808,19 @@
 
 ## 8.0.0
 
+- **Internal**: gimera, odoo-anonymize und odoo-cleardb sind vom Privataccount marcwimmer nach Odoo-Ninjas umgezogen. Die Verweise in zodoo zeigen jetzt direkt dorthin.
 
-- **Internal**: |
-- **BREAKING**: | — |
+  Betroffen sind der gimera-Pin in `zodoo/src/gimera.yml`, die beiden URLs in `lib_db.py` und die `gimera.yml` der Projektvorlagen fuer alle acht Odoo-Versionen (11.0 bis 19.0). Letztere sind der eigentliche Grund fuer die Aenderung: die Vorlage wird beim Anlegen eines Projekts kopiert und trug die Adresse des Privataccounts damit dauerhaft in jedes Kundenrepository.
+
+  Bestehende Projekte muessen nichts tun. GitHub leitet die alten Adressen weiter, vorhandene Pins und Klone funktionieren unveraendert weiter; sie ziehen die neue Adresse erst beim naechsten Anfassen der jeweiligen gimera.yml.
+- **BREAKING**: Drei Verweise auf Repositories entfernt, die es nicht gibt.
+
+  - `odoo reload` hatte eine Option `--images-url`, deren Hilfetext auf github.com/marcwimmer/odoo verwies. Das Repository existiert nicht, und die Option wurde auch nie ausgewertet: der Wert kam in der Signatur an und wurde dort nie wieder angefasst. Option entfernt.
+  - Die URL in `zodoo/src/setup.cfg` zeigte auf marcwimmer/zodoo. Das Projekt liegt unter Odoo-Ninjas/zodoo.
+  - `robot/.artefacts` beschrieb den Download von Chromedriver und Chrome von github.com/marcwimmer/chromedrivers. Das Repository existiert nicht mehr, die Links liefern 404. Sechs Minuten nach dem Anlegen der Datei wurden die beiden Dateien 2022 direkt nach `robot/artefacts/` eingecheckt und werden seitdem von dort genommen; die Beschreibung las ohnehin niemand mehr. Datei entfernt.
+  - `lib_robot.py` zeigte auf marcwimmer/odoo-robot_utils. Das Repository ist laengst nach Odoo-Ninjas/odoo-robot_utils umgezogen; der Verweis funktionierte nur noch ueber GitHubs Weiterleitung. Auf das echte Ziel gesetzt.
+
+  `odoo reload --images-url <url>` bricht jetzt mit einem Fehler ab, statt das Argument stillschweigend zu verwerfen. Wer die Option in einem Skript stehen hat, muss sie streichen - eine Wirkung hatte sie nie.
 
 
 ## 7.8.3

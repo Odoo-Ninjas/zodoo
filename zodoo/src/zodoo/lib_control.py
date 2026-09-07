@@ -472,6 +472,36 @@ def attach(ctx, config, machine):
     lib_attach(ctx, config, machine)
 
 
+def _start_build_accelerators(config):
+    """Den apt- und den pypi-Zwischenspeicher hochfahren.
+
+    Beide sind reine Beschleuniger: ohne sie holt der Build die Pakete direkt
+    und ist nur langsamer. Ein Fehlschlag darf den Build deshalb NICHT
+    abbrechen - sonst haengt jeder Build an einer Bequemlichkeit.
+
+    Er darf aber auch nicht stumm bleiben. Vorher wurden die Aufgaben in einen
+    ThreadPool geworfen, ohne das Ergebnis je abzufragen: die Ausnahme blieb
+    im Future liegen und niemand erfuhr davon.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    from .lib_cached_build import start_proxpi, start_squid_proxy
+
+    aufgaben = {"apt cache": start_squid_proxy, "pypi cache": start_proxpi}
+    with ThreadPoolExecutor(max_workers=len(aufgaben)) as pool:
+        laeuft = {name: pool.submit(fn, config) for name, fn in aufgaben.items()}
+
+    for name, future in laeuft.items():
+        fehler = future.exception()
+        if fehler:
+            click.secho(
+                f"WARNING: could not start the {name} ({fehler}).\n"
+                "Continuing without it - the build only gets slower.",
+                fg="yellow",
+            )
+
+
+
 @docker.command()
 @click.argument("machines", nargs=-1, shell_complete=_shell_complete_services)
 @click.option("--no-cache", is_flag=True)
@@ -545,7 +575,6 @@ def build(
     registry_only,
     suppress_other_platform_build,
 ):
-    from .lib_cached_build import start_squid_proxy, start_proxpi
     from .lib_zodoo_registry import try_pull_from_zodoo_registry
     from .lib_zodoo_registry import enqueue_registry_uploads
     from .lib_docker_registry import disable_keychain_credential_store
@@ -611,12 +640,7 @@ def build(
 
     if machines_to_build:
         if settings.get("RUN_APT_CACHER") in ["1", ""]:
-            from concurrent.futures import ThreadPoolExecutor
-
-            with ThreadPoolExecutor(max_workers=2) as pool:
-                pool.submit(start_squid_proxy, config)
-                pool.submit(start_proxpi, config)
-                pool.shutdown(wait=True)
+            _start_build_accelerators(config)
 
         lib_build(
             ctx,

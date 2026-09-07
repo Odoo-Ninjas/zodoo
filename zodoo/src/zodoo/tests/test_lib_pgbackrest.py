@@ -315,6 +315,104 @@ def test_conf_written_with_local_repo(after_compose, tmp_path):
     assert not any(d.startswith("pg1-host") for d in directives)
 
 
+def test_policy_job_verschwindet_ohne_token(after_settings):
+    """Ein Job, der jede Woche scheitert, ist schlimmer als keiner.
+
+    Ohne Token kann die Instanz ihre Vorgabe nicht erfragen; seit der
+    Daemon Fehlschlaege protokolliert, waere das von der ersten Woche an
+    Laerm. Bereiche, die vor dem 07.09.2026 angemeldet wurden, haben keinen.
+    """
+    settings = {
+        "RUN_PGBACKREST": "1",
+        "RUN_POSTGRES": "1",
+        "PGBR_RETENTION_TOKEN": "",
+        "CRONJOB_PGBACKREST_POLICY": "40 3 * * 1 odoo pgbackrest policy",
+    }
+    after_settings(settings, None)
+    assert settings["CRONJOB_PGBACKREST_POLICY"] == ""
+
+
+def test_policy_job_bleibt_mit_token(after_settings):
+    settings = {
+        "RUN_PGBACKREST": "1",
+        "RUN_POSTGRES": "1",
+        "PGBR_RETENTION_TOKEN": "irgendein-token",
+        "CRONJOB_PGBACKREST_POLICY": "40 3 * * 1 odoo pgbackrest policy",
+    }
+    after_settings(settings, None)
+    assert settings["CRONJOB_PGBACKREST_POLICY"].endswith("odoo pgbackrest policy")
+
+
+def test_server_vorgabe_schlaegt_den_eigenen_wunsch(after_compose, tmp_path):
+    """Die Aufbewahrung bestimmt der Server, ausgefuehrt wird sie hier.
+
+    PGBR_RETENTION_FULL ist nur noch ein Wunsch. Hat der Anmeldedienst eine
+    Vorgabe geliefert, gilt die - sonst waere die Instanz wieder die
+    entscheidende Seite.
+    """
+    after_compose(
+        None,
+        _enabled_settings(
+            HOST_RUN_DIR=str(tmp_path),
+            PGBR_REPO_HOST="backup.example",
+            PGBR_BACKUP_FROM="here",
+            PGBR_RETENTION_FULL="3",                 # Wunsch: kurz
+            PGBR_RETENTION_FULL_EFFECTIVE="30",      # Server: lang
+            PGBR_RETENTION_TYPE_EFFECTIVE="time",
+        ),
+        {"services": {"postgres": {"environment": {}}}},
+        {},
+    )
+    directives = _directives(tmp_path)
+    assert "repo1-retention-full=30" in directives, directives
+    assert "repo1-retention-full=3" not in directives
+
+
+def test_ohne_server_vorgabe_gilt_der_wunsch(after_compose, tmp_path):
+    """Solange der Server nichts gesagt hat, zaehlt der eigene Wert.
+
+    Wichtig, damit eine Instanz nicht ohne jede Aufbewahrung dasteht, bevor
+    `odoo pgbackrest policy` einmal gelaufen ist.
+    """
+    after_compose(
+        None,
+        _enabled_settings(
+            HOST_RUN_DIR=str(tmp_path),
+            PGBR_REPO_HOST="backup.example",
+            PGBR_BACKUP_FROM="here",
+            PGBR_RETENTION_FULL="21",
+            PGBR_RETENTION_FULL_EFFECTIVE="",
+        ),
+        {"services": {"postgres": {"environment": {}}}},
+        {},
+    )
+    directives = _directives(tmp_path)
+    assert "repo1-retention-full=21" in directives, directives
+
+
+def test_weder_vorgabe_noch_wunsch_heisst_nicht_ohne_aufbewahrung(
+    after_compose, tmp_path
+):
+    """Leer bedeutet Vorgabe, niemals "alles behalten".
+
+    Ohne repo1-retention-full expired pgbackrest gar nichts - still.
+    """
+    after_compose(
+        None,
+        _enabled_settings(
+            HOST_RUN_DIR=str(tmp_path),
+            PGBR_REPO_HOST="backup.example",
+            PGBR_BACKUP_FROM="here",
+            PGBR_RETENTION_FULL="",
+            PGBR_RETENTION_FULL_EFFECTIVE="",
+        ),
+        {"services": {"postgres": {"environment": {}}}},
+        {},
+    )
+    directives = _directives(tmp_path)
+    assert "repo1-retention-full=14" in directives, directives
+
+
 def test_conf_written_with_repo_host(after_compose, tmp_path):
     """When the repo host PULLS there must be no repo1-path and no retention.
 
@@ -473,15 +571,40 @@ def test_a_local_repository_always_gets_retention(after_compose, tmp_path):
     assert "repo1-retention-full=14" in _directives(tmp_path)
 
 
-def test_cipher_emitted_in_global_for_both_shapes(after_compose, tmp_path):
-    """Encryption belongs in [global], and to both repository shapes.
+def test_cipher_type_in_the_conf_passphrase_only_in_the_environment(
+    after_compose, tmp_path
+):
+    """Die Art in die Datei, die Passphrase in die Umgebung.
 
-    [global] rather than the stanza section because the pgBackRest guide says
-    so: `info` has to be able to read every stanza. And to both shapes because
-    encryption is what makes a repository on somebody else's storage
-    acceptable - which is exactly the repo-host case.
+    Bis 02.09.2026 stand `repo1-cipher-pass` in der pgbackrest.conf - und die
+    wird nach /etc/pgbackrest der Container gemountet und muss fuer den
+    Container-Benutzer lesbar bleiben, also 0644. Das Verzeichnis enger zu
+    ziehen hilft nicht: dann kaeme der Container selbst nicht mehr hin.
+
+    Also gehoert das Geheimnis nicht in diese Datei. pgBackRest liest jede
+    Option auch aus der Umgebung; nachgewiesen mit einem echten `info` gegen
+    ein verschluesseltes Repository, das allein mit
+    PGBACKREST_REPO1_CIPHER_PASS geoeffnet wurde.
+
+    `repo1-cipher-type` bleibt in [global] - dort gehoert es laut
+    pgBackRest-Handbuch hin, damit `info` jede Stanza lesen kann, und es ist
+    kein Geheimnis.
     """
+    from importlib.util import module_from_spec, spec_from_file_location
+
+    quelle = (
+        Path(__file__).resolve().parents[4]
+        / "pgbackrest"
+        / "__after_compose.py"
+    )
+    spec = spec_from_file_location("pgbr_ac", quelle)
+    modul = module_from_spec(spec)
+    spec.loader.exec_module(modul)
+
     for extra in ({}, {"PGBR_REPO_HOST": "backup.example"}):
+        yml = {"services": {"postgres": {"environment": {}},
+                            "pgbackrest": {"environment": {}},
+                            "grafana": {"environment": {}}}}
         after_compose(
             None,
             _enabled_settings(
@@ -489,16 +612,27 @@ def test_cipher_emitted_in_global_for_both_shapes(after_compose, tmp_path):
                 PGBR_CIPHER_PASS="s3cret-passphrase",
                 **extra,
             ),
-            {"services": {"postgres": {"environment": {}}}},
+            yml,
             {},
         )
         conf = (tmp_path / "pgbackrest" / "pgbackrest.conf").read_text()
         directives = _directives(tmp_path)
+
         assert "repo1-cipher-type=aes-256-cbc" in directives
-        assert "repo1-cipher-pass=s3cret-passphrase" in directives
-        # in [global], not inside the stanza section
+        # Die Art in [global], nicht in der Stanza-Sektion.
         head = conf.split("[" + _enabled_settings()["PGBR_STANZA"] + "]")[0]
-        assert "repo1-cipher-pass" in head
+        assert "repo1-cipher-type" in head
+        # Und die Passphrase nirgends in der Datei.
+        assert "repo1-cipher-pass" not in conf
+        assert "s3cret-passphrase" not in conf
+
+        # Sondern in genau den zwei Diensten, die sie brauchen.
+        for dienst in ("postgres", "pgbackrest"):
+            assert (
+                yml["services"][dienst]["environment"][modul.CIPHER_ENV]
+                == "s3cret-passphrase"
+            ), dienst
+        assert modul.CIPHER_ENV not in yml["services"]["grafana"]["environment"]
 
 
 def test_no_cipher_without_a_passphrase(after_compose, tmp_path):
@@ -549,6 +683,9 @@ def test_pgbackrest_cli_group_registered():
         "restore",
         "switch-wal",
         "stanza-create",
+        # Holt die serverseitige Aufbewahrungs-Vorgabe. Ohne diesen Befehl
+        # gaebe es keinen Weg, eine Aenderung dort auf die Instanz zu bringen.
+        "policy",
     } <= set(grp.commands.keys())
 
 
@@ -1466,3 +1603,53 @@ def test_wrapper_fails_loudly_when_the_stanza_cannot_be_created(tmp_path):
     assert "stanza-create" in calls, "es wurde nicht einmal versucht"
     assert res.returncode == 103, res
     assert "archive.info" in res.stderr
+
+
+# --------------------------------------------------------------------------- #
+# Aufbewahrungs-Vorgabe vom Server                                             #
+# --------------------------------------------------------------------------- #
+
+
+class _FakeConfig:
+    """Nur das, was update_setting braucht: der Pfad der Settings-Datei."""
+
+    def __init__(self, pfad):
+        self.files = {"project_settings": pfad}
+
+
+def test_policy_writes_the_server_value_into_the_settings(tmp_path):
+    """Die Vorgabe muss tatsaechlich in der Settings-Datei landen.
+
+    Der Helfer wurde beim ersten Rollout nur ueber den Renderer geprueft, nie
+    ausgefuehrt - und schlug dann mit `NameError: update_setting` fehl, weil
+    `update_setting` in lib_pgbackrest nicht global, sondern in den einzelnen
+    Funktionen importiert wird. Dieser Test ruft ihn wirklich auf.
+    """
+    from zodoo import lib_pgbackrest as p
+
+    datei = tmp_path / "settings"
+    datei.write_text("")
+    config = _FakeConfig(datei)
+
+    tage = p._speichere_vorgabe(config, {"full_days": "21", "full_type": "time"})
+
+    assert tage == "21"
+    text = datei.read_text()
+    assert "PGBR_RETENTION_FULL_EFFECTIVE=21" in text
+    assert "PGBR_RETENTION_TYPE_EFFECTIVE=time" in text
+
+
+def test_policy_without_a_value_changes_nothing(tmp_path):
+    """Ohne Vorgabe bleibt der Wunsch des Kunden unangetastet.
+
+    Sonst wuerde eine leere Antwort des Servers die Aufbewahrung auf den
+    Vorgabewert im Renderer zuruecksetzen, ohne dass jemand etwas geaendert hat.
+    """
+    from zodoo import lib_pgbackrest as p
+
+    datei = tmp_path / "settings"
+    datei.write_text("PGBR_RETENTION_FULL=30\n")
+    config = _FakeConfig(datei)
+
+    assert p._speichere_vorgabe(config, {}) is None
+    assert "EFFECTIVE" not in datei.read_text()

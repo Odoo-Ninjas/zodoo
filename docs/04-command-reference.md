@@ -56,6 +56,12 @@ Remove stopped containers.
 
 Recreate containers without rebuilding images.
 
+### `odoo dev [-b/--build] [-k/--kill]`
+
+Start containers in dev mode: combines build + up + watch, so code changes
+are picked up live. `-b` forces a rebuild first, `-k` kills existing
+containers before starting.
+
 ---
 
 ## Configuration
@@ -64,15 +70,19 @@ Recreate containers without rebuilding images.
 
 Regenerate `docker-compose.yml` from current settings. **Run this after every settings change** before `odoo up`.
 
+Also writes `.vscode/launch.json` and `.vscode/tasks.json` for the project and
+installs/updates the Zebroo VS Code extension (if the `code` CLI is
+available) — no separate setup command is needed for VS Code integration.
+
 ### `odoo setting <KEY> <VALUE>`
 
 Set a project setting. Writes to `./.odoo/settings` and triggers reload.
 
 ```bash
-odoo setting DEVMODE 1
-odoo setting PROXY_PORT 18069
-odoo setting ODOO_PYTHON_VERSION 3.12
-odoo setting HUB_URL registry.example.com:443/myproject
+odoo setting DEVMODE=1
+odoo setting PROXY_PORT=18069
+odoo setting ODOO_PYTHON_VERSION=3.12
+odoo setting HUB_URL=registry.example.com:443/myproject
 ```
 
 Flags:
@@ -85,13 +95,25 @@ Flags:
 
 Find and assign the next free port for `PROXY_PORT`, `DEBUG_PORT`, and (on macOS) `HOST_DB_PORT`.
 
-### `odoo setup status`
+### `odoo status`
 
-Show project name, Odoo version, database connection URL, and key config values.
+Show project name, Odoo version, database connection URL, and key config
+values. (Also reachable as `odoo setup status`; `odoo status` is the direct,
+unambiguous form.)
 
 ### `odoo setup remove-web-assets`
 
 Fix broken CSS/JS. Clears web assets from database; they are regenerated on next admin login.
+
+### `odoo setup setup-pyenv`
+
+Set up a local `pyenv`-managed Python environment for the robot/test tooling,
+so tests show up correctly in VS Code.
+
+### `odoo config [-f/--full]`
+
+Print the effective configuration for the current project. `--full` shows
+the full environment instead of the shortened default.
 
 ### `odoo upgrade`
 
@@ -136,6 +158,12 @@ Show the largest tables in the database.
 ### `odoo db dbcompare <file1> <file2>`
 
 Compare two database dumps.
+
+### `odoo restore-web-icons`
+
+Repairs broken `ir.attachment` links after a database restore, by deleting
+and recreating the affected web-icon attachments. (Also reachable as
+`odoo talk restore-web-icons`.)
 
 ---
 
@@ -218,6 +246,11 @@ Run a backup now. The same command runs nightly via `OFFSITE_BACKUP_CRON`
 (default 04:00, after the pgBackRest backup) and is a quiet no-op on projects
 without `RUN_OFFSITE=1`.
 
+It runs **whichever streams are configured** — filestore, database, or both.
+With `RUN_OFFSITE=1` but no target at all it fails loudly instead of returning
+success; so does a filestore-only target when the database is covered by
+neither pgBackRest nor `OFFSITE_WO_DB_RECIPIENT`.
+
 ### `odoo offsite list` / `odoo offsite info`
 
 List the archives in the repository / show repository stats (size,
@@ -280,9 +313,14 @@ Then:
 
 See [Debug Mode Guide](./05-debug-mode.md) for full details.
 
-### `odoo odoo-shell`
+### `odoo shell`
 
 Open an interactive Odoo Python shell inside the running container.
+
+> Written as `odoo-shell` here until 06.09.2026. That is the name the
+> command carries in zodoo's internal registry
+> (`Commands.register(shell, "odoo-shell")`), not the one the CLI answers
+> to — typing `odoo odoo-shell` gets you a usage error.
 
 ```python
 # Example usage inside shell:
@@ -346,6 +384,23 @@ In test files, use comments to declare module requirements:
 #odoo-require: crm,sale_stock
 #odoo-uninstall: partner_autocomplete
 ```
+
+---
+
+## Performance
+
+### `odoo benchmark fields <model>`
+
+Benchmark every field of a model to find slow computed fields under real
+database conditions.
+
+### `odoo benchmark curl`
+
+Same idea, scoped to the fields a specific slow request actually asked for —
+paste a `web_search_read` cURL command copied from Chrome DevTools.
+
+See [Benchmarking](./14-benchmarking.md) for full option lists and a worked
+example.
 
 ---
 

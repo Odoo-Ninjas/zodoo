@@ -167,6 +167,40 @@ either, and one alarm would arrive where two belong.
 The recommendation is `RUN_PGBACKREST=1`: it costs nothing extra (it runs on a
 disk that is already paid for) and adds point-in-time recovery on top.
 
+## Which streams a run actually covers
+
+There are two streams, and they are configured independently:
+
+| stream | needs | typical source |
+| --- | --- | --- |
+| filestore | `OFFSITE_WO_URL` + `OFFSITE_WO_RECIPIENT` | enrollment |
+| database | `OFFSITE_WO_URL` + `OFFSITE_WO_DB_RECIPIENT` | enrollment |
+
+`odoo offsite backup` runs **whichever of them is configured**:
+
+- both write-only → one container run, both streams, failures reported per
+  stream
+- only one of them, and no `OFFSITE_REPO` → that one stream runs
+- an `OFFSITE_REPO` as well → restic handles what is not write-only
+
+**The mixed shape is our normal one:** the database goes to pgBackRest, only
+the filestore goes offsite, and `OFFSITE_WO_DB_RECIPIENT` is deliberately
+empty. That combination used to back up **nothing at all** — the dispatch
+demanded that *both* streams be write-only, fell through to a check on
+`OFFSITE_REPO` (also empty in that shape) and returned success. The nightly
+cron did that for days on two instances while reporting no error; the areas on
+the backup server simply stayed at zero files. Fixed 05.09.2026.
+
+Two cases are deliberately loud now:
+
+- Only the filestore has a write-only target and the database is covered by
+  **neither** pgBackRest nor `OFFSITE_WO_DB_RECIPIENT` → the run **aborts**.
+  Uploading the attachments alone looks like a backup and is not one.
+- `RUN_OFFSITE=1` with no target configured at all → **error**, not a silent
+  success. Asking for an offsite backup and getting none is a fault. The quiet
+  case is `RUN_OFFSITE=0`, which stays wordless because the job hangs in the
+  shared cron daemon and runs on every project.
+
 ## Write-only filestore backup
 
 The restic path has one property that cannot be configured away: a machine that

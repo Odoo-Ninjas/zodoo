@@ -19,6 +19,7 @@ from __future__ import annotations
 import os
 import subprocess
 from pathlib import Path
+from unittest import mock
 
 import pytest
 from click.testing import CliRunner
@@ -1861,3 +1862,110 @@ def test_e2e_kill_and_restart(odoo_project_19_running):
     # in the session don't trip on broken dependencies.
     r2 = odoo_project_19_running.run("up", "-d", check=False, timeout=180)
     assert r2.returncode == 0
+
+
+# --------------------------------------------------------------------------- #
+# Build-Beschleuniger (apt-/pypi-Zwischenspeicher)                             #
+# --------------------------------------------------------------------------- #
+
+
+def test_a_broken_build_accelerator_only_warns():
+    """Ein kaputter Zwischenspeicher darf den Build nicht abbrechen.
+
+    apt- und pypi-Cache sparen Bauzeit, mehr nicht. Am 07.09.2026 riss der
+    apt-Cache den Build mit: sein Abbild liess sich nicht mehr bauen, weil die
+    bullseye-Sicherheitspakete vom Spiegel verschwinden. An einer
+    Bequemlichkeit darf kein Build haengen.
+    """
+    from zodoo import lib_control
+
+    def kaputt(config):
+        raise RuntimeError("docker build failed")
+
+    def geht(config):
+        geht.gelaufen = True
+
+    geht.gelaufen = False
+
+    with mock.patch.object(lib_control, "click") as fake_click, mock.patch.dict(
+        "sys.modules",
+        {
+            "zodoo.lib_cached_build": mock.Mock(
+                start_squid_proxy=kaputt, start_proxpi=geht
+            )
+        },
+    ):
+        lib_control._start_build_accelerators(object())
+
+    assert geht.gelaufen, "der zweite Beschleuniger muss trotzdem starten"
+    meldungen = " ".join(str(c) for c in fake_click.secho.call_args_list)
+    assert "apt cache" in meldungen
+    assert "docker build failed" in meldungen, "der Grund muss dastehen"
+
+
+def test_a_working_accelerator_says_nothing():
+    """Im Normalfall keine Warnung - sonst gewoehnt sich niemand daran."""
+    from zodoo import lib_control
+
+    with mock.patch.object(lib_control, "click") as fake_click, mock.patch.dict(
+        "sys.modules",
+        {
+            "zodoo.lib_cached_build": mock.Mock(
+                start_squid_proxy=lambda c: None, start_proxpi=lambda c: None
+            )
+        },
+    ):
+        lib_control._start_build_accelerators(object())
+
+    assert not fake_click.secho.call_args_list
+
+
+def test_the_apt_cacher_image_pins_its_package_sources():
+    """Das apt-Cacher-Abbild muss auf einem Debian-Schnappschuss bauen.
+
+    squid-deb-proxy gibt es nur in bullseye - aus bookworm und trixie ist das
+    Paket entfernt, das Abbild kann einer neueren Debian-Fassung also nicht
+    folgen. bullseye ist seit Ende August 2026 EOL: die Sicherheitspakete
+    verschwinden von den Spiegeln und liegen noch nicht im Archiv, weshalb
+    `apt-get install` sporadisch mit 404 abbricht (Release v11.3.1).
+    Ein Schnappschuss liefert Index und Pool aus demselben Moment.
+    """
+    pfad = Path(__file__).resolve().parents[4] / "apt_cacher" / "Dockerfile"
+    if not pfad.exists():                      # installiertes Paket, kein Repo
+        pytest.skip(f"{pfad} nicht vorhanden")
+    text = pfad.read_text()
+    assert "snapshot.debian.org" in text
+    assert "SNAPSHOT_DATE" in text
+    # Ohne das lehnt apt den absichtlich alten Release-Stand ab.
+    assert 'Acquire::Check-Valid-Until "false"' in text
+
+
+def test_every_snippet_marker_has_a_file():
+    """Jede `#___SNIPPET_X___`-Marke braucht `common_snippets/x`.
+
+    Eine falsch geschriebene Marke wird nicht ersetzt, und beide
+    Ersetzungsschleifen laufen dann 100 Runden leer und brechen mit
+    "Not resolved or endless loop" ab - eine Meldung, die auf eine
+    Endlosschleife deutet statt auf den Tippfehler. Genau so waren
+    `odoo/config/12` und `/14` unbaubar: sie schrieben
+    DEB_REQUIERMENTS statt DEB_REQUIREMENTS.
+    """
+    import re
+
+    wurzel = Path(__file__).resolve().parents[4]
+    schnipsel_dir = wurzel / "common_snippets"
+    if not schnipsel_dir.exists():              # installiertes Paket, kein Repo
+        pytest.skip(f"{schnipsel_dir} nicht vorhanden")
+
+    vorhanden = {p.name.upper() for p in schnipsel_dir.glob("*") if p.is_file()}
+    fehlend = {}
+    for dockerfile in wurzel.glob("**/Dockerfile*"):
+        if ".git" in dockerfile.parts or "zodoo_src" in dockerfile.parts:
+            continue
+        for name in re.findall(r"#___SNIPPET_(\w+)___", dockerfile.read_text()):
+            if name.upper() not in vorhanden:
+                fehlend.setdefault(name, []).append(
+                    str(dockerfile.relative_to(wurzel))
+                )
+
+    assert not fehlend, f"Marken ohne Schnipsel-Datei: {fehlend}"

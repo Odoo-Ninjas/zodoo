@@ -398,6 +398,85 @@ def test_filestore_command_aborts_without_a_write_only_target(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# offsite backup - which streams a run actually covers
+# ---------------------------------------------------------------------------
+def _run_backup(tmp_path, monkeypatch, **settings):
+    """Call `offsite backup` and report what it handed to the container."""
+    calls = []
+    monkeypatch.setattr(mod, "_offsite_run_raw", lambda cfg, args, **kw: calls.append(args))
+    monkeypatch.setattr(mod, "_offsite_run", lambda cfg, args, **kw: calls.append(args))
+    cfg = FakeConfig(**settings)
+    cfg._host_run_dir = tmp_path
+    ctx = click.Context(mod.offsite_backup)
+    ctx.obj = cfg
+    with ctx:
+        mod.offsite_backup.callback()
+    return calls
+
+
+WO = {
+    "run_offsite": True,
+    "OFFSITE_REPO": "",
+    "OFFSITE_WO_URL": "https://files.invalid/area/",
+    "OFFSITE_WO_RECIPIENT": "age1files",
+}
+
+
+def test_backup_runs_the_filestore_when_the_database_is_on_pgbackrest(
+    tmp_path, monkeypatch
+):
+    """Our normal arrangement: database via pgBackRest, filestore write-only.
+
+    This used to back up NOTHING and still exit 0 - the nightly cronjob
+    reported success while the write-only area stayed empty for days.
+    """
+    calls = _run_backup(
+        tmp_path, monkeypatch, run_pgbackrest="1", OFFSITE_WO_DB_RECIPIENT="", **WO
+    )
+    assert calls == [["filestore"]]
+
+
+def test_backup_uses_one_run_when_both_streams_are_write_only(tmp_path, monkeypatch):
+    calls = _run_backup(
+        tmp_path, monkeypatch, run_pgbackrest="0", OFFSITE_WO_DB_RECIPIENT="age1db", **WO
+    )
+    assert calls == [["backup"]]
+
+
+def test_backup_refuses_to_save_only_the_filestore_and_drop_the_database(
+    tmp_path, monkeypatch
+):
+    """Filestore write-only, database covered by nothing at all. Uploading the
+    attachments alone would look like a backup and is not one."""
+    with pytest.raises(SystemExit):
+        _run_backup(
+            tmp_path, monkeypatch, run_pgbackrest="0", OFFSITE_WO_DB_RECIPIENT="", **WO
+        )
+
+
+def test_backup_fails_loudly_when_enabled_but_nothing_is_configured(
+    tmp_path, monkeypatch
+):
+    """RUN_OFFSITE=1 asks for a backup. Getting none is a fault, not a no-op -
+    the quiet case is RUN_OFFSITE=0."""
+    with pytest.raises(SystemExit):
+        _run_backup(
+            tmp_path,
+            monkeypatch,
+            run_offsite=True,
+            OFFSITE_REPO="",
+            OFFSITE_WO_URL="",
+            OFFSITE_WO_RECIPIENT="",
+            OFFSITE_WO_DB_RECIPIENT="",
+        )
+
+
+def test_backup_stays_a_quiet_no_op_when_offsite_is_off(tmp_path, monkeypatch):
+    """It hangs in the shared cron daemon and runs on every project."""
+    assert _run_backup(tmp_path, monkeypatch, run_offsite=False) == []
+
+
+# ---------------------------------------------------------------------------
 # offsite/__after_settings.py
 # ---------------------------------------------------------------------------
 def _after_settings():

@@ -204,14 +204,15 @@ def pgbackrest_check(config, record):
     except Exception as ex:  # noqa: BLE001
         fehler = f"{type(ex).__name__}: {ex}"[-500:]
     if record:
-        _check_ablegen(config, fehler)
+        _record_check(config, fehler)
+        _full_backup_after_drop(config)
     if fehler:
         # Weiterreichen, damit der Zeitplan den Fehlschlag ebenfalls meldet -
         # die abgelegte Datei ersetzt die Meldung nicht, sie ergaenzt sie.
         abort(f"pgbackrest check fehlgeschlagen: {fehler}")
 
 
-def _check_ablegen(config, fehler):
+def _record_check(config, fehler):
     """Das Ergebnis des Checks dorthin legen, wo die Kennzahlen es finden.
 
     Bewusst mit Zeitpunkt: laeuft der Check nicht mehr, altert der Wert und
@@ -230,6 +231,91 @@ def _check_ablegen(config, fehler):
     neben.write_text(json.dumps(daten, indent=1, sort_keys=True) + "\n")
     neben.chmod(0o644)
     os.replace(neben, ziel)
+
+
+def _full_backup_after_drop(config):
+    """Nach einem WAL-Verwurf sofort eine neue Vollsicherung anstossen.
+
+    **Warum automatisch.** Ueberschreitet der Spool `archive-push-queue-max`,
+    wirft pgbackrest die GANZE Warteschlange weg und meldet postgres Erfolg.
+    Ab da ist keine Wiederherstellung auf einen Zeitpunkt mehr moeglich - und
+    sie bleibt unmoeglich, bis eine neue BASIS existiert. Der Schaden waechst
+    also mit jeder Stunde, in der niemand hinsieht, und der naechste geplante
+    Volllauf ist im schlechtesten Fall sechs Tage entfernt.
+
+    **Zwei Bedingungen, ohne die das schadet:**
+
+    1. Es geht um den ANSTIEG des Zaehlers, nicht um seinen Stand. Sonst liefe
+       nach jedem stuendlichen Check eine neue Vollsicherung, solange der
+       Zaehler ueber Null steht.
+    2. Der Spool muss LEER sein. Steht die Archivierung noch, macht eine
+       Vollsicherung die Warteschlange laenger und provoziert den naechsten
+       Verwurf - erst wenn der Weg wieder traegt, hat eine neue Basis Bestand.
+       In dem Fall wird der Zaehler bewusst NICHT quittiert, damit der naechste
+       Lauf es erneut versucht.
+
+    Der Zaehler kommt aus dem Logfile und faellt bei dessen Rotation zurueck;
+    ein Ruecksetzer ist deshalb kein Anstieg und loest nichts aus.
+    """
+    run_dir = config.dirs.get("run")
+    if not run_dir:
+        return
+    from .lib_backup_metrics import _spool_and_dropped
+
+    warteschlange, verworfen = _spool_and_dropped(config)
+    if verworfen is None:
+        return
+
+    ziel = Path(run_dir) / "pgbackrest-verwurf.json"
+    try:
+        vorher = json.loads(ziel.read_text()).get("verworfen")
+    except (OSError, ValueError, AttributeError):
+        vorher = None
+
+    def merken(gesichert):
+        daten = {
+            "verworfen": verworfen,
+            "at": int(time.time()),
+            "vollsicherung_angestossen": gesichert,
+        }
+        neben = ziel.with_suffix(".json.neu")
+        neben.write_text(json.dumps(daten, indent=1, sort_keys=True) + "\n")
+        neben.chmod(0o644)
+        os.replace(neben, ziel)
+
+    # Erster Lauf: nur merken. Ohne das gilt ein Altbestand im Log als
+    # frischer Anstieg und es liefe sofort eine unnoetige Vollsicherung.
+    if vorher is None or verworfen <= vorher:
+        merken(False)
+        return
+
+    click.secho(
+        f"WAL VERWORFEN: der Zaehler ist von {vorher} auf {verworfen} "
+        "gestiegen. Die WAL-Kette ist unterbrochen - bis eine neue "
+        "Basissicherung steht, ist keine Wiederherstellung auf einen Zeitpunkt "
+        "moeglich.",
+        fg="red",
+    )
+    if warteschlange:
+        click.secho(
+            f"Noch {warteschlange} Segment(e) im Spool: die Archivierung "
+            "traegt noch nicht. Die Vollsicherung wartet auf den naechsten "
+            "Lauf - jetzt wuerde sie die Warteschlange nur verlaengern.",
+            fg="yellow",
+        )
+        return
+
+    click.secho("Starte eine Vollsicherung, um die Kette neu zu setzen.", fg="yellow")
+    try:
+        _pgbr(config, ["--type", "full", "backup"])
+    except Exception as ex:  # noqa: BLE001 - der naechste Lauf versucht es erneut
+        click.secho(
+            f"Vollsicherung nach dem Verwurf fehlgeschlagen: {ex}. Der Zaehler "
+            "bleibt unquittiert, der naechste Check versucht es erneut.",
+            fg="red",
+        )
+        return
+    merken(True)
 
 
 def _binary_version(config, service):
@@ -1374,7 +1460,7 @@ def bench_conf_text(bench, stanza):
     return "\n".join(zeilen)
 
 
-def _bench_umgebung(bench, stanza, arbeitsordner):
+def _bench_environment(bench, stanza, arbeitsordner):
     """Konfiguration und Zertifikat fuer EINEN Bereich bereitlegen.
 
     Die abgelegten Dateien gehoeren dem Benutzer, unter dem der Container
@@ -1431,7 +1517,7 @@ def _bench_umgebung(bench, stanza, arbeitsordner):
 
     # Das Zertifikat kommt entweder aus dem Umschlag des Bereichs (dann ist es
     # das des KUNDEN und gilt nur fuer dessen Stanza) oder aus einem Ordner.
-    # Der Umschlag ist der bessere Weg - siehe umschlag_oeffnen().
+    # Der Umschlag ist der bessere Weg - siehe open_envelope().
     aus_umschlag = {
         "client.crt": bench.get("client_cert"),
         "client.key": bench.get("client_key"),
@@ -1462,7 +1548,7 @@ def _bench_umgebung(bench, stanza, arbeitsordner):
     }
 
 
-def umschlag_oeffnen(identity, pfad):
+def open_envelope(identity, pfad):
     """Einen age-Umschlag lesen.
 
     Der Anmeldedienst legt beim Freigeben eines Bereichs einen Umschlag ab,
@@ -1500,7 +1586,7 @@ def umschlag_oeffnen(identity, pfad):
         raise VerifyFailed(f"der Umschlag enthaelt kein JSON: {ex}") from ex
 
 
-def neuester_umschlag(ordner, stanza):
+def newest_envelope(ordner, stanza):
     """Der juengste Umschlag eines Bereichs, oder None.
 
     Eine zweite Freigabe legt eine zweite Datei an, statt die erste zu
@@ -1516,7 +1602,7 @@ def neuester_umschlag(ordner, stanza):
     return os.path.join(ordner, treffer[-1]) if treffer else None
 
 
-def umschlag_bereiche(ordner):
+def envelope_areas(ordner):
     """Welche Bereiche im Umschlag-Ordner liegen."""
     if not ordner or not os.path.isdir(ordner):
         return []
@@ -1527,16 +1613,16 @@ def umschlag_bereiche(ordner):
     return sorted(namen)
 
 
-def _aus_umschlag(bench, stanza):
+def _from_envelope(bench, stanza):
     """Die Angaben eines Bereichs aus seinem Umschlag ergaenzen.
 
     Was schon in der Konfiguration steht, bleibt stehen - so laesst sich ein
     einzelner Wert von Hand uebersteuern, ohne den Umschlag anzufassen.
     """
-    pfad = neuester_umschlag(bench.get("envelope_dir"), stanza)
+    pfad = newest_envelope(bench.get("envelope_dir"), stanza)
     if not pfad:
         return bench
-    daten = umschlag_oeffnen(bench.get("age_identity"), pfad)
+    daten = open_envelope(bench.get("age_identity"), pfad)
 
     ergaenzt = dict(bench)
     for aus, nach in (
@@ -1555,7 +1641,7 @@ def _aus_umschlag(bench, stanza):
     return ergaenzt
 
 
-def _bestandsname(bench):
+def _store_name(bench):
     """Wie der gepruefte Bestand in den Nachweisen heisst.
 
     Frei benennbar, weil "s3" ueber mehrere Bestaende hinweg nichts
@@ -1572,9 +1658,9 @@ def run_verify_bench(bench, stanza):
     eigen.update((bench.get("stanzas") or {}).get(stanza) or {})
     arbeitsordner = tempfile.mkdtemp(prefix=f"verify-{stanza}-")
     try:
-        eigen = _aus_umschlag(eigen, stanza)
-        umgebung = _bench_umgebung(eigen, stanza, arbeitsordner)
-        umgebung["store"] = _bestandsname(eigen)
+        eigen = _from_envelope(eigen, stanza)
+        umgebung = _bench_environment(eigen, stanza, arbeitsordner)
+        umgebung["store"] = _store_name(eigen)
     except VerifyFailed as ex:
         shutil.rmtree(arbeitsordner, ignore_errors=True)
         return {
@@ -1584,7 +1670,7 @@ def run_verify_bench(bench, stanza):
             "result": "failed",
             "error": str(ex)[-2000:],
             "seconds": 0,
-            "store": _bestandsname(eigen),
+            "store": _store_name(eigen),
         }
     try:
         return _probe(umgebung, stanza)
@@ -1597,7 +1683,7 @@ def run_verify_bench(bench, stanza):
 # --------------------------------------------------------------------------- #
 
 
-def _verify_ausgabe_lesen(text, stanza):
+def _read_verify_output(text, stanza):
     """Was `pgbackrest verify` wirklich sagt - und was es nicht sagt.
 
     Beim ersten echten Lauf zeigte sich, dass die naheliegende Annahme falsch
@@ -1655,7 +1741,7 @@ def _verify_ausgabe_lesen(text, stanza):
     return ("error" if meldungen else "ok"), meldungen, bereiche
 
 
-def _luecken(bereiche):
+def _wal_gaps(bereiche):
     """Fehlende WAL-Abschnitte: je archiveId ein Abschnitt weniger als noetig."""
     je_kennung = {}
     for b in bereiche:
@@ -1688,11 +1774,11 @@ def run_repo_verify_bench(bench, stanza):
         "bench": eigen.get("bench") or socket.gethostname(),
         "checked_at": int(begonnen),
         "kind": "repo-verify",
-        "store": _bestandsname(eigen),
+        "store": _store_name(eigen),
     }
     try:
-        eigen = _aus_umschlag(eigen, stanza)
-        umgebung = _bench_umgebung(eigen, stanza, arbeitsordner)
+        eigen = _from_envelope(eigen, stanza)
+        umgebung = _bench_environment(eigen, stanza, arbeitsordner)
         out = _docker(
             "run", "--rm",
             *sum((["-v", m] for m in umgebung["mounts"]), []),
@@ -1705,9 +1791,9 @@ def run_repo_verify_bench(bench, stanza):
             timeout=14400,
         )
         text = (out.stdout or "") + (out.stderr or "")
-        urteil, meldungen, bereiche = _verify_ausgabe_lesen(text, stanza)
+        urteil, meldungen, bereiche = _read_verify_output(text, stanza)
         ergebnis["wal_bereiche"] = bereiche
-        ergebnis["wal_luecken"] = _luecken(bereiche)
+        ergebnis["wal_gaps"] = _wal_gaps(bereiche)
         if urteil is None:
             ergebnis["result"] = "failed"
             ergebnis["error"] = (
@@ -1776,7 +1862,7 @@ def pgbackrest_verify(config, stanza, as_json, report_to, bench_config):
             [stanza] if stanza
             else sorted(
                 set(bench.get("stanzas") or {})
-                | set(umschlag_bereiche(bench.get("envelope_dir")))
+                | set(envelope_areas(bench.get("envelope_dir")))
             )
         )
         if not bereiche:
@@ -1857,7 +1943,7 @@ def pgbackrest_repo_verify(config, stanza, as_json, report_to, bench_config):
         [stanza] if stanza
         else sorted(
             set(bench.get("stanzas") or {})
-            | set(umschlag_bereiche(bench.get("envelope_dir")))
+            | set(envelope_areas(bench.get("envelope_dir")))
         )
     )
     if not bereiche:
@@ -1885,19 +1971,19 @@ def pgbackrest_repo_verify(config, stanza, as_json, report_to, bench_config):
         if as_json:
             click.echo(json.dumps(ergebnis, indent=1, sort_keys=True))
         elif ergebnis["result"] == "passed":
-            luecken = ergebnis.get("wal_luecken") or 0
+            gaps = ergebnis.get("wal_gaps") or 0
             click.secho(
                 f"{ergebnis['area']} ({ergebnis['store']}): Bestand heil "
                 f"({ergebnis['seconds']}s).",
                 fg="green",
             )
-            if luecken:
+            if gaps:
                 # Kein Fehlschlag - pgBackRest nennt das nicht Fehler, und vor
                 # der ersten Sicherung ist eine Luecke normal. Aber es muss
                 # dastehen: zwischen zwei Abschnitten fuehrt kein Weg auf
                 # einen Zeitpunkt zurueck.
                 click.secho(
-                    f"  ACHTUNG: {luecken} Luecke(n) im WAL - "
+                    f"  ACHTUNG: {gaps} Luecke(n) im WAL - "
                     + ", ".join(
                         f"{b['von']}..{b['bis']}"
                         for b in ergebnis.get("wal_bereiche") or []
@@ -2061,6 +2147,170 @@ def _enroll_call(config, method, path, payload=None):
 
 
 @pgbackrest.command(
+    name="envelope",
+    help=(
+        "Open an age envelope and print one field - the way to get a "
+        "passphrase back. Works WITHOUT a bench: point it at an envelope "
+        "file and an age key, which is what a real recovery looks like."
+    ),
+)
+@click.option(
+    "--file", "datei", default=None,
+    type=click.Path(exists=True, dir_okay=False),
+    help="the envelope itself (*.age)",
+)
+@click.option("--area", default=None, help="stanza; newest envelope wins")
+@click.option(
+    "--envelope-dir", "ordner", default=None,
+    type=click.Path(exists=True, file_okay=False),
+    help="where the envelopes are, when --area is used",
+)
+@click.option(
+    "--age-key", "schluessel", default=None,
+    type=click.Path(exists=True, dir_okay=False),
+    help="the PRIVATE age key",
+)
+@click.option(
+    "--bench-config", default=None,
+    type=click.Path(exists=True, dir_okay=False),
+    help="take key and envelope directory from a bench config",
+)
+@click.option(
+    "--field", "feld", default="cipher_pass",
+    help="which field to print (default: cipher_pass)",
+)
+@click.option(
+    "--list-fields", "auflisten", is_flag=True,
+    help="print the field NAMES only, no values",
+)
+@pass_config
+def pgbackrest_envelope(
+    config, datei, area, ordner, schluessel, bench_config, feld, auflisten
+):
+    """Den Umschlag oeffnen - der Weg, eine Passphrase zurueckzubekommen.
+
+    Warum es diesen Befehl gibt: `open_envelope()` existierte schon, aber
+    nur als Funktion, die der Pruefstand benutzt. Um von Hand an eine
+    Passphrase zu kommen, musste man Python schreiben. Deshalb hat niemand den
+    Umschlag als Ablageort betrachtet - und deshalb wurde die Passphrase
+    zusaetzlich im Klartext an mehreren Stellen gehalten.
+
+    Bewusst OHNE Pruefstand benutzbar: im Ernstfall ist der Pruefstand
+    vielleicht das, was fehlt. Dann hat man den Schluessel aus dem Tresor, den
+    Umschlag von irgendwo - aus dem Anhang am Projekt in hosting.zebroo.de,
+    von der Backup-Maschine, aus dem Zweitbestand - und braucht sonst nichts.
+    """
+    if bench_config:
+        with open(bench_config) as fh:
+            bench = json.load(fh)
+        schluessel = schluessel or bench.get("age_identity")
+        ordner = ordner or bench.get("envelope_dir")
+
+    if not datei:
+        if not area:
+            abort("entweder --file <umschlag.age> oder --area <bereich>")
+        if not ordner:
+            abort(
+                "zu --area fehlt --envelope-dir (oder --bench-config, das "
+                "beides mitbringt)"
+            )
+        datei = newest_envelope(ordner, area)
+        if not datei:
+            abort(f"in {ordner} liegt kein Umschlag fuer '{area}'")
+
+    if not schluessel:
+        abort(
+            "es fehlt der private age-Schluessel: --age-key <datei> "
+            "(auf dem Pruefstand /etc/pgbr-pruefstand/age.key, sonst aus "
+            "1Password, Item 'Restic Repo Key assymetrische "
+            "Verschluesselung Master Key')"
+        )
+
+    try:
+        daten = open_envelope(schluessel, datei)
+    except VerifyFailed as ex:
+        abort(str(ex))
+
+    if auflisten:
+        # Nur die Namen. Wer wissen will, was drin ist, muss nicht alles
+        # ausgeben lassen.
+        for name in sorted(daten):
+            click.echo(name)
+        return
+
+    if feld not in daten:
+        abort(
+            f"das Feld '{feld}' steht nicht im Umschlag. Vorhanden: "
+            + ", ".join(sorted(daten))
+        )
+
+    # Roh auf stdout, ohne Zierrat: der Wert soll sich weiterverwenden
+    # lassen. Und ohne Logzeile - ein Geheimnis gehoert in kein Protokoll.
+    click.echo(daten[feld])
+
+
+def _speichere_vorgabe(config, vorgabe):
+    """Die vom Server gelieferte Aufbewahrung ablegen.
+
+    Getrennt von PGBR_RETENTION_FULL, das der WUNSCH bleibt. Beim Rendern hat
+    dieser Wert Vorrang (siehe pgbackrest/__after_compose.py).
+    """
+    from .tools import update_setting
+
+    tage = str(vorgabe.get("full_days") or "").strip()
+    typ = str(vorgabe.get("full_type") or "").strip()
+    if not tage:
+        return None
+    update_setting(config, "PGBR_RETENTION_FULL_EFFECTIVE", tage)
+    if typ:
+        update_setting(config, "PGBR_RETENTION_TYPE_EFFECTIVE", typ)
+    return tage
+
+
+@pgbackrest.command(
+    name="policy",
+    help="Die vom Backup-Server vorgegebene Aufbewahrung holen und ablegen.",
+)
+@pass_config
+def pgbackrest_policy(config):
+    """Holt die geltende Aufbewahrung und schreibt sie in die Einstellungen.
+
+    Warum es diesen Befehl braucht: die Aufbewahrung MUSS hier ausgefuehrt
+    werden, weil nur diese Maschine backup.info entschluesseln kann -
+    bestimmen soll sie aber der Server, dem die Platte gehoert. Bei der
+    Anmeldung kommt die Vorgabe einmal mit; aendert der Server sie spaeter,
+    erreicht das diese Maschine nur ueber diesen Abruf.
+    """
+    stanza = _stanza(config)
+    token = (getattr(config, "PGBR_RETENTION_TOKEN", "") or "").strip()
+    if not token:
+        abort(
+            "PGBR_RETENTION_TOKEN ist leer - dieser Bereich kann seine Vorgabe "
+            "nicht erfragen.\n"
+            "Bereiche, die vor dem 07.09.2026 angemeldet wurden, haben keinen "
+            "Token; bis zur Neuanmeldung gilt PGBR_RETENTION_FULL als Wunsch."
+        )
+
+    antwort = _enroll_call(
+        config, "GET", f"/api/retention?area={stanza}&token={token}"
+    )
+    vorgabe = antwort.get("retention") or {}
+    tage = _speichere_vorgabe(config, vorgabe)
+    if not tage:
+        abort(f"Der Anmeldedienst hat keine Aufbewahrung geliefert: {antwort}")
+
+    wunsch = (getattr(config, "PGBR_RETENTION_FULL", "") or "").strip()
+    click.secho(f"Aufbewahrung laut Backup-Server: {tage} Tage", fg="green")
+    if wunsch and wunsch != tage:
+        click.secho(
+            f"Der eigene Wunsch ({wunsch} Tage) weicht ab und wird NICHT "
+            "verwendet - die Vorgabe des Servers gilt.",
+            fg="yellow",
+        )
+    click.secho("Wirksam wird das mit `odoo reload`.", fg="green")
+
+
+@pgbackrest.command(
     name="register",
     help=(
         "Request a stanza on the backup server and collect the credentials. "
@@ -2175,6 +2425,13 @@ def pgbackrest_register(config, name, note):
     # it - it does not serve one.
     update_setting(config, "PGBR_BACKUP_FROM", "here")
     update_setting(config, "RUN_PGBACKREST", "1")
+
+    # Die Aufbewahrung bestimmt der Server. Der Token berechtigt dazu, die
+    # EIGENE Vorgabe spaeter erneut zu erfragen - eine Aenderung dort erreicht
+    # diese Maschine sonst nie.
+    if answer.get("retention_token"):
+        update_setting(config, "PGBR_RETENTION_TOKEN", answer["retention_token"])
+    _speichere_vorgabe(config, answer.get("retention") or {})
 
     # Second stream: the filestore goes to the write-only receiver. One
     # approval covers both, so the answer carries both - and a machine that
