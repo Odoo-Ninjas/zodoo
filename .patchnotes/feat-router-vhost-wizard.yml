@@ -1,0 +1,69 @@
+type: feature
+breaking: false
+description: |
+  Neuer Assistent "odoo router vhost new" legt einen Virtual Host im Dialog an,
+  und ein fehlendes Feld in der vhosts.yml fliegt jetzt auf, statt eine kaputte
+  nginx-Konfiguration zu erzeugen.
+
+  Bisher liess sich ein vHost nur aus einer fertigen Datei einlesen
+  ("odoo router vhost add <datei>") - man musste also wissen, welche Felder das
+  jeweilige Template braucht, und die stehen nur in den Templates selbst. Der
+  Assistent fragt der Reihe nach ab: Art des vHosts, Domain, Backend-Adresse
+  und -Port, Zeitlimit, Let's-Encrypt-Zertifikat, IP-Freigabeliste und Basic
+  Auth. Er prueft die Eingaben, zeigt den fertigen vHost als YAML und schreibt
+  ihn auf Wunsch in die vhosts.yml und rollt ihn aus.
+
+  Mit "--dry-run" gibt er den vHost nur aus und aendert nichts - dafuer braucht
+  es auch keinen installierten Router. Das ist der schnellste Weg, sich ein
+  korrektes Schnipsel fuer die vhosts.yml zu erzeugen.
+
+  Zwei Eingaben werden geprueft, weil sie erfahrungsgemaess schiefgehen: der
+  Upstream-Name darf nur Buchstaben, Ziffern und Unterstriche enthalten (er
+  wird zu einem nginx-Variablennamen, mit Punkt oder Bindestrich laedt nginx
+  die Konfiguration nicht - und das merkt man erst beim Reload), und die Ports
+  muessen echte Ports sein.
+
+  Ausserdem gerendert wird jetzt mit StrictUndefined. Das war zwar schon
+  importiert, aber nie gesetzt - ein fehlendes Feld wurde deshalb still zu
+  einem leeren Text, und heraus kam eine kaputte Konfiguration mit Zeilen wie
+  "server :;" und "proxy_pass http://$var_;", ohne jede Meldung. Fehlt ein
+  Feld, nennt das Rendern nun den vHost und das Feld und bricht ab.
+  ACHTUNG beim Aktualisieren: wer bisher eine unvollstaendige vhosts.yml hatte,
+  bekommt bei "odoo router apply-vhosts" jetzt einen Fehler statt eines
+  stillen Teilergebnisses. Der betroffene vHost hat vorher nicht funktioniert -
+  die Zeile muss ergaenzt werden.
+
+  Zum Nachschauen: "odoo router vhost new --dry-run" durchklicken, dabei als
+  Upstream-Namen bewusst "meine.domain.de" eingeben - das muss abgelehnt
+  werden. Am Ende steht der vHost als YAML auf dem Bildschirm und in der
+  vhosts.yml steht unveraendert das Alte. Danach ohne --dry-run anlegen,
+  "odoo router vhost list" zeigt ihn, und die Datei unter sites-enabled
+  enthaelt Backend-Adresse und -Port an den richtigen Stellen.
+
+  Neu dazu: eine vollstaendig kommentierte Beispielkonfiguration
+  (router_global/vhosts.example.yml) und die Doku docs/13-web-router.md - fuer
+  den Router gab es bisher gar keine.
+
+  Dazu gibt es "odoo router config": ein gefuehrtes Menue, das man mit den
+  Pfeiltasten bedient. Darin kann man vHosts anlegen, bearbeiten, loeschen und
+  anzeigen, die Konfiguration ausrollen und Zertifikate holen. Es bleibt offen,
+  bis man "Quit" waehlt, und wenn dann noch nicht ausgerollte Aenderungen
+  offen sind, fragt es danach.
+
+  Die Liste zeigt zu jedem vHost, wohin er zeigt, und markiert unvollstaendige
+  ("incomplete: upstream_server, timeout") - so sieht man die kaputten Eintraege
+  aus der Zeit vor der Pruefung sofort. Beim Bearbeiten steht der aktuelle Wert
+  als Vorgabe drin; noch nicht gesetzte Felder werden mit "+" und einer kurzen
+  Erklaerung angeboten. Leert man ein optionales Feld, wird es entfernt und
+  nicht als leerer Wert gespeichert.
+
+  Beim Neuanlegen macht der Assistent Vorschlaege: die Backend-Adresse aus dem,
+  worauf die anderen vHosts zeigen, den Port eine Nummer ueber dem hoechsten
+  bereits benutzten, und den Upstream-Namen aus der Domain.
+
+  Nebenbei korrigiert: die Eingabepruefungen haben nicht geprueft. inquirer
+  betrachtet jeden Rueckgabewert von "validate" als gueltig, solange er nicht
+  leer ist - der uebliche Einzeiler "... or 'Must be a valid port'" liefert bei
+  falscher Eingabe also einen Text zurueck, und der gilt als "in Ordnung".
+  Die Pruefungen im Router-Assistenten loesen jetzt einen Fehler aus, damit die
+  Eingabe wirklich abgelehnt und die Begruendung angezeigt wird.
