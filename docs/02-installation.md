@@ -9,12 +9,16 @@
   22.04 still ships it. On macOS the installer pins the version from
   `darwin_python_version` (3.12).
 
-  One caveat for 3.10: `PYTHONSAFEPATH` only exists from 3.11 on, and older
-  interpreters ignore it silently. The cron daemon sets it so that a file named
-  like a stdlib module in the project directory (`inspect.py`, `grp.py`, …)
-  cannot shadow the real one and kill every cron job — see the incident in
-  `lib_cronjobs`. **On 3.10 that protection does not apply.** Prefer 3.11+ on
-  machines that run cron jobs.
+  A detail about 3.10: `PYTHONSAFEPATH` only exists from 3.11 on and older
+  interpreters ignore it silently, so the unit test that proves the shadowing
+  protection is skipped there. That does **not** mean cron jobs are
+  unprotected: the cron container builds its own venv with `python3.11`
+  (`common_snippets/python311` + `common_snippets/zodoo`) and runs `odoo` from
+  it, independently of the python on the host. The protection matters because
+  the wrapper invokes `python3 -m zodoo`, and `-m` puts the current directory
+  on `sys.path` — with `cd /opt/src` a file named like a stdlib module
+  (`inspect.py`, `grp.py`, …) in the project directory would shadow the real
+  one and kill every cron job of that instance.
 
 - **pipx** (for isolated CLI tool installation)
 

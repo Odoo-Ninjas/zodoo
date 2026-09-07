@@ -1,0 +1,26 @@
+type: docs
+breaking: false
+description: |
+  Richtigstellung zu einem Hinweis von heute Vormittag: in der
+  Installationsanleitung stand, unter Python 3.10 sei der Schutz des
+  Cron-Daemons gegen beschattete Standardmodule unwirksam. Das ist so zu
+  pauschal und verunsichert ohne Grund.
+
+  Richtig ist: PYTHONSAFEPATH gibt es tatsaechlich erst ab Python 3.11, und
+  aeltere Interpreter ignorieren die Variable stillschweigend - deshalb wird
+  der zugehoerige Test unter 3.10 uebersprungen. Die Cronjobs laufen davon
+  aber unberuehrt, denn der Cronjob-Container baut sein eigenes venv mit
+  python3.11 und ruft odoo daraus auf. Welches Python auf dem Host installiert
+  ist, spielt dafuer keine Rolle.
+
+  Ausserdem steht jetzt dabei, warum es den Schutz ueberhaupt braucht: der
+  Aufruf im Container ist "python3 -m zodoo", und bei "-m" landet das aktuelle
+  Verzeichnis in sys.path. Zusammen mit dem "cd /opt/src" des Cron-Daemons
+  wuerde eine Datei im Projektverzeichnis, die wie ein Standardmodul heisst
+  (inspect.py, grp.py, ...), das echte Modul verdecken und jeden Cronjob der
+  Instanz lahmlegen.
+
+  Zum Nachschauen: docs/02-installation.md, Abschnitt Prerequisites. Die
+  Begruendung des uebersprungenen Tests in test_cronjobs_run.py sagt jetzt
+  dasselbe, damit niemand aus dem "skipped" auf eine Luecke im Betrieb
+  schliesst.
