@@ -4,7 +4,11 @@
 
 - **Docker** (Docker Desktop on Mac, Docker Engine on Linux)
 - **git**
-- **Python 3.10–3.12** (Python 3.13 not yet supported)
+- **Python 3.11–3.14** — CI runs the test suite against 3.11, 3.12, 3.13
+  and 3.14, and a release requires all four to be green. On macOS the
+  installer pins the version from `darwin_python_version` (3.12). Older
+  pythons (3.10 on Ubuntu 22.04) are not tested any more but not known to
+  be broken either.
 - **pipx** (for isolated CLI tool installation)
 
 On macOS:
@@ -85,11 +89,11 @@ bash <(curl -fsSL https://raw.githubusercontent.com/Odoo-Ninjas/zodoo/refs/heads
 Each Odoo generation gets a base of its own era, and that is deliberate — old
 Odoo needs old Python:
 
-| Odoo | base |
-| --- | --- |
-| 11 | `debian:buster` |
+| Odoo       | base              |
+| ---------- | ----------------- |
+| 11         | `debian:buster`   |
 | 12, 13, 14 | `debian:bullseye` |
-| 15 – 19 | `ubuntu:22.04` |
+| 15 – 19    | `ubuntu:22.04`    |
 
 Moving 12–14 to bookworm is not a hardening step, it is a break: bookworm
 ships Python 3.11, and Odoo 12 (2018) does not run on it. **"Get off the old
@@ -99,7 +103,7 @@ distribution" is the wrong goal for these images.**
 
 Not the running container — the **build**. When Debian moves a release out of
 `deb.debian.org` into `archive.debian.org`, every `apt-get` in that image
-starts failing with *"does not have a Release file"*.
+starts failing with _"does not have a Release file"_.
 
 That has already happened to **buster**: the bare `debian:buster` image cannot
 `apt-get update` any more. `odoo/config/11` survives because it rewrites its
@@ -119,10 +123,10 @@ are expired by definition, and apt refuses them without it.
 
 Checked on 07.09.2026:
 
-| | |
-| --- | --- |
-| `deb.debian.org` bullseye + bullseye-security | 200 — still served in full |
-| `archive.debian.org/debian` bullseye, bullseye-updates | 200 |
+|                                                        |                            |
+| ------------------------------------------------------ | -------------------------- |
+| `deb.debian.org` bullseye + bullseye-security          | 200 — still served in full |
+| `archive.debian.org/debian` bullseye, bullseye-updates | 200                        |
 | `archive.debian.org/debian-security` bullseye-security | **404 — not archived yet** |
 
 So the live mirror is complete and the archive is not. Applying the buster
