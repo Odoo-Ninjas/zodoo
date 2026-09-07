@@ -1969,3 +1969,50 @@ def test_every_snippet_marker_has_a_file():
                 )
 
     assert not fehlend, f"Marken ohne Schnipsel-Datei: {fehlend}"
+
+
+# --------------------------------------------------------------------------- #
+# Python-Fassung fuer alte Odoo-Staende                                        #
+# --------------------------------------------------------------------------- #
+
+
+def test_old_odoo_versions_get_a_python_version():
+    """12 und 13 muessen eine Fassung bekommen, nicht None.
+
+    Vorher fiel der Zweig fuer 11/12/13 auf `pass` durch, `None` landete in
+    den Einstellungen und `odoo reload` starb erst beim Schreiben mit
+    "None value not allowed for: ODOO_PYTHON_VERSION" - der Bau kam nie bis
+    zum Dockerfile.
+    """
+    from zodoo.lib_composer import _find_suitable_python_version
+
+    for version in (12, 13):
+        settings = {}
+        _find_suitable_python_version(version, settings)
+        assert settings["ODOO_PYTHON_VERSION"].startswith("3.8."), version
+
+
+def test_odoo_11_says_what_to_do_instead_of_writing_none():
+    """Fuer 11 ist bewusst nichts hinterlegt - dann aber mit klarer Ansage."""
+    from zodoo.lib_composer import _find_suitable_python_version
+
+    settings = {}
+    # abort() schreibt die Meldung und beendet mit SystemExit - die Meldung
+    # steht also auf stdout, nicht in der Ausnahme.
+    with mock.patch("zodoo.tools.click.secho") as ausgabe:
+        with pytest.raises(SystemExit):
+            _find_suitable_python_version(11, settings)
+
+    text = " ".join(str(c) for c in ausgabe.call_args_list)
+    assert "ODOO_PYTHON_VERSION" in text, text
+    assert "None value not allowed" not in text, "die alte, nichtssagende Meldung"
+    assert "ODOO_PYTHON_VERSION" not in settings, "nichts Halbes schreiben"
+
+
+def test_an_explicit_python_version_is_never_overwritten():
+    """Wer die Fassung selbst setzt, behaelt sie - auch bei 12/13."""
+    from zodoo.lib_composer import _find_suitable_python_version
+
+    settings = {"ODOO_PYTHON_VERSION": "3.7.9"}
+    _find_suitable_python_version(12, settings)
+    assert settings["ODOO_PYTHON_VERSION"] == "3.7.9"
