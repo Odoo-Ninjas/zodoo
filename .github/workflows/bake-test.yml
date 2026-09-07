@@ -25,6 +25,10 @@ on:
       # ist genau das, was gebacken gehoert. Fehlte hier, und deshalb lief
       # der Bake bei einer Aenderung an postgres/Dockerfile.* NICHT.
       - "postgres/**"
+      # Gehen genauso in die Abbilder: common_snippets/zodoo baut das venv
+      # jedes Containers, cronjobs stellt den Cron-Daemon der Instanz.
+      - "common_snippets/**"
+      - "cronjobs/**"
       - "templates/customs_template/**"
       - ".github/workflows/bake-test.yml"
   workflow_dispatch:

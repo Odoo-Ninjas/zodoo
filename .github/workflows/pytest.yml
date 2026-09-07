@@ -4,19 +4,20 @@ name: Pytest
 # Heavy integration tests live in `bake-test.yml` and are marked @slow —
 # they are not run here.
 
+# Kein paths-Filter. Die Suite braucht keine Minute, der Filter sparte also
+# kaum etwas - kostete aber Deckung: Tests liegen zwar unter zodoo/src, pruefen
+# von dort aus aber auch Dateien ausserhalb (test_cronjobs_run laedt
+# cronjobs/bin/run.py, test_router_vhost_wizard laedt
+# router_global/render_configs.py). Wer genau die Datei aenderte, die ein Test
+# prueft, bekam den Test nicht zu sehen. Ein Filter, den man bei jeder neuen
+# Testdatei nachpflegen muss, ist irgendwann falsch.
 on:
   pull_request:
     branches: [main]
-    paths:
-      - "zodoo/src/**"
-      - ".github/workflows/pytest.yml"
   # Auch bei direkten Pushes auf main (z.B. fix-merges via gh CLI ohne PR),
   # damit Test-Feedback nicht erst beim Release-on-merge sichtbar wird.
   push:
     branches: [main]
-    paths:
-      - "zodoo/src/**"
-      - ".github/workflows/pytest.yml"
   workflow_dispatch:
 
 jobs:
