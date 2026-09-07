@@ -1,5 +1,16 @@
 # Changelog
 
+## 11.3.1
+
+- **Internal**: Die Testlaeufe auf GitHub laufen jetzt gegen Python 3.11, 3.12, 3.13 und 3.14 statt nur gegen 3.11 - und ein Release kommt nur heraus, wenn alle vier gruen sind.
+
+  Bisher lief die Testsuite in beiden Workflows (Pytest und Release on merge) fest unter 3.11. Ob zodoo mit einem neueren Python zurechtkommt, hat also niemand gemessen - was unangenehm ist, seit die aktuellen Systeme 3.13 bzw. 3.14 mitbringen (Ubuntu 26.04 hat gar kein aelteres Paket mehr).
+
+  Der Release haengt unveraendert an "needs: [test, bake]". Weil sich das bei einer Matrix auf alle Varianten bezieht, blockiert eine einzige rote Version den Release. "fail-fast" ist bewusst aus: schlaegt eine Version fehl, laufen die anderen weiter, damit man sieht, ob es an der einen Version haengt oder an allen.
+
+  Zum Nachschauen: in einem Pull Request stehen unter den Checks jetzt vier Eintraege "unit (3.11)" bis "unit (3.14)" statt einem. In der Installationsanleitung stand ausserdem noch "Python 3.13 not yet supported" - das ist mit den Laeufen widerlegt und korrigiert.
+
+
 ## 11.3.0
 
 - **Feature**: Die Aufbewahrung bestimmt ab jetzt der Backup-Server. `PGBR_RETENTION_FULL` ist nur noch ein Wunsch.
