@@ -1,5 +1,35 @@
 # Changelog
 
+## 11.2.8
+
+- **Docs**: Dokumentiert, warum die Odoo-Basisabbilder auf alten Distributionen stehen - und warum bullseye JETZT nicht umgestellt werden darf.
+
+  Jede Odoo-Generation hat eine Basis ihrer Epoche: 11 auf buster, 12 bis 14 auf bullseye, 15 bis 19 auf Ubuntu 22.04. Das ist Absicht, altes Odoo braucht altes Python. 12 bis 14 auf bookworm zu heben ist keine Haertung, sondern ein Bruch: bookworm liefert Python 3.11, und Odoo 12 von 2018 laeuft darauf nicht.
+
+  Kaputt geht nicht der laufende Container, sondern der BAU - sobald Debian eine Fassung von deb.debian.org ins Archiv verschiebt. Bei buster ist das schon passiert; odoo/config/11 ueberlebt es, weil es seine Quellen vorher umschreibt. Das Rezept steht jetzt in der Doku, samt dem Teil, den man vergisst: `Acquire::Check-Valid-Until "false"`, weil die Release-Dateien im Archiv per Definition abgelaufen sind.
+
+  Fuer bullseye gilt am 07.09.2026 gemessen:
+
+  - deb.debian.org bedient bullseye UND bullseye-security vollstaendig
+  - archive.debian.org hat bullseye und bullseye-updates
+  - archive.debian.org hat bullseye-security NICHT (404)
+
+  Wer jetzt umstellt, macht den Bau kaputt statt ihn zu retten: `apt-get update` endet mit 100, weil der Security-Zweig wegfaellt. Nachgestellt, nicht vermutet. Umstellen also erst, wenn deb.debian.org bullseye nicht mehr fuehrt - und den Security-Zweig dann getrennt pruefen.
+
+  Ausserdem eine wirkungslose Zeile in odoo/config/11 entfernt: sie legte eine apt-Quelle als sources.list.d/dmtx ab, OHNE .list-Endung, und apt liest dort nur *.list. Die Zeile hat nie gewirkt. Nachgemessen: ohne Endung erwaehnt apt die URL null mal und endet mit 0, mit Endung dreimal und endet mit 100. libdmtx0b kommt aus buster main und laesst sich ohne die Quelle installieren (geprueft).
+
+  Worauf beim Testen zu achten ist: `odoo build` fuer ein Odoo-11-Projekt muss unveraendert durchlaufen.
+- **Fix**: Der Installer installiert gimera jetzt mit, und "odoo bisect" stolpert nicht mehr ueber eine Warnung von Python 3.14.
+
+  Das "pipx inject zodoo gimera" gab es bisher nur in "odoo setup reinstall". Wer eine Maschine frisch mit install.sh aufgesetzt hat, hatte deshalb gar kein gimera - "gimera apply" ging erst, nachdem man einmal reinstall aufgerufen hatte. Auf einer neu aufgesetzten Ubuntu 26.04 nachgestellt.
+
+  In lib_bisect.py stand ein "break" in einem finally-Block. Python 3.14 warnt darueber, und eine spaetere Version macht daraus einen Fehler, weil so ein Sprung eine noch anstehende Exception verschluckt. Die Schleife merkt sich den Abbruch jetzt in einer Variablen und bricht nach dem finally ab.
+
+  Zum Nachschauen: nach dem Installer muss "gimera --version" direkt funktionieren, ohne vorher "odoo setup reinstall" aufzurufen. "odoo bisect" verhaelt sich unveraendert - inklusive Abbruch nach dem ersten Fehler, wenn "stop_after_first_error" gesetzt ist.
+
+  In der Installationsanleitung stehen fuer Ubuntu jetzt zusaetzlich docker-buildx und docker-compose-v2. Ohne buildx bricht "odoo build" auf Ubuntu 26.04 ab ("BuildKit is enabled but the buildx component is missing"), und weil das Basis-Image dadurch nie entsteht, kommt der Folgefehler als irrefuehrendes "pull access denied ... odoo_base_..." an.
+
+
 ## 11.2.7
 
 - **Docs**: Die 36 leeren Changelog-Eintraege sind wiederhergestellt. Der Changelog reicht damit erstmals lueckenlos bis 8.0.0 zurueck.
