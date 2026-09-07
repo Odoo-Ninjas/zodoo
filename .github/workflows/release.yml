@@ -11,13 +11,20 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      # fail-fast aus: schlaegt eine Version fehl, sollen die anderen
+      # trotzdem durchlaufen - sonst sieht man nicht, ob es an der einen
+      # Version haengt oder an allen.
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install pipx
         run: |
