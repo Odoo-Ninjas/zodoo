@@ -148,7 +148,15 @@ RUN pip3 install -r /root/odoo_requirements.txt
 RUN pip3 install -r /root/requirements.txt
 #p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3p3
 
-RUN echo "deb http://ftp.de.debian.org/debian buster main " >> /etc/apt/sources.list.d/dmtx && apt-get update && apt-get install -y libdmtx0b
+# libdmtx0b liegt in buster main, das ueber archive.debian.org schon
+# eingebunden ist - eine eigene Quelle braucht es nicht.
+#
+# Hier stand bis 07.09.2026 zusaetzlich
+#   echo "deb http://ftp.de.debian.org/debian buster main" >> /etc/apt/sources.list.d/dmtx
+# Die Datei hatte keine .list-Endung, und apt liest in sources.list.d nur
+# *.list - die Zeile war also wirkungslos. Gut so: der Spiegel antwortet
+# fuer buster inzwischen mit 404, mit Endung waere der Bau daran gescheitert.
+RUN apt-get update && apt-get install -y libdmtx0b
 # https://github.com/openvenues/pypostal postal lib for address checking
 
 
