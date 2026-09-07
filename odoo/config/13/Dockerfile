@@ -17,6 +17,7 @@ ARG ODOO_PYTHON_VERSION
 ADD python/Python-${ODOO_PYTHON_VERSION}.tgz /usr/local/src/python
 WORKDIR /usr/local/src/python/Python-${ODOO_PYTHON_VERSION}
 
+#___SNIPPET_DEBIAN_SNAPSHOT___
 #___SNIPPET_APT_PROXY___
 RUN #___SNIPPET_APT_INSTALL___ \
     software-properties-common \
@@ -57,6 +58,7 @@ ARG ODOO_FRAMEWORK_REQUIREMENTS
 ENV VIRTUAL_ENV=/opt/venv/env
 ENV PATH="/opt/venv/bin:$PATH"
 
+#___SNIPPET_DEBIAN_SNAPSHOT___
 #___SNIPPET_APT_PROXY___
 
 RUN #___SNIPPET_APT_INSTALL___ \
@@ -122,6 +124,7 @@ ARG CUSTOMS_SHA
 
 
 ENV LANG=C.UTF-8
+#___SNIPPET_DEBIAN_SNAPSHOT___
 #___SNIPPET_APT_PROXY___
 RUN #___SNIPPET_APT_INSTALL___ \
 			man \
