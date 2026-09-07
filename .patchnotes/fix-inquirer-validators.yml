@@ -27,3 +27,18 @@ description: |
   Ausserdem laufen die Tests auf GitHub jetzt gegen Python 3.10 bis 3.14
   (vorher 3.11 bis 3.14). 3.10 ist dabei, weil Ubuntu 22.04 das noch
   mitbringt; vorab gemessen: die Suite ist dort gruen.
+
+  Beim Aufnehmen von 3.10 in die Testlaeufe ist dabei ein Test aufgefallen, der
+  nicht das geprueft hat, was er prueft: Der Nachweis, dass PYTHONSAFEPATH das
+  Beschatten von Standardmodulen verhindert, rief "python3" aus dem Suchpfad
+  auf statt den Interpreter, unter dem zodoo laeuft. Auf einer Maschine mit
+  Python 3.10 und einem neueren python3 daneben waere er gruen geworden,
+  obwohl der Schutz gar nicht greift - denn PYTHONSAFEPATH gibt es erst ab
+  3.11, aeltere Versionen ignorieren die Variable stillschweigend. Der Test
+  nimmt jetzt sys.executable und wird unter 3.10 uebersprungen.
+
+  Das heisst zugleich: **unter Python 3.10 schuetzt der Cron-Daemon nicht
+  davor, dass eine Datei mit dem Namen eines Standardmoduls im
+  Projektverzeichnis (inspect.py, grp.py, ...) alle Cronjobs lahmlegt.** Auf
+  Maschinen mit Cronjobs also besser 3.11 oder neuer. Steht so auch in der
+  Installationsanleitung.
