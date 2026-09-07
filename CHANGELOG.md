@@ -1,5 +1,36 @@
 # Changelog
 
+## 11.3.3
+
+- **Fix**: Das Abbild des apt-Zwischenspeichers (`apt_cacher`) liess sich sporadisch nicht mehr bauen: `apt-get install squid-deb-proxy` brach mit einer Reihe von 404 ab. Ursache ist nicht unser Dockerfile, sondern Debian 11: bullseye ist seit Ende August 2026 EOL, die Sicherheitspakete verschwinden von den Spiegeln und liegen noch nicht auf archive.debian.org. Waehrend dieses Uebergangs nennt der Paketindex Versionen, deren .deb schon weg ist - und je nach CDN-Knoten mal so, mal so. Am 07.09.2026 hat das den Release-Lauf von v11.3.1 gerissen.
+
+  Das Abbild baut jetzt gegen einen Debian-Schnappschuss (`snapshot.debian.org`, Datum im Build-Argument `SNAPSHOT_DATE`), der Index und Pool aus demselben Moment liefert. Ein Wechsel auf ein neueres Debian hilft hier nicht: `squid-deb-proxy` ist aus Debian entfernt und existiert weder in bookworm noch in trixie.
+
+  Zum Nachvollziehen: `docker build apt_cacher` muss durchlaufen und der Container auf Port 8000 als Proxy antworten. Wer die Sicherheitslage des Abbilds nachziehen will, hebt `SNAPSHOT_DATE`.
+
+  Ausserdem: schlaegt der Start des apt- oder pypi-Zwischenspeichers fehl, bricht `odoo build` nicht mehr ab, sondern warnt und baut ohne ihn weiter - beide sparen nur Bauzeit. Vorher landete der Fehlschlag in einem Future, das niemand abfragte: der Build lief ohne Beschleuniger weiter, ohne dass irgendwo stand, warum.
+- **Fix**: zodoo wartet jetzt zuverlaessig, wenn postgres gerade nicht bedient - vorher brach es sofort ab.
+
+  Anlass war ein Fehlschlag beim automatischen Testlauf: "odoo db reset" starb mit "FATAL: the database system is shutting down". Der Datenbankserver fuhr in dem Moment gerade herunter, was beim Zuruecksetzen normal ist - zodoo haette einfach kurz warten muessen.
+
+  Zwei Stellen waren schuld. Die erste ist die Vorabpruefung in tools._execute_sql: dort stand zwar eine Wiederholungslogik, die zugehoerige Funktion hat ihren Fehler aber selbst abgefangen und nur rot ausgegeben. Damit bekam die Wiederholung nie einen Fehler zu sehen und hat NIE wiederholt - der Schutz war seit immer wirkungslos.
+
+  Die zweite ist der Verbindungsaufbau selbst: der hat nur auf "database system is starting up" gewartet, ein herunterfahrender Server flog sofort durch. Ausserdem war die Warteschleife dort endlos - bei einem Server, der dauerhaft im Zustand "starting up" haengt, wartete zodoo unbegrenzt.
+
+  Jetzt gibt es eine gemeinsame Erkennung fuer Zustaende, die von allein vergehen (herunterfahren, hochfahren, Wiederherstellung, Verbindung abgewiesen, Verbindung vom Server geschlossen, Verbindung durch den Administrator beendet). Nur die werden ausgesessen, und nur bis zu einer Frist (60 Sekunden, ueber PSYCOPG_CONNECT_RETRY_SECONDS aenderbar). Ein falsches Passwort oder eine fehlende Tabelle fuehrt weiterhin sofort zum Abbruch - darauf zu warten hilft ja nicht.
+
+  Wichtig: wiederholt wird nur der Verbindungsaufbau, nicht die Ausfuehrung einer Anweisung. Ein Wiederholen von Schreibvorgaengen koennte Daten doppelt anlegen.
+
+  Zum Nachschauen: "odoo -f db reset" mehrfach hintereinander laufen lassen - es darf nicht mehr mit "the database system is shutting down" abbrechen. Waehrend eines Neustarts von postgres ("odoo restart postgres") sollte ein paralleles "odoo psql" ein paar Sekunden warten und dann durchkommen statt sofort zu scheitern.
+- **Docs**: Richtigstellung zu einem Hinweis von heute Vormittag: in der Installationsanleitung stand, unter Python 3.10 sei der Schutz des Cron-Daemons gegen beschattete Standardmodule unwirksam. Das ist so zu pauschal und verunsichert ohne Grund.
+
+  Richtig ist: PYTHONSAFEPATH gibt es tatsaechlich erst ab Python 3.11, und aeltere Interpreter ignorieren die Variable stillschweigend - deshalb wird der zugehoerige Test unter 3.10 uebersprungen. Die Cronjobs laufen davon aber unberuehrt, denn der Cronjob-Container baut sein eigenes venv mit python3.11 und ruft odoo daraus auf. Welches Python auf dem Host installiert ist, spielt dafuer keine Rolle.
+
+  Ausserdem steht jetzt dabei, warum es den Schutz ueberhaupt braucht: der Aufruf im Container ist "python3 -m zodoo", und bei "-m" landet das aktuelle Verzeichnis in sys.path. Zusammen mit dem "cd /opt/src" des Cron-Daemons wuerde eine Datei im Projektverzeichnis, die wie ein Standardmodul heisst (inspect.py, grp.py, ...), das echte Modul verdecken und jeden Cronjob der Instanz lahmlegen.
+
+  Zum Nachschauen: docs/02-installation.md, Abschnitt Prerequisites. Die Begruendung des uebersprungenen Tests in test_cronjobs_run.py sagt jetzt dasselbe, damit niemand aus dem "skipped" auf eine Luecke im Betrieb schliesst.
+
+
 ## 11.3.2
 
 - **Fix**: Abfragen im Terminal pruefen die Eingabe jetzt wirklich, und die Testlaeufe auf GitHub decken zusaetzlich Python 3.10 ab.
