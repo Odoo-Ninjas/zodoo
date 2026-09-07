@@ -1,5 +1,17 @@
 # Changelog
 
+## 11.3.4
+
+- **Fix**: Die Abbilder fuer Odoo 12 und 13 bauen auf Debian bullseye und liefen in dasselbe Loch wie der apt-Zwischenspeicher: bullseye ist EOL, die Sicherheitspakete verschwinden von den Spiegeln und liegen noch nicht im Archiv, `apt-get install` bricht dadurch sporadisch mit 404 ab. Beide holen ihre Pakete jetzt von einem Debian-Schnappschuss - ueber den neuen Schnipsel `common_snippets/debian_snapshot`, einmal je Build-Stufe.
+
+  Dabei kamen zwei Fehler mit heraus, die beide Abbilder unabhaengig davon unbaubar gemacht haben:
+
+  - `odoo/config/12` und `odoo/config/14` schrieben die Schnipsel-Marke `DEB_REQUIERMENTS` statt `DEB_REQUIREMENTS`. Eine unbekannte Marke wird nicht ersetzt; die Ersetzungsschleife laeuft 100 Runden leer und bricht dann mit "Not resolved or endless loop" ab - eine Meldung, die auf eine Endlosschleife deutet statt auf den Tippfehler. Ein neuer Test prueft jetzt fuer alle Dockerfiles, dass jede Marke eine Datei hat.
+  - `odoo/config/12` installierte `python-dev`. Das ist das Python-2-Uebergangspaket, und Python 2 ist mit bullseye aus Debian entfernt worden - das Paket gibt es dort also gar nicht. Jetzt `python3-dev`. In derselben Zeile stand `apt-get update; apt-get install` mit Semikolon, womit die Installation auch nach einem gescheiterten Update mit veralteter Paketliste weitergelaufen waere; jetzt `&&`.
+
+  Zum Nachvollziehen: eine Odoo-12- bzw. -13-Instanz bauen (`odoo build`). Vorher brach das mit "Not resolved or endless loop" ab.
+
+
 ## 11.3.3
 
 - **Fix**: Das Abbild des apt-Zwischenspeichers (`apt_cacher`) liess sich sporadisch nicht mehr bauen: `apt-get install squid-deb-proxy` brach mit einer Reihe von 404 ab. Ursache ist nicht unser Dockerfile, sondern Debian 11: bullseye ist seit Ende August 2026 EOL, die Sicherheitspakete verschwinden von den Spiegeln und liegen noch nicht auf archive.debian.org. Waehrend dieses Uebergangs nennt der Paketindex Versionen, deren .deb schon weg ist - und je nach CDN-Knoten mal so, mal so. Am 07.09.2026 hat das den Release-Lauf von v11.3.1 gerissen.
