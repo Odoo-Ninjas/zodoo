@@ -9,6 +9,7 @@ Ursache war eine Datei `inspect.py` im Projektverzeichnis: der Daemon macht
 `cd /opt/src`, damit steht das Verzeichnis vorn in sys.path, und Pythons
 `import inspect` erwischte den Schnipsel statt der Standardbibliothek.
 """
+
 import importlib.machinery
 import importlib.util
 import logging
@@ -50,7 +51,9 @@ def test_gescheiterter_job_wird_protokolliert(modul, caplog):
     with caplog.at_level(logging.ERROR):
         code = modul._lauf("exit 3", "TESTJOB")
     assert code == 3
-    assert any("TESTJOB" in r.message and "3" in r.message for r in caplog.records)
+    assert any(
+        "TESTJOB" in r.message and "3" in r.message for r in caplog.records
+    )
 
 
 def test_gelungener_job_meldet_nichts(modul, caplog):
@@ -59,14 +62,18 @@ def test_gelungener_job_meldet_nichts(modul, caplog):
     assert not caplog.records
 
 
-def test_odoo_aufruf_haelt_das_projektverzeichnis_aus_sys_path(modul, monkeypatch):
+def test_odoo_aufruf_haelt_das_projektverzeichnis_aus_sys_path(
+    modul, monkeypatch
+):
     """Der Fall, der zwei Naechte gekostet hat.
 
     Ohne PYTHONSAFEPATH beschattet eine Datei im Projektverzeichnis das
     gleichnamige Standardmodul, und zodoo stirbt beim Start.
     """
     gesehen = []
-    monkeypatch.setattr(modul, "_lauf", lambda cmd, name=None: gesehen.append(cmd) or 0)
+    monkeypatch.setattr(
+        modul, "_lauf", lambda cmd, name=None: gesehen.append(cmd) or 0
+    )
     monkeypatch.setenv("PROJECT_NAME", "kunde")
     modul.execute("odoo pgbackrest backup --type full")
     assert len(gesehen) == 1
@@ -76,13 +83,29 @@ def test_odoo_aufruf_haelt_das_projektverzeichnis_aus_sys_path(modul, monkeypatc
     assert "pgbackrest backup --type full" in befehl
 
 
+@pytest.mark.skipif(
+    sys.version_info < (3, 11),
+    reason="PYTHONSAFEPATH gibt es erst ab Python 3.11 - aeltere Interpreter "
+    "ignorieren die Variable, der Schutz des Cron-Daemons greift dort nicht",
+)
 def test_beschattung_wird_durch_safepath_verhindert(tmp_path):
-    """Gegenprobe am echten Python, nicht am Kommentar."""
+    """Gegenprobe am echten Python, nicht am Kommentar.
+
+    sys.executable und nicht "python3": geprueft werden muss der Interpreter,
+    unter dem zodoo laeuft. Mit "python3" testete das irgendein Python aus dem
+    PATH - auf einer Kiste mit 3.10 und einem neueren python3 daneben waere
+    der Test gruen geworden, obwohl der Schutz nicht greift.
+    """
     (tmp_path / "inspect.py").write_text('raise RuntimeError("beschattet")\n')
     prog = "import inspect, sys; print('ok')"
+    py = sys.executable
 
-    ohne = os.system(f"cd {tmp_path} && python3 -c {prog!r} >/dev/null 2>&1")
-    mit = os.system(f"cd {tmp_path} && PYTHONSAFEPATH=1 python3 -c {prog!r} >/dev/null 2>&1")
+    ohne = os.system(f"cd {tmp_path} && {py} -c {prog!r} >/dev/null 2>&1")
+    mit = os.system(
+        f"cd {tmp_path} && PYTHONSAFEPATH=1 {py} -c {prog!r} >/dev/null 2>&1"
+    )
 
-    assert os.waitstatus_to_exitcode(ohne) != 0, "ohne SAFEPATH muesste es krachen"
+    assert (
+        os.waitstatus_to_exitcode(ohne) != 0
+    ), "ohne SAFEPATH muesste es krachen"
     assert os.waitstatus_to_exitcode(mit) == 0, "mit SAFEPATH muss es laufen"

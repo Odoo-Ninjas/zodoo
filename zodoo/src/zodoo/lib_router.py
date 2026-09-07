@@ -30,6 +30,8 @@ import yaml
 from .cli import cli, pass_config
 from .lib_clickhelpers import AliasedGroup
 from .tools import abort, is_interactive, update_setting
+from .tools import validate_nonempty, validate_port
+from .tools import validation_error
 
 DEFAULT_GLOBAL_INSTALL_DIR = Path("/opt/proxy")
 ROUTER_FILES_SUBDIR = "router_global"
@@ -564,28 +566,9 @@ VHOST_TEMPLATES = [
 _UPSTREAM_NAME_RE = re.compile(r"^[A-Za-z0-9_]+$")
 
 
-def _invalid(reason):
-    """inquirer treats ANY truthy return from validate as 'valid' - a returned
-    error string therefore passes. Raise instead, that also shows the reason.
-    """
-    raise inquirer.errors.ValidationError("", reason=reason)
-
-
-def _require(value, reason="Required"):
-    if not str(value).strip():
-        _invalid(reason)
-    return True
-
-
 def _ask_port(key, message, default):
-    def _validate(_, value):
-        value = value.strip()
-        if not (value.isdigit() and 1 <= int(value) <= 65535):
-            _invalid("Must be a port between 1 and 65535")
-        return True
-
     return inquirer.Text(
-        key, message=message, default=default, validate=_validate
+        key, message=message, default=default, validate=validate_port
     )
 
 
@@ -600,7 +583,7 @@ def _ask_upstream_fields(server_name, existing=(), template="upstream"):
                 message="Upstream name (letters, digits, underscore)",
                 default=suggested,
                 validate=lambda _, x: bool(_UPSTREAM_NAME_RE.match(x))
-                or _invalid(
+                or validation_error(
                     "Only letters, digits and underscore - it becomes an "
                     "nginx variable name"
                 ),
@@ -610,7 +593,7 @@ def _ask_upstream_fields(server_name, existing=(), template="upstream"):
                 message="Backend address (LAN ip of the machine, not the "
                 "VPN one)",
                 default=suggested_server,
-                validate=lambda _, x: _require(x),
+                validate=validate_nonempty,
             ),
             _ask_port("upstream_port", "Backend port", suggested_port),
             _ask_port("timeout", "Proxy timeout in seconds", "600"),
@@ -662,12 +645,12 @@ def _ask_protection(vhost):
                 inquirer.Text(
                     "user",
                     message="Basic auth user",
-                    validate=lambda _, x: _require(x),
+                    validate=validate_nonempty,
                 ),
                 inquirer.Password(
                     "password",
                     message="Basic auth password",
-                    validate=lambda _, x: _require(x),
+                    validate=validate_nonempty,
                 ),
             ]
         )
@@ -694,7 +677,7 @@ def _collect_new_vhost(existing):
             inquirer.Text(
                 "server_name",
                 message="Domain (server_name)",
-                validate=lambda _, x: _require(x),
+                validate=validate_nonempty,
             ),
         ]
     )
@@ -717,7 +700,7 @@ def _collect_new_vhost(existing):
                     "redirect_to",
                     message="Redirect to (a path in it means: land exactly "
                     "there, e.g. zebroo.de/experience)",
-                    validate=lambda _, x: _require(x),
+                    validate=validate_nonempty,
                 )
             ]
         )
@@ -730,7 +713,7 @@ def _collect_new_vhost(existing):
                 inquirer.Text(
                     "folder",
                     message="Directory to serve",
-                    validate=lambda _, x: _require(x),
+                    validate=validate_nonempty,
                 )
             ]
         )
@@ -915,12 +898,12 @@ def _ask_field_value(vhost, field, ftype):
                     "user",
                     message="Basic auth user",
                     default=next(iter(current), "") if current else "",
-                    validate=lambda _, x: _require(x),
+                    validate=validate_nonempty,
                 ),
                 inquirer.Password(
                     "password",
                     message="Basic auth password",
-                    validate=lambda _, x: _require(x),
+                    validate=validate_nonempty,
                 ),
             ]
         )
@@ -937,12 +920,12 @@ def _ask_field_value(vhost, field, ftype):
         value = value.strip()
         if not value:
             if required:
-                _invalid("Required")
+                validation_error("Required")
             return True
         if field in INT_FIELDS and not value.isdigit():
-            _invalid("Must be a number")
+            validation_error("Must be a number")
         if field == "upstream_name" and not _UPSTREAM_NAME_RE.match(value):
-            _invalid(
+            validation_error(
                 "Only letters, digits and underscore - it becomes an nginx "
                 "variable name"
             )

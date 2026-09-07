@@ -1,0 +1,44 @@
+type: fix
+breaking: false
+description: |
+  Abfragen im Terminal pruefen die Eingabe jetzt wirklich, und die Testlaeufe
+  auf GitHub decken zusaetzlich Python 3.10 ab.
+
+  Bei den Rueckfragen, die zodoo im Terminal stellt, wurde eine falsche Eingabe
+  bisher teilweise einfach angenommen. Der Grund ist eine Tuecke der
+  verwendeten Bibliothek: sie betrachtet jeden Rueckgabewert der Pruefung als
+  "in Ordnung", solange er nicht leer ist. Die naheliegende Schreibweise
+  "pruefung ... oder 'Muss eine Zahl sein'" liefert bei falscher Eingabe aber
+  genau diesen Text zurueck - und der gilt damit als Zustimmung. Betroffen
+  waren die beiden Portabfragen beim Einrichten des APT-/PyPI-Zwischenspeichers
+  ("odoo setup apt-proxy"): dort war jede Eingabe erlaubt, auch "abc" oder
+  "70000", und die Begruendung wurde nie angezeigt.
+
+  Es gibt jetzt drei gemeinsame Pruefungen in tools.py (Pflichtfeld, Port,
+  sowie die Hilfsfunktion, die eine Eingabe mit Begruendung ablehnt). Der
+  Router-Assistent nutzt sie ebenfalls, statt eigene mitzuschleppen.
+
+  Zum Nachschauen: "odoo setup apt-proxy" aufrufen und bei der Portabfrage
+  "abc" eingeben - das muss jetzt mit "Must be a port between 1 and 65535"
+  abgelehnt werden, statt die Eingabe zu uebernehmen. Ein Test haelt die
+  Tuecke ausserdem fest, damit die Pruefungen nicht wieder zu Einzeilern
+  zusammengefasst werden.
+
+  Ausserdem laufen die Tests auf GitHub jetzt gegen Python 3.10 bis 3.14
+  (vorher 3.11 bis 3.14). 3.10 ist dabei, weil Ubuntu 22.04 das noch
+  mitbringt; vorab gemessen: die Suite ist dort gruen.
+
+  Beim Aufnehmen von 3.10 in die Testlaeufe ist dabei ein Test aufgefallen, der
+  nicht das geprueft hat, was er prueft: Der Nachweis, dass PYTHONSAFEPATH das
+  Beschatten von Standardmodulen verhindert, rief "python3" aus dem Suchpfad
+  auf statt den Interpreter, unter dem zodoo laeuft. Auf einer Maschine mit
+  Python 3.10 und einem neueren python3 daneben waere er gruen geworden,
+  obwohl der Schutz gar nicht greift - denn PYTHONSAFEPATH gibt es erst ab
+  3.11, aeltere Versionen ignorieren die Variable stillschweigend. Der Test
+  nimmt jetzt sys.executable und wird unter 3.10 uebersprungen.
+
+  Das heisst zugleich: **unter Python 3.10 schuetzt der Cron-Daemon nicht
+  davor, dass eine Datei mit dem Namen eines Standardmoduls im
+  Projektverzeichnis (inspect.py, grp.py, ...) alle Cronjobs lahmlegt.** Auf
+  Maschinen mit Cronjobs also besser 3.11 oder neuer. Steht so auch in der
+  Installationsanleitung.

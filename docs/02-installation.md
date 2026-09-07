@@ -4,11 +4,18 @@
 
 - **Docker** (Docker Desktop on Mac, Docker Engine on Linux)
 - **git**
-- **Python 3.11–3.14** — CI runs the test suite against 3.11, 3.12, 3.13
-  and 3.14, and a release requires all four to be green. On macOS the
-  installer pins the version from `darwin_python_version` (3.12). Older
-  pythons (3.10 on Ubuntu 22.04) are not tested any more but not known to
-  be broken either.
+- **Python 3.10–3.14** — CI runs the test suite against every one of them and
+  a release requires all of them to be green. 3.10 is in there because Ubuntu
+  22.04 still ships it. On macOS the installer pins the version from
+  `darwin_python_version` (3.12).
+
+  One caveat for 3.10: `PYTHONSAFEPATH` only exists from 3.11 on, and older
+  interpreters ignore it silently. The cron daemon sets it so that a file named
+  like a stdlib module in the project directory (`inspect.py`, `grp.py`, …)
+  cannot shadow the real one and kill every cron job — see the incident in
+  `lib_cronjobs`. **On 3.10 that protection does not apply.** Prefer 3.11+ on
+  machines that run cron jobs.
+
 - **pipx** (for isolated CLI tool installation)
 
 On macOS:

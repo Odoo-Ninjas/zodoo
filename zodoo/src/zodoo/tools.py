@@ -16,6 +16,7 @@ import stat
 from contextlib import contextmanager
 import re
 import inquirer
+import inquirer.errors
 
 from pathlib import Path
 from typing import Union
@@ -2538,6 +2539,36 @@ def _get_available_modules(ctx, param, incomplete):
     if incomplete:
         modules = [x for x in modules if incomplete in x]
     return sorted(modules)
+
+
+def validation_error(reason):
+    """Reject an inquirer answer with a reason.
+
+    inquirer treats ANY truthy return from a `validate` callable as "this is
+    fine". The tempting one-liner
+
+        validate=lambda _, x: x.isdigit() or "Must be a number"
+
+    therefore ACCEPTS every wrong answer: on failure it returns the error
+    text, which is truthy. Raising is the only way to reject, and it is what
+    shows the reason to the user.
+    """
+    raise inquirer.errors.ValidationError("", reason=reason)
+
+
+def validate_nonempty(_, value):
+    """Use directly as `validate=validate_nonempty`."""
+    if not str(value).strip():
+        validation_error("Required")
+    return True
+
+
+def validate_port(_, value):
+    """Use directly as `validate=validate_port`."""
+    value = str(value).strip()
+    if not (value.isdigit() and 1 <= int(value) <= 65535):
+        validation_error("Must be a port between 1 and 65535")
+    return True
 
 
 def is_interactive():
