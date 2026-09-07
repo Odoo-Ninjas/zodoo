@@ -2255,6 +2255,8 @@ def _speichere_vorgabe(config, vorgabe):
     Getrennt von PGBR_RETENTION_FULL, das der WUNSCH bleibt. Beim Rendern hat
     dieser Wert Vorrang (siehe pgbackrest/__after_compose.py).
     """
+    from .tools import update_setting
+
     tage = str(vorgabe.get("full_days") or "").strip()
     typ = str(vorgabe.get("full_type") or "").strip()
     if not tage:

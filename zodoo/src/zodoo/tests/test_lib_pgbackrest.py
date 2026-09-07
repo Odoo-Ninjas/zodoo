@@ -1603,3 +1603,53 @@ def test_wrapper_fails_loudly_when_the_stanza_cannot_be_created(tmp_path):
     assert "stanza-create" in calls, "es wurde nicht einmal versucht"
     assert res.returncode == 103, res
     assert "archive.info" in res.stderr
+
+
+# --------------------------------------------------------------------------- #
+# Aufbewahrungs-Vorgabe vom Server                                             #
+# --------------------------------------------------------------------------- #
+
+
+class _FakeConfig:
+    """Nur das, was update_setting braucht: der Pfad der Settings-Datei."""
+
+    def __init__(self, pfad):
+        self.files = {"project_settings": pfad}
+
+
+def test_policy_writes_the_server_value_into_the_settings(tmp_path):
+    """Die Vorgabe muss tatsaechlich in der Settings-Datei landen.
+
+    Der Helfer wurde beim ersten Rollout nur ueber den Renderer geprueft, nie
+    ausgefuehrt - und schlug dann mit `NameError: update_setting` fehl, weil
+    `update_setting` in lib_pgbackrest nicht global, sondern in den einzelnen
+    Funktionen importiert wird. Dieser Test ruft ihn wirklich auf.
+    """
+    from zodoo import lib_pgbackrest as p
+
+    datei = tmp_path / "settings"
+    datei.write_text("")
+    config = _FakeConfig(datei)
+
+    tage = p._speichere_vorgabe(config, {"full_days": "21", "full_type": "time"})
+
+    assert tage == "21"
+    text = datei.read_text()
+    assert "PGBR_RETENTION_FULL_EFFECTIVE=21" in text
+    assert "PGBR_RETENTION_TYPE_EFFECTIVE=time" in text
+
+
+def test_policy_without_a_value_changes_nothing(tmp_path):
+    """Ohne Vorgabe bleibt der Wunsch des Kunden unangetastet.
+
+    Sonst wuerde eine leere Antwort des Servers die Aufbewahrung auf den
+    Vorgabewert im Renderer zuruecksetzen, ohne dass jemand etwas geaendert hat.
+    """
+    from zodoo import lib_pgbackrest as p
+
+    datei = tmp_path / "settings"
+    datei.write_text("PGBR_RETENTION_FULL=30\n")
+    config = _FakeConfig(datei)
+
+    assert p._speichere_vorgabe(config, {}) is None
+    assert "EFFECTIVE" not in datei.read_text()
