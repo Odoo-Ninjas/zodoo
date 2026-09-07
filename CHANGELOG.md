@@ -1,5 +1,22 @@
 # Changelog
 
+## 11.2.6
+
+- **Fix**: Aufzaehlungen in Patchnotes bleiben im Changelog Aufzaehlungen.
+
+  Der neue Sammler zieht Zeilen innerhalb eines Absatzes zusammen, damit ein Eintrag nicht in Einzelzeilen zerfaellt. Bei einer Liste ist das genau falsch: in v11.2.5 landeten die fuenf Spiegelstriche einer Patchnote als ein einziger Absatz hintereinander weg.
+
+  Jetzt beginnt eine Zeile mit "- ", "* " oder "1. " eine neue Ausgabezeile; eingerueckte Fortsetzungen haengen sich an ihren eigenen Punkt. Fliesstext wird weiterhin zusammengezogen.
+
+  Diese Patchnote pruft es gleich selbst:
+
+  - erster Punkt
+  - zweiter Punkt, der absichtlich ueber zwei Zeilen geht und hier weiterlaeuft
+  - dritter Punkt
+
+  Stehen die drei nach dem Release untereinander, stimmt es; stehen sie in einer Zeile, nicht.
+
+
 ## 11.2.5
 
 - **Fix**: `odoo setting KEY VALUE` schreibt nichts - die Doku und die Hilfe des Befehls lehrten trotzdem genau diese Form.
