@@ -31,7 +31,35 @@ odoo router ssl --global                      # issue certs for use_certbot vhos
 odoo router restart|reload|down|docker-status --global
 ```
 
-## The wizard
+## The config menu
+
+```bash
+odoo router config --global
+```
+
+A guided menu, navigated with the arrow keys: create, edit, delete and show
+vhosts, render + reload, issue certificates. It stays open until you quit, and
+if you leave with unsaved-but-unapplied changes it offers to apply them.
+
+The list shows where each vhost points and marks incomplete ones:
+
+```
+  kunde.zebroo.de   [upstream_direct_odoo]  -> 192.168.77.130:6000
+  grafana.zebroo.de [upstream]              -> 192.168.77.6:8080
+  alt.zebroo.de     [redirect]
+  broken.zebroo.de  [upstream]              (incomplete: upstream_server, timeout)
+```
+
+Editing walks the fields of the chosen vhost, with the current value as the
+default. Optional fields that are not set yet are offered with a `+` and a
+short explanation; clearing an optional field removes it rather than storing an
+empty value.
+
+When creating, values are suggested where that is possible: the backend address
+defaults to whatever the other vhosts point at, the port to one above the
+highest already in use, and the upstream name is derived from the domain.
+
+## The single-shot wizard
 
 `odoo router vhost new` asks for everything a vhost needs, validates it, shows
 the result and offers to write and apply it.

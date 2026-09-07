@@ -43,3 +43,27 @@ description: |
   Neu dazu: eine vollstaendig kommentierte Beispielkonfiguration
   (router_global/vhosts.example.yml) und die Doku docs/13-web-router.md - fuer
   den Router gab es bisher gar keine.
+
+  Dazu gibt es "odoo router config": ein gefuehrtes Menue, das man mit den
+  Pfeiltasten bedient. Darin kann man vHosts anlegen, bearbeiten, loeschen und
+  anzeigen, die Konfiguration ausrollen und Zertifikate holen. Es bleibt offen,
+  bis man "Quit" waehlt, und wenn dann noch nicht ausgerollte Aenderungen
+  offen sind, fragt es danach.
+
+  Die Liste zeigt zu jedem vHost, wohin er zeigt, und markiert unvollstaendige
+  ("incomplete: upstream_server, timeout") - so sieht man die kaputten Eintraege
+  aus der Zeit vor der Pruefung sofort. Beim Bearbeiten steht der aktuelle Wert
+  als Vorgabe drin; noch nicht gesetzte Felder werden mit "+" und einer kurzen
+  Erklaerung angeboten. Leert man ein optionales Feld, wird es entfernt und
+  nicht als leerer Wert gespeichert.
+
+  Beim Neuanlegen macht der Assistent Vorschlaege: die Backend-Adresse aus dem,
+  worauf die anderen vHosts zeigen, den Port eine Nummer ueber dem hoechsten
+  bereits benutzten, und den Upstream-Namen aus der Domain.
+
+  Nebenbei korrigiert: die Eingabepruefungen haben nicht geprueft. inquirer
+  betrachtet jeden Rueckgabewert von "validate" als gueltig, solange er nicht
+  leer ist - der uebliche Einzeiler "... or 'Must be a valid port'" liefert bei
+  falscher Eingabe also einen Text zurueck, und der gilt als "in Ordnung".
+  Die Pruefungen im Router-Assistenten loesen jetzt einen Fehler aus, damit die
+  Eingabe wirklich abgelehnt und die Begruendung angezeigt wird.

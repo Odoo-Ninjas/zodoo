@@ -14,6 +14,7 @@ import pathlib
 import subprocess
 import sys
 
+import inquirer
 import pytest
 
 from .. import lib_router
@@ -147,3 +148,121 @@ def test_wizard_output_renders_to_a_complete_config(
     # the symptoms of a silently missing field
     for hole in ("server :;", "$var_;", "proxy_connect_timeout   ;"):
         assert hole not in rendered
+
+
+# ---------------------------------------------------------------------------
+# config menu helpers
+# ---------------------------------------------------------------------------
+
+
+def test_suggested_backend_is_what_the_others_use():
+    """Most vhosts on a host point at the same backend - suggest that."""
+    existing = [
+        {"upstream_server": "192.168.77.130", "upstream_port": 6000},
+        {"upstream_server": "192.168.77.130", "upstream_port": 6001},
+        {"upstream_server": "10.0.0.9", "upstream_port": 8069},
+    ]
+    assert lib_router._suggest_backend_address(existing) == "192.168.77.130"
+
+
+def test_suggested_port_is_free():
+    existing = [{"upstream_port": 6000}, {"upstream_port": 6003}]
+    assert lib_router._suggest_port(existing, "upstream") == "6004"
+
+
+@pytest.mark.parametrize(
+    "template,expected",
+    [("upstream_direct_odoo", "6000"), ("upstream", "8069")],
+)
+def test_suggested_port_without_history(template, expected):
+    assert lib_router._suggest_port([], template) == expected
+
+
+def test_missing_required_spots_an_incomplete_vhost():
+    vhost = {"template": "upstream", "server_name": "x.zebroo.de"}
+    assert lib_router._missing_required(vhost) == [
+        "upstream_name",
+        "upstream_server",
+        "upstream_port",
+        "timeout",
+    ]
+
+
+def test_missing_required_happy_with_a_complete_one():
+    vhost = {
+        "template": "redirect",
+        "server_name": "x.zebroo.de",
+        "redirect_to": "zebroo.de",
+    }
+    assert lib_router._missing_required(vhost) == []
+
+
+def test_label_flags_incomplete_vhosts():
+    label = lib_router._vhost_label(
+        {"template": "upstream", "server_name": "x.zebroo.de"}
+    )
+    assert "incomplete" in label
+
+
+def test_editing_an_optional_field_to_empty_removes_it(monkeypatch):
+    """Empty input must delete the key, not store an empty string - an empty
+    string would render as a broken directive."""
+    _answer(monkeypatch, {"value": ""})
+    vhost = {
+        "template": "upstream",
+        "server_name": "x.zebroo.de",
+        "rate_limit": "30r/m",
+    }
+    assert lib_router._ask_field_value(vhost, "rate_limit", "text") is True
+    assert "rate_limit" not in vhost
+
+
+def test_editing_casts_ports_to_int(monkeypatch):
+    _answer(monkeypatch, {"value": "6001"})
+    vhost = {"template": "upstream", "upstream_port": 6000}
+    lib_router._ask_field_value(vhost, "upstream_port", "text")
+    assert vhost["upstream_port"] == 6001
+    assert isinstance(vhost["upstream_port"], int)
+
+
+def test_turning_off_a_bool_removes_it(monkeypatch):
+    _answer(monkeypatch, {"value": False})
+    vhost = {"use_certbot": True}
+    lib_router._ask_field_value(vhost, "use_certbot", "bool")
+    assert "use_certbot" not in vhost
+
+
+def test_required_field_cannot_be_emptied(monkeypatch):
+    """The validator must reject an empty value for a required field, and
+    reject an upstream_name nginx cannot use."""
+    captured = {}
+
+    def _capture(questions, *a, **kw):
+        captured["question"] = questions[0]
+        return {"value": "kunde_odoo"}
+
+    monkeypatch.setattr(lib_router.inquirer, "prompt", _capture)
+    vhost = {"template": "upstream", "upstream_name": "old"}
+    lib_router._ask_field_value(vhost, "upstream_name", "text")
+
+    question = captured["question"]
+    # inquirer raises on invalid input and returns None when it is fine
+    with pytest.raises(inquirer.errors.ValidationError):
+        question.validate("")
+    with pytest.raises(inquirer.errors.ValidationError):
+        question.validate("kunde.zebroo.de")
+    assert question.validate("kunde_odoo") is None
+
+
+def test_optional_field_may_be_emptied(monkeypatch):
+    """Same validator, but for an optional field an empty value is allowed."""
+    captured = {}
+
+    def _capture(questions, *a, **kw):
+        captured["question"] = questions[0]
+        return {"value": ""}
+
+    monkeypatch.setattr(lib_router.inquirer, "prompt", _capture)
+    vhost = {"template": "upstream", "rate_limit": "30r/m"}
+    lib_router._ask_field_value(vhost, "rate_limit", "text")
+    assert captured["question"].validate("") is None
