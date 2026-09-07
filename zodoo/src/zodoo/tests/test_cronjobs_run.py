@@ -85,8 +85,12 @@ def test_odoo_aufruf_haelt_das_projektverzeichnis_aus_sys_path(
 
 @pytest.mark.skipif(
     sys.version_info < (3, 11),
-    reason="PYTHONSAFEPATH gibt es erst ab Python 3.11 - aeltere Interpreter "
-    "ignorieren die Variable, der Schutz des Cron-Daemons greift dort nicht",
+    reason="PYTHONSAFEPATH gibt es erst ab Python 3.11, aeltere Interpreter "
+    "ignorieren die Variable stillschweigend. Der Cronjob-Container ist davon "
+    "nicht betroffen: der baut sein venv mit python3.11 (common_snippets/"
+    "python311 + common_snippets/zodoo) und ruft odoo daraus auf, unabhaengig "
+    "vom Python des Hosts. Uebersprungen heisst hier also nicht "
+    "'ungeschuetzt', sondern 'diese Python-Variante fahren die Cronjobs nie'",
 )
 def test_beschattung_wird_durch_safepath_verhindert(tmp_path):
     """Gegenprobe am echten Python, nicht am Kommentar.
