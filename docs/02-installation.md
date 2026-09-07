@@ -4,7 +4,10 @@
 
 - **Docker** (Docker Desktop on Mac, Docker Engine on Linux)
 - **git**
-- **Python 3.10–3.12** (Python 3.13 not yet supported)
+- **Python 3.12** — zodoo does not run on 3.13/3.14 yet. The installer
+  pins the pipx venv to 3.12 itself, so a newer system python is fine:
+  if no `python3.12` is on the machine (Ubuntu 26.04 has no package for
+  it), pipx downloads a standalone 3.12 into `~/.local/pipx/py`.
 - **pipx** (for isolated CLI tool installation)
 
 On macOS:

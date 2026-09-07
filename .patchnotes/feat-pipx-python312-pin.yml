@@ -1,0 +1,25 @@
+type: fix
+breaking: false
+description: |
+  Installation: zodoo landet jetzt auch auf Systemen mit Python 3.13/3.14 im
+  richtigen Python 3.12.
+
+  Bisher wurde die Python-Version nur auf macOS festgenagelt; unter Linux hat
+  pipx einfach das System-Python genommen. Auf aktuellen Systemen ist das
+  schon 3.13 oder 3.14, wo ein Teil unserer Abhaengigkeiten noch keine Wheels
+  hat - die Installation lief dann entweder auf einen Build-Fehler oder auf
+  ein zodoo, das beim ersten Aufruf aussteigt.
+
+  install.sh und "odoo setup reinstall" suchen das gewuenschte Python (steht
+  in der Datei python_version, bisher darwin_python_version) jetzt auf allen
+  Systemen gleich: erst python3.12 auf dem Rechner, sonst laesst sich pipx ein
+  eigenes standalone-Python 3.12 herunterladen (--fetch-python=missing). Das
+  ist der Normalfall auf Ubuntu 26.04, wo es gar kein python3.12-Paket mehr
+  gibt. Ein aelteres, noch unterstuetztes System-Python (3.10 auf Ubuntu
+  22.04) wird wie bisher genommen.
+
+  Zum Nachschauen: nach dem Installer bzw. "odoo setup reinstall" gibt
+  "pipx list" fuer das Paket zodoo die verwendete Python-Version aus - dort
+  muss 3.12.x stehen, auch wenn "python3 --version" 3.14 sagt. Der Installer
+  schreibt die gewaehlte Variante ausserdem als Zeile mit ins Log
+  ("Using python 3.12 (...)" bzw. "letting pipx download python 3.12").

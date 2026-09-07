@@ -796,6 +796,106 @@ def _ensure_pipx_version():
         )
 
 
+def _wanted_python_version(images_dir):
+    """The python minor version zodoo is pinned to, e.g. "3.12"."""
+    for name in ("python_version", "darwin_python_version"):
+        path = images_dir / name
+        if not path.exists():
+            continue
+        version = path.read_text().strip()
+        if version:
+            return ".".join(version.split(".")[:2])
+    return None
+
+
+def _find_python(version):
+    candidates = [
+        f"python{version}",
+        f"/opt/homebrew/bin/python{version}",
+        f"/usr/local/bin/python{version}",
+        f"/usr/bin/python{version}",
+    ]
+    for candidate in candidates:
+        found = shutil.which(candidate)
+        if found:
+            return found
+    return None
+
+
+def _system_python_minor():
+    python3 = shutil.which("python3")
+    if not python3:
+        return None
+    try:
+        out = subprocess.check_output(
+            [python3, "-c", "import sys; print(sys.version_info[1])"],
+            encoding="utf-8",
+        )
+        return int(out.strip())
+    except (subprocess.CalledProcessError, OSError, ValueError):
+        return None
+
+
+def _pipx_fetch_python_arg():
+    """pipx renamed --fetch-missing-python (1.5+) to --fetch-python=missing."""
+    try:
+        pipx_help = subprocess.check_output(
+            ["pipx", "install", "--help"],
+            encoding="utf-8",
+            stderr=subprocess.STDOUT,
+        )
+    except (subprocess.CalledProcessError, OSError):
+        return None
+    if "--fetch-python" in pipx_help:
+        return "--fetch-python=missing"
+    if "--fetch-missing-python" in pipx_help:
+        return "--fetch-missing-python"
+    return None
+
+
+def _pipx_python_args(images_dir):
+    """Pin the pipx venv to the python version zodoo wants.
+
+    python3 is already 3.13/3.14 on current systems and part of our
+    dependency set has no wheels there, so pipx must not silently pick the
+    system python. An older but still supported python (3.10 on Ubuntu
+    22.04) stays acceptable; a too new one is not.
+    """
+    wanted = _wanted_python_version(images_dir)
+    if not wanted:
+        return []
+    found = _find_python(wanted)
+    if found:
+        return ["--python", found]
+
+    system_minor = _system_python_minor()
+    wanted_minor = int(wanted.split(".")[1])
+    if system_minor is not None and 10 <= system_minor <= wanted_minor:
+        click.secho(
+            f"python{wanted} not found - using python3 (3.{system_minor}).",
+            fg="yellow",
+        )
+        return []
+
+    fetch_arg = _pipx_fetch_python_arg()
+    if fetch_arg:
+        # Normal case on Ubuntu 26.04, which ships no python3.12 package:
+        # pipx downloads a standalone python into ~/.local/pipx/py.
+        click.secho(
+            f"python{wanted} not found - letting pipx download it.",
+            fg="yellow",
+        )
+        return ["--python", wanted, fetch_arg]
+
+    abort(
+        f"zodoo needs python {wanted}, but it was not found "
+        f"(system python: 3.{system_minor}), and this pipx cannot download "
+        f"one. Please install python {wanted} (e.g. "
+        f"'brew install python@{wanted}' / "
+        f"'sudo apt install python{wanted}-venv') or upgrade pipx."
+    )
+
+
 def _reinstall():
     _ensure_pipx_version()
     images_dir = Path(os.path.expanduser("~/.odoo/images"))
@@ -806,11 +906,7 @@ def _reinstall():
         except subprocess.CalledProcessError:
             pass
     cmd = ["pipx", "install", "--force", "-e", path]
-    if on_osx():
-        python_version = (
-            (images_dir / "darwin_python_version").read_text().strip()
-        )
-        cmd.extend(["--python", f"python{python_version}"])
+    cmd.extend(_pipx_python_args(images_dir))
     subprocess.check_call(cmd, shell=False)
     subprocess.check_call(
         ["pipx", "inject", "--force", "zodoo", "gimera"], shell=False
