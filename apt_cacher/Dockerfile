@@ -1,7 +1,38 @@
 FROM debian:bullseye
 
+# Why the package sources are pinned to a snapshot
+#
+# squid-deb-proxy only ever existed in bullseye - it was dropped from Debian
+# and is in neither bookworm nor trixie. So this image cannot simply follow a
+# newer release; it has to keep building against bullseye, which went EOL at
+# the end of August 2026.
+#
+# Since then the bullseye-security binaries are disappearing from the live
+# mirrors while bullseye-security is NOT yet on archive.debian.org (which
+# still ends at buster). During the move the CDN answers inconsistently: the
+# package index lists a version whose .deb is already gone, so
+# `apt-get install` dies with a pile of 404s - and it does so intermittently,
+# depending on which edge node answers. That is what broke the release build
+# of v11.3.1 on 2026-09-07.
+#
+# snapshot.debian.org serves a frozen point in time and therefore has index
+# and pool from the same moment. `Check-Valid-Until` has to go off because a
+# snapshot's Release file is deliberately old.
+#
+# Consequence to be aware of: security updates are frozen at SNAPSHOT_DATE.
+# For a build cache on our own network that is acceptable - raise the date
+# when the image is rebuilt on purpose.
+ARG SNAPSHOT_DATE=20260824T000000Z
+
 # Install squid-deb-proxy
-RUN apt-get update -y && \
+RUN printf '%s\n' \
+      "deb http://snapshot.debian.org/archive/debian/${SNAPSHOT_DATE} bullseye main" \
+      "deb http://snapshot.debian.org/archive/debian/${SNAPSHOT_DATE} bullseye-updates main" \
+      "deb http://snapshot.debian.org/archive/debian-security/${SNAPSHOT_DATE} bullseye-security main" \
+      > /etc/apt/sources.list && \
+    printf 'Acquire::Check-Valid-Until "false";\n' \
+      > /etc/apt/apt.conf.d/99snapshot && \
+    apt-get update -y && \
     apt-get install -y --no-install-recommends \
       squid-deb-proxy \
       squid-deb-proxy-client && \
