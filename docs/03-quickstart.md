@@ -59,6 +59,46 @@ odoo update               # update all modules
 odoo up -d
 ```
 
+## Enterprise instance
+
+Setting up an Odoo Enterprise instance needs one extra step between
+`odoo init` and the rest of the quickstart flow: pulling in the Enterprise
+addons via [gimera](https://github.com/geminicad/gimera) and pointing the
+project at them. Requires access to the private
+`git@github.com:odoo/enterprise` repo.
+
+Add the enterprise repo to `gimera.yml`:
+
+```yaml
+- branch: ${VERSION}
+  path: enterprise
+  sha: <commit-sha-to-pin>
+  type: integrated
+  url: git@github.com:odoo/enterprise
+```
+
+Add `enterprise` to the project's `MANIFEST` addon paths:
+
+```json
+"addons_paths": [
+    "odoo/odoo/addons",
+    "odoo/addons",
+    "enterprise",
+    "addons_tools"
+]
+```
+
+Then apply it and continue with the normal flow from `odoo setup next-port`
+onward:
+
+```bash
+gimera apply
+odoo setup setup-pyenv   # optional: local pyenv for debugging
+odoo setup next-port
+odoo up -d
+odoo -f db reset
+```
+
 ## Status check
 
 ```bash

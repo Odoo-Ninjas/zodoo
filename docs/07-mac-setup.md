@@ -13,6 +13,14 @@ brew install git pipx rsync
 bash <(curl -fsSL https://raw.githubusercontent.com/Odoo-Ninjas/zodoo/refs/heads/main/install.sh)
 ```
 
+By default this uses the Python that ships with Xcode. If your Odoo version
+needs a newer Python (recommended for newer releases that drop 3.9 support),
+reinstall pointing at a `pyenv`-managed interpreter instead:
+
+```bash
+pipx reinstall wodoo --python ~/.pyenv/versions/3.12.13/bin/python3
+```
+
 ## 2. Clone the project repository
 
 ```bash
@@ -52,6 +60,32 @@ odoo setup status         # shows URL and port
 ```
 
 Open: `http://localhost:<PROXY_PORT>`
+
+---
+
+## Applying code changes
+
+Whenever you modify module code (Python, XML views, security rules, data
+files), the running Odoo instance won't reflect those changes until the
+modules are reloaded into the database:
+
+```bash
+odoo update
+# Installs/updates the modules listed under `install` in the project MANIFEST.
+```
+
+The module you're working on must be listed under `install` in the project's
+`MANIFEST` — otherwise `odoo update` skips it and your changes won't show up.
+
+Tips:
+
+- `odoo update <module_name>` updates a single module faster than a full update.
+- Pure Python changes are often picked up live by running in dev mode
+  (`odoo dev`, which combines build + up + watch) without a full update, but
+  **structural** changes (models, fields, views, security, data) always need
+  `odoo update`.
+- If a change still doesn't show up, hard-refresh the browser
+  (⌘ + Shift + R) to bypass Odoo's asset cache.
 
 ---
 

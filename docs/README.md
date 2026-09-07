@@ -15,6 +15,8 @@
 | [11-offsite-backup.md](./11-offsite-backup.md)         | Encrypted offsite backup with restic          |
 | [12-pgbackrest.md](./12-pgbackrest.md)                 | Database backup + point-in-time recovery      |
 | [13-web-router.md](./13-web-router.md)                 | nginx reverse proxy, vhosts.yml, vhost wizard |
+| [14-benchmarking.md](./14-benchmarking.md)             | Finding slow fields with `odoo benchmark`     |
+| [15-windows-wsl-setup.md](./15-windows-wsl-setup.md)   | Windows (WSL2) setup guide                    |
 
 These files are the source of truth. (The former online copy at
 docs.zebroo.de is gone; internal documentation now lives in Odoo Knowledge.)

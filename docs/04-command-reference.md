@@ -56,6 +56,12 @@ Remove stopped containers.
 
 Recreate containers without rebuilding images.
 
+### `odoo dev [-b/--build] [-k/--kill]`
+
+Start containers in dev mode: combines build + up + watch, so code changes
+are picked up live. `-b` forces a rebuild first, `-k` kills existing
+containers before starting.
+
 ---
 
 ## Configuration
@@ -63,6 +69,10 @@ Recreate containers without rebuilding images.
 ### `odoo reload`
 
 Regenerate `docker-compose.yml` from current settings. **Run this after every settings change** before `odoo up`.
+
+Also writes `.vscode/launch.json` and `.vscode/tasks.json` for the project and
+installs/updates the Zebroo VS Code extension (if the `code` CLI is
+available) — no separate setup command is needed for VS Code integration.
 
 ### `odoo setting <KEY> <VALUE>`
 
@@ -85,13 +95,25 @@ Flags:
 
 Find and assign the next free port for `PROXY_PORT`, `DEBUG_PORT`, and (on macOS) `HOST_DB_PORT`.
 
-### `odoo setup status`
+### `odoo status`
 
-Show project name, Odoo version, database connection URL, and key config values.
+Show project name, Odoo version, database connection URL, and key config
+values. (Also reachable as `odoo setup status`; `odoo status` is the direct,
+unambiguous form.)
 
 ### `odoo setup remove-web-assets`
 
 Fix broken CSS/JS. Clears web assets from database; they are regenerated on next admin login.
+
+### `odoo setup setup-pyenv`
+
+Set up a local `pyenv`-managed Python environment for the robot/test tooling,
+so tests show up correctly in VS Code.
+
+### `odoo config [-f/--full]`
+
+Print the effective configuration for the current project. `--full` shows
+the full environment instead of the shortened default.
 
 ### `odoo upgrade`
 
@@ -136,6 +158,12 @@ Show the largest tables in the database.
 ### `odoo db dbcompare <file1> <file2>`
 
 Compare two database dumps.
+
+### `odoo restore-web-icons`
+
+Repairs broken `ir.attachment` links after a database restore, by deleting
+and recreating the affected web-icon attachments. (Also reachable as
+`odoo talk restore-web-icons`.)
 
 ---
 
@@ -356,6 +384,23 @@ In test files, use comments to declare module requirements:
 #odoo-require: crm,sale_stock
 #odoo-uninstall: partner_autocomplete
 ```
+
+---
+
+## Performance
+
+### `odoo benchmark fields <model>`
+
+Benchmark every field of a model to find slow computed fields under real
+database conditions.
+
+### `odoo benchmark curl`
+
+Same idea, scoped to the fields a specific slow request actually asked for —
+paste a `web_search_read` cURL command copied from Chrome DevTools.
+
+See [Benchmarking](./14-benchmarking.md) for full option lists and a worked
+example.
 
 ---
 

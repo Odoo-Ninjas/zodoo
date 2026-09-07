@@ -70,6 +70,13 @@ All images (Odoo, postgres, proxy, etc.) are pushed. Image tags include a SHA-ba
 
 ---
 
+> This project registry (`HUB_URL` / `REGISTRY=1`, push and pull below) is
+> for deploying a specific project's images to production or a customer
+> system — a manual, per-project setup. It's separate from the anonymous
+> build-cache registry described in
+> [Pulling needs no account](#pulling-needs-no-account), which just speeds up
+> local builds and needs no configuration.
+
 ## Pull (production / target system)
 
 ### 1. Configure the same registry URL and enable registry mode
