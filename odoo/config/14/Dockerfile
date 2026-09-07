@@ -100,7 +100,7 @@ RUN /opt/venv/bin/python3 -mpip install wheel
 
 
 RUN echo "$ODOO_PROJECT_DEB_REQUIREMENTS"  | base64 --decode > /root/project_deb_requirements.txt
-RUN #___SNIPPET_DEB_REQUIERMENTS___
+RUN #___SNIPPET_DEB_REQUIREMENTS___
 
 RUN echo "$ODOO_PROJECT_REQUIREMENTS"  | base64 --decode > /root/project_requirements.txt
 RUN cat /root/project_requirements.txt | grep -v postal > /root/project_requirements.filtered.txt

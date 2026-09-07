@@ -1,0 +1,28 @@
+# Package sources for EOL Debian releases (bullseye and older)
+#
+# Debian 11 went EOL at the end of August 2026. Since then its security
+# packages are disappearing from the live mirrors while bullseye-security is
+# NOT yet on archive.debian.org (which still ends at buster). During that move
+# the package index names versions whose .deb is already gone, and which of
+# the two you get depends on the CDN node that answers - so `apt-get install`
+# fails with a pile of 404s, intermittently.
+#
+# snapshot.debian.org serves a frozen point in time, so index and pool come
+# from the same moment. `Check-Valid-Until` has to go off because a snapshot's
+# Release file is deliberately old.
+#
+# Consequence to be aware of: security updates are frozen at this date. These
+# images are pinned to an old distribution anyway (Odoo 12/13 need a Python
+# that newer Debian no longer builds), so there is nothing newer to get here.
+# Raise the date when such an image is rebuilt on purpose.
+#
+# Must be repeated per build stage - every FROM starts from the base image
+# again. The apt_cacher image carries the same pin in its own Dockerfile
+# (SNAPSHOT_DATE); keep the dates in sync when raising one.
+RUN printf '%s\n' \
+      "deb http://snapshot.debian.org/archive/debian/20260824T000000Z bullseye main" \
+      "deb http://snapshot.debian.org/archive/debian/20260824T000000Z bullseye-updates main" \
+      "deb http://snapshot.debian.org/archive/debian-security/20260824T000000Z bullseye-security main" \
+      > /etc/apt/sources.list && \
+    rm -f /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources && \
+    printf 'Acquire::Check-Valid-Until "false";\n' > /etc/apt/apt.conf.d/99snapshot

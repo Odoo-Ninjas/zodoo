@@ -1938,3 +1938,34 @@ def test_the_apt_cacher_image_pins_its_package_sources():
     assert "SNAPSHOT_DATE" in text
     # Ohne das lehnt apt den absichtlich alten Release-Stand ab.
     assert 'Acquire::Check-Valid-Until "false"' in text
+
+
+def test_every_snippet_marker_has_a_file():
+    """Jede `#___SNIPPET_X___`-Marke braucht `common_snippets/x`.
+
+    Eine falsch geschriebene Marke wird nicht ersetzt, und beide
+    Ersetzungsschleifen laufen dann 100 Runden leer und brechen mit
+    "Not resolved or endless loop" ab - eine Meldung, die auf eine
+    Endlosschleife deutet statt auf den Tippfehler. Genau so waren
+    `odoo/config/12` und `/14` unbaubar: sie schrieben
+    DEB_REQUIERMENTS statt DEB_REQUIREMENTS.
+    """
+    import re
+
+    wurzel = Path(__file__).resolve().parents[4]
+    schnipsel_dir = wurzel / "common_snippets"
+    if not schnipsel_dir.exists():              # installiertes Paket, kein Repo
+        pytest.skip(f"{schnipsel_dir} nicht vorhanden")
+
+    vorhanden = {p.name.upper() for p in schnipsel_dir.glob("*") if p.is_file()}
+    fehlend = {}
+    for dockerfile in wurzel.glob("**/Dockerfile*"):
+        if ".git" in dockerfile.parts or "zodoo_src" in dockerfile.parts:
+            continue
+        for name in re.findall(r"#___SNIPPET_(\w+)___", dockerfile.read_text()):
+            if name.upper() not in vorhanden:
+                fehlend.setdefault(name, []).append(
+                    str(dockerfile.relative_to(wurzel))
+                )
+
+    assert not fehlend, f"Marken ohne Schnipsel-Datei: {fehlend}"
