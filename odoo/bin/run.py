@@ -51,7 +51,14 @@ TOUCH_URL = not is_odoo_cronjob and not is_odoo_queuejob
 if _DEVMODE:
     TOUCH_URL = False
 
-LEVEL = os.getenv("ODOO_LOG_LEVEL", "debug")
+# info, nicht debug: __after_compose.py schreibt in die odoo.conf schon
+# "log_level = info" als Default (dort Zeile 197) - der hier gesetzte
+# Kommandozeilenschalter ueberschreibt die Konfigurationsdatei aber, sodass
+# faktisch jede Instanz auf debug lief. Wer die Datei ansah, sah "info" oder
+# sogar "error" und wunderte sich; sichtbar war es nur an der Prozessliste.
+# Debug-Logs sammelt alloy/Loki mit ein: auf hosting.zebroo.de waren das
+# rund 4000 Logzeilen pro Minute, nach der Umstellung 180.
+LEVEL = os.getenv("ODOO_LOG_LEVEL", "info")
 
 set_proxy_update_modules(False)
 

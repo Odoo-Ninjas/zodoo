@@ -1,0 +1,16 @@
+type: fix
+description: >-
+  Der Log-Level stand faktisch auf debug, obwohl in der odoo.conf "info"
+  stand. run.py setzte den Kommandozeilenschalter mit dem Default "debug",
+  und der ueberschreibt die Konfigurationsdatei. Wer nachsah, las dort "info"
+  oder sogar "error" und wunderte sich; sichtbar war es nur in der
+  Prozessliste.
+
+  Zum Pruefen: nach dem Update auf einer Instanz die Odoo-Logs ansehen -- es
+  sollten deutlich weniger Zeilen kommen und keine mehr mit DEBUG-Praefix.
+  Wer weiterhin debug braucht, setzt ODOO_LOG_LEVEL=debug in den Settings;
+  das hat weiterhin Vorrang.
+
+  Auf hosting.zebroo.de waren es vorher rund 4000 Logzeilen pro Minute, nach
+  der Umstellung 180 -- die alloy/Loki-Ablage hat das alles mitgesammelt.
+breaking: false
