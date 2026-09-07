@@ -1,5 +1,19 @@
 # Changelog
 
+## 11.3.5
+
+- **Internal**: Die automatischen Tests laufen jetzt bei jeder Aenderung, nicht nur bei bestimmten Verzeichnissen.
+
+  Die Unit-Tests waren auf Aenderungen unter zodoo/src beschraenkt. Das klingt vernuenftig, hatte aber eine Luecke: die Tests liegen zwar dort, pruefen von dort aus aber auch Dateien ausserhalb - test_cronjobs_run laedt cronjobs/bin/run.py, test_router_vhost_wizard laedt router_global/render_configs.py. Wer genau die Datei aenderte, die ein Test prueft, bekam diesen Test also nicht zu sehen. Insgesamt liefen bei Aenderungen an cronjobs, router_global, common_snippets, proxy, console, install.sh und einem guten Dutzend weiterer Verzeichnisse gar keine Tests.
+
+  Dramatisch war das nie, weil nach dem Zusammenfuehren auf main ohnehin alles laeuft - nur eben zu spaet: der Fehler faellt dann erst danach auf und blockiert die Auslieferung, statt vorher im Vorschlag aufzutauchen.
+
+  Der Filter der Unit-Tests ist deshalb ersatzlos weg; die Suite braucht keine Minute. Beim schweren Docker-Durchlauf, der eine Viertelstunde dauert, bleibt ein Filter sinnvoll - er umfasst jetzt zusaetzlich common_snippets und cronjobs, weil beides direkt in die Abbilder geht (common_snippets/zodoo baut das venv jedes Containers, cronjobs stellt den Cron-Daemon der Instanz).
+
+  Zum Nachschauen: einen Vorschlag aufmachen, der nur eine Datei ausserhalb von zodoo/src aendert (etwa in docs/ oder router_global/) - unter den Pruefungen muessen jetzt die unit-Eintraege fuer alle Python-Versionen auftauchen.
+- **Fix**: Der Log-Level stand faktisch auf debug, obwohl in der odoo.conf "info" stand. run.py setzte den Kommandozeilenschalter mit dem Default "debug", und der ueberschreibt die Konfigurationsdatei. Wer nachsah, las dort "info" oder sogar "error" und wunderte sich; sichtbar war es nur in der Prozessliste. Zum Pruefen: nach dem Update auf einer Instanz die Odoo-Logs ansehen -- es sollten deutlich weniger Zeilen kommen und keine mehr mit DEBUG-Praefix. Wer weiterhin debug braucht, setzt ODOO_LOG_LEVEL=debug in den Settings; das hat weiterhin Vorrang. Auf hosting.zebroo.de waren es vorher rund 4000 Logzeilen pro Minute, nach der Umstellung 180 -- die alloy/Loki-Ablage hat das alles mitgesammelt.
+
+
 ## 11.3.4
 
 - **Fix**: Die Abbilder fuer Odoo 12 und 13 bauen auf Debian bullseye und liefen in dasselbe Loch wie der apt-Zwischenspeicher: bullseye ist EOL, die Sicherheitspakete verschwinden von den Spiegeln und liegen noch nicht im Archiv, `apt-get install` bricht dadurch sporadisch mit 404 ab. Beide holen ihre Pakete jetzt von einem Debian-Schnappschuss - ueber den neuen Schnipsel `common_snippets/debian_snapshot`, einmal je Build-Stufe.
