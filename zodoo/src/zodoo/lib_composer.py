@@ -504,12 +504,28 @@ def _find_suitable_python_version(ODOO_VERSION, settings):
             return "3.12.11"
         elif ODOO_VERSION == 15:
             return "3.9.17"
-        elif ODOO_VERSION in [11, 12, 13]:
-            pass
+        elif ODOO_VERSION in [12, 13]:
+            # Beide Abbilder wenden `patches/python_3.8.email.patch` an, die
+            # 3.8er Reihe ist hier also gesetzt; 3.8.20 ist deren letzte.
+            return "3.8.20"
+        elif ODOO_VERSION == 11:
+            # Bewusst offen: Odoo 11 baut auf buster und wird nirgends mehr
+            # neu gebaut. Wer es doch tut, soll die Fassung selbst waehlen,
+            # statt hier einen ungeprueften Wert zu erben.
+            return None
         else:
             raise NotImplementedError(ODOO_VERSION)
 
-    settings["ODOO_PYTHON_VERSION"] = _get()
+    version = _get()
+    if not version:
+        # Vorher landete None in den Einstellungen und der Fehler kam erst
+        # beim Schreiben als "None value not allowed for: ODOO_PYTHON_VERSION"
+        # - eine Meldung, die nicht sagt, was zu tun ist.
+        abort(
+            f"Fuer Odoo {ODOO_VERSION} ist keine Python-Fassung hinterlegt. "
+            "Bitte selbst waehlen: odoo setting ODOO_PYTHON_VERSION=3.x.y"
+        )
+    settings["ODOO_PYTHON_VERSION"] = version
 
 
 def _execute_after_reload(config):
