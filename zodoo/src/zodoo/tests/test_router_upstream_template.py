@@ -12,7 +12,9 @@ from pathlib import Path
 
 import pytest
 
-_TEMPLATES = Path(__file__).resolve().parents[4] / "router_global" / "templates"
+_TEMPLATES = (
+    Path(__file__).resolve().parents[4] / "router_global" / "templates"
+)
 
 
 def _render(**over):
@@ -76,13 +78,16 @@ def test_unlimited_body_and_streaming_for_large_uploads():
 
 def test_buffering_stays_on_unless_explicitly_turned_off():
     """True must not emit the directive - only an explicit False may."""
-    assert "proxy_request_buffering" not in _render(proxy_request_buffering=True)
+    assert "proxy_request_buffering" not in _render(
+        proxy_request_buffering=True
+    )
 
 
 @pytest.mark.parametrize("scheme", ["http", None])
 def test_http_is_the_default_however_it_is_spelled(scheme):
     out = _render(**({} if scheme is None else {"upstream_scheme": scheme}))
     assert "proxy_pass http://$var_upstream_1;" in out
+
 
 def test_no_rate_limit_by_default():
     """A vhost that does not ask for it must render exactly as before.
@@ -116,3 +121,145 @@ def test_rate_limit_declares_zone_and_applies_it():
 def test_rate_limit_burst_is_configurable():
     out = _render(rate_limit="5r/s", rate_limit_burst=100)
     assert "burst=100" in out
+
+
+# ---------------------------------------------------------------------------
+# self-signed TLS
+#
+# A vhost on a protected LAN can never verify with Let's Encrypt, so it must be
+# able to listen on 443 with a self-signed certificate that needs no ACME
+# at all. ssl_self_signed must do that WITHOUT use_certbot, and the certificate
+# directory must default to the server_name so the vhost works with zero extra
+# configuration.
+# ---------------------------------------------------------------------------
+
+
+def _render_template(name, **over):
+    from jinja2 import Environment, FileSystemLoader
+
+    item = {
+        "server_name": "example.zebroo.de",
+        "upstream_name": "upstream_1",
+        "upstream_server": "192.168.77.42",
+        "upstream_port": 8444,
+        "timeout": 600,
+    }
+    item.update(over)
+    env = Environment(
+        loader=FileSystemLoader(str(_TEMPLATES)),
+        keep_trailing_newline=False,
+        trim_blocks=True,
+        lstrip_blocks=False,
+    )
+    return env.get_template(name).render(item=item)
+
+
+@pytest.mark.parametrize(
+    "template",
+    ["upstream", "upstream_direct_odoo", "static_files"],
+)
+def test_self_signed_renders_tls_without_certbot(template):
+    """ssl_self_signed must give a 443 listener + 80->https redirect on its own.
+
+    No use_certbot, no ssl_key_is_on_destination: only the self-signed flag.
+    """
+    fields = {
+        "upstream_name": "upstream_1",
+        "upstream_server": "192.168.77.42",
+        "upstream_port": 8069,
+        "timeout": 600,
+        "folder": "/var/www/example",
+    }
+    out = _render_template(template, ssl_self_signed=True, **fields)
+    assert "listen 443 ssl;" in out
+    # plain HTTP must bounce to https instead of hitting the 444 catch-all
+    assert "return 301 https://$host$request_uri;" in out
+    # certificate directory defaults to the server_name
+    assert (
+        "ssl_certificate /etc/ssl/custom_ssl/example.zebroo.de/server.crt;"
+        in out
+    )
+    assert (
+        "ssl_certificate_key /etc/ssl/custom_ssl/example.zebroo.de/server.key;"
+        in out
+    )
+    # the ACME location must be correctly spelled (it was "accme" before)
+    assert "/.well-known/acme-challenge/" in out
+    assert "accme-challenge" not in out
+
+
+def test_self_signed_uses_explicit_certificate_name():
+    out = _render_template(
+        "upstream",
+        upstream_name="upstream_1",
+        upstream_server="192.168.77.42",
+        upstream_port=8069,
+        timeout=600,
+        ssl_self_signed=True,
+        certificate_name="example-shared",
+    )
+    assert (
+        "ssl_certificate /etc/ssl/custom_ssl/example-shared/server.crt;" in out
+    )
+    assert (
+        "ssl_certificate /etc/ssl/custom_ssl/example.zebroo.de/server.crt;"
+        not in out
+    )
+
+
+def test_null_certificate_name_defaults_to_server_name():
+    """An explicit YAML null (certificate_name: ~) must behave like omission.
+
+    Jinja's default() only substitutes Undefined, not None - without the
+    `true` (default=) argument a null would render custom_ssl/None/ and the
+    host-side generator (which uses Python's `or`) would write
+    custom_ssl/<server_name>/, so nginx -t fails on the first reload.
+    """
+    out = _render_template(
+        "upstream",
+        upstream_name="upstream_1",
+        upstream_server="192.168.77.42",
+        upstream_port=8069,
+        timeout=600,
+        ssl_server_cert=True,
+        certificate_name=None,
+    )
+    assert "custom_ssl/None/" not in out
+    assert (
+        "ssl_certificate /etc/ssl/custom_ssl/example.zebroo.de/server.crt;"
+        in out
+    )
+
+
+def test_tls_off_renders_no_tls_at_all():
+    """A vhost with none of the tls flags stays exactly as before."""
+    out = _render_template(
+        "upstream",
+        upstream_name="upstream_1",
+        upstream_server="192.168.77.42",
+        upstream_port=8069,
+        timeout=600,
+    )
+    assert "listen 443 ssl;" not in out
+    assert "return 301 https://" not in out
+
+
+def test_custom_cert_vhost_gets_http_redirect_too():
+    """The 80->https redirect is not only for self-signed.
+
+    Before this feature, a vhost with a custom certificate had no per-vhost
+    port-80 listener, so plain HTTP hit the 444 catch-all. It now gets the same
+    301 redirect as the TLS vhosts - that is the intentional behavior change.
+    """
+    for flag in ("ssl_key_is_on_destination", "ssl_server_cert"):
+        out = _render_template(
+            "upstream",
+            upstream_name="upstream_1",
+            upstream_server="192.168.77.42",
+            upstream_port=8069,
+            timeout=600,
+            **{flag: True},
+            certificate_name="example.zebroo.de",
+        )
+        assert "listen 443 ssl;" in out
+        assert "return 301 https://$host$request_uri;" in out

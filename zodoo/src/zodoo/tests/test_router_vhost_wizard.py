@@ -266,3 +266,160 @@ def test_optional_field_may_be_emptied(monkeypatch):
     vhost = {"template": "upstream", "rate_limit": "30r/m"}
     lib_router._ask_field_value(vhost, "rate_limit", "text")
     assert captured["question"].validate("") is None
+
+
+# ---------------------------------------------------------------------------
+# self-signed certificate generation wiring
+#
+# _generate_self_signed_certs must run the host-side generator for (only)
+# ssl_self_signed vhosts, with the certificate directory defaulting to the
+# server_name. This is the spot that guarantees the cert file exists before a
+# reload, so nginx -t does not fail on a missing key/cert pair.
+# ---------------------------------------------------------------------------
+
+
+def test_generate_self_signed_creates_pair_and_defaults_name(tmp_path):
+    router_dir = _router_dir()
+    if router_dir is None:
+        pytest.skip("router_global not next to the package (installed copy)")
+    import os
+
+    install_dir = tmp_path / "install"
+    install_dir.mkdir()
+    # expose the real generator as install_dir/bin/setup_self_signed.py
+    os.symlink(router_dir / "files" / "bin", install_dir / "bin")
+
+    vhosts = [
+        {"server_name": "lan.example.net", "ssl_self_signed": True},
+        # no certificate_name: must default to the server_name
+        {"server_name": "other.example.net"},  # use_certbot, must be ignored
+    ]
+    lib_router._generate_self_signed_certs(install_dir, vhosts)
+
+    # generated for the self-signed vhost, directory defaulted to server_name
+    assert (
+        install_dir / "custom_ssl" / "lan.example.net" / "server.crt"
+    ).exists()
+    assert (
+        install_dir / "custom_ssl" / "lan.example.net" / "server.key"
+    ).exists()
+    # and NOT for the use_certbot vhost
+    assert not (install_dir / "custom_ssl" / "other.example.net").exists()
+
+
+def test_generate_self_signed_keeps_a_provided_pair(tmp_path):
+    """Once a pair is present (generated or provided by hand) it is never
+    clobbered - re-running is a no-op."""
+    router_dir = _router_dir()
+    if router_dir is None:
+        pytest.skip("router_global not next to the package (installed copy)")
+    import os
+
+    install_dir = tmp_path / "install"
+    install_dir.mkdir()
+    os.symlink(router_dir / "files" / "bin", install_dir / "bin")
+    key = install_dir / "custom_ssl" / "lan.example.net" / "server.key"
+    cert = install_dir / "custom_ssl" / "lan.example.net" / "server.crt"
+
+    marker = b"provided-by-hand"
+    key.parent.mkdir(parents=True, exist_ok=True)
+    key.write_bytes(marker)
+    cert.write_bytes(marker)
+
+    lib_router._generate_self_signed_certs(
+        install_dir,
+        [{"server_name": "lan.example.net", "ssl_self_signed": True}],
+    )
+    assert key.read_bytes() == marker
+    assert cert.read_bytes() == marker
+
+
+# ---------------------------------------------------------------------------
+# TLS question in the wizard
+#
+# existing_ssl_certificates renders an empty nginx file (the certificate block
+# is supplied by hand), so it cannot terminate TLS on its own. The wizard must
+# NOT ask the TLS question for it, and must therefore never set use_certbot or
+# ssl_self_signed on such a vhost. Every other template still gets the question.
+# ---------------------------------------------------------------------------
+
+
+def test_wizard_skips_tls_question_for_existing_ssl_certificates(monkeypatch):
+    calls = []
+
+    def _prompt(questions, *a, **kw):
+        calls.append(questions)
+        if len(calls) == 1:
+            return {
+                "template": "existing_ssl_certificates",
+                "server_name": "cert.only.de",
+            }
+        raise AssertionError("no further inquirer.prompt call expected")
+
+    monkeypatch.setattr(lib_router.inquirer, "prompt", _prompt)
+    vhost = lib_router._collect_new_vhost(existing=[])
+    assert len(calls) == 1
+    assert "use_certbot" not in vhost
+    assert "ssl_self_signed" not in vhost
+
+
+@pytest.mark.parametrize(
+    "answer,flag",
+    [("certbot", "use_certbot"), ("self_signed", "ssl_self_signed")],
+)
+def test_wizard_still_asks_tls_for_upstream(monkeypatch, answer, flag):
+    def _prompt(questions, *a, **kw):
+        if "template" in questions[0].name:
+            return {"template": "upstream", "server_name": "kunde.zebroo.de"}
+        if "upstream_name" in questions[0].name:
+            return {
+                "upstream_name": "kunde_odoo",
+                "upstream_server": "192.168.77.42",
+                "upstream_port": "8069",
+                "timeout": "600",
+            }
+        if "tls" in questions[0].name:
+            return {"tls": answer}
+        if "allowed_ips" in questions[0].name:
+            return {"allowed_ips": "", "want_basic_auth": False}
+        return {}
+
+    monkeypatch.setattr(lib_router.inquirer, "prompt", _prompt)
+    vhost = lib_router._collect_new_vhost(existing=[])
+    assert vhost.get(flag) is True
+
+
+# ---------------------------------------------------------------------------
+# use_certbot / ssl_self_signed mutual exclusion
+#
+# The wizard offers a single TLS choice, so a vhost carrying both flags can only
+# exist in a hand-written vhosts.yml. Saving it must abort with a clear message
+# instead of letting `odoo router ssl` run certbot and self-signed on one vhost.
+# ---------------------------------------------------------------------------
+
+
+def test_exclusive_tls_flags_abort_on_save(monkeypatch):
+    # abort() uses sys.exit -> SystemExit (not an Exception subclass)
+    with pytest.raises(SystemExit):
+        lib_router._check_exclusive_tls_flags(
+            [
+                {
+                    "server_name": "both.de",
+                    "use_certbot": True,
+                    "ssl_self_signed": True,
+                },
+            ]
+        )
+
+
+@pytest.mark.parametrize(
+    "vhost",
+    [
+        {"server_name": "a.de", "use_certbot": True},
+        {"server_name": "b.de", "ssl_self_signed": True},
+        {"server_name": "c.de"},
+    ],
+)
+def test_exclusive_tls_flags_allow_single_or_none(vhost):
+    # no raise
+    lib_router._check_exclusive_tls_flags([vhost])

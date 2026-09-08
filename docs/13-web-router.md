@@ -27,7 +27,7 @@ odoo router vhost add --global <file>.yml     # one vhost from a file
 odoo router vhost remove --global <domain>
 
 odoo router apply-vhosts --global             # re-render + reload nginx
-odoo router ssl --global                      # issue certs for use_certbot vhosts
+odoo router ssl --global                      # issue certs (certbot + self-signed)
 odoo router restart|reload|down|docker-status --global
 ```
 
@@ -114,6 +114,7 @@ With a custom certificate (`ssl_key_is_on_destination` or `ssl_server_cert`)
 | Field                                        | Type       | Meaning                                                                                                                               |
 | -------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `use_certbot`                                | bool       | `odoo router ssl` issues a Let's Encrypt certificate for it.                                                                          |
+| `ssl_self_signed`                            | bool       | Terminate TLS with a self-signed certificate (no Let's Encrypt / ACME). See [Offline / self-signed](#offline--self-signed-tls).       |
 | `filename`                                   | string     | File name under `sites-enabled` (default: `server_name`).                                                                             |
 | `allowed_ips`                                | **string** | Only these networks reach the vhost, everything else gets 403. Comma or semicolon separated — _not_ a list. The ACME path stays open. |
 | `allowlist_public_paths`                     | **string** | Paths that stay reachable despite the allowlist, e.g. an API that authenticates itself. Same separator rules.                         |
@@ -134,6 +135,47 @@ the requested path is appended (`$request_uri`):
 redirect_to: zebroo.de                     # /foo  ->  zebroo.de/foo
 redirect_to: zebroo.de/zebroo-experience   # /foo  ->  zebroo.de/zebroo-experience
 ```
+
+## Offline / self-signed TLS
+
+On a protected LAN the router cannot reach Let's Encrypt, so `use_certbot` will
+never verify and `odoo router ssl` fails, leaving the vhost listening on port 80
+only. For that case use `ssl_self_signed`:
+
+```yaml
+- template: upstream
+  server_name: lan.internal.zebroo.de
+  upstream_name: lan_internal
+  upstream_server: 192.168.77.20
+  upstream_port: 8069
+  timeout: 600
+  ssl_self_signed: true
+```
+
+What it does:
+
+- The template emits `listen 443 ssl` for the vhost **and** a `listen 80`
+  block that 301-redirects to `https://$host$request_uri`, so plain HTTP bounces
+  to TLS instead of hitting the 444 catch-all. This now applies to **every** TLS
+  vhost (`use_certbot`, `ssl_self_signed`, and the custom-cert
+  `ssl_key_is_on_destination` / `ssl_server_cert` modes alike), not just
+  self-signed — a pre-existing custom-cert vhost that used to get a 444 on port
+  80 now gets the redirect.
+- The cert + key are generated **on the host** with `openssl` when the vhost is
+  applied (`apply-vhosts` / `setup` / `vhost add`) and stored in
+  `custom_ssl/<name>/server.{crt,key}` — with subject CN and a `subjectAltName`
+  of `server_name`, ~10 year validity. A browser will still warn (it is
+  self-signed) but the TLS connection works.
+- `certificate_name` is optional; when omitted it defaults to `server_name`.
+- It is idempotent: if `server.crt` and `server.key` already exist in that
+  directory (e.g. you put a certificate there by hand) they are kept and never
+  overwritten — _provided always wins_.
+- No ACME / internet / `odoo router ssl` involved; `odoo router ssl` is a
+  no-op for such a vhost (it still reloads nginx).
+
+`odoo router ssl` remains the command for `use_certbot` vhosts; it now also
+ensures any `ssl_self_signed` certs are in place and reloads, so one command can
+cover a mixed set.
 
 ## Things that cost time
 

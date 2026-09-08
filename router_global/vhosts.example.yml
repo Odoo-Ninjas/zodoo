@@ -5,7 +5,10 @@
 #
 # Anwenden:  odoo router apply-vhosts --global
 # Einzeln:   odoo router vhost add --global <datei-mit-einem-dict>.yml
-# Zertifikate: odoo router ssl --global      (nur fuer use_certbot: true)
+# Zertifikate: odoo router ssl --global
+#   use_certbot: true  -> Let's Encrypt-Zertifikat
+#   ssl_self_signed: true -> wird automatisch beim Anwenden erzeugt (kein ACME),
+#   odoo router ssl ist dann nicht noetig (siehe Beispiel 6).
 
 # ---------------------------------------------------------------------------
 # 1. Odoo-Instanz - dafuer gibt es ein eigenes Template, das gleich den
@@ -69,3 +72,21 @@
   upstream_server: 127.0.0.1
   upstream_port: 8069
   timeout: 600
+
+# ---------------------------------------------------------------------------
+# 6. TLS OHNE Internet / ohne Let's Encrypt: ein geschuetztes LAN kommt nicht
+#    an die ACME-Verifizierung von aussen. ssl_self_signed erzeugt dann selbst
+#    ein selbstsigniertes Zertifikat (auf dem Host) und laesst den vhost auf
+#    443 hoeren; HTTP bekommt einen 301-Redirect auf https.
+#    certificate_name ist optional - fehlt es, heisst das Zertifikatsverzeichnis
+#    server_name und liegt unter custom_ssl/<server_name>/.
+#    Ein Zertifikat, das man self-signed selbst dort ablegt, wird UBERNOMMEN
+#    und nicht ueberschrieben. "odoo router ssl" ist dazu nicht noetig.
+# ---------------------------------------------------------------------------
+- template: upstream
+  server_name: lan.internal.zebroo.de
+  upstream_name: lan_internal
+  upstream_server: 192.168.77.20
+  upstream_port: 8069
+  timeout: 600
+  ssl_self_signed: true
