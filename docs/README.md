@@ -17,6 +17,7 @@
 | [13-web-router.md](./13-web-router.md)                 | nginx reverse proxy, vhosts.yml, vhost wizard |
 | [14-benchmarking.md](./14-benchmarking.md)             | Finding slow fields with `odoo benchmark`     |
 | [15-windows-wsl-setup.md](./15-windows-wsl-setup.md)   | Windows (WSL2) setup guide                    |
+| [16-robot-tests.md](./16-robot-tests.md)               | Writing and running Robot Framework tests     |
 
 These files are the source of truth. (The former online copy at
 docs.zebroo.de is gone; internal documentation now lives in Odoo Knowledge.)

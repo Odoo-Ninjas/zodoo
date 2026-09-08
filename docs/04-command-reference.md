@@ -370,13 +370,45 @@ Apply pending gimera updates if needed.
 
 ## Robot Framework
 
-### `odoo robot:run`
+See [Robot Tests](./16-robot-tests.md) for the full workflow.
 
-Run Robot Framework tests.
+### `odoo robot setup`
 
-### `odoo robot:make-var-file`
+Wire Robot Framework into the project: adds `odoo-robot_utils` to `gimera.yml`,
+`robot_utils` to the MANIFEST `install` list and `addons_robot` to
+`addons_paths`, creates the `~/.robotenv` virtualenv, and runs `gimera apply`.
+Idempotent.
 
-Generate a variables file for Robot Framework tests.
+### `odoo robot new <name>`
+
+Create `tests/<name>.robot` from the template. `-I` / `--no-install-pip` skips
+the `setup` step.
+
+### `odoo robot run [file]`
+
+Run Robot Framework tests. Requires devmode. Notable options: `--all`,
+`--user`, `--tags`, `--parallel`, `--repeat`, `--test-tv` (watch the browser at
+`/test.tv/`) and `--debug`.
+
+### `odoo robot list`
+
+List the available robot tests.
+
+### `odoo robot run-all`
+
+Run every robot matching the `robotests` file patterns.
+
+### `odoo robot make-variable-file`
+
+Generate the `.robot-vars` variables file.
+
+### `odoo robot cleanup`
+
+Clean up after test runs.
+
+### `odoo robot start-cobot`
+
+Start cobot, reachable at `http://<host>/cobot`.
 
 In test files, use comments to declare module requirements:
 
