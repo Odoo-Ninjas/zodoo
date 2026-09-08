@@ -1,5 +1,18 @@
 # Changelog
 
+## 11.3.6
+
+- **Fix**: `odoo reload` brach fuer Odoo 12 und 13 ab, bevor ueberhaupt gebaut wurde:
+
+  Exception: None value not allowed for: ODOO_PYTHON_VERSION
+
+  Die Zuordnung Odoo-Fassung -> Python-Fassung fiel fuer 11, 12 und 13 auf `pass` durch, `None` landete in den Einstellungen, und der Fehler kam erst beim Schreiben der Datei - mit einer Meldung, die nicht sagt, was zu tun ist. Fuer 12 und 13 ist jetzt 3.8.20 hinterlegt (beide Abbilder wenden `patches/python_3.8.email.patch` an, die 3.8er Reihe ist also gesetzt).
+
+  Fuer Odoo 11 bleibt bewusst nichts hinterlegt - es baut auf buster und wird nirgends mehr neu gebaut. Statt `None` kommt dort jetzt aber eine klare Ansage: "Fuer Odoo 11 ist keine Python-Fassung hinterlegt. Bitte selbst waehlen: odoo setting ODOO_PYTHON_VERSION=3.x.y". Eine selbst gesetzte Fassung wird wie bisher nie ueberschrieben.
+
+  Zum Nachvollziehen: ein Projekt auf Odoo 12 oder 13 anlegen und `odoo reload` aufrufen - das lief vorher in den obigen Abbruch.
+
+
 ## 11.3.5
 
 - **Internal**: Die automatischen Tests laufen jetzt bei jeder Aenderung, nicht nur bei bestimmten Verzeichnissen.
