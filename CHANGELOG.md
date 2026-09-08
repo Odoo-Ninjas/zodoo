@@ -1,5 +1,10 @@
 # Changelog
 
+## 11.4.0
+
+- **Feature**: Router: self-signed TLS vhosts (ssl_self_signed) for protected LANs where Let's Encrypt/ACME cannot verify; generate a self-signed cert on the host, listen on 443 plus an 80->https redirect. Also fixes the accme-challenge typo in the ACME location.
+
+
 ## 11.3.6
 
 - **Fix**: `odoo reload` brach fuer Odoo 12 und 13 ab, bevor ueberhaupt gebaut wurde:
