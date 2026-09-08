@@ -1,0 +1,35 @@
+type: fix
+breaking: false
+description: |
+  Der Web-Router prueft eine neue Konfiguration jetzt, bevor sie in Kraft
+  tritt - und nimmt sie zurueck, wenn nginx sie ablehnt.
+
+  Bisher hat "odoo router apply-vhosts" die erzeugten Dateien direkt nach
+  sites-enabled kopiert und dann nginx neu geladen. Lehnt nginx die
+  Konfiguration ab, laeuft er mit der alten weiter - man sieht eine
+  Fehlermeldung, aber alles funktioniert weiter, und der Fehler wirkt
+  harmlos. Er ist es nicht: in sites-enabled liegt jetzt die kaputte Fassung,
+  und beim naechsten Neustart des Router-Containers kommt nginx nicht mehr
+  hoch. Dann sind nicht nur der geaenderte vHost, sondern ALLE Domains
+  hinter dem Router offline - und zwar Stunden nach der Aenderung, die es
+  ausgeloest hat.
+
+  Jetzt wird vor dem Ausrollen eine Kopie der betroffenen Verzeichnisse
+  angelegt, danach "nginx -t" im Container ausgefuehrt. Lehnt nginx ab, wird
+  die Kopie zurueckgeschrieben und der Aufruf bricht mit der Meldung von nginx
+  ab - der Router laeuft unveraendert weiter, so als waere nichts passiert.
+  Geprueft wird bewusst erst zum Schluss, nach dem Setzen von Basic Auth, weil
+  das noch in dieselben Dateien schreibt: geprueft werden muss der Stand, der
+  nachher wirklich geladen wird.
+
+  Laeuft kein Router-Container (etwa beim ersten Einrichten), kann nicht
+  geprueft werden. Dann wird wie bisher ausgerollt und ein Hinweis ausgegeben,
+  statt den Vorgang zu blockieren.
+
+  Zum Nachschauen: in der vhosts.yml bei einem vHost mit eigenem Zertifikat
+  den certificate_name auf ein Verzeichnis zeigen lassen, das es nicht gibt,
+  und "odoo router apply-vhosts" aufrufen. Es muss die nginx-Meldung
+  ("cannot load certificate") kommen, der Aufruf abbrechen, und
+  "odoo router vhost list" sowie die Seiten der anderen Domains muessen
+  unveraendert weiterlaufen. Vorher lief das durch und der Router waere beim
+  naechsten Neustart nicht mehr hochgekommen.

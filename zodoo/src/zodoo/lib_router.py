@@ -19,6 +19,7 @@ as the ansible `web_router.virtual_hosts` list). It can be loaded via
 import json
 import re
 import shutil
+import tempfile
 import subprocess
 import sys
 from pathlib import Path
@@ -198,6 +199,67 @@ def _generate_self_signed_certs(install_dir, vhosts):
         )
 
 
+# Diese Verzeichnisse schreibt sync_configs.py. Beim Zurueckrollen muessen alle
+# drei zusammen zurueck: sites-last-deployed haelt den Vergleichsstand: bliebe
+# der auf dem neuen Inhalt stehen, sieht der naechste Lauf "keine Aenderung"
+# und schreibt sites-enabled nie wieder.
+_SYNCED_DIRS = ("sites-enabled", "sites-available", "sites-last-deployed")
+
+
+def _snapshot_configs(install_dir):
+    snapshot = Path(tempfile.mkdtemp(prefix="zodoo-router-configs-"))
+    for name in _SYNCED_DIRS:
+        src = install_dir / name
+        if src.exists():
+            shutil.copytree(src, snapshot / name)
+    return snapshot
+
+
+def _restore_configs(install_dir, snapshot):
+    for name in _SYNCED_DIRS:
+        source, target = snapshot / name, install_dir / name
+        if not source.exists():
+            continue
+        if target.exists():
+            shutil.rmtree(target)
+        shutil.copytree(source, target)
+
+
+def _nginx_test(install_dir):
+    """`nginx -t` im Router-Container.
+
+    True  = Konfiguration in Ordnung
+    False = nginx lehnt sie ab
+    None  = konnte nicht geprueft werden (Router laeuft nicht, etwa beim
+            ersten Setup) - dann wird wie bisher ohne Pruefung ausgerollt.
+    """
+    res = _dc(
+        install_dir,
+        "exec",
+        "-T",
+        "router",
+        "nginx",
+        "-t",
+        check=False,
+        capture=True,
+    )
+    if res.returncode == 0:
+        return True
+    out = ((res.stdout or "") + (res.stderr or "")).strip()
+    # nginx meldet sich selbst immer mit "nginx: ...". Fehlt das, kam der
+    # Fehler von docker (kein laufender Container) - dann haben wir nichts
+    # geprueft und duerfen das auch nicht als Ablehnung verkaufen.
+    if "nginx:" not in out:
+        click.secho(
+            "Could not run 'nginx -t' (is the router running?) - deploying "
+            f"without a syntax check.\n{out}",
+            fg="yellow",
+        )
+        return None
+    click.secho(out, fg="red")
+    return False
+
+
 def _render_and_sync_vhosts(config, install_dir, vhosts):
     if not vhosts:
         return False  # nothing to render
@@ -207,6 +269,11 @@ def _render_and_sync_vhosts(config, install_dir, vhosts):
     if incoming.exists():
         shutil.rmtree(incoming)
     incoming.mkdir()
+    # Rueckfallebene: sync_configs.py kopiert direkt nach sites-enabled, und
+    # ein "nginx -s reload" mit kaputter Konfiguration laesst nginx mit der
+    # alten weiterlaufen - beim naechsten Neustart des Containers kommt er
+    # dann aber nicht mehr hoch, und damit sind ALLE Domains weg.
+    snapshot = _snapshot_configs(install_dir)
     subprocess.run(
         [
             sys.executable,
@@ -239,7 +306,21 @@ def _render_and_sync_vhosts(config, install_dir, vhosts):
                 cwd=install_dir,
                 check=True,
             )
-    return res.returncode == 10  # True == reload required
+
+    reload_required = res.returncode == 10
+    # Erst hier pruefen, nicht direkt nach sync_configs: setup_basic_auth.py
+    # schreibt oben noch in sites-enabled: geprueft werden muss der Stand, der
+    # nachher wirklich geladen wird.
+    try:
+        if reload_required and _nginx_test(install_dir) is False:
+            _restore_configs(install_dir, snapshot)
+            abort(
+                "nginx has refused the new configuration (see above) - "
+                "rolled back to the previous one, nothing was deployed."
+            )
+    finally:
+        shutil.rmtree(snapshot, ignore_errors=True)
+    return reload_required  # True == reload required
 
 
 @cli.group(
