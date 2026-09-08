@@ -85,9 +85,23 @@ def _load_vhosts(install_dir):
 
 
 def _save_vhosts(install_dir, vhosts):
+    _check_exclusive_tls_flags(vhosts)
     (install_dir / "vhosts.yml").write_text(
         yaml.safe_dump(vhosts, sort_keys=False)
     )
+
+
+def _check_exclusive_tls_flags(vhosts):
+    # The wizard offers a single TLS choice, so a vhost that has both flags can
+    # only come from a hand-written file. Then `odoo router ssl` would run
+    # certbot AND generate a self-signed cert for the same vhost - the template
+    # can only point at one of the two paths, so make the conflict explicit.
+    for vhost in vhosts:
+        if vhost.get("use_certbot") and vhost.get("ssl_self_signed"):
+            abort(
+                f"vhost '{vhost.get('server_name', '?')}': use_certbot and "
+                "ssl_self_signed are mutually exclusive - pick one."
+            )
 
 
 def _dc(install_dir, *args, check=True, capture=False):
@@ -160,10 +174,35 @@ def _patch_compose_networks(install_dir, networks):
     dcfile.write_text(yaml.safe_dump(config, sort_keys=False))
 
 
+def _generate_self_signed_certs(install_dir, vhosts):
+    """Ensure a self-signed cert exists for every ssl_self_signed vhost.
+
+    The vhost template points nginx at custom_ssl/<name>/server.{crt,key}, so
+    the file must exist on the host before a reload - otherwise nginx -t fails
+    and no vhost comes up. The generator is idempotent: a provided cert is kept.
+    Runs host-side (openssl is on the host; the container does not need it).
+    """
+    for vhost in vhosts:
+        if not vhost.get("ssl_self_signed"):
+            continue
+        cert_name = vhost.get("certificate_name") or vhost["server_name"]
+        subprocess.run(
+            [
+                sys.executable,
+                "bin/setup_self_signed.py",
+                vhost["server_name"],
+                cert_name,
+            ],
+            cwd=install_dir,
+            check=True,
+        )
+
+
 def _render_and_sync_vhosts(config, install_dir, vhosts):
     if not vhosts:
         return False  # nothing to render
     src_root = _router_files_dir(config)
+    _generate_self_signed_certs(install_dir, vhosts)
     incoming = install_dir / "sites-incoming"
     if incoming.exists():
         shutil.rmtree(incoming)
@@ -383,14 +422,16 @@ def apply_vhosts(ctx, config, is_global, install_dir):
 
 @router.command(
     name="ssl",
-    help="(Re-)issue SSL certificates via certbot for use_certbot vhosts.",
+    help="Issue SSL certificates: certbot for use_certbot vhosts, "
+    "self-signed for ssl_self_signed vhosts.",
 )
 @click.option("--global", "is_global", is_flag=True)
 @click.option("--install-dir", default=None)
 @pass_config
 def ssl_(config, is_global, install_dir):
     d = _install_dir_from_opts(config, is_global, install_dir)
-    for vhost in _load_vhosts(d):
+    vhosts = _load_vhosts(d)
+    for vhost in vhosts:
         if not vhost.get("use_certbot"):
             continue
         subprocess.run(
@@ -398,6 +439,9 @@ def ssl_(config, is_global, install_dir):
             cwd=d,
             check=True,
         )
+    # Self-signed vhosts need no ACME at all - generate (or keep) the cert so a
+    # protected LAN that cannot reach Let's Encrypt still gets a 443 listener.
+    _generate_self_signed_certs(d, vhosts)
     _dc(d, "exec", "-T", "router", "nginx", "-s", "reload", check=False)
 
 
@@ -504,6 +548,11 @@ REQUIRED_FIELDS = {
 # Optional fields offered when editing, with the type so we can ask properly.
 OPTIONAL_FIELDS = [
     ("use_certbot", "bool", "get a Let's Encrypt certificate"),
+    (
+        "ssl_self_signed",
+        "bool",
+        "terminate TLS with a self-signed certificate (no Let's Encrypt, no ACME)",
+    ),
     ("allowed_ips", "text", "restrict to these networks (comma separated)"),
     ("allowlist_public_paths", "text", "paths open despite the allowlist"),
     ("basic_auth", "basic_auth", "user/password prompt"),
@@ -721,17 +770,32 @@ def _collect_new_vhost(existing):
             abort("Aborted.")
         vhost_data["folder"] = answers["folder"].strip()
 
-    certbot = inquirer.prompt(
-        [
-            inquirer.Confirm(
-                "use_certbot",
-                message="Get a Let's Encrypt certificate (odoo router ssl)?",
-                default=True,
-            )
-        ]
-    )
-    if certbot and certbot["use_certbot"]:
-        vhost_data["use_certbot"] = True
+    if template != "existing_ssl_certificates":
+        # existing_ssl_certificates renders an empty nginx file (the cert block
+        # is supplied by hand), so it cannot terminate TLS on its own - asking
+        # for a TLS mode there would only generate a certificate no vhost uses.
+        tls = inquirer.prompt(
+            [
+                inquirer.List(
+                    "tls",
+                    message="How should this vhost handle TLS?",
+                    choices=[
+                        ("Let's Encrypt", "certbot"),
+                        (
+                            "Self-signed (no Let's Encrypt / ACME - for a protected"
+                            " LAN)",
+                            "self_signed",
+                        ),
+                        ("None (plain HTTP)", "none"),
+                    ],
+                    default="certbot",
+                )
+            ]
+        )
+        if tls and tls["tls"] == "certbot":
+            vhost_data["use_certbot"] = True
+        elif tls and tls["tls"] == "self_signed":
+            vhost_data["ssl_self_signed"] = True
 
     if template in ("upstream", "upstream_direct_odoo"):
         _ask_protection(vhost_data)
@@ -831,6 +895,12 @@ def vhost_new(ctx, config, is_global, install_dir, dry_run):
                 "Certificate is not issued yet - run: "
                 f"odoo router ssl{' --global' if is_global else ''}",
                 fg="yellow",
+            )
+        elif vhost_data.get("ssl_self_signed"):
+            click.secho(
+                "Self-signed certificate generated on the host - already in "
+                "use (no 'odoo router ssl' needed).",
+                fg="green",
             )
 
 
@@ -1017,7 +1087,7 @@ def config_menu(ctx, config, is_global, install_dir):
             )
         )
         choices += [
-            ("Issue certificates (certbot)", "ssl"),
+            ("Issue certificates", "ssl"),
             ("Quit", "quit"),
         ]
         answer = inquirer.prompt(
