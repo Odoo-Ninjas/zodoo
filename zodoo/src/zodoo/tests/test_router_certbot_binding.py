@@ -80,13 +80,16 @@ def test_verlorene_einbindung_wird_wiederhergestellt(tmp_path, monkeypatch):
         snapshot,
     )
 
-    assert aufrufe == ["example.com"]
+    # Seit dem Schnellrestore laeuft dafuer KEIN certbot mehr: die Zeilen
+    # stehen im Schnappschuss und werden als Text zurueckgetragen. certbot
+    # bleibt die Rueckfallebene (siehe test_certbot_als_rueckfallebene in
+    # test_router_tls_schnellrestore.py).
+    assert aufrufe == []
     assert restored == ["example.com"]
     assert failed == []
-    assert (
-        "managed by Certbot"
-        in (install / "sites-enabled" / "example.com").read_text()
-    )
+    inhalt = (install / "sites-enabled" / "example.com").read_text()
+    assert "managed by Certbot" in inhalt
+    assert "listen 443 ssl" in inhalt
 
 
 def test_unveraenderte_datei_wird_nicht_angefasst(tmp_path, monkeypatch):
@@ -126,11 +129,17 @@ def test_ein_fehlschlag_stoppt_die_uebrigen_nicht(
     tmp_path, monkeypatch, capsys
 ):
     """Der Fall aus dem Vorfall: ein Host ohne DNS darf den Rest nicht mitnehmen."""
+    # Marker im Schnappschuss, aber keine verwertbare TLS-Zeile: damit greift
+    # der Schnellrestore nicht und der certbot-Weg wird benutzt - nur dort
+    # kann ueberhaupt ein einzelner Host fehlschlagen.
+    nur_marker = OHNE_TLS.replace(
+        "server {", "server {\n    # managed by Certbot", 1
+    )
     install, snapshot = _install_dir(
         tmp_path,
         {
-            "kaputt.de": {"vorher": MIT_TLS, "jetzt": OHNE_TLS},
-            "gut.de": {"vorher": MIT_TLS, "jetzt": OHNE_TLS},
+            "kaputt.de": {"vorher": nur_marker, "jetzt": OHNE_TLS},
+            "gut.de": {"vorher": nur_marker, "jetzt": OHNE_TLS},
         },
     )
     aufrufe = _fake_setup_ssl(monkeypatch, install, fehlschlaege={"kaputt.de"})
