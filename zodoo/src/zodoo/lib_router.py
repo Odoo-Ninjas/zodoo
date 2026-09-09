@@ -225,6 +225,83 @@ def _restore_configs(install_dir, snapshot):
         shutil.copytree(source, target)
 
 
+CERTBOT_MARKER = "managed by Certbot"
+
+
+def _reinstall_certbot_tls(install_dir, vhosts, snapshot):
+    """Bindet Zertifikate wieder ein, die ein Render aus einer Datei geworfen hat.
+
+    Bei `use_certbot`-vhosts stehen `listen 443 ssl` und die
+    Zertifikatspfade NICHT in unseren Templates - die schreibt certbot in die
+    ausgelieferte Datei (`# managed by Certbot`). Die gerenderte Datei ist die
+    einzige Stelle, an der sie existieren. Solange der Render bitgleich zum
+    letzten Stand ist, laesst sync_configs.py die Datei in Ruhe und alles
+    bleibt. Sobald sich am Template etwas aendert, wird die Datei ueberschrieben
+    - und der vhost verliert TLS. Ohne Fehler, denn eine Konfiguration ohne TLS
+    ist gueltig.
+
+    Am 09.09.2026 hat genau das eine ganze Flotte getroffen: eine
+    Template-Korrektur liess alle Dateien abweichen, ein `apply-vhosts` schrieb
+    sie neu, und 149 Domains waren nur noch auf Port 80 erreichbar - mit HSTS
+    also gar nicht.
+
+    `certbot install` bindet ein vorhandenes Zertifikat neu ein, ohne ACME und
+    ohne Neuausstellung. Betroffen sind nur die vhosts, die vorher TLS hatten
+    und es jetzt nicht mehr haben, also im Normalfall keine.
+
+    Fehler einzelner Hosts brechen den Lauf nicht ab: sonst bleiben die
+    dahinter liegenden vhosts ohne TLS zurueck.
+    """
+    restored, failed = [], []
+    for vhost in vhosts:
+        if not vhost.get("use_certbot"):
+            continue
+        name = vhost["server_name"]
+        before = snapshot / "sites-enabled" / name
+        after = install_dir / "sites-enabled" / name
+        try:
+            if not before.exists() or not after.exists():
+                continue
+            if CERTBOT_MARKER not in before.read_text():
+                continue  # hatte vorher kein TLS
+            if CERTBOT_MARKER in after.read_text():
+                continue  # Einbindung ist noch da
+        except OSError:
+            continue
+        click.secho(
+            f"Restoring certificate binding for {name} ...", fg="yellow"
+        )
+        res = subprocess.run(
+            [sys.executable, "bin/setup_ssl.py", name],
+            cwd=install_dir,
+            capture_output=True,
+            text=True,
+        )
+        if res.returncode:
+            failed.append(name)
+            click.secho(
+                f"{name}: certificate binding could not be restored:\n"
+                f"{((res.stdout or '') + (res.stderr or '')).strip()[-500:]}",
+                fg="red",
+            )
+        else:
+            restored.append(name)
+    if restored:
+        click.secho(
+            f"Restored the certificate binding of {len(restored)} vhost(s) "
+            "that the render had dropped.",
+            fg="green",
+        )
+    if failed:
+        click.secho(
+            "STILL WITHOUT TLS: " + ", ".join(failed) + "\n"
+            "These vhosts answer on port 80 only. With HSTS that means "
+            "browsers refuse them entirely - fix them before you walk away.",
+            fg="red",
+        )
+    return restored, failed
+
+
 def _nginx_test(install_dir):
     """`nginx -t` im Router-Container.
 
@@ -308,6 +385,12 @@ def _render_and_sync_vhosts(config, install_dir, vhosts):
             )
 
     reload_required = res.returncode == 10
+    if reload_required:
+        # sync_configs.py hat Dateien ueberschrieben - dabei kann die
+        # certbot-Einbindung verloren gegangen sein (siehe
+        # _reinstall_certbot_tls). Vor dem nginx-Test nachziehen, damit
+        # geprueft wird, was am Ende wirklich geladen wird.
+        _reinstall_certbot_tls(install_dir, vhosts, snapshot)
     # Erst hier pruefen, nicht direkt nach sync_configs: setup_basic_auth.py
     # schreibt oben noch in sites-enabled: geprueft werden muss der Stand, der
     # nachher wirklich geladen wird.
@@ -512,13 +595,36 @@ def apply_vhosts(ctx, config, is_global, install_dir):
 def ssl_(config, is_global, install_dir):
     d = _install_dir_from_opts(config, is_global, install_dir)
     vhosts = _load_vhosts(d)
+    # Ein Host, dessen Zertifikat nicht zu holen ist (Domain zeigt nicht mehr
+    # hierher, DNS-Eintrag weg), darf den Lauf nicht beenden: sonst bleiben
+    # alle dahinter liegenden vhosts unbearbeitet, und wer das Kommando zum
+    # Wiederherstellen einer Flotte benutzt, steht mit einer halb versorgten
+    # Flotte da - ohne dass das Kommando es als Teilergebnis meldet.
+    done, failed = [], []
     for vhost in vhosts:
         if not vhost.get("use_certbot"):
             continue
-        subprocess.run(
-            [sys.executable, "bin/setup_ssl.py", vhost["server_name"]],
+        name = vhost["server_name"]
+        res = subprocess.run(
+            [sys.executable, "bin/setup_ssl.py", name],
             cwd=d,
-            check=True,
+            capture_output=True,
+            text=True,
+        )
+        if res.returncode:
+            failed.append(name)
+            click.secho(
+                f"{name}: "
+                f"{((res.stdout or '') + (res.stderr or '')).strip()[-300:]}",
+                fg="red",
+            )
+        else:
+            done.append(name)
+    click.secho(f"{len(done)} vhost(s) done.", fg="green")
+    if failed:
+        click.secho(
+            f"{len(failed)} vhost(s) failed: " + ", ".join(failed),
+            fg="red",
         )
     # Self-signed vhosts need no ACME at all - generate (or keep) the cert so a
     # protected LAN that cannot reach Let's Encrypt still gets a 443 listener.
