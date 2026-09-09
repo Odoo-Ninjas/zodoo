@@ -122,9 +122,11 @@ server {
                 proxy_read_timeout      {{ item.timeout }};
         }
 
+{% if not (item.allowed_ips is defined and item.allowed_ips) %}
         location /.well-known/acme-challenge/ {
             root /var/www/certbot;
         }
+{% endif %}
 
         # SSL_CERTIFICATE_ANSIBLE
 {% if _ssl_on %}
