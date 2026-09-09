@@ -1,5 +1,18 @@
 # Changelog
 
+## 11.4.3
+
+- **Fix**: Kleinigkeiten am Erzeugen der selbstsignierten Zertifikate, damit im Fehlerfall klar ist was los ist und nichts Halbes liegenbleibt.
+
+  Fehlt openssl auf dem Rechner, kam vorher nur ein nackter Rueckgabewert zurueck - jetzt steht da, dass openssl fehlt und wie man es nachinstalliert. Schlaegt openssl selbst fehl, wird dessen Meldung ausgegeben (sie ging bisher verloren, weil nur die Standardausgabe eingesammelt wurde und Fehler auf dem Fehlerkanal landen). Ist das openssl zu alt, kommt zusaetzlich der Hinweis, dass fuer die Angabe des Servernamens im Zertifikat mindestens OpenSSL 1.1.1 gebraucht wird.
+
+  Bricht die Erzeugung ab, werden angefangene Dateien wieder entfernt. Sonst bleibt ein halbes Paar liegen: nginx kann es nicht laden, und der naechste Lauf haelt es faelschlich fuer fertig und ruehrt es nicht mehr an.
+
+  Der private Schluessel entstand ausserdem mit der Maske der Umgebung (ueblicherweise fuer alle lesbar) und wurde erst danach eingeschraenkt - ein kurzes Fenster, in dem er offen lag. Die Maske wird jetzt vorher gesetzt; die ausdrueckliche Einschraenkung danach bleibt zusaetzlich bestehen.
+
+  Zum Nachschauen: einen vHost mit ssl_self_signed anlegen und ausrollen, dann "ls -l" im Verzeichnis custom_ssl/<name>/ - server.key muss 0600 stehen. Und ein Aufruf ohne openssl im Suchpfad muss mit der Ansage abbrechen, nicht mit einer Zahl.
+
+
 ## 11.4.2
 
 - Der globale Router laesst sich wieder deployen, wenn mindestens ein vhost mit `allowed_ips` konfiguriert ist. Vorher brach jeder Deploy-Versuch ab mit
