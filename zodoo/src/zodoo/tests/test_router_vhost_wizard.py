@@ -423,3 +423,67 @@ def test_exclusive_tls_flags_abort_on_save(monkeypatch):
 def test_exclusive_tls_flags_allow_single_or_none(vhost):
     # no raise
     lib_router._check_exclusive_tls_flags([vhost])
+
+
+# ---------------------------------------------------------------------------
+# Robustheit des Zertifikatsgenerators
+# ---------------------------------------------------------------------------
+
+
+def _install_dir_with_generator(tmp_path):
+    """install_dir mit bin/ auf den echten Generator, wie im Betrieb."""
+    router_dir = _router_dir()
+    if router_dir is None:
+        pytest.skip("router_global not next to the package (installed copy)")
+    import os
+
+    install_dir = tmp_path / "install"
+    install_dir.mkdir()
+    os.symlink(router_dir / "files" / "bin", install_dir / "bin")
+    return install_dir
+
+
+def test_private_key_is_not_world_readable(tmp_path):
+    """Der Schluessel darf am Ende nur dem Besitzer gehoeren.
+
+    Das umask-Fenster waehrend der Erzeugung laesst sich von aussen nicht
+    messen (Race); geprueft wird die Zusicherung, die zaehlt: der Zustand,
+    in dem die Datei liegenbleibt.
+    """
+    import stat
+
+    install_dir = _install_dir_with_generator(tmp_path)
+    lib_router._generate_self_signed_certs(
+        install_dir,
+        [{"server_name": "lan.example.net", "ssl_self_signed": True}],
+    )
+    key = install_dir / "custom_ssl" / "lan.example.net" / "server.key"
+    modus = stat.S_IMODE(key.stat().st_mode)
+    assert modus == 0o600, f"Schluessel hat {oct(modus)}"
+
+
+def test_missing_openssl_says_so(tmp_path):
+    """Ohne openssl muss eine Ansage kommen, kein nackter Rueckgabewert -
+    und der Aufruf muss abbrechen, bevor eine halbe Datei liegenbleibt."""
+    import subprocess as sp
+
+    install_dir = _install_dir_with_generator(tmp_path)
+    proc = sp.run(
+        [
+            sys.executable,
+            "bin/setup_self_signed.py",
+            "lan.example.net",
+            "lan.example.net",
+        ],
+        cwd=install_dir,
+        capture_output=True,
+        text=True,
+        env={"PATH": "/nonexistent", "HOME": str(tmp_path)},
+    )
+    assert proc.returncode != 0
+    ausgabe = proc.stdout + proc.stderr
+    assert "openssl was not found" in ausgabe
+    assert "apt install openssl" in ausgabe
+    cert_dir = install_dir / "custom_ssl" / "lan.example.net"
+    assert not (cert_dir / "server.key").exists(), "kein halbes Paar"
+    assert not (cert_dir / "server.crt").exists(), "kein halbes Paar"
