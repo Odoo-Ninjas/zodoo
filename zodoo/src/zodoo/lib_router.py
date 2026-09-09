@@ -227,6 +227,44 @@ def _restore_configs(install_dir, snapshot):
 
 CERTBOT_MARKER = "managed by Certbot"
 
+# Genau diese Direktiven schreibt `certbot install` in die Datei. Nur die
+# werden zurueckgetragen - nicht jede Zeile mit dem Marker, denn certbot kann
+# (mit --redirect) auch einen eigenen server-Block hinterlassen, und der darf
+# nicht mitten in einen anderen server-Block geraten.
+_CERTBOT_DIRECTIVES = (
+    "listen 443",
+    "ssl_certificate",
+    "ssl_certificate_key",
+    "options-ssl-nginx.conf",
+    "ssl_dhparam",
+)
+# Der Platzhalter, an dem die Templates den TLS-Teil erwarten.
+_SSL_PLACEHOLDER = "# SSL_CERTIFICATE_ANSIBLE"
+
+
+def _certbot_directive_lines(text):
+    """Die TLS-Zeilen von certbot aus einer ausgelieferten Datei."""
+    return [
+        line
+        for line in text.splitlines()
+        if CERTBOT_MARKER in line
+        and any(d in line for d in _CERTBOT_DIRECTIVES)
+    ]
+
+
+def _reinsert_certbot_lines(text, lines):
+    """Die TLS-Zeilen wieder in die frisch gerenderte Datei setzen."""
+    block = "\n".join(lines)
+    if _SSL_PLACEHOLDER in text:
+        return text.replace(
+            _SSL_PLACEHOLDER, _SSL_PLACEHOLDER + "\n" + block, 1
+        )
+    # Kein Platzhalter: vor die letzte schliessende Klammer des server-Blocks.
+    i = text.rstrip().rfind("}")
+    if i < 0:
+        return None
+    return text[:i] + block + "\n" + text[i:]
+
 
 def _reinstall_certbot_tls(install_dir, vhosts, snapshot):
     """Bindet Zertifikate wieder ein, die ein Render aus einer Datei geworfen hat.
@@ -254,22 +292,60 @@ def _reinstall_certbot_tls(install_dir, vhosts, snapshot):
     """
     restored, failed = [], []
     for vhost in vhosts:
-        if not vhost.get("use_certbot"):
+        # Nicht auf use_certbot filtern: das Kriterium ist die Einbindung
+        # selbst - vorher da, jetzt weg. Auf hy-router tragen 154 vhosts eine
+        # certbot-Einbindung, aber nur 147 auch das Flag; die uebrigen sieben
+        # (u.a. kraeuterblume.de mit seinen Umlaut-Varianten) waeren sonst
+        # ungeschuetzt geblieben.
+        #
+        # ssl_self_signed dagegen ausdruecklich auslassen: dort schreibt das
+        # Template die TLS-Zeilen selbst (custom_ssl-Pfade). Einen alten
+        # certbot-Block zusaetzlich zurueckzutragen ergaebe ein zweites
+        # `listen 443` und nginx nimmt die Datei nicht an.
+        name = vhost.get("server_name")
+        if not name or vhost.get("ssl_self_signed"):
             continue
-        name = vhost["server_name"]
         before = snapshot / "sites-enabled" / name
         after = install_dir / "sites-enabled" / name
         try:
             if not before.exists() or not after.exists():
                 continue
-            if CERTBOT_MARKER not in before.read_text():
+            alt = before.read_text()
+            if CERTBOT_MARKER not in alt:
                 continue  # hatte vorher kein TLS
-            if CERTBOT_MARKER in after.read_text():
+            neu_text = after.read_text()
+            if CERTBOT_MARKER in neu_text:
                 continue  # Einbindung ist noch da
+            if "listen 443" in neu_text:
+                continue  # TLS kommt jetzt woanders her - nicht draufsatteln
         except OSError:
             continue
+
+        # Schnellweg: die TLS-Zeilen stehen im Schnappschuss und galten bis
+        # vor Sekunden. Sie zurueckzutragen ist eine Textoperation - kein
+        # certbot, kein ACME, kein Netz und vor allem kein certbot-Lock, das
+        # die Hosts hintereinander aufreiht. Bei einer Template-Aenderung
+        # betrifft das die ganze Flotte: mit certbot dauert das Stunden (am
+        # 09.09.2026 gemessen: rund zehn Minuten fuer die Domains zwischen
+        # "d" und "e"), so sind es Millisekunden. Das anschliessende
+        # `nginx -t` prueft ohnehin, was dabei herauskommt.
+        zeilen = _certbot_directive_lines(alt)
+        if zeilen:
+            neu = _reinsert_certbot_lines(neu_text, zeilen)
+            if neu is not None:
+                try:
+                    after.write_text(neu)
+                    restored.append(name)
+                    continue
+                except OSError:
+                    pass  # dann eben ueber certbot
+
+        # Rueckfallebene: keine verwertbaren Zeilen im Schnappschuss (oder das
+        # Schreiben ging schief) - dann certbot die Einbindung neu setzen
+        # lassen. `certbot install` stellt nichts neu aus.
         click.secho(
-            f"Restoring certificate binding for {name} ...", fg="yellow"
+            f"Restoring certificate binding for {name} via certbot ...",
+            fg="yellow",
         )
         res = subprocess.run(
             [sys.executable, "bin/setup_ssl.py", name],
