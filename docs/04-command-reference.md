@@ -205,6 +205,32 @@ List available backup files.
 
 ---
 
+## Shared Filestore
+
+On hosts carrying several instances of the same dump, `ODOO_FILES_COMMON=1`
+keeps one pool of attachment files in `<filestore>/_common`. Content is shared
+via **hardlinks**; sharing the directory via a symlink instead destroys
+attachments, because Odoo's garbage collection bookkeeping (`checklist`) must
+stay private per database. See [17-filestore.md](./17-filestore.md) for the
+concept, the failure mode and how to repair a damaged instance.
+
+### `odoo filestore dedup`
+
+Hardlink per-database filestores into the shared `_common` pool. Skips
+directories that are still symlinks and asks you to run `unshare` first.
+
+### `odoo filestore unshare [-a/--all]`
+
+Replace legacy `<db> -> _common` symlinks by real directories of hardlinks, so
+each database gets its own GC checklist again. Uses no additional disk space.
+Database-driven: only files referenced by `ir_attachment` are materialised; an
+unreachable database is left untouched rather than emptied.
+
+`--all` covers every symlinked database served by _this_ project's postgres.
+Where each instance runs its own postgres container, run it once per project.
+
+---
+
 ## Encrypted Offsite Backup
 
 Pushes the pgBackRest repository and this database's filestore to a remote repository
