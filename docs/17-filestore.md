@@ -106,9 +106,14 @@ the command once per project; unreachable databases are reported and skipped.
    that project.
 3. Install the nightly root-wide dedup once per filestore root:
    `odoo filestore install-cron`.
-4. Never create `<db> -> _common` symlinks. Convert existing ones with
+4. Leave `CRONJOB_FILESTORE_HEAL` on. It runs `filestore sync --no-dedup
+--wait` weekly inside the instance, as a net for damage that predates the
+   move to hardlinks (`FILESTORE_HEAL_CRON`, default Sunday 02:40). Weekly is
+   deliberate: once instances share by hardlink, new damage of this kind
+   cannot occur, and a restore already heals through the CI system.
+5. Never create `<db> -> _common` symlinks. Convert existing ones with
    `odoo filestore unshare`.
-5. When destroying an instance, delete its filestore directory with it. The
+6. When destroying an instance, delete its filestore directory with it. The
    pool keeps the content for the remaining instances.
 
 ### Why the unit is the filestore root, not the machine

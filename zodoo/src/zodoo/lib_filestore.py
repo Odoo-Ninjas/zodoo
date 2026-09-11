@@ -364,19 +364,27 @@ def unshare(config, all_dbs):
 
 
 @contextlib.contextmanager
-def _exclusive_lock(files_dir):
-    """Serialise pool-wide runs against each other.
+def _exclusive_lock(files_dir, wait=False):
+    """Serialise runs on the same filestore root against each other.
 
     ``flock`` is held by the file descriptor, so the kernel releases it when
     the process dies - no stale lock file can ever block the next run, which
     is exactly the failure mode a PID file has.
+
+    Interactively the lock does not wait: if another run holds it, saying so
+    beats hanging. From a cronjob it has to wait, though - on a host where
+    twenty instances share one pool and fire their nightly heal in the same
+    minute, skipping would mean nineteen of them silently do nothing.
     """
     import fcntl
 
     lock_path = files_dir / ".zodoo-filestore.lock"
     with open(lock_path, "w") as handle:
+        flags = fcntl.LOCK_EX if wait else fcntl.LOCK_EX | fcntl.LOCK_NB
+        if wait:
+            click.secho(f"Waiting for {lock_path} ...")
         try:
-            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(handle, flags)
         except OSError:
             click.secho(
                 f"Another filestore run holds {lock_path} - skipping.",
@@ -461,13 +469,22 @@ def _pool_and_db_dir(config):
     ),
 )
 @click.option("--dry-run", is_flag=True, help="Only report, change nothing.")
+@click.option(
+    "--wait",
+    is_flag=True,
+    help=(
+        "Wait for the filestore lock instead of skipping. For cronjobs: many "
+        "instances share one pool, and skipping would mean most of them never "
+        "run."
+    ),
+)
 @pass_config
-def sync(config, heal, dedup, pull, dry_run):
+def sync(config, heal, dedup, pull, dry_run, wait):
     files_dir, common_dir, db_dir = _pool_and_db_dir(config)
     if not files_dir:
         return
 
-    with _exclusive_lock(files_dir) as acquired:
+    with _exclusive_lock(files_dir, wait=wait) as acquired:
         if not acquired:
             return
 
