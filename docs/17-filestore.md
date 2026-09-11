@@ -63,10 +63,24 @@ harmless leftover.
 ## Commands
 
 ```bash
+odoo filestore sync           # this project: heal + dedup (add --pull for upstream)
 odoo filestore dedup          # hardlink per-database filestores into _common
 odoo filestore unshare        # replace legacy <db> -> _common symlinks
 odoo filestore unshare --all  # ... for every symlinked db this postgres serves
+odoo filestore install-cron   # nightly dedup for the whole filestore root
 ```
+
+`sync` is the one to reach for. It runs, for the current project and in this
+order:
+
+1. **pull** (only with `--pull`): mirror missing files from
+   `FILESTORE_UPSTREAM` into the pool
+2. **heal**: link back what the database references but the instance is
+   missing — strictly additive
+3. **dedup**: hardlink the instance's files into the pool
+
+It is idempotent, holds an `flock` so two runs cannot overlap, and changes
+nothing about the files an instance already has.
 
 `dedup` walks each real per-database directory and replaces duplicate content
 with a hardlink into the pool. It skips directories that are still symlinks
@@ -88,11 +102,47 @@ the command once per project; unreachable databases are reported and skipped.
 
 1. Set `ODOO_FILES_COMMON=1` on hosts that carry several instances of the same
    dump.
-2. After every restore or instance creation, run `odoo filestore dedup`.
-3. Never create `<db> -> _common` symlinks. Convert existing ones with
+2. After every restore or instance creation, run `odoo filestore sync` for
+   that project.
+3. Install the nightly root-wide dedup once per filestore root:
+   `odoo filestore install-cron`.
+4. Never create `<db> -> _common` symlinks. Convert existing ones with
    `odoo filestore unshare`.
-4. When destroying an instance, delete its filestore directory with it. The
+5. When destroying an instance, delete its filestore directory with it. The
    pool keeps the content for the remaining instances.
+
+### Why the unit is the filestore root, not the machine
+
+The pool lives in `$ODOO_FILES/filestore`, i.e. inside one Linux user's
+`~/.odoo`. A machine can carry several of those, and a single pool can carry
+instances of **different** production systems — a shared dev host typically
+does. That decides where each phase belongs:
+
+| phase     | needs a database? | needs network/credentials? | unit                                 |
+| --------- | ----------------- | -------------------------- | ------------------------------------ |
+| **dedup** | no                | no                         | one run per root                     |
+| **heal**  | **yes**           | no                         | per project, while the instance runs |
+| **pull**  | no                | **yes**                    | per project                          |
+
+`heal` reads `ir_attachment.store_fname`, so it can only run where that
+database is reachable. On a host where every instance has its own postgres
+container, a central job cannot reach a foreign instance's database at all —
+the same limitation `unshare --all` reports. Hence: dedup is scheduled once
+per root, healing belongs to the instance (its own cronjob, or the CI system
+right after a restore).
+
+`FILESTORE_UPSTREAM` is a **per-project** setting for the same reason. A single
+host-wide production address would be wrong on any host whose instances come
+from more than one production system.
+
+### This deliberately does not hang in `odoo reload`
+
+Linking used to happen in `__after_compose.py` on every compose generation.
+That was the wrong place: the pool belongs to the root, so a `reload` of
+instance A walked the filestore of instance B — a side effect that gets more
+expensive and less obvious with every instance added, in a command that should
+stay fast and predictable. `reload` now only warns, in one `readdir`, that
+symlinks are still around.
 
 ## Repairing a broken per-instance directory
 
@@ -107,10 +157,13 @@ obeys it trivially. `unshare` is the one command that genuinely rebuilds a
 directory — run it while the instance is down, or accept that it materialises
 into a fresh directory before swapping.
 
-There is a gap between the two commands. `unshare` fixes symlinks; `dedup`
-fixes duplicates. Neither fixes the state you are left with **after** a shared
-GC has struck: a real per-database directory whose referenced files are gone
-while the pool still has them.
+`odoo filestore sync` does this for the current project; the rest of this
+section explains what it does and how to check the result by hand.
+
+`unshare` fixes symlinks and `dedup` fixes duplicates, but neither fixes the
+state you are left with **after** a shared GC has struck: a real per-database
+directory whose referenced files are gone while the pool still has them. That
+is what the heal phase is for.
 
 Check it per instance — this is also the query worth putting on a dashboard:
 

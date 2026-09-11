@@ -166,3 +166,88 @@ def test_materialize_from_common_ignores_escaping_store_fnames(filestore):
 
     assert stats["linked"] == 0
     assert not (db_dir / "secret").exists()
+
+
+def test_heal_links_a_missing_reference_back_out_of_the_pool(filestore):
+    common = filestore / mod.COMMON_DIR_NAME
+    pooled = _write(common / "ab" / "abcdef", "payload")
+    db_dir = filestore / "db1"
+    db_dir.mkdir()
+
+    stats = mod.heal_from_common(db_dir, common, ["ab/abcdef"])
+
+    assert stats == {"linked": 1, "present": 0, "lost": 0, "failed": 0}
+    restored = db_dir / "ab" / "abcdef"
+    assert restored.read_text() == "payload"
+    # Shared content, not a copy.
+    assert _inode(restored) == _inode(pooled)
+
+
+def test_heal_never_touches_a_file_the_instance_already_has(filestore):
+    """Additive by construction: an instance must never be without its file,
+    so an existing entry keeps its inode even if the pool holds another one."""
+    common = filestore / mod.COMMON_DIR_NAME
+    _write(common / "ab" / "abcdef", "from pool")
+    db_dir = filestore / "db1"
+    own = _write(db_dir / "ab" / "abcdef", "from pool")
+    own_inode = _inode(own)
+
+    stats = mod.heal_from_common(db_dir, common, ["ab/abcdef"])
+
+    assert stats["present"] == 1
+    assert stats["linked"] == 0
+    assert _inode(own) == own_inode
+
+
+def test_heal_reports_files_gone_from_pool_and_instance(filestore):
+    db_dir = filestore / "db1"
+    db_dir.mkdir()
+
+    stats = mod.heal_from_common(
+        db_dir, filestore / mod.COMMON_DIR_NAME, ["ab/gone"]
+    )
+
+    assert stats["lost"] == 1
+    assert not (db_dir / "ab" / "gone").exists()
+
+
+def test_heal_ignores_absolute_and_traversing_store_fnames(filestore):
+    common = filestore / mod.COMMON_DIR_NAME
+    db_dir = filestore / "db1"
+    db_dir.mkdir()
+
+    stats = mod.heal_from_common(
+        db_dir, common, ["/etc/passwd", "../outside", "", None]
+    )
+
+    assert stats == {"linked": 0, "present": 0, "lost": 0, "failed": 0}
+
+
+def test_heal_is_idempotent(filestore):
+    common = filestore / mod.COMMON_DIR_NAME
+    _write(common / "ab" / "abcdef", "payload")
+    db_dir = filestore / "db1"
+    db_dir.mkdir()
+
+    first = mod.heal_from_common(db_dir, common, ["ab/abcdef"])
+    second = mod.heal_from_common(db_dir, common, ["ab/abcdef"])
+
+    assert first["linked"] == 1
+    assert second == {"linked": 0, "present": 1, "lost": 0, "failed": 0}
+
+
+def test_heal_survives_a_gc_that_dropped_only_this_instances_link(filestore):
+    """The whole point of hardlinks: another instance's GC unlinks its own
+    entry, the content stays in the pool, and healing brings it back."""
+    common = filestore / mod.COMMON_DIR_NAME
+    db_dir = filestore / "db1"
+    attachment = _write(db_dir / "ab" / "abcdef", "payload")
+    mod.dedupe_into_common(db_dir, common)
+
+    attachment.unlink()  # simulate the shared-GC damage
+    assert (common / "ab" / "abcdef").exists()
+
+    stats = mod.heal_from_common(db_dir, common, ["ab/abcdef"])
+
+    assert stats["linked"] == 1
+    assert (db_dir / "ab" / "abcdef").read_text() == "payload"
