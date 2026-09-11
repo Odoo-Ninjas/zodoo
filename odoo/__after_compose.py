@@ -1163,31 +1163,38 @@ def _eval_setting_common_filestore(config, settings, globals):
     Altbestand: bereits vorhandene Symlinks werden hier nicht angetastet
     (welche Dateien zu welcher DB gehoeren, weiss nur die DB selbst) -
     'odoo filestore unshare' migriert sie ohne zusaetzlichen Platzbedarf.
+
+    Hier wird nur *gewarnt*, nicht gearbeitet. Das Verlinken selbst hing
+    frueher an dieser Stelle, war dort aber falsch aufgehaengt: der Pool
+    gehoert dem Filestore-Root, nicht einem Projekt, also hat ein 'reload' von
+    Instanz A den Filestore von Instanz B angefasst - ein Seiteneffekt, der mit
+    jeder weiteren Instanz teurer und unuebersichtlicher wird. 'reload' soll
+    schnell und vorhersagbar bleiben.
+
+    Stattdessen:
+      * 'odoo filestore sync'        - pro Projekt: heilen + deduplizieren
+      * 'odoo filestore install-cron'- naechtliches Dedup fuer den ganzen Root
+    Die Warnung hier kostet ein readdir, kein stat pro Datei.
     """
     if settings.get("ODOO_FILES_COMMON") != "1":
         return
 
-    from zodoo.lib_filestore import (
-        COMMON_DIR_NAME,
-        dedupe_into_common,
-    )
+    from zodoo.lib_filestore import COMMON_DIR_NAME
 
     files_dir = Path(settings["ODOO_FILES"]) / "filestore"
     if not files_dir.exists():
         return
-    common_dir = files_dir / COMMON_DIR_NAME
-    common_dir.mkdir(exist_ok=True, parents=True)
 
-    for entry in sorted(files_dir.iterdir()):
-        if entry.name == COMMON_DIR_NAME or not entry.is_dir():
-            continue
-        if entry.is_symlink():
-            click.secho(
-                f"Filestore {entry.name} is a symlink to {COMMON_DIR_NAME}: "
-                "one instance's garbage collection can delete the attachments "
-                "of all others. Migrate with `odoo filestore unshare`.",
-                fg="yellow",
-            )
-            continue
-
-        dedupe_into_common(entry, common_dir)
+    symlinked = [
+        entry.name
+        for entry in sorted(files_dir.iterdir())
+        if entry.name != COMMON_DIR_NAME and entry.is_symlink()
+    ]
+    if symlinked:
+        click.secho(
+            "Filestore still shared by symlink: "
+            f"{', '.join(symlinked)}. One instance's garbage collection can "
+            "delete the attachments of all others. Migrate with "
+            "`odoo filestore unshare`.",
+            fg="yellow",
+        )

@@ -205,6 +205,58 @@ List available backup files.
 
 ---
 
+## Shared Filestore
+
+On hosts carrying several instances of the same dump, `ODOO_FILES_COMMON=1`
+keeps one pool of attachment files in `<filestore>/_common`. Content is shared
+via **hardlinks**; sharing the directory via a symlink instead destroys
+attachments, because Odoo's garbage collection bookkeeping (`checklist`) must
+stay private per database. See [17-filestore.md](./17-filestore.md) for the
+concept, the failure mode and how to repair a damaged instance.
+
+### `odoo filestore sync [--pull] [--no-heal] [--no-dedup] [--wait] [--dry-run]`
+
+The everyday command, for the current project: optionally mirror missing files
+from `FILESTORE_UPSTREAM` into the pool (`--pull`), then link back what the
+database references but the instance is missing, then dedup into the pool.
+
+Strictly additive and idempotent — it never moves, replaces or rebuilds a
+directory an instance is serving from, so nobody sees a missing filestore. An
+`flock` keeps two runs from overlapping; the lock is held by the file
+descriptor, so a killed run cannot leave a blocking lock behind. Interactively
+the lock does not wait - it says so and stops. `--wait` queues instead, which
+is what the instance cronjob (`CRONJOB_FILESTORE_HEAL`) uses: all instances of
+a host share one pool, so skipping would mean most of them never run.
+
+`--pull` is off by default on purpose: it talks to another machine, and on a
+dev host carrying instances of many different production systems you rarely
+want that unattended. `FILESTORE_UPSTREAM` is therefore a per-project setting
+(`FILESTORE_UPSTREAM_BWLIMIT` throttles the transfer).
+
+### `odoo filestore install-cron [--at HH:MM] [--remove]`
+
+Install a nightly `filestore dedup` in the user's crontab, `ionice`d. The pool
+belongs to the filestore root rather than to a project, so one entry per root
+is enough. Healing is _not_ part of it — that needs each instance's database
+and therefore belongs to the instance or to the CI system after a restore.
+
+### `odoo filestore dedup`
+
+Hardlink per-database filestores into the shared `_common` pool. Skips
+directories that are still symlinks and asks you to run `unshare` first.
+
+### `odoo filestore unshare [-a/--all]`
+
+Replace legacy `<db> -> _common` symlinks by real directories of hardlinks, so
+each database gets its own GC checklist again. Uses no additional disk space.
+Database-driven: only files referenced by `ir_attachment` are materialised; an
+unreachable database is left untouched rather than emptied.
+
+`--all` covers every symlinked database served by _this_ project's postgres.
+Where each instance runs its own postgres container, run it once per project.
+
+---
+
 ## Encrypted Offsite Backup
 
 Pushes the pgBackRest repository and this database's filestore to a remote repository

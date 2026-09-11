@@ -83,5 +83,33 @@ CRONJOB_BACKUP_FILES=0 0 * * * odoo backup files /host/dumps/${DBNAME}.files; ls
 
 
 
+# Fehlende Anhaenge aus dem gemeinsamen Pool zurueckholen (nur bei
+# ODOO_FILES_COMMON=1, sonst steigt der Befehl still aus).
+#
+# Warum das HIER laeuft und nicht einmal pro Host: heilen ist
+# datenbankgetrieben, es liest ir_attachment.store_fname. Auf Maschinen, wo
+# jede Instanz ihren eigenen postgres-Container hat, erreicht nur die Instanz
+# selbst ihre Datenbank - ein zentraler Job kann die DB einer fremden Instanz
+# gar nicht befragen.
+#
+# --no-dedup: umgekehrt gehoert das Deduplizieren dem Filestore-Root und
+# laeuft einmal pro Host (`odoo filestore install-cron`). Wuerde jede Instanz
+# auch deduplizieren, tasteten sich zwanzig Instanzen jede Nacht gegenseitig
+# den Filestore ab.
+#
+# --wait: alle Instanzen eines Hosts teilen ein Lock. Ohne Warten wuerde beim
+# gleichzeitigen Start genau eine heilen und der Rest still aussteigen.
+#
+# Wochentlich, nicht taeglich: seit die Instanzen ueber Hardlinks statt
+# Symlinks teilen, kann neuer Schaden strukturell nicht mehr entstehen - das
+# ist ein Netz fuer Altbestand, kein Reparaturdienst. Nach einem Restore
+# heilt ausserdem schon das CI-System.
+#
+# Rein additiv: es entstehen nur fehlende Hardlinks. Eine Instanz ist damit
+# nie, auch nicht kurz, ohne Filestore, und es braucht keinen Neustart.
+FILESTORE_HEAL_CRON=40 2 * * 0
+JOB_FILESTORE_HEAL=odoo filestore sync --no-dedup --wait
+CRONJOB_FILESTORE_HEAL=$FILESTORE_HEAL_CRON $JOB_FILESTORE_HEAL
+
 JOB_RESTART_UNHEALTHY_CONTAINERS=/bin/bash restart_unhealthy_containers.sh
 CRONJOB_RESTART_UNHEALTHY_CONTAINERS=* * * * * $JOB_RESTART_UNHEALTHY_CONTAINERS
