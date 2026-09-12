@@ -1,5 +1,19 @@
 # Changelog
 
+## 11.5.0
+
+- **Feature**: Shared attachment filestore: new `odoo filestore sync` (per project: optional pull from `FILESTORE_UPSTREAM`, then heal, then dedup) and `odoo filestore install-cron` (nightly root-wide dedup). The new heal phase closes a real gap - `unshare` repairs symlinks and `dedup` removes duplicates, but a *real* per-database directory whose files a shared garbage collection already deleted was healed by neither, and that is the state such a host is left in. Healing is strictly additive: it only creates the missing hardlink, so an instance serving users is never - not even briefly - without its filestore, needs no restart and no extra disk space. Also removed: the linking that used to run inside `__after_compose.py` on every `odoo reload`. The pool belongs to the filestore root, not to a project, so a reload of instance A walked the filestore of instance B; reload now only warns (one readdir) that legacy symlinks are still present. New docs/17-filestore.md explains the concept, the `checklist` failure mode, which phase belongs to which unit (dedup per root, heal per project because it needs the database, pull per project because every project has its own production system) and how to repair an already damaged host. Dazu ein neuer Instanz-Cronjob `CRONJOB_FILESTORE_HEAL` (`FILESTORE_HEAL_CRON`, Default Sonntag 02:40): wochentliches `filestore sync --no-dedup --wait` als Netz fuer Altbestand. Heilen gehoert in die Instanz, weil es die Datenbank braucht; Deduplizieren gehoert dem Filestore-Root und bleibt beim Host-Cron. `--wait` wartet auf das Lock statt zu ueberspringen - alle Instanzen eines Hosts teilen einen Pool, sonst wuerde bei gleichzeitigem Start nur eine einzige laufen.
+- **Feature**: `odoo pgbackrest register --approve` gibt die eigene Anmeldung gleich auf der Konsole frei, statt zu warten, bis jemand die Freigabemaske im VPN oeffnet. Der Befehl fragt verdeckt nach dem Anmeldegeheimnis (haben nur wir), gibt die Anfrage beim Anmeldedienst frei und holt im selben Aufruf Zertifikat und Passphrase ab.
+
+  Zum Ausprobieren: `odoo pgbackrest register --approve`, Geheimnis eingeben, danach wie gehabt `odoo reload && odoo up -d && odoo pgbackrest check`. Ohne die Option aendert sich nichts.
+
+  Freigeben kann nur, wer das Geheimnis hat UND das Abhol-Token dieser Anfrage, das beim Anfragen auf dieser Maschine landet - fremde Anmeldungen lassen sich damit nicht durchwinken. Fehlt das Token, wird gar nicht erst gefragt.
+
+  Die Zugangsdaten gibt es weiterhin erst, wenn der Umschlag mit der Passphrase am Projekt in hosting.zebroo.de liegt. Laesst sich das Projekt nicht bestimmen, bleibt die Anmeldung stehen und der Befehl sagt gelb, was auf dem Backup-Server noch fehlt.
+
+  Serverseite: Odoo-Ninjas/zebroo-backup-server#10.
+
+
 ## 11.4.5
 
 - **Fix**: Verliert ein Render die TLS-Einbindung eines vHosts, wird sie jetzt in Millisekunden zurueckgetragen statt in Stunden - und sieben bisher ungeschuetzte vHosts sind mit dabei.
