@@ -892,7 +892,8 @@ def _ask_upstream_fields(server_name, existing=(), template="upstream"):
         [
             inquirer.Text(
                 "upstream_name",
-                message="Upstream name (letters, digits, underscore)",
+                message="Technical backend name in nginx (letters/digits/"
+                "underscore only - normally leave the default as-is)",
                 default=suggested,
                 validate=lambda _, x: bool(_UPSTREAM_NAME_RE.match(x))
                 or validation_error(
@@ -902,8 +903,10 @@ def _ask_upstream_fields(server_name, existing=(), template="upstream"):
             ),
             inquirer.Text(
                 "upstream_server",
-                message="Backend address (LAN ip of the machine, not the "
-                "VPN one)",
+                message="IP address of the machine running the backend - its "
+                "LAN address (not its VPN address, and not "
+                "localhost/127.0.0.1: the router runs in its own docker "
+                "container and cannot reach the backend via loopback)",
                 default=suggested_server,
                 validate=validate_nonempty,
             ),
@@ -988,7 +991,9 @@ def _collect_new_vhost(existing):
             ),
             inquirer.Text(
                 "server_name",
-                message="Domain (server_name)",
+                message="Domain to put in the URL bar (the full hostname, "
+                "e.g. odoo.yourcompany.com - the part of the request URL the "
+                "router matches on)",
                 validate=validate_nonempty,
             ),
         ]
