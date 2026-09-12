@@ -2310,12 +2310,61 @@ def pgbackrest_policy(config):
     click.secho("Wirksam wird das mit `odoo reload`.", fg="green")
 
 
+def _selbst_freigeben(config, state):
+    """Die eigene Anfrage freigeben, gegen das Anmeldegeheimnis.
+
+    Warum das ueberhaupt geht: zodoo ist oeffentlich, eine Anfrage kann jeder
+    stellen. Freigeben kann sie nur, wer das Geheimnis kennt - und zusaetzlich
+    das Abhol-Token DIESER Anfrage hat, das nur auf dieser Maschine liegt.
+    Fremde Bereiche lassen sich damit also nicht durchwinken.
+
+    Der Riegel davor faellt dabei nicht: freigeschaltet wird nur, wenn der
+    Umschlag mit der Passphrase am Projekt in hosting.zebroo.de liegt. Laesst
+    sich das Projekt nicht bestimmen, bleibt die Anfrage offen und die Antwort
+    sagt, was auf dem Backup-Server zu tun ist.
+    """
+    if not state.get("token"):
+        # Ohne Token ist der Beweis weg, dass diese Anfrage von dieser
+        # Maschine stammt - und genau darauf besteht der Dienst. Fehlversuche
+        # zaehlt er, also gar nicht erst hinschicken.
+        abort(
+            "This machine has no pickup token for the request any more "
+            "(enroll.json was lost, or the request was filed elsewhere). "
+            "Approving needs it; an admin has to take it from here."
+        )
+    secret = click.prompt(
+        "Enrolment secret (Zebroo)", hide_input=True, default="", show_default=False
+    ).strip()
+    if not secret:
+        abort("No secret entered - nothing was approved.")
+    answer = _enroll_call(
+        config,
+        "POST",
+        "/api/approve",
+        {
+            "request_id": state["request_id"],
+            "token": state["token"],
+            "secret": secret,
+        },
+    )
+    note = answer.get("note") or ""
+    if answer.get("status") == "approved":
+        click.secho("Approved on the spot. " + note, fg="green")
+        return True
+    # Angelegt, aber ohne Zweitschrift der Passphrase - das ist kein Fehler
+    # dieser Maschine, aber sie bekommt eben auch nichts.
+    click.secho(note or f"Not approved: {answer}", fg="yellow")
+    return False
+
+
 @pgbackrest.command(
     name="register",
     help=(
         "Request a stanza on the backup server and collect the credentials. "
-        "The first call files a request for an admin to approve; calling it "
-        "again once approved writes certificate and passphrase into place."
+        "The first call files a request; someone approves it - in the mask, "
+        "on the backup server (`pgbackrest-enroll approve`), or here with "
+        "--approve and the enrolment secret. Calling it again once approved "
+        "writes certificate and passphrase into place."
     ),
 )
 @click.option(
@@ -2324,8 +2373,18 @@ def pgbackrest_policy(config):
     help="Stanza name (default: the project name).",
 )
 @click.option("--note", default="", help="Note for the admin.")
+@click.option(
+    "--approve",
+    is_flag=True,
+    default=False,
+    help=(
+        "Approve the request right here, against the enrolment secret - "
+        "instead of waiting for someone to open the mask. Asks for the "
+        "secret; only Zebroo has it."
+    ),
+)
 @pass_config
-def pgbackrest_register(config, name, note):
+def pgbackrest_register(config, name, note, approve):
     import json as _json
     import socket
 
@@ -2363,12 +2422,26 @@ def pgbackrest_register(config, name, note):
         state_file.write_text(_json.dumps(state, indent=2))
         state_file.chmod(0o600)
         click.secho(
-            f"Stanza '{stanza}' requested (request {state['request_id']}).\n"
-            f"{answer.get('note', '')}\n"
-            "Run the same command again once it has been approved.",
+            f"Stanza '{stanza}' requested (request {state['request_id']}).",
             fg="green",
         )
-        return
+        if not approve:
+            click.secho(
+                f"{answer.get('note', '')}\n"
+                "Run the same command again once it has been approved - or "
+                "with --approve, and approve it here.",
+                fg="green",
+            )
+            return
+        # Mit --approve geht es in einem Zug weiter: freigeben und die
+        # Zugangsdaten gleich abholen.
+        if not _selbst_freigeben(config, state):
+            return
+    elif approve:
+        # Zweiter Aufruf, die Anfrage liegt schon. Sie noch einmal freizugeben
+        # ist harmlos - der Dienst antwortet dann mit dem Zustand, den sie
+        # ohnehin hat.
+        _selbst_freigeben(config, state)
 
     answer = _enroll_call(
         config,

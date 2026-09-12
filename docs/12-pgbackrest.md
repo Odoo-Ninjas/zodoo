@@ -70,16 +70,32 @@ happens next.
 
 ### 3. Someone approves it
 
-An admin opens `https://enroll.backup.zebroo.de/`, checks the name against the
-customer, and approves. Only in that moment do the client certificate and the
-passphrase come into existence, and they are shown exactly once.
+Three ways, same effect - they run the same code on the backup server:
 
-The admin then picks the project in hosting.zebroo.de and confirms that the
-passphrase is in 1Password. **Until that confirmation the machine gets
-nothing.** That is deliberate: a passphrase that lives only on the machine
-being backed up is worthless in the one situation backups exist for. If the
-filing at the project fails, the approval stays open rather than releasing
-credentials without a second copy.
+* **In the mask.** An admin opens `https://enroll.backup.zebroo.de/`, checks
+  the name against the customer, and approves.
+* **On the backup server.** `pgbackrest-enroll list`, then
+  `pgbackrest-enroll approve <id> --projekt <nr>`. For whoever has a shell
+  there but no browser inside the VPN.
+* **Right here.** `odoo pgbackrest register --approve` asks for the enrolment
+  secret - only Zebroo has it - and approves this machine's own request on the
+  spot. It needs the pickup token that was written when the request was filed,
+  so it can only ever approve *this* request, not somebody else's.
+
+Only in that moment do the client certificate and the passphrase come into
+existence, and they are shown exactly once.
+
+Then the envelope with the passphrase is filed at the project in
+hosting.zebroo.de. **Until that has happened the machine gets nothing** - and
+that condition is checked, not ticked: what releases the credentials is a
+successful filing, on every one of the three ways above. A passphrase that
+lives only on the machine being backed up is worthless in the one situation
+backups exist for.
+
+If the project cannot be determined (a machine hosting does not know, or
+hosting is unreachable), the approval stays open. Somebody assigns it later
+with `pgbackrest-enroll push <id> --projekt <nr>`; the request keeps its
+values until then.
 
 ### 4. Collect the credentials
 
@@ -585,13 +601,16 @@ afterwards, so chat and copy-paste are exactly the wrong tools for it.
 odoo pgbackrest register
 ```
 
-The first call files a request. An admin sees it at
-`https://enroll.backup.zebroo.de/`, checks the name and approves; only then do
-the client certificate and the passphrase come into existence. They are shown
-once, the admin puts the passphrase into 1Password and confirms that - and only
-after that confirmation will the service hand anything to the machine. A
-passphrase that lives solely on the machine being backed up is worthless in the
-one situation backups exist for.
+The first call files a request. Someone approves it - in the mask at
+`https://enroll.backup.zebroo.de/`, on the backup server with
+`pgbackrest-enroll approve <id>`, or on this machine with `register
+--approve` plus the enrolment secret. Only then do the client certificate and
+the passphrase come into existence.
+
+The service hands them out only once the envelope with the passphrase lies at
+the project in hosting.zebroo.de. That is the same condition on all three
+ways and it is not a checkbox: a passphrase that lives solely on the machine
+being backed up is worthless in the one situation backups exist for.
 
 One approval covers **both streams**: the database goes to the pgBackRest
 repository, the filestore to the write-only receiver beside it. A machine that

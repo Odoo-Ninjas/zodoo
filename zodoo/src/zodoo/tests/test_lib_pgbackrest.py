@@ -1035,13 +1035,15 @@ def _approved(stanza="demo"):
     }
 
 
-def _run_register(mod, config, calls, name=None, note=""):
+def _run_register(mod, config, calls, name=None, note="", approve=False):
     """Invoke the command body directly, past click's decorators."""
     monkey = calls
     mod._enroll_call = lambda cfg, method, path, payload=None: monkey(
         method, path, payload
     )
-    return mod.pgbackrest_register.callback.__wrapped__(config, name, note)
+    return mod.pgbackrest_register.callback.__wrapped__(
+        config, name, note, approve
+    )
 
 
 def test_register_writes_the_private_key_unreadable_to_others(
