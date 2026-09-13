@@ -58,6 +58,56 @@ def _ensure_pgbackrest(config):
         )
 
 
+CERT_DIR_IM_CONTAINER = "/etc/pgbackrest/cert"
+PGBR_UID = "999"
+
+
+def _richte_zertifikate(config):
+    """Den Zertifikatsordner dem pgbackrest-Benutzer zurueckgeben.
+
+    Der entrypoint des Sidecars macht das - aber nur beim Start. Werden die
+    Dateien danach neu geschrieben, gehoeren sie wieder dem Betriebsbenutzer
+    (`odoo pgbackrest register` laeuft als der), und der Ordner steht auf 0700.
+    pgbackrest laeuft als uid 999 und kommt dann nicht einmal hinein.
+
+    Es meldet sich als
+
+        [CryptoError] unable to set user-defined CA certificate location
+
+    was nach einem kaputten Zertifikat aussieht und keines ist. Am 13.09.2026
+    hat genau das eine Stunde gekostet: die Sicherungen liefen die ganze Zeit
+    weiter (der archive_command im postgres-Container hat seine eigene Sicht),
+    nur `info` und `check` waren blind - also ausgerechnet das, womit man
+    nachsieht, ob noch gesichert wird.
+
+    Deshalb wird es hier vor jedem Befehl gerichtet statt nur beim Start.
+    Scheitert das, laeuft der Befehl trotzdem weiter: schlimmstenfalls
+    erscheint dieselbe Meldung wie bisher.
+    """
+    pruefe = (
+        f"[ -d {CERT_DIR_IM_CONTAINER} ] || exit 0; "
+        f'[ "$(stat -c %u {CERT_DIR_IM_CONTAINER})" = "{PGBR_UID}" ] && exit 0; '
+        f"chown -R {PGBR_UID}:{PGBR_UID} {CERT_DIR_IM_CONTAINER} && "
+        f"chmod 700 {CERT_DIR_IM_CONTAINER} && echo GERICHTET"
+    )
+    try:
+        ergebnis = subprocess.run(
+            __get_cmd(config)
+            + ["exec", "-T", "--user", "0", "pgbackrest", "sh", "-c", pruefe],
+            capture_output=True,
+            encoding="utf-8",
+            timeout=60,
+        )
+    except (subprocess.SubprocessError, OSError):
+        return
+    if "GERICHTET" in (ergebnis.stdout or ""):
+        click.secho(
+            "pgbackrest: der Zertifikatsordner gehoerte nicht mehr dem "
+            "pgbackrest-Benutzer und wurde zurueckgegeben.",
+            fg="yellow",
+        )
+
+
 def _pgbr(config, args, interactive=False):
     """Run pgbackrest inside the running sidecar.
 
@@ -69,6 +119,7 @@ def _pgbr(config, args, interactive=False):
     pgbackrest user shares uid 999 with postgres so it can read PGDATA.
     """
     _ensure_pgbackrest(config)
+    _richte_zertifikate(config)
     return __dcexec(
         config,
         [
@@ -114,6 +165,7 @@ def _pgbr_oneoff(config, args):
 
 def _pgbr_capture(config, args):
     """Run pgbackrest in the sidecar and return stdout."""
+    _richte_zertifikate(config)
     cmd = (
         __get_cmd(config)
         + [
