@@ -1,0 +1,3 @@
+type: fix
+description: "router vhost wizard: clarify the server_name, upstream_name and upstream_server prompts for first-time users"
+breaking: false
