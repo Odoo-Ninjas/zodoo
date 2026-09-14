@@ -1,3 +1,0 @@
-type: docs
-description: "Filestore: comments and docs now state who drives `odoo filestore sync` - the CICD calls it after every restore and weekly per instance, so its behaviour must stay stable for that caller. Also noted in cronjobs/default.settings that CRONJOB_FILESTORE_HEAL never fires on CICD machines (instances there run with RUN_CRONJOBS=0 and have no cronjobs container); that entry is meant for hosts carrying several instances without a CICD on top. Comments that were still German are translated - code comments are English."
-breaking: false

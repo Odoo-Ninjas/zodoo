@@ -1,5 +1,10 @@
 # Changelog
 
+## 11.5.2
+
+- **Docs**: Filestore: comments and docs now state who drives `odoo filestore sync` - the CICD calls it after every restore and weekly per instance, so its behaviour must stay stable for that caller. Also noted in cronjobs/default.settings that CRONJOB_FILESTORE_HEAL never fires on CICD machines (instances there run with RUN_CRONJOBS=0 and have no cronjobs container); that entry is meant for hosts carrying several instances without a CICD on top. Comments that were still German are translated - code comments are English.
+
+
 ## 11.5.1
 
 - **Fix**: `odoo pgbackrest info` und `check` melden nach einer Neuanmeldung nicht mehr `[CryptoError] unable to set user-defined CA certificate location`. Zu pruefen: auf einer Maschine mit pgBackRest `odoo pgbackrest register` laufen lassen, waehrend der Stack laeuft, und danach ohne Neustart `odoo pgbackrest info` aufrufen - es muss `status: ok` zeigen statt des Krypto-Fehlers. Hintergrund: der Zertifikatsordner gehoerte nach dem Anmelden wieder dem Betriebsbenutzer statt dem pgbackrest-Benutzer, der Ordner steht auf 0700. Gesichert wurde dabei weiter - blind waren nur die Befehle, mit denen man nachsieht, ob noch gesichert wird.
