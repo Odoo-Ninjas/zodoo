@@ -305,10 +305,14 @@ def _full_backup_after_drop(config):
         )
         return
 
-    click.secho("Starte eine Vollsicherung, um die Kette neu zu setzen.", fg="yellow")
+    click.secho(
+        "Starte eine Vollsicherung, um die Kette neu zu setzen.", fg="yellow"
+    )
     try:
         _pgbr(config, ["--type", "full", "backup"])
-    except Exception as ex:  # noqa: BLE001 - der naechste Lauf versucht es erneut
+    except (
+        Exception
+    ) as ex:  # noqa: BLE001 - der naechste Lauf versucht es erneut
         click.secho(
             f"Vollsicherung nach dem Verwurf fehlgeschlagen: {ex}. Der Zaehler "
             "bleibt unquittiert, der naechste Check versucht es erneut.",
@@ -921,9 +925,7 @@ def _verify_repo_is_local(config):
         zeilen = conf.read_text().splitlines()
     except OSError:
         return False
-    return any(
-        z.strip().startswith("repo1-path") for z in zeilen
-    )
+    return any(z.strip().startswith("repo1-path") for z in zeilen)
 
 
 def _volume_targets(service):
@@ -981,9 +983,14 @@ def _repo_volume(config, sidecar):
 
 def _repo_volume_from_container(config):
     try:
-        cid = subprocess.check_output(
-            __get_cmd(config) + ["ps", "-aq", "pgbackrest"], encoding="utf-8"
-        ).strip().splitlines()
+        cid = (
+            subprocess.check_output(
+                __get_cmd(config) + ["ps", "-aq", "pgbackrest"],
+                encoding="utf-8",
+            )
+            .strip()
+            .splitlines()
+        )
         if not cid:
             return None
         roh = subprocess.check_output(
@@ -1052,8 +1059,7 @@ def _verify_images(config):
             "diesem Projekt fehlen die Dienste " + ", ".join(fehlend)
         )
     return tuple(
-        services[dienst].get("image")
-        or f"{config.project_name}-{dienst}"
+        services[dienst].get("image") or f"{config.project_name}-{dienst}"
         for dienst in ("pgbackrest", "postgres")
     )
 
@@ -1087,15 +1093,25 @@ def _pgbr_als_benutzer(image, run_user):
     """
     if run_user:
         return ["--user", run_user, "--entrypoint", "pgbackrest", image]
-    return ["--entrypoint", "/usr/sbin/gosu", image, "pgbackrest", "pgbackrest"]
+    return [
+        "--entrypoint",
+        "/usr/sbin/gosu",
+        image,
+        "pgbackrest",
+        "pgbackrest",
+    ]
 
 
 def _verify_latest_backup(config, stanza, image, mounts, run_user=None):
     out = _docker(
-        "run", "--rm",
+        "run",
+        "--rm",
         *sum((["-v", m] for m in mounts), []),
         *_pgbr_als_benutzer(image, run_user),
-        "--stanza", stanza, "info", "--output=json",
+        "--stanza",
+        stanza,
+        "info",
+        "--output=json",
         timeout=300,
     )
     try:
@@ -1127,8 +1143,67 @@ def _verify_latest_backup(config, stanza, image, mounts, run_user=None):
             "Passphrase oder falsches Zertifikat"
         )
     if not daten[0].get("backup"):
-        raise VerifyFailed(f"'{stanza}' ist angemeldet, hat aber nie gesichert")
-    return daten[0]["backup"][-1]["label"]
+        raise VerifyFailed(
+            f"'{stanza}' ist angemeldet, hat aber nie gesichert"
+        )
+    letzte = daten[0]["backup"][-1]
+    # Die Postgres-Hauptversion, mit der dieser Bestand angelegt wurde. Sie
+    # steht im Repository selbst - sie muss weder mitgefuehrt noch geraten
+    # werden. Gebraucht wird sie, weil ein Cluster nur unter SEINER
+    # Hauptversion hochfaehrt: ein mit 16 angelegter Bestand scheitert unter
+    # 17 mit "database files are incompatible with server". Am 13.09.2026 ist
+    # genau daran die Probe fuer einen Bereich gescheitert, dessen Sicherung
+    # in Ordnung war.
+    #
+    # Jede Sicherung verweist ueber database.id auf einen Eintrag in db; bei
+    # einem Major-Upgrade stehen dort mehrere, und massgeblich ist der zur
+    # geprueften Sicherung - nicht der neueste.
+    db_id = (letzte.get("database") or {}).get("id")
+    version = None
+    for eintrag in daten[0].get("db") or []:
+        if eintrag.get("id") == db_id:
+            version = str(eintrag.get("version") or "").strip() or None
+            break
+    return letzte["label"], version
+
+
+def _verify_pg_image(umgebung, version, stanza):
+    """Das Pruefabbild, das zur Hauptversion der SICHERUNG passt.
+
+    Ohne `postgres_images` bleibt alles wie bisher: ein einziges Abbild fuer
+    alles. Das genuegt, solange eine Instanz sich selbst prueft - dort laeuft
+    per Definition die passende Version.
+
+    Auf einem PRUEFSTAND stimmt das nicht mehr: er prueft fremde Bereiche, und
+    die laufen auf verschiedenen Hauptversionen. Faehrt er alles unter seiner
+    eigenen hoch, faellt jeder Bereich durch, der eine andere hat - und zwar
+    mit einer Meldung ueber inkompatible Dateien, die wie ein Schaden an der
+    Sicherung aussieht. Das ist der schlimmste Fall: ein Melder, der bei
+    heilen Daten Alarm gibt, wird irgendwann weggeklickt.
+
+    Fehlt das Abbild zu einer Version, ist das ausdruecklich KEIN bestandener
+    Test und auch kein stiller Rueckfall auf irgendein anderes - der Bereich
+    ist ungeprueft, und die Meldung sagt, was zu tun ist.
+    """
+    bilder = umgebung.get("postgres_images") or {}
+    if not bilder:
+        return umgebung["postgres_image"]
+    if not version:
+        raise VerifyFailed(
+            f"zu '{stanza}' steht im Repository keine Postgres-Hauptversion; "
+            "ohne sie laesst sich das passende Pruefabbild nicht waehlen"
+        )
+    bild = bilder.get(str(version))
+    if not bild:
+        raise VerifyFailed(
+            f"'{stanza}' wurde mit PostgreSQL {version} gesichert, dafuer ist "
+            "kein Pruefabbild hinterlegt (bekannt: "
+            + (", ".join(sorted(bilder)) or "keines")
+            + "). Ein Abbild dieser Hauptversion bauen und in der "
+            "bench-config unter postgres_images eintragen - die Sicherung "
+            "selbst ist davon unberuehrt."
+        )
+    return bild
 
 
 def _verify_minimums(postgres_image, volume, mounts):
@@ -1141,12 +1216,19 @@ def _verify_minimums(postgres_image, volume, mounts):
     laesst die Probe scheitern, zu gross verdeckt nichts, kostet aber Speicher.
     """
     out = _docker(
-        "run", "--rm",
-        "-v", f"{volume}:{VERIFY_PGDATA}",
+        "run",
+        "--rm",
+        "-v",
+        f"{volume}:{VERIFY_PGDATA}",
         *sum((["-v", m] for m in mounts), []),
-        "--user", "0",
-        "--entrypoint", "pg_controldata", postgres_image, VERIFY_PGDATA,
-        check=False, timeout=300,
+        "--user",
+        "0",
+        "--entrypoint",
+        "pg_controldata",
+        postgres_image,
+        VERIFY_PGDATA,
+        check=False,
+        timeout=300,
     )
     werte = {}
     for zeile in (out.stdout or "").splitlines():
@@ -1161,8 +1243,17 @@ def _verify_minimums(postgres_image, volume, mounts):
 
 def _verify_query(container, frage, db="postgres", timeout=180):
     return _docker(
-        "exec", container, "psql", "-U", "postgres", "-d", db, "-tAc", frage,
-        check=False, timeout=timeout,
+        "exec",
+        container,
+        "psql",
+        "-U",
+        "postgres",
+        "-d",
+        db,
+        "-tAc",
+        frage,
+        check=False,
+        timeout=timeout,
     )
 
 
@@ -1180,7 +1271,9 @@ def _verify_read_user_data(container):
         "AND NOT datistemplate ORDER BY pg_database_size(oid) DESC LIMIT 1",
     ).stdout.strip()
     if not db:
-        raise VerifyFailed("in der zurueckgespielten Instanz ist keine Datenbank")
+        raise VerifyFailed(
+            "in der zurueckgespielten Instanz ist keine Datenbank"
+        )
 
     tabelle = _verify_query(
         container,
@@ -1214,29 +1307,44 @@ def _verify_start_and_read(postgres_image, volume, mounts, container):
         parameter += ["-c", f"{schluessel}={wert}"]
 
     _docker(
-        "run", "-d", "--name", container,
-        "-v", f"{volume}:{VERIFY_PGDATA}",
+        "run",
+        "-d",
+        "--name",
+        container,
+        "-v",
+        f"{volume}:{VERIFY_PGDATA}",
         # Die Repo-Konfiguration muss AUCH hier hinein: Postgres holt sich
         # waehrend der Wiederherstellung die fehlenden WAL-Segmente selbst aus
         # dem Repository (archive-get). Damit prueft die Probe nicht nur die
         # Sicherungsdateien, sondern auch die Archivstrecke.
         *sum((["-v", m] for m in mounts), []),
-        "-e", f"PGDATA={VERIFY_PGDATA}",
-        "-e", "POSTGRES_HOST_AUTH_METHOD=trust",
-        "--entrypoint", "docker-entrypoint.sh", postgres_image, "postgres",
+        "-e",
+        f"PGDATA={VERIFY_PGDATA}",
+        "-e",
+        "POSTGRES_HOST_AUTH_METHOD=trust",
+        "--entrypoint",
+        "docker-entrypoint.sh",
+        postgres_image,
+        "postgres",
         *parameter,
         timeout=300,
     )
 
     def protokoll():
-        out = _docker("logs", "--tail", "40", container, check=False, timeout=120)
+        out = _docker(
+            "logs", "--tail", "40", container, check=False, timeout=120
+        )
         return ((out.stdout or "") + (out.stderr or "")).strip()[-1800:]
 
     ende = time.time() + VERIFY_STARTUP_TIMEOUT
     while time.time() < ende:
         zustand = _docker(
-            "inspect", container, "--format", "{{.State.Status}}",
-            check=False, timeout=120,
+            "inspect",
+            container,
+            "--format",
+            "{{.State.Status}}",
+            check=False,
+            timeout=120,
         ).stdout.strip()
         if zustand == "exited":
             # Nicht bis zum Zeitablauf warten - der Start ist gescheitert, und
@@ -1259,7 +1367,9 @@ def _verify_cleanup(container, volume):
     for cmd in (("rm", "-f", container), ("volume", "rm", "-f", volume)):
         try:
             _docker(*cmd, check=False, timeout=300)
-        except Exception:  # noqa: BLE001 - Aufraeumen darf nie das Ergebnis kippen
+        except (
+            Exception
+        ):  # noqa: BLE001 - Aufraeumen darf nie das Ergebnis kippen
             pass
 
 
@@ -1296,9 +1406,14 @@ def _probe(umgebung, stanza):
         "store": umgebung.get("store") or "-",
     }
     try:
-        ergebnis["backup"] = _verify_latest_backup(
+        ergebnis["backup"], db_version = _verify_latest_backup(
             None, stanza, pgbr_image, mounts, run_user
         )
+        if db_version:
+            # Im Nachweis festhalten: sonst ist hinterher nicht erkennbar,
+            # unter welcher Hauptversion geprueft wurde.
+            ergebnis["pg_version"] = db_version
+        pg_image = _verify_pg_image(umgebung, db_version, stanza)
 
         _docker("volume", "create", volume, timeout=120)
         # Ein frisches Volume gehoert root; pgbackrest laeuft als jemand
@@ -1306,9 +1421,17 @@ def _probe(umgebung, stanza):
         # Recht: als root angelegte Dateien koennte der Postgres danach nicht
         # lesen.
         _docker(
-            "run", "--rm", "-v", f"{volume}:{VERIFY_PGDATA}", "--user", "0",
-            "--entrypoint", "chown", pgbr_image,
-            "-R", (run_user or "pgbackrest:pgbackrest").replace(":", "."),
+            "run",
+            "--rm",
+            "-v",
+            f"{volume}:{VERIFY_PGDATA}",
+            "--user",
+            "0",
+            "--entrypoint",
+            "chown",
+            pgbr_image,
+            "-R",
+            (run_user or "pgbackrest:pgbackrest").replace(":", "."),
             VERIFY_PGDATA,
             timeout=300,
         )
@@ -1316,12 +1439,17 @@ def _probe(umgebung, stanza):
         # ist "laeuft sie wieder an", nicht "spiele WAL bis heute nach" - das
         # waere eine andere Frage und dauert um Groessenordnungen laenger.
         _docker(
-            "run", "--rm",
-            "-v", f"{volume}:{VERIFY_PGDATA}",
+            "run",
+            "--rm",
+            "-v",
+            f"{volume}:{VERIFY_PGDATA}",
             *sum((["-v", m] for m in mounts), []),
             *_pgbr_als_benutzer(pgbr_image, run_user),
-            "--stanza", stanza, "restore",
-            "--type=immediate", "--target-action=promote",
+            "--stanza",
+            stanza,
+            "restore",
+            "--type=immediate",
+            "--target-action=promote",
             timeout=3600,
         )
         ergebnis.update(
@@ -1390,7 +1518,11 @@ def run_verify(config, stanza=None):
 
 BENCH_PFLICHTFELDER = ("repo_host", "cert_dir", "pgbackrest_image")
 BENCH_PFLICHTFELDER_S3 = (
-    "s3_endpoint", "s3_bucket", "s3_key", "s3_key_secret", "pgbackrest_image",
+    "s3_endpoint",
+    "s3_bucket",
+    "s3_key",
+    "s3_key_secret",
+    "pgbackrest_image",
 )
 
 
@@ -1510,6 +1642,9 @@ def _bench_environment(bench, stanza, arbeitsordner):
             "pgbackrest_image": bench["pgbackrest_image"],
             "postgres_image": bench.get("postgres_image")
             or bench["pgbackrest_image"],
+            # Je Postgres-Hauptversion ein Abbild, z.B. {"16": ..., "17": ...}.
+            # Fehlt der Eintrag, bleibt es beim einen Abbild von oben.
+            "postgres_images": bench.get("postgres_images") or {},
             "mounts": [f"{ordner}:/etc/pgbackrest:ro"],
             "run_user": run_user,
             "bench": bench.get("bench") or socket.gethostname(),
@@ -1542,6 +1677,7 @@ def _bench_environment(bench, stanza, arbeitsordner):
         "pgbackrest_image": bench["pgbackrest_image"],
         "postgres_image": bench.get("postgres_image")
         or bench["pgbackrest_image"],
+        "postgres_images": bench.get("postgres_images") or {},
         "mounts": [f"{ordner}:/etc/pgbackrest:ro"],
         "run_user": run_user,
         "bench": bench.get("bench") or socket.gethostname(),
@@ -1573,7 +1709,9 @@ def open_envelope(identity, pfad):
 
     out = subprocess.run(
         ["age", "--decrypt", "-i", identity, pfad],
-        capture_output=True, text=True, timeout=60,
+        capture_output=True,
+        text=True,
+        timeout=60,
     )
     if out.returncode != 0:
         raise VerifyFailed(
@@ -1596,7 +1734,8 @@ def newest_envelope(ordner, stanza):
     if not ordner or not os.path.isdir(ordner):
         return None
     treffer = sorted(
-        p for p in os.listdir(ordner)
+        p
+        for p in os.listdir(ordner)
         if p.startswith(f"{stanza}-") and p.endswith(".age")
     )
     return os.path.join(ordner, treffer[-1]) if treffer else None
@@ -1730,7 +1869,9 @@ def _read_verify_output(text, stanza):
         if "status:" in blank:
             in_status = blank.split("status:", 1)[1].strip() != "ok"
             if in_status:
-                meldungen.append("status: " + blank.split("status:", 1)[1].strip())
+                meldungen.append(
+                    "status: " + blank.split("status:", 1)[1].strip()
+                )
             continue
         # Die Einzelheiten stehen eingerueckt UNTER der Statuszeile.
         if in_status and blank and not blank[:4].isdigit():
@@ -1780,11 +1921,15 @@ def run_repo_verify_bench(bench, stanza):
         eigen = _from_envelope(eigen, stanza)
         umgebung = _bench_environment(eigen, stanza, arbeitsordner)
         out = _docker(
-            "run", "--rm",
+            "run",
+            "--rm",
             *sum((["-v", m] for m in umgebung["mounts"]), []),
-            *_pgbr_als_benutzer(umgebung["pgbackrest_image"],
-                                umgebung.get("run_user")),
-            "--stanza", stanza, "verify",
+            *_pgbr_als_benutzer(
+                umgebung["pgbackrest_image"], umgebung.get("run_user")
+            ),
+            "--stanza",
+            stanza,
+            "verify",
             # detail, weil erst auf dieser Stufe die WAL-Bereiche im Log
             # stehen - und damit die Luecken, um die es geht.
             "--log-level-console=detail",
@@ -1859,7 +2004,8 @@ def pgbackrest_verify(config, stanza, as_json, report_to, bench_config):
         # Anmelden eines neuen Kunden hier nichts nachgetragen werden, und es
         # kann auch nichts vergessen werden.
         bereiche = (
-            [stanza] if stanza
+            [stanza]
+            if stanza
             else sorted(
                 set(bench.get("stanzas") or {})
                 | set(envelope_areas(bench.get("envelope_dir")))
@@ -1940,7 +2086,8 @@ def pgbackrest_repo_verify(config, stanza, as_json, report_to, bench_config):
     with open(bench_config) as fh:
         bench = json.load(fh)
     bereiche = (
-        [stanza] if stanza
+        [stanza]
+        if stanza
         else sorted(
             set(bench.get("stanzas") or {})
             | set(envelope_areas(bench.get("envelope_dir")))
@@ -2155,32 +2302,43 @@ def _enroll_call(config, method, path, payload=None):
     ),
 )
 @click.option(
-    "--file", "datei", default=None,
+    "--file",
+    "datei",
+    default=None,
     type=click.Path(exists=True, dir_okay=False),
     help="the envelope itself (*.age)",
 )
 @click.option("--area", default=None, help="stanza; newest envelope wins")
 @click.option(
-    "--envelope-dir", "ordner", default=None,
+    "--envelope-dir",
+    "ordner",
+    default=None,
     type=click.Path(exists=True, file_okay=False),
     help="where the envelopes are, when --area is used",
 )
 @click.option(
-    "--age-key", "schluessel", default=None,
+    "--age-key",
+    "schluessel",
+    default=None,
     type=click.Path(exists=True, dir_okay=False),
     help="the PRIVATE age key",
 )
 @click.option(
-    "--bench-config", default=None,
+    "--bench-config",
+    default=None,
     type=click.Path(exists=True, dir_okay=False),
     help="take key and envelope directory from a bench config",
 )
 @click.option(
-    "--field", "feld", default="cipher_pass",
+    "--field",
+    "feld",
+    default="cipher_pass",
     help="which field to print (default: cipher_pass)",
 )
 @click.option(
-    "--list-fields", "auflisten", is_flag=True,
+    "--list-fields",
+    "auflisten",
+    is_flag=True,
     help="print the field NAMES only, no values",
 )
 @pass_config
@@ -2333,7 +2491,10 @@ def _selbst_freigeben(config, state):
             "Approving needs it; an admin has to take it from here."
         )
     secret = click.prompt(
-        "Enrolment secret (Zebroo)", hide_input=True, default="", show_default=False
+        "Enrolment secret (Zebroo)",
+        hide_input=True,
+        default="",
+        show_default=False,
     ).strip()
     if not secret:
         abort("No secret entered - nothing was approved.")
@@ -2452,7 +2613,8 @@ def pgbackrest_register(config, name, note, approve):
     if status == "pending":
         click.secho(
             f"Request {state['request_id']} for '{stanza}' is still awaiting "
-            "approval." + (f"\n{answer['note']}" if answer.get("note") else ""),
+            "approval."
+            + (f"\n{answer['note']}" if answer.get("note") else ""),
             fg="yellow",
         )
         return
@@ -2503,7 +2665,9 @@ def pgbackrest_register(config, name, note, approve):
     # EIGENE Vorgabe spaeter erneut zu erfragen - eine Aenderung dort erreicht
     # diese Maschine sonst nie.
     if answer.get("retention_token"):
-        update_setting(config, "PGBR_RETENTION_TOKEN", answer["retention_token"])
+        update_setting(
+            config, "PGBR_RETENTION_TOKEN", answer["retention_token"]
+        )
     _speichere_vorgabe(config, answer.get("retention") or {})
 
     # Second stream: the filestore goes to the write-only receiver. One
