@@ -83,30 +83,34 @@ CRONJOB_BACKUP_FILES=0 0 * * * odoo backup files /host/dumps/${DBNAME}.files; ls
 
 
 
-# Fehlende Anhaenge aus dem gemeinsamen Pool zurueckholen (nur bei
-# ODOO_FILES_COMMON=1, sonst steigt der Befehl still aus).
+# Link attachments an instance is missing back out of the shared pool (only
+# with ODOO_FILES_COMMON=1, the command exits quietly otherwise).
 #
-# Warum das HIER laeuft und nicht einmal pro Host: heilen ist
-# datenbankgetrieben, es liest ir_attachment.store_fname. Auf Maschinen, wo
-# jede Instanz ihren eigenen postgres-Container hat, erreicht nur die Instanz
-# selbst ihre Datenbank - ein zentraler Job kann die DB einer fremden Instanz
-# gar nicht befragen.
+# NOTE: on our CICD machines this entry never fires - instances there run
+# with RUN_CRONJOBS=0 and have no cronjobs container at all. The CICD
+# triggers the same command itself, per instance
+# (cicd.instance._cron_filestore_heal in Odoo-Ninjas/odoo-cicd). This entry
+# is for hosts that carry several instances WITHOUT a CICD on top.
 #
-# --no-dedup: umgekehrt gehoert das Deduplizieren dem Filestore-Root und
-# laeuft einmal pro Host (`odoo filestore install-cron`). Wuerde jede Instanz
-# auch deduplizieren, tasteten sich zwanzig Instanzen jede Nacht gegenseitig
-# den Filestore ab.
+# Why it runs HERE and not once per host: healing is database-driven, it
+# reads ir_attachment.store_fname. On machines where every instance has its
+# own postgres container, only the instance itself reaches its database - a
+# central job cannot query a foreign instance's DB at all.
 #
-# --wait: alle Instanzen eines Hosts teilen ein Lock. Ohne Warten wuerde beim
-# gleichzeitigen Start genau eine heilen und der Rest still aussteigen.
+# --no-dedup: deduplication in turn belongs to the filestore root and runs
+# once per host (`odoo filestore install-cron`). If every instance deduped
+# as well, twenty instances would walk each other's filestore every night.
 #
-# Wochentlich, nicht taeglich: seit die Instanzen ueber Hardlinks statt
-# Symlinks teilen, kann neuer Schaden strukturell nicht mehr entstehen - das
-# ist ein Netz fuer Altbestand, kein Reparaturdienst. Nach einem Restore
-# heilt ausserdem schon das CI-System.
+# --wait: all instances of a host share one lock. Without waiting, a
+# simultaneous start would let exactly one heal and the rest skip silently.
 #
-# Rein additiv: es entstehen nur fehlende Hardlinks. Eine Instanz ist damit
-# nie, auch nicht kurz, ohne Filestore, und es braucht keinen Neustart.
+# Weekly, not daily: since instances share by hardlink instead of symlink,
+# new damage cannot occur structurally - this is a net for what broke
+# earlier, not a repair service. After a restore the CI system heals anyway.
+#
+# Strictly additive: only missing hardlinks are created. An instance is
+# therefore never, not even briefly, without its filestore, and no restart
+# is needed.
 FILESTORE_HEAL_CRON=40 2 * * 0
 JOB_FILESTORE_HEAL=odoo filestore sync --no-dedup --wait
 CRONJOB_FILESTORE_HEAL=$FILESTORE_HEAL_CRON $JOB_FILESTORE_HEAL

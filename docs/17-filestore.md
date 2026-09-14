@@ -70,7 +70,7 @@ odoo filestore unshare --all  # ... for every symlinked db this postgres serves
 odoo filestore install-cron   # nightly dedup for the whole filestore root
 ```
 
-`sync` is the one to reach for. It runs, for the current project and in this
+`sync` is the one to reach for. On a CICD host it is mostly called for you: the CICD runs it after every restore and once a week per instance (`cicd.instance._cron_filestore_heal`). Elsewhere you run it yourself, or let `CRONJOB_FILESTORE_HEAL` do it. It runs, for the current project and in this
 order:
 
 1. **pull** (only with `--pull`): mirror missing files from

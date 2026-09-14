@@ -1164,17 +1164,17 @@ def _eval_setting_common_filestore(config, settings, globals):
     (welche Dateien zu welcher DB gehoeren, weiss nur die DB selbst) -
     'odoo filestore unshare' migriert sie ohne zusaetzlichen Platzbedarf.
 
-    Hier wird nur *gewarnt*, nicht gearbeitet. Das Verlinken selbst hing
-    frueher an dieser Stelle, war dort aber falsch aufgehaengt: der Pool
-    gehoert dem Filestore-Root, nicht einem Projekt, also hat ein 'reload' von
-    Instanz A den Filestore von Instanz B angefasst - ein Seiteneffekt, der mit
-    jeder weiteren Instanz teurer und unuebersichtlicher wird. 'reload' soll
-    schnell und vorhersagbar bleiben.
+    This only *warns*, it does not work. The linking itself used to happen
+    here, but it was hooked in the wrong place: the pool belongs to the
+    filestore root, not to a project, so a 'reload' of instance A touched the
+    filestore of instance B - a side effect that gets more expensive and less
+    obvious with every instance added. 'reload' is meant to stay fast and
+    predictable.
 
-    Stattdessen:
-      * 'odoo filestore sync'        - pro Projekt: heilen + deduplizieren
-      * 'odoo filestore install-cron'- naechtliches Dedup fuer den ganzen Root
-    Die Warnung hier kostet ein readdir, kein stat pro Datei.
+    Use instead:
+      * 'odoo filestore sync'         - per project: heal + dedup
+      * 'odoo filestore install-cron' - nightly dedup for the whole root
+    The warning here costs one readdir, not a stat per file.
     """
     if settings.get("ODOO_FILES_COMMON") != "1":
         return

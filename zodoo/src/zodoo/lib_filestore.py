@@ -118,6 +118,12 @@ def dedupe_into_common(db_dir, common_dir):
 def heal_from_common(db_dir, common_dir, store_fnames):
     """Link referenced files that are missing in ``db_dir`` back out of the pool.
 
+    Main caller is the CICD (``Odoo-Ninjas/odoo-cicd``): it runs
+    ``odoo filestore sync`` after every restore and from a weekly scheduled
+    action, once per instance. Keep the behaviour of this function and of the
+    ``sync`` command stable for it - on a CICD host this is what keeps tens of
+    thousands of attachments reachable.
+
     This is the counterpart of :func:`dedupe_into_common` and closes the gap
     the other two operations leave open: ``unshare`` repairs symlinks,
     ``dedupe_into_common`` removes duplicates, but a *real* per-database
@@ -449,7 +455,9 @@ def _pool_and_db_dir(config):
     help=(
         "One additive pass for this project: optionally pull missing files "
         "from FILESTORE_UPSTREAM into the pool, link back what the database "
-        "references but the instance is missing, then dedup into the pool."
+        "references but the instance is missing, then dedup into the pool. "
+        "Primarily driven by the CICD, which calls it after every restore "
+        "and weekly per instance."
     ),
 )
 @click.option(
