@@ -1,1 +1,3 @@
 RUN_CODING=0
+# Password for the /code gate. Empty in DEVMODE -> no gate.
+CODING_PASSWORD=

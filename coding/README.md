@@ -1,6 +1,6 @@
 # Coding Container
 
-Web-based VS Code (OpenVSCode Server) for Odoo development, accessible at `/code1/`.
+Web-based VS Code (OpenVSCode Server) for Odoo development, accessible at `/code/`.
 
 ## Enable
 
@@ -11,6 +11,18 @@ odoo reload
 odoo build coding coding_trigger --no-zodoo-pull
 odoo restart coding coding_trigger
 ```
+
+## Access
+
+`/code/` is guarded by the same password gate as `/system` (see
+`proxy/lua/dashauth.lua`): one password, no user name, a signed cookie
+afterwards. The password is `CODING_PASSWORD`; it is generated on the first
+`odoo reload` of a real instance and left empty in DEVMODE, where the gate
+stays open. Read it with `odoo setting CODING_PASSWORD`.
+
+This matters because the editor has a terminal on the machine. An instance
+that can be reached from the internet must not serve it to everyone who knows
+the host name.
 
 ## Architecture
 
@@ -42,7 +54,7 @@ Browser --> /code1/ --> [coding] openvscode-server (unprivileged user)
 
 | Endpoint   | Method | Action                      |
 | ---------- | ------ | --------------------------- |
-| `/restart` | POST   | Restart the odoo container  |
+| `/restart` | POST   | Put odoo back to normal (also ends a debug session) |
 | `/debug`   | POST   | Start odoo in debug mode    |
 | `/up`      | POST   | `docker compose up -d odoo` |
 | `/logs`    | POST   | Last 100 lines of odoo logs |
@@ -51,10 +63,15 @@ Browser --> /code1/ --> [coding] openvscode-server (unprivileged user)
 
 ## Debugging
 
-1. In `/code1/`, open the Run & Debug panel
+1. In `/code/`, open the Run & Debug panel
 2. Select "Attach Odoo (debugpy)"
-3. Press F5 -- this triggers `/debug` on the sidecar, which starts odoo with debugpy on port 5678
+3. Press F5 -- this triggers `/debug` on the sidecar, which restarts odoo with debugpy on
+   port 5678. Note that this **stops the running odoo** for a moment and leaves it waiting
+   for the debugger: on a production instance the site is down until you detach and restart.
 4. Set breakpoints in your code
+5. When you are done, run the task `restart:odoo` (or POST `/restart`). This recreates the
+   odoo container from the plain compose file and is what ends the debug session -- a plain
+   `docker compose restart` would leave odoo waiting for a debugger forever.
 
 ## Security
 
