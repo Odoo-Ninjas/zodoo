@@ -26,7 +26,13 @@ Two properties make this safe and cheap:
 
 - **Filestore names are the SHA1 of the content.** Equal name means equal
   content, so deduplicating by name cannot mix up data, and Odoo never
-  rewrites an existing file in place.
+  rewrites an existing file in place. That argument only holds for files that
+  actually carry such a name, so the pool takes nothing else: a file that is
+  not `<xx>/<40 or 64 hex>` stays in its database's own directory and is
+  reported as `not pooled (no attachment name)`. A forgotten dump or an editor
+  backup can carry the same name in two databases with different content, and
+  pooling it would hand one instance the other's data with no error anywhere.
+- **`checklist` stays private per database** (see below).
 - **A hardlink is not a copy.** The content exists once; each instance holds
   its own reference. Deleting one reference only decrements the link count —
   the data survives as long as any other instance still points at it.

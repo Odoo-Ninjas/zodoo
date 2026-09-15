@@ -34,6 +34,7 @@ safe: equal name means equal content.
 
 import contextlib
 import os
+import re
 from pathlib import Path
 
 import click
@@ -48,6 +49,21 @@ COMMON_DIR_NAME = "_common"
 # whole point of this module.
 CHECKLIST_DIR = "checklist"
 
+# What an attachment file looks like: ``<first two hex>/<hash>``, the layout
+# ir.attachment._full_path builds from the content checksum (sha1 today, so 40
+# hex; the 64 allows for sha256 without another release).
+#
+# Deduplication rests entirely on "equal name means equal content". That holds
+# for content-addressed names and for nothing else. A file that got into a
+# filestore directory by other means - a forgotten dump, an editor backup, a
+# tool that used the directory as scratch space - can carry the same name in
+# two databases with DIFFERENT content, and adopting it into the pool would
+# hardlink both to one inode: one instance would silently start reading the
+# other's data, with no error anywhere. Files that do not match are therefore
+# left where they are. They cost their own disk space, which is the correct
+# price for not being provably identical.
+ATTACHMENT_NAME = re.compile(r"^[0-9a-f]{2}/(?:[0-9a-f]{40}|[0-9a-f]{64})$")
+
 
 def _iter_files(directory):
     for dirpath, _, filenames in os.walk(directory):
@@ -58,6 +74,11 @@ def _iter_files(directory):
 def _relative_is_checklist(relative_path):
     parts = relative_path.parts
     return bool(parts) and parts[0] == CHECKLIST_DIR
+
+
+def _is_attachment(relative_path):
+    """Is this a content-addressed attachment file (and therefore poolable)?"""
+    return bool(ATTACHMENT_NAME.match(relative_path.as_posix()))
 
 
 def _replace_by_link_to(path, target):
@@ -85,12 +106,17 @@ def dedupe_into_common(db_dir, common_dir):
     Returns a stats dict. Idempotent - files that already share their inode
     with the pool are skipped by a single ``stat``, so repeated runs are cheap.
     """
-    stats = {"adopted": 0, "linked": 0, "shared": 0, "failed": 0}
+    stats = {"adopted": 0, "linked": 0, "shared": 0, "failed": 0, "foreign": 0}
     common_dir.mkdir(parents=True, exist_ok=True)
 
     for path in _iter_files(db_dir):
         relative_path = path.relative_to(db_dir)
         if _relative_is_checklist(relative_path):
+            continue
+        if not _is_attachment(relative_path):
+            # Not content-addressed -> equal name is no proof of equal
+            # content. See ATTACHMENT_NAME above.
+            stats["foreign"] += 1
             continue
         target = common_dir / relative_path
         try:
@@ -287,7 +313,12 @@ def dedup(config):
         click.secho(
             f"{entry.name}: {stats['adopted']} adopted, "
             f"{stats['linked']} linked, {stats['shared']} already shared, "
-            f"{stats['failed']} skipped",
+            f"{stats['failed']} skipped"
+            + (
+                f", {stats['foreign']} not pooled (no attachment name)"
+                if stats.get("foreign")
+                else ""
+            ),
             fg="green",
         )
 
@@ -570,7 +601,12 @@ def sync(config, heal, dedup, pull, dry_run, wait):
             click.secho(
                 f"{db_dir.name}: {stats['adopted']} adopted, "
                 f"{stats['linked']} linked, {stats['shared']} already shared, "
-                f"{stats['failed']} skipped",
+                f"{stats['failed']} skipped"
+                + (
+                    f", {stats['foreign']} not pooled (no attachment name)"
+                    if stats.get("foreign")
+                    else ""
+                ),
                 fg="green",
             )
 
