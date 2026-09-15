@@ -271,8 +271,24 @@ def _odoo_command(cmd_str):
         return _dc(*parts)
 
 
+def _normal():
+    """Bring odoo back to its normal command after a debug run.
+
+    `docker compose restart` keeps the container as it is, and a container
+    started by /debug runs odoo under `--wait-for-client`: it serves nothing
+    until a debugger attaches. Restarting it therefore does NOT end the debug
+    session -- the instance simply stays down, which on a production machine
+    means the site is offline with no obvious way back.
+
+    Recreating from the plain compose file (without the debug override) is
+    that way back, so /restart uses it. It costs a container recreate instead
+    of a restart; that is the price of the button doing what it says.
+    """
+    return _dc("up", "-d", "--force-recreate", "odoo")
+
+
 ACTIONS = {
-    "/restart": lambda: _dc("restart", "odoo"),
+    "/restart": _normal,
     "/debug": _debug,
     "/up": lambda: _dc("up", "-d", "odoo"),
     "/logs": lambda: _dc("logs", "--tail=100", "odoo"),
