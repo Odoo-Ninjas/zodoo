@@ -111,6 +111,23 @@ image is gone, so these commands are unavailable or behave differently:
 | `LIMIT_MEMORY_HARD_CRON`      | `18 GB` | Hard memory limit for cron worker.        |
 | `LIMIT_MEMORY_HARD_UPDATE`    | `88 GB` | Memory limit during module updates.       |
 
+Those are Odoo's own limits and are only enforced in prefork mode, where
+the master watches its workers. The cron and queuejob roles run with
+`workers = 0`, so nothing enforces them there. The settings below are
+Docker limits on the container itself and work regardless — when the
+limit is hit, that container is killed and restarted instead of the
+kernel OOM killer picking a victim on the whole host.
+
+| Setting                   | Default | Description                                                      |
+| ------------------------- | ------- | ---------------------------------------------------------------- |
+| `MEM_LIMIT_ODOO`          | —       | Container memory limit for the odoo container(s), e.g. `16g`.    |
+| `MEM_LIMIT_ODOO_WEB`      | —       | Overrides `MEM_LIMIT_ODOO` for the web role.                     |
+| `MEM_LIMIT_ODOO_CRON`     | —       | Overrides `MEM_LIMIT_ODOO` for the cron role (v11/v13).          |
+| `MEM_LIMIT_ODOO_QUEUEJOBS`| —       | Overrides `MEM_LIMIT_ODOO` for the queuejob role (v11/v13).      |
+
+Unset = unlimited (the default). `odoo_update` and `odoo_debug` are never
+limited — updates and migrations are expected to be memory hungry.
+
 ## APT Proxy (build acceleration)
 
 | Setting          | Description                                                                 |
