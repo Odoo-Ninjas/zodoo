@@ -1,0 +1,3 @@
+type: feature
+description: "alloy schreibt nur noch die Container-Logs des eigenen Projekts mit statt aller Container der Maschine (Schalter DASHBOARD_LOGS_ALL_CONTAINERS=1 fuer das alte Verhalten)"
+breaking: false
