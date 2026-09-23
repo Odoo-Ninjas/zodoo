@@ -11,6 +11,7 @@ Netz) deckt der bake-Test ab, nicht diese Datei.
 from __future__ import annotations
 
 import importlib.util
+import re
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
@@ -250,3 +251,72 @@ def test_ohne_docker_passiert_nichts(monkeypatch):
     monkeypatch.setattr(mod.shutil, "which", lambda name: None)
     mod.ensure()
     assert fake.aufrufe == []
+
+
+# ---------------------------------------------------------------------------
+# alloy: jede Instanz schreibt nur noch ihre eigenen Container-Logs mit.
+# ---------------------------------------------------------------------------
+
+
+def _yml_mit_alloy():
+    return {"services": {"alloy": {"image": "grafana/alloy"}}}
+
+
+def _regex(yml):
+    return yml["services"]["alloy"]["environment"][
+        "DASHBOARD_LOGS_PROJECT_REGEX"
+    ]
+
+
+def test_alloy_bekommt_den_eigenen_projektnamen():
+    ac = _after_compose()
+    yml = _yml_mit_alloy()
+    ac._alloy_projektfilter(
+        yml, SimpleNamespace(project_name="kunde_prod"), {}
+    )
+    assert _regex(yml) == "kunde_prod"
+
+
+def test_alloy_schalter_fuer_alle_container():
+    ac = _after_compose()
+    yml = _yml_mit_alloy()
+    ac._alloy_projektfilter(
+        yml,
+        SimpleNamespace(project_name="kunde_prod"),
+        {"DASHBOARD_LOGS_ALL_CONTAINERS": "1"},
+    )
+    assert _regex(yml) == ".*"
+
+
+def test_alloy_ohne_projektnamen_filtert_nicht():
+    """Ein zu enger Filter hiesse: keine Logs, und zwar lautlos."""
+    ac = _after_compose()
+    yml = _yml_mit_alloy()
+    ac._alloy_projektfilter(yml, SimpleNamespace(project_name=None), {})
+    assert _regex(yml) == ".*"
+
+
+def test_alloy_projektname_wird_maskiert():
+    """Projektnamen duerfen Punkte enthalten -- als Regex waeren das Joker."""
+    ac = _after_compose()
+    yml = _yml_mit_alloy()
+    ac._alloy_projektfilter(
+        yml, SimpleNamespace(project_name="zsync-ehem.-zync"), {}
+    )
+    assert _regex(yml) == re.escape("zsync-ehem.-zync")
+
+
+def test_alloy_config_filtert_und_faellt_zurueck():
+    """Die Regel muss die Ziele aussortieren (output), nicht nur umbenennen.
+
+    Und ohne die Variable bleibt es beim alten Verhalten: die Datei liegt im
+    gemeinsamen images-Verzeichnis und ist nach einem `git pull` sofort
+    aktiv, die Compose-Datei einer Instanz erst nach `odoo reload`.
+    """
+    text = (REPO_ROOT / "dashboard" / "config" / "config.alloy").read_text()
+    assert (
+        'regex         = coalesce(sys.env("DASHBOARD_LOGS_PROJECT_REGEX"), ".*")'
+        in text
+    )
+    assert "__meta_docker_container_label_com_docker_compose_project" in text
+    assert "targets       = discovery.relabel.containers.output" in text

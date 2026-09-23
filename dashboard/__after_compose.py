@@ -114,6 +114,39 @@ def _nur_eigene_container(daten, projekt):
         ]
 
 
+def _alloy_projektfilter(yml, config, settings):
+    """alloy sagen, wessen Container-Logs es mitschreiben soll.
+
+    Der Name muss von hier kommen und nicht aus der alloy-Config: dort steht
+    nur, DASS gefiltert wird. Genommen wird der Projektname, den zodoo auch
+    docker compose gibt -- das ist derselbe, der als Label
+    `com.docker.compose.project` an jedem Container haengt.
+
+    Ist er nicht zu ermitteln, wird NICHT gefiltert. Ein zu enger Filter
+    hiesse: keine Logs mehr, und zwar lautlos -- das Dashboard sieht dann
+    aus wie eine Instanz, in der nichts passiert.
+    """
+    dienst = (yml.get("services") or {}).get("alloy")
+    if not dienst:
+        return
+
+    if _truthy(settings.get("DASHBOARD_LOGS_ALL_CONTAINERS", "0")):
+        regex = ".*"
+    else:
+        projekt = getattr(config, "project_name", None) or _wert(
+            settings, "PROJECT_NAME"
+        )
+        regex = re.escape(projekt) if projekt else ".*"
+
+    umgebung = dienst.setdefault("environment", {})
+    if isinstance(umgebung, list):
+        # Nach `docker compose config` sollte es ein dict sein; die Liste
+        # gibt es in aelteren Staenden noch.
+        umgebung.append(f"DASHBOARD_LOGS_PROJECT_REGEX={regex}")
+    else:
+        umgebung["DASHBOARD_LOGS_PROJECT_REGEX"] = regex
+
+
 def _rendern(settings, run_dir):
     """Die Vorlage lesen, ergaenzen und nur bei Aenderung schreiben."""
     import yaml
@@ -225,6 +258,7 @@ def after_compose(config, settings, yml, globals):
 
     run_dir = Path(settings["HOST_RUN_DIR"])
     _textfile_einhaengen(yml, run_dir)
+    _alloy_projektfilter(yml, config, settings)
 
     dienst = (yml.get("services") or {}).get("prometheus")
     if not dienst:

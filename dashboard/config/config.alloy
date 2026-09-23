@@ -15,18 +15,31 @@ loki.write "default" {
 }
 
 /////////////////////////////////////////////////////////////////////////////
-// 1) All container logs -> Loki
+// 1) Container logs -> Loki
 //
-// MULTI-TENANCY CAVEAT: discovery.docker sees EVERY container on the host, so
-// on a host that runs several zodoo projects this Loki ingests all of their
-// logs. The dashboards scope to the current project via the `container=~
-// "$project.*"` selectors, but a user could still read other projects' logs
-// via Grafana Explore (/logs2). On the usual one-project-per-host/VM zodoo
-// deploy this is a non-issue. To harden multi-tenant hosts, add a relabel
-// `keep` rule below filtering __meta_docker_container_label_com_docker_compose_project
-// to this project -- that needs the project name available in the alloy
-// container env (currently absent), so it is a follow-up that must be tested
-// live before shipping.
+// discovery.docker sieht JEDEN Container der Maschine, nicht nur die des
+// eigenen Projekts. Bis September 2026 hat deshalb jede Instanz die Logs
+// aller anderen mitgeschrieben: auf cicd-3dm lasen sechs alloy dieselben
+// 123 Container und legten sie in sechs Lokis ab -- zusammen rund 9 GB im
+// Wesentlichen derselben Zeilen. Und wer an ein Grafana einer Instanz kam
+// (/logs2), las damit die Logs aller Projekte der Maschine mit.
+//
+// Deshalb die keep-Regel unten: behalten wird, was zum eigenen
+// Compose-Projekt gehoert. Den Namen setzt zodoo beim Erzeugen der
+// Compose-Datei als DASHBOARD_LOGS_PROJECT_REGEX an diesen Dienst
+// (dashboard/__after_compose.py).
+//
+// Das coalesce ist kein Schmuck: diese Datei liegt im gemeinsamen
+// images-Verzeichnis und ist nach einem `git pull` sofort aktiv, die
+// Compose-Datei einer Instanz entsteht aber erst beim naechsten `odoo
+// reload`. In der Luecke dazwischen gibt es die Variable noch nicht -- ein
+// leerer Regex wuerde auf "nur Container ohne Projekt-Label" hinauslaufen,
+// und die Logs waeren still weg. Ohne Variable bleibt es deshalb beim
+// alten Verhalten.
+//
+// Alle Container der Maschine will man trotzdem manchmal sehen (etwa auf
+// einer Maschine, auf der auch Nicht-zodoo-Container laufen): dafuer gibt
+// es DASHBOARD_LOGS_ALL_CONTAINERS=1.
 /////////////////////////////////////////////////////////////////////////////
 discovery.docker "containers" {
   host = "unix:///var/run/docker.sock"
@@ -35,6 +48,11 @@ discovery.docker "containers" {
 discovery.relabel "containers" {
   targets = discovery.docker.containers.targets
 
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    regex         = coalesce(sys.env("DASHBOARD_LOGS_PROJECT_REGEX"), ".*")
+    action        = "keep"
+  }
   rule {
     source_labels = ["__meta_docker_container_name"]
     regex         = "/?(.*)"
@@ -48,8 +66,7 @@ discovery.relabel "containers" {
 
 loki.source.docker "containers" {
   host          = "unix:///var/run/docker.sock"
-  targets       = discovery.docker.containers.targets
-  relabel_rules = discovery.relabel.containers.rules
+  targets       = discovery.relabel.containers.output
   labels        = { job = "docker" }
   forward_to    = [loki.write.default.receiver]
 }
