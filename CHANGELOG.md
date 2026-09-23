@@ -1,5 +1,10 @@
 # Changelog
 
+## 11.6.0
+
+- **Feature**: cadvisor laeuft einmal je Maschine (Behaelter zodoo_cadvisor im Netz zodoo_monitoring) statt einmal je Instanz; Prometheus jeder Instanz haengt sich dazu und behaelt nur die eigenen Container
+
+
 ## 11.5.2
 
 - **Docs**: Filestore: comments and docs now state who drives `odoo filestore sync` - the CICD calls it after every restore and weekly per instance, so its behaviour must stay stable for that caller. Also noted in cronjobs/default.settings that CRONJOB_FILESTORE_HEAL never fires on CICD machines (instances there run with RUN_CRONJOBS=0 and have no cronjobs container); that entry is meant for hosts carrying several instances without a CICD on top. Comments that were still German are translated - code comments are English.

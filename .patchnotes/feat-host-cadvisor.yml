@@ -1,3 +1,0 @@
-type: feature
-description: "cadvisor laeuft einmal je Maschine (Behaelter zodoo_cadvisor im Netz zodoo_monitoring) statt einmal je Instanz; Prometheus jeder Instanz haengt sich dazu und behaelt nur die eigenen Container"
-breaking: false
