@@ -2,6 +2,18 @@
 # Monitoring dashboard stack. Enabled via RUN_DASHBOARD=1 (default).
 # Grafana is published through the proxy under /system (see proxy/dashboard.conf),
 # all other components stay internal (expose only, no host ports).
+#
+# cadvisor steht NICHT hier drin: er misst alle Container der Maschine, nicht
+# die eines Projekts, und lief deshalb bisher so oft wie es Instanzen gibt --
+# auf cicd-3dm fuenfmal dieselbe Arbeit an denselben 99 Containern. Es laeuft
+# jetzt genau einer je Maschine (Behaelter `zodoo_cadvisor` im Netz
+# `zodoo_monitoring`), angelegt von zodoo beim `up`; siehe
+# zodoo/src/zodoo/lib_host_cadvisor.py. Prometheus haengt dafuer zusaetzlich
+# in diesem Netz.
+networks:
+  zodoo_monitoring:
+    external: true
+    name: zodoo_monitoring
 volumes:
   dashboard_grafana_data:
   dashboard_prometheus_data:
@@ -60,6 +72,11 @@ services:
       - --web.enable-lifecycle
     expose:
       - 9090
+    # default = das Netz der eigenen Instanz (alle anderen Messpunkte),
+    # zodoo_monitoring = der gemeinsame cadvisor der Maschine.
+    networks:
+      - default
+      - zodoo_monitoring
     volumes:
       - $ODOO_IMAGES/dashboard/config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - dashboard_prometheus_data:/prometheus
@@ -94,45 +111,6 @@ services:
       # persist log-tail positions so a container recreation doesn't re-ship
       # the whole container-log history
       - dashboard_alloy_data:/var/lib/alloy/data
-
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.49.1
-    restart: unless-stopped
-    privileged: true
-    # Auf Hosts mit Docker-zfs-Storage-Driver ermittelt cadvisor die
-    # Dateisystem-Metriken pro Container ueber ZFS-Abfragen und iteriert dabei
-    # ueber tausende Layer-Datasets. Ergebnis: der cadvisor-Prozess und zwei
-    # zfs-Prozesse laufen dauerhaft mit 100% CPU.
-    # Gemessen auf hy-odooprod: 7 Tage 14 h CPU-Zeit in 13 Tagen Laufzeit,
-    # also permanent ein ganzer Kern pro Instanz. Mit zwei Instanzen lag die
-    # Maschine bei Load 14 statt 2,5 und SSH-Verbindungen brachen weg.
-    #
-    # disk/diskIO liefern container_fs_* und container_blkio_*. Den
-    # Pool-Fuellstand und die ZFS-Statistik deckt der node_exporter ohnehin ab
-    # (node_filesystem_*, node_zfs_* - 266 Metriken), und das ist die Ebene,
-    # die fuer Kapazitaet zaehlt. Der Verbrauch pro Container-Layer ist dafuer
-    # redundant.
-    # housekeeping_interval: Default ist 1s - fuer Container-CPU/RAM/Netz
-    # braucht das niemand.
-    #
-    # Wirkung (gemessen): CPU pro cadvisor von >100% auf 0,8-3%, CPU-Zeit von
-    # ~14 h/Tag auf ~40 min/Tag, dauerhafte zfs-Prozesse auf null. Es bleiben
-    # container_cpu_*, container_memory_* und die Netzwerk-Metriken, damit sind
-    # vier der sechs Panels in zodoo-overview.json weiter befuellt; leer bleiben
-    # nur die beiden container_fs_*-Panels.
-    command:
-      - --disable_metrics=disk,diskIO
-      - --housekeeping_interval=30s
-      - --docker_only=true
-      - --store_container_labels=false
-    expose:
-      - 8080
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /sys:/sys:ro
-      - /var/lib/docker:/var/lib/docker:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
 
   node_exporter:
     image: prom/node-exporter:v1.8.2

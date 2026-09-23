@@ -241,6 +241,15 @@ def up(
     allow_build=False,
 ):
     machines = list(machines)
+    # Der cadvisor gehoert der Maschine, nicht der Instanz: einer fuer alle,
+    # in einem eigenen Netz, das die Instanzen als `external` einbinden.
+    # Muss vor dem compose-up passieren -- ohne das Netz faehrt keine
+    # Instanz mit RUN_DASHBOARD=1 hoch. Siehe lib_host_cadvisor.
+    if config.RUN_DASHBOARD:
+        from .lib_host_cadvisor import ensure as _ensure_host_cadvisor
+
+        _ensure_host_cadvisor(config)
+
     # Redirect legacy service names to the in-container supervisor (v14+).
     legacy, machines = _legacy_role_match(config, machines)
     for m in legacy:
