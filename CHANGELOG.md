@@ -1,5 +1,10 @@
 # Changelog
 
+## 11.7.0
+
+- **Feature**: alloy schreibt nur noch die Container-Logs des eigenen Projekts mit statt aller Container der Maschine (Schalter DASHBOARD_LOGS_ALL_CONTAINERS=1 fuer das alte Verhalten)
+
+
 ## 11.6.0
 
 - **Feature**: cadvisor laeuft einmal je Maschine (Behaelter zodoo_cadvisor im Netz zodoo_monitoring) statt einmal je Instanz; Prometheus jeder Instanz haengt sich dazu und behaelt nur die eigenen Container
