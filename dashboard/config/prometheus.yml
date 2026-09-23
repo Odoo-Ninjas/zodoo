@@ -7,10 +7,14 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
 
-  # Container CPU / RAM / network / disk IO
+  # Container CPU / RAM / network. Einer je Maschine, nicht je Instanz
+  # (Behaelter `zodoo_cadvisor` im Netz `zodoo_monitoring`, angelegt von
+  # zodoo beim `up` -- siehe zodoo/src/zodoo/lib_host_cadvisor.py). Er
+  # liefert ALLE Container der Maschine; welche davon behalten werden,
+  # haengt __after_compose.py als metric_relabel_configs an.
   - job_name: cadvisor
     static_configs:
-      - targets: ["cadvisor:8080"]
+      - targets: ["zodoo_cadvisor:8080"]
 
   # Host / VM CPU, memory, filesystem, disk IO
   - job_name: node

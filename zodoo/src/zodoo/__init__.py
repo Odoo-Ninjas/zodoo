@@ -38,6 +38,7 @@ from . import lib_composer  # NOQA
 from . import lib_backup  # NOQA
 from . import lib_backup_metrics  # NOQA
 from . import lib_control  # NOQA
+from . import lib_host_cadvisor  # NOQA
 from . import lib_db  # NOQA
 from . import lib_db_snapshots  # NOQA
 from . import lib_filestore  # NOQA
