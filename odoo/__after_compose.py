@@ -415,7 +415,7 @@ def _check_fonttools_requirement(
             return
 
     click.secho(
-        "\nOdoo 19: fonttools is not listed in requirements.txt but is required "
+        "\nOdoo 19+: fonttools is not listed in requirements.txt but is required "
         "for correct font/PDF rendering. zodoo can add it to requirements.static.",
         fg="yellow",
     )

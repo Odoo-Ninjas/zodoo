@@ -38,7 +38,7 @@ on:
       versions:
         description: "Comma-separated Odoo versions (e.g. 17.0,19.0)"
         required: false
-        default: "19.0"
+        default: "19.0,20.0"
         type: string
   schedule:
     # Montags vor der Arbeitszeit -- so ist der Bestand zu Wochenbeginn frisch.
@@ -59,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
-      VERSIONS: ${{ github.event.inputs.versions || '19.0' }}
+      VERSIONS: ${{ github.event.inputs.versions || '19.0,20.0' }}
     steps:
       - uses: actions/checkout@v4
 

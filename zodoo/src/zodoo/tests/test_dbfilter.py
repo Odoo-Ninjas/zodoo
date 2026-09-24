@@ -12,7 +12,7 @@ import re
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-TEMPLATE_VERSIONS = ["12", "13", "14", "15", "16", "17", "18", "19"]
+TEMPLATE_VERSIONS = ["12", "13", "14", "15", "16", "17", "18", "19", "20"]
 
 
 def _template(version):
