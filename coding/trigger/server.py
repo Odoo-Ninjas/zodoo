@@ -6,6 +6,7 @@ The coding container calls these endpoints instead of having Docker access.
 
 import base64
 import os
+import re
 import socket
 import subprocess
 import json
@@ -235,6 +236,57 @@ def _wait_for_postgres():
     }
 
 
+# What is allowed to come in through /odoo-command.
+#
+# The trigger holds the Docker socket, the `coding` container does not -- it
+# calls in here over HTTP. That makes this list the actual boundary:
+# everything that gets through runs with the socket's rights, and that is the
+# whole host. On a machine with several customers, too wide a gap is the
+# direct route to the neighbour -- `run -v /:/host` is enough.
+#
+# So we do not look for what is forbidden, we only let known things through:
+# one list of allowed flags per verb, everything else has to be a plain name
+# (a service or a module). An argument starting with a dash that is not in
+# the list aborts -- which keeps -v, --entrypoint, --privileged, -p and -f
+# out from the start, without having to enumerate them.
+ALLOWED_FLAGS = {
+    "up": {"-d", "--no-recreate", "--force-recreate", "--no-build"},
+    "kill": set(),
+    "restart": set(),
+    "stop": set(),
+    "logs": {"--no-color"},
+    "ps": set(),
+    "update": set(),
+    "setting": set(),
+    "wait-for-container-postgres": set(),
+}
+
+# Service and module names: letters, digits, dot, dash, underscore -- and
+# never starting with a dash, which would make it a flag.
+NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+class Rejected(Exception):
+    """The command lies outside what the trigger is allowed to run."""
+
+
+def _check(verb, args):
+    """Let through only what fits the verb. Raises Rejected otherwise."""
+    allowed = ALLOWED_FLAGS[verb]
+    for arg in args:
+        if arg.startswith("-"):
+            # --tail=100 carries its value itself; without that the number
+            # would be a separate argument and would have to pass as a name.
+            if verb == "logs" and re.match(r"^--tail=[0-9]{1,5}$", arg):
+                continue
+            if arg not in allowed:
+                raise Rejected(f"Flag {arg!r} is not available for {verb!r}.")
+            continue
+        if not NAME.match(arg):
+            raise Rejected(f"{arg!r} is not a valid name.")
+    return args
+
+
 def _odoo_command(cmd_str):
     """Execute a docker-compose command derived from an odoo CLI command string.
 
@@ -242,33 +294,45 @@ def _odoo_command(cmd_str):
       up -d [--no-recreate] [service]  -> docker compose up -d [--no-recreate] [service]
       kill <service>                    -> docker compose kill <service>
       restart <service>                 -> docker compose restart <service>
+      stop <service>                    -> docker compose stop <service>
+      logs [--tail=N] <service>         -> docker compose logs <service>
+      ps                                -> docker compose ps
       wait-for-container-postgres       -> pg_isready loop
       update <module>                   -> docker compose run --rm odoo odoo update <module>
       setting                           -> docker compose exec -T odoo odoo setting
+
+    Anything else is rejected -- see ALLOWED_FLAGS.
     """
     import shlex
 
-    parts = shlex.split(cmd_str)
+    try:
+        parts = shlex.split(cmd_str)
+    except ValueError as ex:
+        return {"returncode": 1, "stdout": "", "stderr": f"Unreadable: {ex}"}
     if not parts:
         return {"returncode": 1, "stdout": "", "stderr": "Empty command"}
 
     verb = parts[0]
+    if verb not in ALLOWED_FLAGS:
+        return {
+            "returncode": 1,
+            "stdout": "",
+            "stderr": "%r is not available here. Possible: %s"
+            % (verb, ", ".join(sorted(ALLOWED_FLAGS))),
+        }
+
+    try:
+        args = _check(verb, parts[1:])
+    except Rejected as ex:
+        return {"returncode": 1, "stdout": "", "stderr": str(ex)}
 
     if verb == "wait-for-container-postgres":
         return _wait_for_postgres()
-    elif verb == "up":
-        return _dc(*parts)
-    elif verb == "kill":
-        return _dc(*parts)
-    elif verb == "restart":
-        return _dc(*parts)
     elif verb == "update":
-        modules = parts[1:]
-        return _dc("exec", "-T", "odoo", "odoo", "update", *modules)
+        return _dc("exec", "-T", "odoo", "odoo", "update", *args)
     elif verb == "setting":
         return _dc("exec", "-T", "odoo", "odoo", "setting")
-    else:
-        return _dc(*parts)
+    return _dc(verb, *args)
 
 
 def _normal():
