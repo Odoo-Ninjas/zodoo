@@ -1,5 +1,14 @@
 # Changelog
 
+## 11.7.1
+
+- **Fix**: The editor (coding) can no longer reach the machine it runs on. Until now the coding_trigger accepted any docker-compose subcommand coming from the editor -- `odoo run --rm -v /:/host odoo bash` was enough to mount the host's root directory. On a machine hosting several instances that laid open the database, filestore and backup passphrase of the neighbours.
+
+  What you see in the editor terminal: `odoo restart`, `odoo up -d`, `odoo update <module>`, `odoo stop`, `odoo logs`, `odoo ps` and `odoo setting` keep working as before. Anything else is now rejected with a message naming what is possible -- as is any flag that does not belong to the command (such as -v, --entrypoint, --privileged, -p, -f).
+
+  On top of that /opt/run, /opt/images and /opt/zodoo are read-only in the editor now; /opt/src, the source code, stays writable. Anyone who used to work on zodoo itself from inside the editor does that outside it from now on. To check: run `touch /opt/zodoo/x` in the editor terminal -- it has to report "Read-only file system".
+
+
 ## 11.7.0
 
 - **Feature**: alloy schreibt nur noch die Container-Logs des eigenen Projekts mit statt aller Container der Maschine (Schalter DASHBOARD_LOGS_ALL_CONTAINERS=1 fuer das alte Verhalten)
