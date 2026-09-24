@@ -1,5 +1,10 @@
 # Changelog
 
+## 11.8.0
+
+- **Feature**: Odoo 20.0 support: `odoo src init <dir> 20.0` creates a project (Ubuntu 22.04 base, Python 3.12.11, same image layout as 19.0). OCA/queue is disabled in the 20.0 template until OCA publishes a 20.0 branch. ODOO_DEMO=1 now works independent of the Odoo version. Weekly image prebuild covers 19.0 and 20.0.
+
+
 ## 11.7.1
 
 - **Fix**: The editor (coding) can no longer reach the machine it runs on. Until now the coding_trigger accepted any docker-compose subcommand coming from the editor -- `odoo run --rm -v /:/host odoo bash` was enough to mount the host's root directory. On a machine hosting several instances that laid open the database, filestore and backup passphrase of the neighbours.
