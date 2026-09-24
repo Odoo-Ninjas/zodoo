@@ -1,0 +1,172 @@
+ARG TARGETARCH
+ARG BASE_IMAGE=ubuntu:22.04
+ARG ODOO_VERSION
+ARG ODOO_PROJECT_REQUIREMENTS
+ARG ODOO_PROJECT_DEB_REQUIREMENTS
+ARG ODOO_PYTHON_VERSION
+ARG ODOO_CONFIG_DIR
+ARG CUSTOMS_SHA
+ARG ZODOO_REGISTRY_URL=registry.zebroo.de
+
+
+# --------------------------------------------------------------------
+# PYTHON (prebuilt from zodoo registry — build via ~/.odoo/images/python_prebuilt/build.sh)
+# --------------------------------------------------------------------
+FROM ${ZODOO_REGISTRY_URL}/zodoo/python:${ODOO_PYTHON_VERSION}-${TARGETARCH} AS python_builder
+
+
+# --------------------------------------------------------------------
+# PYTHON PIP PACKAGES
+# --------------------------------------------------------------------
+FROM $BASE_IMAGE AS build_pip
+ARG ODOO_PROJECT_DEB_REQUIREMENTS
+ARG ODOO_PROJECT_REQUIREMENTS
+ARG ODOO_FRAMEWORK_REQUIREMENTS
+
+ENV VIRTUAL_ENV=/opt/venv/env
+ENV PATH="/opt/venv/bin:$PATH"
+
+
+#___SNIPPET_APT_PROXY___
+#___SNIPPET_UPDATE_CA_CERTIFICATES___
+#___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
+RUN #___SNIPPET_APT_INSTALL___ \
+    build-essential \
+    libxml2-dev \
+    libxslt1-dev \
+    libcups2-dev \
+    libpq-dev \
+    libsasl2-dev \
+    python-dev-is-python3 \
+    libldap2-dev \
+    libssl-dev \
+    libpoppler-cpp-dev \
+    pkg-config \
+    libfreetype6-dev \
+    freetds-dev  \
+    libffi-dev \
+    libkrb5-dev \
+    cmake \
+    git \
+    gcc \
+    libcairo2-dev \
+    libcairo2 \
+    meson \
+    ninja-build
+
+#___SNIPPET_DEB_REQUIREMENTS___
+
+#___SNIPPET_PYTHON_INSTALL___
+
+#___SNIPPET_SETUP_PYTHON_VENV___
+
+RUN pip3 install pip -U
+RUN pip3 install $(cat /etc/pip_options) wheel && \
+#___SNIPPET_SETUPTOOLS_SAFEVERSION___
+
+RUN pip3 install meson-python ninja
+
+RUN echo "$ODOO_PROJECT_REQUIREMENTS"  | base64 --decode > /root/project_requirements.txt
+RUN pip3 install $(cat /etc/pip_options) -r /root/project_requirements.txt --force --force-reinstall --ignore-installed
+
+RUN echo "$ODOO_FRAMEWORK_REQUIREMENTS"  | base64 --decode > /root/framework_requirements.txt
+RUN pip3 install $(cat /etc/pip_options) -r /root/framework_requirements.txt
+
+RUN pip3 install $(cat /etc/pip_options) pudb ipython debugpy
+
+#___SNIPPET_OPENUPGRADELIB___
+
+
+
+# --------------------------------------------------------------------
+# ODOO
+# --------------------------------------------------------------------
+FROM $BASE_IMAGE
+ARG TARGETARCH
+ARG ODOO_VERSION
+ARG ODOO_PROJECT_REQUIREMENTS
+ARG ODOO_PROJECT_DEB_REQUIREMENTS
+ARG ODOO_PYTHON_VERSION
+ARG CUSTOMS_SHA
+
+#___SNIPPET_CHECK_SHA___
+
+ENV PIP_NO_CACHE_DIR=no
+ENV LANG=C.UTF-8
+
+#___SNIPPET_APT_PROXY___
+#___SNIPPET_UPDATE_CA_CERTIFICATES___
+#___SNIPPET_UBUNTU_ARCHIVES_HTTPS___
+RUN #___SNIPPET_APT_INSTALL___ \
+            man \
+            htop \
+            ca-certificates \
+            curl \
+            node-less \
+            node-clean-css \
+            tmux \
+            libfreetype6 \
+            libpng16-16 \
+            libjpeg-turbo8 \
+            ssh \
+            mc \
+            libfontconfig \
+            rsync \
+            psmisc \
+            lsof \
+            git \
+            sudo \
+            less \
+            libct4 \
+            make \
+            wget \
+            cifs-utils \
+            imagemagick \
+            cups \
+            locales \
+            zip \
+            gpg-agent \
+            pdftk \
+            python3-gi \
+            python3-click \
+            python3-gi-cairo \
+            python3-cairo \
+            gir1.2-gtk-3.0 \
+            libmagic1 \
+            libcups2 \
+            libpoppler-cpp0v5 \
+            postgresql-client \
+            sassc \
+            time \
+            xfonts-75dpi \
+            xfonts-base \
+            libgeos-c1v5 \
+            vim \
+            fontconfig \
+            libcairo2
+
+COPY liberation-sans /usr/share/fonts/
+# rebuild font cache
+RUN fc-cache -f -v
+RUN locale-gen en_US.UTF-8 && dpkg-reconfigure locales
+
+#___SNIPPET_WKHTML2PDF___
+
+#___SNIPPET_NODEJS___
+
+RUN \
+chown odoo:odoo /home/odoo -R && \
+rm -Rf /usr/local/man && mkdir -p /usr/local/man/man1
+
+#___SNIPPET_DEB_REQUIREMENTS___
+
+#___SNIPPET_PYTHON_INSTALL___
+
+#___SNIPPET_TRANSFER_VENV___
+
+
+WORKDIR /opt/odoo
+
+#___SNIPPET_COPY_OPENUPGRADE_LIB___
+
+#___SNIPPET_M1_BUG___
