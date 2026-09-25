@@ -1,7 +1,3 @@
----
-sidebar_position: 9
----
-
 # MANIFEST File
 
 The `MANIFEST` file lives at the **project root** and controls which Odoo modules are installed and which addon paths are active. It is a Python dict literal (not JSON — comments and trailing commas are allowed).

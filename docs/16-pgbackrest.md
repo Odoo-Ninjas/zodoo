@@ -1,7 +1,3 @@
----
-sidebar_position: 17
----
-
 # Database backup and point-in-time recovery (pgBackRest)
 
 `RUN_PGBACKREST=1` gives the instance continuous WAL archiving plus scheduled
@@ -739,4 +735,4 @@ the day somebody needs a restore.
 
 The offsite path reads this repository read-only and pushes it to a write-only
 receiver, encrypted to a public key. See
-[11-offsite-backup.md](./11-offsite-backup.md).
+[11-offsite-backup.md](15-offsite-backup.md).

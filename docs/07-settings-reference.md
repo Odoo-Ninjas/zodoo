@@ -1,7 +1,3 @@
----
-sidebar_position: 8
----
-
 # Settings Reference
 
 Settings are stored in plain `KEY=VALUE` text files. They are merged in this order (later overrides earlier):
@@ -152,7 +148,7 @@ channels=root:4
 
 ## Encrypted Offsite Backup (restic)
 
-Full guide: [11-offsite-backup.md](./11-offsite-backup.md). Against our own
+Full guide: [11-offsite-backup.md](15-offsite-backup.md). Against our own
 backup server, do not set these by hand — `odoo offsite register` fills them in.
 
 | Setting                    | Default                     | Description                                                                                                                                                                                                                                              |

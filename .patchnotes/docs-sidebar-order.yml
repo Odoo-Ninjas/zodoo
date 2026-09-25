@@ -1,3 +1,3 @@
 type: docs
-description: "Order the documentation sidebar logically via sidebar_position instead of relying on the numeric filename prefixes"
+description: "Order the documentation sidebar logically, using the numeric filename prefixes as the single ordering mechanism"
 breaking: false

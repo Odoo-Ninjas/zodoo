@@ -1,7 +1,3 @@
----
-sidebar_position: 7
----
-
 # Command Reference
 
 All commands are run as `odoo <command>`. Use `odoo --help` or `odoo <command> --help` for up-to-date option lists.
@@ -215,7 +211,7 @@ On hosts carrying several instances of the same dump, `ODOO_FILES_COMMON=1`
 keeps one pool of attachment files in `<filestore>/_common`. Content is shared
 via **hardlinks**; sharing the directory via a symlink instead destroys
 attachments, because Odoo's garbage collection bookkeeping (`checklist`) must
-stay private per database. See [17-filestore.md](./17-filestore.md) for the
+stay private per database. See [17-filestore.md](14-filestore.md) for the
 concept, the failure mode and how to repair a damaged instance.
 
 ### `odoo filestore sync [--pull] [--no-heal] [--no-dedup] [--wait] [--dry-run]`
@@ -367,7 +363,7 @@ Then:
 - Your Python requests go to the debug container; websocket and other requests go to the normal container
 - Reset with `https://<host>/debugpython_off`
 
-See [Debug Mode Guide](./05-debug-mode.md) for full details.
+See [Debug Mode Guide](10-debug-mode.md) for full details.
 
 ### `odoo shell`
 
@@ -404,7 +400,7 @@ Images are tagged with a SHA-based name.
 
 Pull all images from the registry. Requires `REGISTRY=1` and `HUB_URL` to be configured.
 
-See [Using the Registry](./06-registry.md) for full details.
+See [Using the Registry](09-registry.md) for full details.
 
 ---
 
@@ -426,7 +422,7 @@ Apply pending gimera updates if needed.
 
 ## Robot Framework
 
-See [Robot Tests](./16-robot-tests.md) for the full workflow.
+See [Robot Tests](11-robot-tests.md) for the full workflow.
 
 ### `odoo robot setup`
 
@@ -487,7 +483,7 @@ database conditions.
 Same idea, scoped to the fields a specific slow request actually asked for —
 paste a `web_search_read` cURL command copied from Chrome DevTools.
 
-See [Benchmarking](./14-benchmarking.md) for full option lists and a worked
+See [Benchmarking](12-benchmarking.md) for full option lists and a worked
 example.
 
 ---

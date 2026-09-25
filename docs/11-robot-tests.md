@@ -1,7 +1,3 @@
----
-sidebar_position: 12
----
-
 # Robot Tests
 
 Robot tests are browser-driven acceptance tests: they drive a real Odoo in a

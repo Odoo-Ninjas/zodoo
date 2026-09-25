@@ -1,7 +1,3 @@
----
-sidebar_position: 11
----
-
 # Debug Mode
 
 zodoo's debug mode lets you debug Python code on a **running production system** without affecting other users. Only your browser session is routed to the debug container.
@@ -69,7 +65,7 @@ This removes the cookie. Your requests go back to the normal container.
 
 ## Local debugging setup (macOS)
 
-See [Local Odoo Development Setup on Mac](./07-mac-setup.md) for configuring VS Code / pudb for local Python debugging.
+See [Local Odoo Development Setup on Mac](04-mac-setup.md) for configuring VS Code / pudb for local Python debugging.
 
 ## Debug log level
 

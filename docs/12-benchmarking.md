@@ -1,7 +1,3 @@
----
-sidebar_position: 13
----
-
 # Benchmarking
 
 zodoo ships a built-in benchmarking tool to find slow computed fields without
