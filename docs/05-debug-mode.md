@@ -1,3 +1,7 @@
+---
+sidebar_position: 11
+---
+
 # Debug Mode
 
 zodoo's debug mode lets you debug Python code on a **running production system** without affecting other users. Only your browser session is routed to the debug container.

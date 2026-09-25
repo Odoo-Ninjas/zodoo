@@ -1,3 +1,7 @@
+---
+sidebar_position: 15
+---
+
 # Attachment filestore on multi-instance hosts
 
 On a branch/CI host the same production dump is restored into many instances,

@@ -1,3 +1,7 @@
+---
+sidebar_position: 17
+---
+
 # Database backup and point-in-time recovery (pgBackRest)
 
 `RUN_PGBACKREST=1` gives the instance continuous WAL archiving plus scheduled

@@ -1,3 +1,7 @@
+---
+sidebar_position: 10
+---
+
 # Using the Docker Registry
 
 zodoo can push and pull all Docker images (including base images like postgres, redis, etc.) to/from a private Docker registry. This speeds up deployments on production systems — no local builds needed.

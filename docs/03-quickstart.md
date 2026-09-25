@@ -1,3 +1,7 @@
+---
+sidebar_position: 4
+---
+
 # Quickstart: New Odoo Project
 
 ## From zero to running Odoo

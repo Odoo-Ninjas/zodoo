@@ -1,3 +1,7 @@
+---
+sidebar_position: 14
+---
+
 # Web Router (nginx reverse proxy)
 
 The host-wide nginx reverse proxy that puts domains in front of Odoo instances

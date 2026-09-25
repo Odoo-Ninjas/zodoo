@@ -1,3 +1,7 @@
+---
+sidebar_position: 5
+---
+
 # Local Odoo Development Setup on macOS
 
 ## Prerequisites

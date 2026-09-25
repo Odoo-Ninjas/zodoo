@@ -1,3 +1,7 @@
+---
+sidebar_position: 7
+---
+
 # Command Reference
 
 All commands are run as `odoo <command>`. Use `odoo --help` or `odoo <command> --help` for up-to-date option lists.

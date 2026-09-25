@@ -1,3 +1,7 @@
+---
+sidebar_position: 2
+---
+
 # zodoo – Overview
 
 zodoo (formerly wodoo) is an **Odoo Docker Framework** that wraps Docker Compose and the Odoo server into a simple, settings-driven CLI tool called `odoo`.

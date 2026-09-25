@@ -1,3 +1,7 @@
+---
+sidebar_position: 8
+---
+
 # Settings Reference
 
 Settings are stored in plain `KEY=VALUE` text files. They are merged in this order (later overrides earlier):

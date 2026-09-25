@@ -1,3 +1,7 @@
+---
+sidebar_position: 6
+---
+
 # Local Odoo Development Setup on Windows
 
 Because zodoo relies on Docker, bash, `rsync`, and Unix-style symlinks, the

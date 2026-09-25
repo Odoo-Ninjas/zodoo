@@ -1,3 +1,7 @@
+---
+sidebar_position: 16
+---
+
 # Encrypted Offsite Backup (restic)
 
 The `offsite` service pushes an encrypted, deduplicated copy of a project's
