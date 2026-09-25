@@ -1,29 +1,44 @@
-# zodoo Documentation
+# zodoo
 
-| Doc                                                    | Description                                         |
-| ------------------------------------------------------ | --------------------------------------------------- |
-| [01-overview.md](./01-overview.md)                     | What zodoo is, architecture, containers             |
-| [02-installation.md](./02-installation.md)             | Installing zodoo, upgrade, shell completion         |
-| [03-quickstart.md](./03-quickstart.md)                 | From zero to running Odoo in minutes                |
-| [04-command-reference.md](./04-command-reference.md)   | All `odoo` commands with options                    |
-| [05-debug-mode.md](./05-debug-mode.md)                 | Debug on production without affecting users         |
-| [06-registry.md](./06-registry.md)                     | Push/pull Docker images via registry                |
-| [07-mac-setup.md](./07-mac-setup.md)                   | macOS-specific setup guide                          |
-| [08-settings-reference.md](./08-settings-reference.md) | All settings explained                              |
-| [09-manifest.md](./09-manifest.md)                     | MANIFEST file format and fields                     |
-| [10-troubleshooting.md](./10-troubleshooting.md)       | Common problems and solutions                       |
-| [11-offsite-backup.md](./11-offsite-backup.md)         | Encrypted offsite backup with restic                |
-| [12-pgbackrest.md](./12-pgbackrest.md)                 | Database backup + point-in-time recovery            |
-| [13-web-router.md](./13-web-router.md)                 | nginx reverse proxy, vhosts.yml, vhost wizard       |
-| [14-benchmarking.md](./14-benchmarking.md)             | Finding slow fields with `odoo benchmark`           |
-| [15-windows-wsl-setup.md](./15-windows-wsl-setup.md)   | Windows (WSL2) setup guide                          |
-| [16-robot-tests.md](./16-robot-tests.md)               | Writing and running Robot Framework tests           |
-| [17-filestore.md](./17-filestore.md)                   | Shared attachment filestore, hardlinks vs. symlinks |
+zodoo runs Odoo in Docker. It gives you a single `odoo` command that creates a
+project, builds the containers, manages the database, and starts and stops the
+instance — on a laptop, on a server, and in CI, from the same configuration.
 
-These files are the source of truth. (The former online copy at
-docs.zebroo.de is gone; internal documentation now lives in Odoo Knowledge.)
+## Where to go next
 
-## Editing
+| If you want to… | Read |
+| --- | --- |
+| Install zodoo and get Odoo running | [Getting Started](020-getting-started.md) |
+| Understand what zodoo is and how it fits together | [Overview](010-overview.md) |
+| See the installation details and upgrade path | [Installation](030-installation.md) |
+| Set up on macOS | [Mac Setup](040-mac-setup.md) |
+| Set up on Windows (WSL2) | [Windows/WSL Setup](050-windows-wsl-setup.md) |
 
-This `docs/` folder is the source of truth — edit the Markdown here. Images and
-other media belong in `docs/img/`, referenced relatively (`![alt](./img/foo.png)`).
+New to zodoo? Start with [Getting Started](020-getting-started.md) — it takes you
+from nothing installed to Odoo open in a browser.
+
+## Reference
+
+| Topic | Page |
+| --- | --- |
+| Every `odoo` command and its options | [Command Reference](060-command-reference.md) |
+| Every setting explained | [Settings Reference](070-settings-reference.md) |
+| The `MANIFEST` file format | [Manifest](080-manifest.md) |
+| Pushing and pulling images via a registry | [Registry](090-registry.md) |
+| Debugging on production without affecting users | [Debug Mode](100-debug-mode.md) |
+| Writing and running Robot Framework tests | [Robot Tests](110-robot-tests.md) |
+| Finding slow fields with `odoo benchmark` | [Benchmarking](120-benchmarking.md) |
+| The nginx reverse proxy and `vhosts.yml` | [Web Router](130-web-router.md) |
+| The shared attachment filestore | [Filestore](140-filestore.md) |
+| Encrypted offsite backups with restic | [Offsite Backup](150-offsite-backup.md) |
+| Database backup and point-in-time recovery | [pgBackRest](160-pgbackrest.md) |
+| Common problems and their fixes | [Troubleshooting](170-troubleshooting.md) |
+
+## Related tools
+
+| Tool | Role |
+| --- | --- |
+| [gimera](/docs/gimera) | Assembles the Odoo source tree a zodoo project runs |
+| [zCICD](/docs/zCICD) | Tests and releases changes before they reach an instance |
+| zCloud | Provisions hosted machines that run Odoo this same way (documentation not published yet) |
+| [zSYNC](/docs/zSYNC) | Integration pipelines running inside Odoo |

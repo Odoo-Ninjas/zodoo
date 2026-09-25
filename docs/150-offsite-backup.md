@@ -307,7 +307,7 @@ Note this is **not** pgBackRest's own repo-host topology. That one also keeps
 the key and the delete rights off this machine, but it needs pgbackrest running
 on the far side. This path uploads to a receiver that only ever stores what it
 is given and knows nothing about postgres — see
-[12-pgbackrest.md](./12-pgbackrest.md#repository-topology).
+[12-pgbackrest.md](160-pgbackrest.md#repository-topology).
 
 | Setting | What it is |
 | --- | --- |

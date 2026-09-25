@@ -207,7 +207,7 @@ find . -type f \( -name "*.py" -o -name "*.xml" -o -name "*.csv" \) -exec dos2un
 ```
 
 For other issues (port conflicts, broken CSS/JS, Python version mismatches),
-see the shared [Troubleshooting guide](./10-troubleshooting.md).
+see the shared [Troubleshooting guide](170-troubleshooting.md).
 
 ## Recap
 
