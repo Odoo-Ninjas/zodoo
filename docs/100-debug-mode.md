@@ -65,7 +65,7 @@ This removes the cookie. Your requests go back to the normal container.
 
 ## Local debugging setup (macOS)
 
-See [Local Odoo Development Setup on Mac](04-mac-setup.md) for configuring VS Code / pudb for local Python debugging.
+See [Local Odoo Development Setup on Mac](040-mac-setup.md) for configuring VS Code / pudb for local Python debugging.
 
 ## Debug log level
 

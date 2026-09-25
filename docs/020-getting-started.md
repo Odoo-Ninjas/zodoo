@@ -4,8 +4,8 @@ This page takes you from nothing installed to Odoo open in a browser, and
 explains what each step is doing so the commands are not just incantations.
 
 For what zodoo is and how the pieces fit together, read
-[Overview](01-overview.md) first. For installation detail, upgrades and shell
-completion, see [Installation](03-installation.md).
+[Overview](010-overview.md) first. For installation detail, upgrades and shell
+completion, see [Installation](030-installation.md).
 
 ## Before you start
 
@@ -34,7 +34,7 @@ image that was never built, reporting `pull access denied` instead of the real
 cause.
 
 macOS and Windows have extra setup worth reading before you begin:
-[Mac Setup](04-mac-setup.md), [Windows/WSL Setup](05-windows-wsl-setup.md).
+[Mac Setup](040-mac-setup.md), [Windows/WSL Setup](050-windows-wsl-setup.md).
 
 ## Install zodoo
 
@@ -192,7 +192,7 @@ odoo -f db reset
 | Update modules after pulling code | `odoo update` |
 | Run in the foreground, for debugging | `odoo dev` |
 
-The full set is in the [Command Reference](06-command-reference.md).
+The full set is in the [Command Reference](060-command-reference.md).
 
 ## When it goes wrong
 
@@ -214,11 +214,11 @@ sudo chmod u+rwx update.log
 
 **Odoo starts but modules behave oddly after a restore.** Run `odoo update`.
 
-More in [Troubleshooting](17-troubleshooting.md).
+More in [Troubleshooting](170-troubleshooting.md).
 
 ## Next
 
-- [Command Reference](06-command-reference.md) — every command and option
-- [Settings Reference](07-settings-reference.md) — every setting explained
-- [Manifest](08-manifest.md) — the `MANIFEST` format, including `addons_paths`
-- [Debug Mode](10-debug-mode.md) — stepping through Python code
+- [Command Reference](060-command-reference.md) — every command and option
+- [Settings Reference](070-settings-reference.md) — every setting explained
+- [Manifest](080-manifest.md) — the `MANIFEST` format, including `addons_paths`
+- [Debug Mode](100-debug-mode.md) — stepping through Python code

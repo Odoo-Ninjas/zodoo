@@ -11,7 +11,7 @@ Source: https://github.com/Odoo-Ninjas/zodoo
 - Generates `docker-compose.yml` dynamically from a settings file
 - Handles backup/restore, module updates, registry push/pull, debugging
 - Encrypted offsite backup with restic, append-only against our backup
-  server (see [11-offsite-backup.md](15-offsite-backup.md))
+  server (see [11-offsite-backup.md](150-offsite-backup.md))
 
 ## When to use zodoo
 

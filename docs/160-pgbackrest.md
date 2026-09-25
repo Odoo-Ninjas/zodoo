@@ -735,4 +735,4 @@ the day somebody needs a restore.
 
 The offsite path reads this repository read-only and pushes it to a write-only
 receiver, encrypted to a public key. See
-[11-offsite-backup.md](15-offsite-backup.md).
+[11-offsite-backup.md](150-offsite-backup.md).
