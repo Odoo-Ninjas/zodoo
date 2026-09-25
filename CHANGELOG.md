@@ -1,5 +1,10 @@
 # Changelog
 
+## 11.8.1
+
+- **Fix**: Die Rueckspielprobe waehlt das Pruefabbild jetzt nach der Postgres-Hauptversion der Sicherung statt immer derselben. Ein mit 16 angelegter Bestand faehrt unter 17 nicht hoch; auf einem Pruefstand, der fremde Bereiche prueft, fiel damit jeder Bereich durch, der nicht seine eigene Version hatte - mit einer Meldung ueber inkompatible Datenbankdateien, die wie ein Schaden an der Sicherung aussieht. Die Version steht im Repository selbst und wird von dort gelesen. Wer je Hauptversion ein Abbild hinterlegen will, traegt sie in der bench-config unter postgres_images ein; ohne diesen Eintrag bleibt alles wie bisher. Fehlt ein Abbild zur Version, gilt der Bereich als ungeprueft und die Meldung sagt, was zu tun ist - statt still auf ein falsches Abbild zurueckzufallen.
+
+
 ## 11.8.0
 
 - **Feature**: Odoo 20.0 support: `odoo src init <dir> 20.0` creates a project (Ubuntu 22.04 base, Python 3.12.11, same image layout as 19.0). OCA/queue is disabled in the 20.0 template until OCA publishes a 20.0 branch. ODOO_DEMO=1 now works independent of the Odoo version. Weekly image prebuild covers 19.0 and 20.0.
