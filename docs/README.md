@@ -40,7 +40,7 @@ from nothing installed to Odoo open in a browser.
 | --- | --- |
 | [gimera](/docs/gimera) | Assembles the Odoo source tree a zodoo project runs |
 | [zCICD](/docs/zCICD) | Tests and releases changes before they reach an instance |
-| [zCloud](/docs/zCloud) | Provisions hosted machines that run Odoo this same way |
+| zCloud | Provisions hosted machines that run Odoo this same way (documentation not published yet) |
 | [zSYNC](/docs/zSYNC) | Integration pipelines running inside Odoo |
 
 ## Editing
