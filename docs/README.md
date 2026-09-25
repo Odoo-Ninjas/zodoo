@@ -42,11 +42,3 @@ from nothing installed to Odoo open in a browser.
 | [zCICD](/docs/zCICD) | Tests and releases changes before they reach an instance |
 | zCloud | Provisions hosted machines that run Odoo this same way (documentation not published yet) |
 | [zSYNC](/docs/zSYNC) | Integration pipelines running inside Odoo |
-
-## Editing
-
-This `docs/` folder is the source of truth — edit the Markdown here. Images and
-other media belong in `docs/img/`, referenced relatively
-(`![alt](img/foo.png)`). The numeric filename prefixes set the order pages
-appear in on the documentation site and are stripped from the published URLs, so
-renumbering a page does not change its address.
