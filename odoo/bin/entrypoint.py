@@ -3,6 +3,9 @@ import os
 import subprocess
 import pwd
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from reuid import plan_uid_change  # noqa: E402
+
 owner = os.environ["OWNER_UID"]
 owner_uid = os.getenv("OWNER_UID")
 try:
@@ -10,13 +13,9 @@ try:
 except:
     print(f"Invalid OWNER_UID: {owner_uid} - requires a number.")
 else:
-    if owner_uid < 1000:
-        old_uid = owner_uid
-        new_uid = 30000 - owner_uid
-    else:
-        old_uid = pwd.getpwnam("odoo").pw_uid
-        new_uid = owner_uid
-    if str(old_uid) != str(new_uid):
+    plan = plan_uid_change(owner_uid, pwd.getpwnam("odoo").pw_uid)
+    if plan:
+        old_uid, new_uid = plan
         subprocess.check_call(
             [
                 "python3",

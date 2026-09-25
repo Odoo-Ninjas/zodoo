@@ -40,12 +40,12 @@ Or edit the files directly. Run `odoo reload` after manual edits.
 
 ## Odoo Server
 
-| Setting                  | Default | Description                                                      |
-| ------------------------ | ------- | ---------------------------------------------------------------- |
-| `ODOO_LOG_LEVEL`         | `debug` | Odoo log level: `debug`, `info`, `warning`, `error`, `critical`. |
-| `ODOO_DEBUG_LOGLEVEL`    | `info`  | Log level inside the debug container.                            |
-| `ODOO_WORKERS_WEB`       | `6`     | Number of Odoo web worker processes.                             |
-| `ODOO_PYTHON_VERSION`    | —       | Python version for the Odoo container (e.g. `3.12`).             |
+| Setting                  | Default | Description                                                                                                                                                            |
+| ------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ODOO_LOG_LEVEL`         | `debug` | Odoo log level: `debug`, `info`, `warning`, `error`, `critical`.                                                                                                       |
+| `ODOO_DEBUG_LOGLEVEL`    | `info`  | Log level inside the debug container.                                                                                                                                  |
+| `ODOO_WORKERS_WEB`       | `6`     | Number of Odoo web worker processes.                                                                                                                                   |
+| `ODOO_PYTHON_VERSION`    | —       | Python version for the Odoo container (e.g. `3.12`).                                                                                                                   |
 | `ODOO_INSTALL_LIBPOSTAL` | `0`     | **No effect.** Nothing reads it any more (checked 2026-09-06); libpostal was removed from the Odoo images. It is still written from `settings.txt` into every project. |
 
 ## Containers
@@ -92,6 +92,22 @@ image is gone, so these commands are unavailable or behave differently:
 - `odoo backup files` does not see the filestore: it lives in the named
   volume `odoo-standard-data`, not under `${ODOO_FILES}`. The database is
   fully covered by pgbackrest.
+
+## Rootless Docker
+
+| Setting           | Default     | Description                                                                                                         |
+| ----------------- | ----------- | ------------------------------------------------------------------------------------------------------------------- |
+| `DOCKER_ROOTLESS` | auto-detect | `1` = the daemon behind `DOCKER_HOST` runs rootless. Unset: `odoo reload` asks `docker info` and writes the answer. |
+
+Under rootless docker, root inside a container is the unprivileged host user;
+every other container uid is a subuid nobody on the host owns. zodoo therefore
+runs Odoo as root in the container: `OWNER_UID=0` and `ODOO_SUDO_CMD=0` are
+forced, the entrypoint renames nothing. On the host, files keep belonging to
+the user who runs the CLI.
+
+Use case: several instances on one machine, each under its own unix user with
+its own rootless daemon - one instance's container cannot see another's files.
+Odoo logs a warning about running as root; that is expected here.
 
 ## Registry
 
@@ -151,30 +167,30 @@ channels=root:4
 Full guide: [11-offsite-backup.md](150-offsite-backup.md). Against our own
 backup server, do not set these by hand — `odoo offsite register` fills them in.
 
-| Setting                    | Default                     | Description                                                                                                                                                                                                                                              |
-| -------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `RUN_OFFSITE`              | `0`                         | Enables the offsite service. On DEVMODE machines it stays off unless `OFFSITE_FORCE_IN_DEVMODE=1`.                                                                                                                                                       |
-| `OFFSITE_REPO`             | _(empty)_                   | Target: `rest:https://host:8000/<area>/` (our backup server), `sftp:user@host:port/path`, or a path on a mounted filesystem. Empty means "not configured" — the backup command then explains itself instead of doing nothing.                            |
-| `OFFSITE_REST_USER`        | _(empty)_                   | Area account on the backup server (`rest:` targets). Governs who may **write**, not who may read.                                                                                                                                                        |
-| `OFFSITE_REST_PASSWORD`    | _(empty)_                   | Password for that account.                                                                                                                                                                                                                               |
-| `OFFSITE_PASSPHRASE`       | _(empty)_                   | Repository key. **Without it the backups are lost** — it must exist outside this machine (1Password / the hosting backend).                                                                                                                              |
-| `OFFSITE_ENROLL_URL`       | `https://10.222.0.106:8443` | Enrollment service that `odoo offsite register` talks to.                                                                                                                                                                                                |
-| `OFFSITE_LOCAL_DIR`        | _(empty)_                   | Host directory mounted into the container — only for path targets, so `OFFSITE_REPO` reads the same on both sides.                                                                                                                                       |
-| `OFFSITE_BACKUP_CRON`      | `0 4 * * *`                 | Nightly run, deliberately after the pgBackRest backup (02:00).                                                                                                                                                                                          |
-| `OFFSITE_KEEP_DAILY`       | `7`                         | Retention. Against append-only targets these describe what should apply **server-side**; the client cannot prune there.                                                                                                                                  |
-| `OFFSITE_KEEP_WEEKLY`      | `4`                         |                                                                                                                                                                                                                                                          |
-| `OFFSITE_KEEP_MONTHLY`     | `6`                         |                                                                                                                                                                                                                                                          |
-| `OFFSITE_COMPRESSION`      | `auto`                      | `auto`, `off` (already-compressed sources) or `max` (line costs more than CPU).                                                                                                                                                                          |
-| `OFFSITE_INCLUDE_DUMPS`    | `0`                         | Also back up all of `$DUMPS_PATH`. Off by default: with pgBackRest the database is already covered, and the dumps folder often holds many old states.                                                                                                        |
-| `OFFSITE_ALLOW_WITHOUT_DB` | `0`                         | Emergency exit for the completeness check. The run aborts when no database state would be in the snapshot — a snapshot of attachments alone looks like a backup until someone restores. Only set this when the database is provably backed up elsewhere. |
-| `OFFSITE_ALLOW_WITHOUT_FILES` | `0`                      | The same check in the other direction: the run aborts when the filestore is missing or empty — which is exactly what an unmounted volume looks like. The database would be saved, the attachments not, and it would only show up on restore. |
-| `OFFSITE_LAYOUT`           | `split`                     | `split` writes two repositories per area, `<area>/db` and `<area>/files`, so each part has its own visible age on the backup server. `flat` is the old single-repository behaviour and exists for legacy installations only. |
-| `OFFSITE_WO_URL`           | _(empty)_                   | Write-only receiver for the filestore. Set together with `OFFSITE_WO_RECIPIENT` it replaces the restic `files` stream: the machine can then neither read nor delete what it uploaded. |
-| `OFFSITE_WO_RECIPIENT`     | _(empty)_                   | age **public** key for the write-only path. The private key belongs in 1Password — without it the filestore cannot be restored, with it on the machine the point is lost. |
-| `OFFSITE_WO_DB_RECIPIENT`  | _(empty)_                   | age **public** key for the write-only database stream (base backups + WAL). Set together with `OFFSITE_WO_URL` it replaces the restic `db` stream. A different key from the filestore one on purpose. |
-| `OFFSITE_WAL_CRON`         | `* * * * *`                 | How often WAL segments are pushed. Every minute, so a machine loss costs a minute of transactions rather than a night. Quiet no-op when there is nothing new. |
-| `OFFSITE_UPLOAD_LIMIT`     | `0`                         | Upload brake in KiB/s, `0` = unlimited.                                                                                                                                                                                                                  |
-| `OFFSITE_FORCE_IN_DEVMODE` | `0`                         | Run offsite backups on a DEVMODE machine anyway (testing).                                                                                                                                                                                               |
+| Setting                       | Default                     | Description                                                                                                                                                                                                                                              |
+| ----------------------------- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RUN_OFFSITE`                 | `0`                         | Enables the offsite service. On DEVMODE machines it stays off unless `OFFSITE_FORCE_IN_DEVMODE=1`.                                                                                                                                                       |
+| `OFFSITE_REPO`                | _(empty)_                   | Target: `rest:https://host:8000/<area>/` (our backup server), `sftp:user@host:port/path`, or a path on a mounted filesystem. Empty means "not configured" — the backup command then explains itself instead of doing nothing.                            |
+| `OFFSITE_REST_USER`           | _(empty)_                   | Area account on the backup server (`rest:` targets). Governs who may **write**, not who may read.                                                                                                                                                        |
+| `OFFSITE_REST_PASSWORD`       | _(empty)_                   | Password for that account.                                                                                                                                                                                                                               |
+| `OFFSITE_PASSPHRASE`          | _(empty)_                   | Repository key. **Without it the backups are lost** — it must exist outside this machine (1Password / the hosting backend).                                                                                                                              |
+| `OFFSITE_ENROLL_URL`          | `https://10.222.0.106:8443` | Enrollment service that `odoo offsite register` talks to.                                                                                                                                                                                                |
+| `OFFSITE_LOCAL_DIR`           | _(empty)_                   | Host directory mounted into the container — only for path targets, so `OFFSITE_REPO` reads the same on both sides.                                                                                                                                       |
+| `OFFSITE_BACKUP_CRON`         | `0 4 * * *`                 | Nightly run, deliberately after the pgBackRest backup (02:00).                                                                                                                                                                                           |
+| `OFFSITE_KEEP_DAILY`          | `7`                         | Retention. Against append-only targets these describe what should apply **server-side**; the client cannot prune there.                                                                                                                                  |
+| `OFFSITE_KEEP_WEEKLY`         | `4`                         |                                                                                                                                                                                                                                                          |
+| `OFFSITE_KEEP_MONTHLY`        | `6`                         |                                                                                                                                                                                                                                                          |
+| `OFFSITE_COMPRESSION`         | `auto`                      | `auto`, `off` (already-compressed sources) or `max` (line costs more than CPU).                                                                                                                                                                          |
+| `OFFSITE_INCLUDE_DUMPS`       | `0`                         | Also back up all of `$DUMPS_PATH`. Off by default: with pgBackRest the database is already covered, and the dumps folder often holds many old states.                                                                                                    |
+| `OFFSITE_ALLOW_WITHOUT_DB`    | `0`                         | Emergency exit for the completeness check. The run aborts when no database state would be in the snapshot — a snapshot of attachments alone looks like a backup until someone restores. Only set this when the database is provably backed up elsewhere. |
+| `OFFSITE_ALLOW_WITHOUT_FILES` | `0`                         | The same check in the other direction: the run aborts when the filestore is missing or empty — which is exactly what an unmounted volume looks like. The database would be saved, the attachments not, and it would only show up on restore.             |
+| `OFFSITE_LAYOUT`              | `split`                     | `split` writes two repositories per area, `<area>/db` and `<area>/files`, so each part has its own visible age on the backup server. `flat` is the old single-repository behaviour and exists for legacy installations only.                             |
+| `OFFSITE_WO_URL`              | _(empty)_                   | Write-only receiver for the filestore. Set together with `OFFSITE_WO_RECIPIENT` it replaces the restic `files` stream: the machine can then neither read nor delete what it uploaded.                                                                    |
+| `OFFSITE_WO_RECIPIENT`        | _(empty)_                   | age **public** key for the write-only path. The private key belongs in 1Password — without it the filestore cannot be restored, with it on the machine the point is lost.                                                                                |
+| `OFFSITE_WO_DB_RECIPIENT`     | _(empty)_                   | age **public** key for the write-only database stream (base backups + WAL). Set together with `OFFSITE_WO_URL` it replaces the restic `db` stream. A different key from the filestore one on purpose.                                                    |
+| `OFFSITE_WAL_CRON`            | `* * * * *`                 | How often WAL segments are pushed. Every minute, so a machine loss costs a minute of transactions rather than a night. Quiet no-op when there is nothing new.                                                                                            |
+| `OFFSITE_UPLOAD_LIMIT`        | `0`                         | Upload brake in KiB/s, `0` = unlimited.                                                                                                                                                                                                                  |
+| `OFFSITE_FORCE_IN_DEVMODE`    | `0`                         | Run offsite backups on a DEVMODE machine anyway (testing).                                                                                                                                                                                               |
 
 ## Update strategy
 

@@ -24,6 +24,23 @@ def owns_pid1(uid):
         return False
 
 
+def plan_uid_change(owner_uid, odoo_uid):
+    """(old_uid, new_uid) for the rename in entrypoint.py, or None.
+
+    0 means rootless docker: Odoo runs as root, which there is the host
+    user - nothing to rename (and root owns PID 1 anyway, see owns_pid1).
+    """
+    if owner_uid == 0:
+        return None
+    if owner_uid < 1000:
+        old_uid, new_uid = owner_uid, 30000 - owner_uid
+    else:
+        old_uid, new_uid = odoo_uid, owner_uid
+    if old_uid == new_uid:
+        return None
+    return old_uid, new_uid
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Find user by OLD_UID and change it to NEW_UID."

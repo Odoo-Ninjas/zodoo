@@ -1,11 +1,60 @@
 import grp
 import os
+import subprocess
 import click
 import tempfile
 from pathlib import Path
 from contextlib import contextmanager
 from .tools import whoami
 from .tools import update_setting
+
+
+def _is_on(value):
+    return str(value or "0").strip() in ("1", "True", "true")
+
+
+def _docker_is_rootless():
+    """Asks the daemon behind DOCKER_HOST; no answer counts as rootful."""
+    try:
+        res = subprocess.run(
+            ["docker", "info", "--format", "{{json .SecurityOptions}}"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return res.returncode == 0 and "name=rootless" in (res.stdout or "")
+
+
+def _apply_docker_rootless(settings):
+    """Under rootless docker Odoo runs as root inside the container.
+
+    Container root is the unprivileged host user there; any other container
+    uid is a subuid nobody on the host owns. Renaming `odoo` to the host uid
+    (the rootful way) makes the entrypoint chown the run directory to such a
+    subuid, and the CLI on the host then cannot write it any more.
+
+    DOCKER_ROOTLESS unset = ask the daemon once per reload and write the
+    answer into the settings.
+    """
+    if "DOCKER_ROOTLESS" not in settings.keys():
+        settings["DOCKER_ROOTLESS"] = "1" if _docker_is_rootless() else "0"
+    if not _is_on(settings.get("DOCKER_ROOTLESS")):
+        return
+    settings["OWNER_UID"] = "0"
+    settings["ODOO_SUDO_CMD"] = "0"
+
+
+def host_owner_uid(settings):
+    """uid that files on the host should belong to.
+
+    Usually OWNER_UID. Under rootless docker OWNER_UID is the container side
+    (0) and the host side is whoever runs the CLI.
+    """
+    if _is_on(settings.get("DOCKER_ROOTLESS")):
+        return os.getuid()
+    return int(settings["OWNER_UID"])
 
 
 def _check_owner_uid(settings):
@@ -22,13 +71,12 @@ def _check_owner_uid(settings):
     environment.
 
     The official Odoo image does not run our entrypoint, so the uid never
-    gets rewritten there and a 0 stays harmless.
+    gets rewritten there and a 0 stays harmless. Rootless docker wants the 0
+    (see _apply_docker_rootless); the entrypoint then renames nothing.
     """
-    if str(settings.get("ODOO_STANDARD_IMAGE") or "0").strip() in (
-        "1",
-        "True",
-        "true",
-    ):
+    if _is_on(settings.get("ODOO_STANDARD_IMAGE")):
+        return
+    if _is_on(settings.get("DOCKER_ROOTLESS")):
         return
     try:
         owner_uid = int(str(settings["OWNER_UID"]).strip())
@@ -93,6 +141,7 @@ def _export_settings(config, forced_values):
     settings = MyConfigParser(config.files["settings"])
     if "OWNER_UID" not in settings.keys():
         settings["OWNER_UID"] = whoami(id=True)
+    _apply_docker_rootless(settings)
     _check_owner_uid(settings)
     settings["DOCKER_GID"] = get_docker_gid()
 
