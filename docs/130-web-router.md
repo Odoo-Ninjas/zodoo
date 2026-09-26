@@ -19,6 +19,7 @@ Two install modes:
 ```bash
 odoo router setup --global                    # install or update the stack
 odoo router setup --global --vhosts-file f.yml  # replace vhosts.yml wholesale
+odoo router setup --global --host-network   # router in the host network (see below)
 
 odoo router vhost list --global               # what is configured
 odoo router vhost show --global <domain>      # one vhost as YAML
@@ -30,6 +31,20 @@ odoo router apply-vhosts --global             # re-render + reload nginx
 odoo router ssl --global                      # issue certs (certbot + self-signed)
 odoo router restart|reload|down|docker-status --global
 ```
+
+### Router in the host network
+
+`--host-network` runs the router with `network_mode: host` instead of joining
+docker networks (`--network`; the two exclude each other). Meant for machines
+where the router and the project proxies run under different docker daemons,
+e.g. one unix user per instance with rootless docker: there is no network to
+share, so each proxy publishes on loopback only (`PROXY_IP=127.0.0.1`,
+`PROXY_PORT=<port>`) and the vhost points at `upstream_server: 127.0.0.1`,
+`upstream_port: <port>`. From a bridge network the router would need that port
+open towards docker0, which a firewall allowing only 22/80/443 blocks.
+
+The switch is applied at every `setup`; a later `setup` without it puts the
+router back into its bridge network.
 
 ## The config menu
 
