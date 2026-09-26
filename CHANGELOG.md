@@ -1,5 +1,10 @@
 # Changelog
 
+## 11.9.1
+
+- **Fix**: Unter rootless Docker schrieb pgBackRest keine Logdatei mehr ("unable to open log file ... Permission denied"). Ursache: der Odoo-Container gab beim Start jedes root-eigene Verzeichnis per `chown -R` an OWNER_UID - unter rootless ist OWNER_UID aber 0 und das Run-Verzeichnis gehoert immer root, also lief bei jedem Start `chown -R 0:0` ueber das ganze Run-Verzeichnis und nahm pgbackrest.logs und pgbackrest/cert dem pgBackRest-Benutzer (uid 999) wieder weg. Mit OWNER_UID=0 wird jetzt nichts mehr umgeschrieben; auf normalen Maschinen aendert sich nichts. Zum Pruefen als rootless Benutzer - odoo build odoo, odoo up -d, dann `stat -c %u ~/.odoo/run/<projekt>/pgbackrest.logs` (subuid, nicht der eigene Benutzer) und nach `odoo pgbackrest info` liegen Dateien darin.
+
+
 ## 11.9.0
 
 - **Feature**: zodoo laeuft jetzt auch unter rootless Docker (ein Unix-Benutzer je Instanz, jeder mit eigenem Docker-Daemon). Bisher scheiterte das eigene Image dort am uid-Mapping: der Entrypoint benannte odoo auf die Host-uid um, die im Container aber eine fremde subuid ist - danach gehoerte das Run-Verzeichnis auf dem Wirt niemandem mehr, den der Benutzer kennt, und die CLI brach mit PermissionError ab. Neu erkennt `odoo reload` einen rootless Daemon selbst (oder per DOCKER_ROOTLESS=1), laesst Odoo im Container als root laufen (das ist dort der Benutzer selbst) und chownt auf dem Wirt auf den aufrufenden Benutzer. Der cronjobs-Container bekommt dort den Socket des eigenen Daemons statt des root-Daemons - sonst liefen pgBackRest- und offsite-Sicherung aus cron heraus nicht. Auf normalen Maschinen aendert sich nichts. Zum Pruefen als rootless Benutzer - odoo reload, build, up -d: /web/login antwortet, und `find ~/.odoo ! -user $USER` findet ausserhalb von ~/.local/share/docker nichts.
