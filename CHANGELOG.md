@@ -1,5 +1,11 @@
 # Changelog
 
+## 11.9.0
+
+- **Feature**: zodoo laeuft jetzt auch unter rootless Docker (ein Unix-Benutzer je Instanz, jeder mit eigenem Docker-Daemon). Bisher scheiterte das eigene Image dort am uid-Mapping: der Entrypoint benannte odoo auf die Host-uid um, die im Container aber eine fremde subuid ist - danach gehoerte das Run-Verzeichnis auf dem Wirt niemandem mehr, den der Benutzer kennt, und die CLI brach mit PermissionError ab. Neu erkennt `odoo reload` einen rootless Daemon selbst (oder per DOCKER_ROOTLESS=1), laesst Odoo im Container als root laufen (das ist dort der Benutzer selbst) und chownt auf dem Wirt auf den aufrufenden Benutzer. Der cronjobs-Container bekommt dort den Socket des eigenen Daemons statt des root-Daemons - sonst liefen pgBackRest- und offsite-Sicherung aus cron heraus nicht. Auf normalen Maschinen aendert sich nichts. Zum Pruefen als rootless Benutzer - odoo reload, build, up -d: /web/login antwortet, und `find ~/.odoo ! -user $USER` findet ausserhalb von ~/.local/share/docker nichts.
+- **Feature**: `odoo router setup --host-network` startet den Router im Netz des Wirts statt in einem Docker-Netz. Gedacht fuer Maschinen, auf denen Router und Projekt-Proxys unter verschiedenen Docker-Daemons laufen (je Instanz ein Benutzer mit rootless Docker): dort gibt es kein gemeinsames Netz, der Proxy veroeffentlicht nur auf 127.0.0.1 (PROXY_IP) und der Router holt es dort ab. Zum Pruefen: `odoo router setup --global --host-network`, danach zeigt `docker inspect -f '{{.HostConfig.NetworkMode}}'` auf den Router "host", und ein vhost mit upstream_server 127.0.0.1 und dem PROXY_PORT der Instanz liefert die Odoo-Anmeldeseite. Ohne den Schalter bleibt alles wie bisher.
+
+
 ## 11.8.2
 
 - **Docs**: Order the documentation sidebar logically via numeric filename prefixes, and rework the quickstart into a comprehensive Getting Started page
