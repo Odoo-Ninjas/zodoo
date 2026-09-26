@@ -41,6 +41,17 @@ def plan_uid_change(owner_uid, odoo_uid):
     return old_uid, new_uid
 
 
+def needs_chown_to_owner(path_uid, owner_uid):
+    """Whether prepare_run_shared hands a root-owned directory to OWNER_UID.
+
+    Only when there is someone to hand it to. With OWNER_UID=0 (rootless
+    docker) root IS the owner, and `chown -R 0:0` would only take away what
+    other containers set up inside it - the run dir holds pgbackrest.logs and
+    pgbackrest/cert, which belong to uid 999.
+    """
+    return path_uid == 0 and owner_uid != 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Find user by OLD_UID and change it to NEW_UID."

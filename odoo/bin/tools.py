@@ -8,6 +8,7 @@ import shutil
 import requests
 import click
 from sudo_odoo import sudo_odoo_cmd  # noqa: F401  (re-export)
+from reuid import needs_chown_to_owner
 import subprocess
 
 
@@ -385,7 +386,7 @@ def prepare_run_shared(local_config=None):
         if not out_dir.exists() and not out_dir.is_symlink():
             out_dir.mkdir(parents=True, exist_ok=True)
         if out_dir.exists():
-            if out_dir.stat().st_uid == 0:
+            if needs_chown_to_owner(out_dir.stat().st_uid, user_id):
                 # Big subtrees are skipped on subsequent boots via the
                 # per-UID marker.  data_dir itself must be included: a
                 # `chown -R data_dir` recurses into filestore/sessions/addons
