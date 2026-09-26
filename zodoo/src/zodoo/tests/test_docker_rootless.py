@@ -154,3 +154,71 @@ class TestPlanUidChange:
     def test_system_uids_are_shifted_out_of_the_way(self):
         # unchanged behaviour for uids below 1000
         assert plan_uid_change(501, odoo_uid=1000) == (501, 29499)
+
+
+class TestOwnDaemonForCronjobs:
+    """cronjobs drives pgbackrest, offsite and the restart watchdog through
+    the docker socket. Under rootless the hard-wired /var/run/docker.sock is
+    the ROOT daemon - inside the container owned by nobody, permission
+    denied - so every backup job out of cron failed (VM 77240, 26.09.2026).
+    """
+
+    ROOTFUL = {
+        "DOCKER_SOCKET": "/var/run/docker.sock",
+        "DOCKER_DATA_ROOT": "/var/lib/docker",
+    }
+
+    def test_rootless_points_at_the_own_daemon(self, monkeypatch):
+        monkeypatch.setenv("DOCKER_HOST", "unix:///run/user/1001/docker.sock")
+        _docker_info(monkeypatch, stdout="/home/kunde2/.local/share/docker\n")
+        settings = {"DOCKER_ROOTLESS": "1", "OWNER_UID": 1001, **self.ROOTFUL}
+        _apply_docker_rootless(settings)
+        assert settings["DOCKER_SOCKET"] == "/run/user/1001/docker.sock"
+        assert (
+            settings["DOCKER_DATA_ROOT"] == "/home/kunde2/.local/share/docker"
+        )
+
+    def test_without_docker_host_the_runtime_dir_socket(self, monkeypatch):
+        monkeypatch.delenv("DOCKER_HOST", raising=False)
+        monkeypatch.setenv("XDG_RUNTIME_DIR", "/run/user/1002")
+        _docker_info(monkeypatch, returncode=1)
+        monkeypatch.setattr(
+            settings_mod.Path, "home", lambda: Path("/home/k3")
+        )
+        settings = {"DOCKER_ROOTLESS": "1", **self.ROOTFUL}
+        _apply_docker_rootless(settings)
+        assert settings["DOCKER_SOCKET"] == "/run/user/1002/docker.sock"
+        assert settings["DOCKER_DATA_ROOT"] == "/home/k3/.local/share/docker"
+
+    def test_explicit_paths_are_kept(self, monkeypatch):
+        _docker_info(monkeypatch, raises=AssertionError("must not ask"))
+        settings = {
+            "DOCKER_ROOTLESS": "1",
+            "DOCKER_SOCKET": "/srv/d.sock",
+            "DOCKER_DATA_ROOT": "/srv/docker",
+        }
+        _apply_docker_rootless(settings)
+        assert settings["DOCKER_SOCKET"] == "/srv/d.sock"
+        assert settings["DOCKER_DATA_ROOT"] == "/srv/docker"
+
+    def test_rootful_keeps_the_defaults(self, monkeypatch):
+        _docker_info(monkeypatch, raises=AssertionError("must not ask"))
+        settings = {"DOCKER_ROOTLESS": "0", **self.ROOTFUL}
+        _apply_docker_rootless(settings)
+        assert settings == {"DOCKER_ROOTLESS": "0", **self.ROOTFUL}
+
+    def test_cronjobs_mounts_the_configured_daemon(self):
+        import yaml
+
+        yml = yaml.safe_load(
+            (REPO_ROOT / "cronjobs" / "docker-compose.yml").read_text()
+        )
+        volumes = yml["services"]["cronjobs"]["volumes"]
+        assert "${DOCKER_SOCKET}:/var/run/docker.sock" in volumes
+        assert "${DOCKER_DATA_ROOT}:/var/lib/docker" in volumes
+        assert not any(v.startswith("/var/run/docker.sock") for v in volumes)
+
+    def test_defaults_are_the_rootful_paths(self):
+        text = (REPO_ROOT / "cronjobs" / "default.settings").read_text()
+        assert "DOCKER_SOCKET=/var/run/docker.sock" in text.splitlines()
+        assert "DOCKER_DATA_ROOT=/var/lib/docker" in text.splitlines()

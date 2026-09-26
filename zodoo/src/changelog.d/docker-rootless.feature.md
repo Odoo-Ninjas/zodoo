@@ -1,3 +1,5 @@
 zodoo laeuft unter rootless Docker: `DOCKER_ROOTLESS` (ohne Angabe fragt `odoo reload` den Daemon per `docker info`) laesst Odoo im Container als root laufen -- rootless ist das der Host-Benutzer selbst -- und setzt dafuer `OWNER_UID=0` und `ODOO_SUDO_CMD=0`. Der Entrypoint benennt dann nichts um, auf dem Wirt gehoeren die Dateien weiter dem aufrufenden Benutzer.
 
 Warum: mit der ueblichen OWNER_UID=<Host-uid> wurde odoo im Container auf z.B. 1001 umbenannt, was auf dem Wirt eine subuid ist. Nach dem `chown -R` des Entrypoints gehoerte `~/.odoo/run/<projekt>` dieser subuid, und die CLI brach mit PermissionError auf `proxy_exchange` ab. Gedacht fuer Maschinen mit einem Unix-Benutzer je Instanz.
+
+Der cronjobs-Container haengt jetzt `DOCKER_SOCKET`/`DOCKER_DATA_ROOT` ein statt fest `/var/run/docker.sock` und `/var/lib/docker`. Unter rootless war das der Socket des root-Daemons -- im Container `nobody`, Zugriff verweigert --, und damit liefen `odoo pgbackrest backup`, `odoo offsite backup` und der Neustart-Waechter aus cron heraus nicht. `odoo reload` setzt dort den eigenen Daemon des Benutzers ein; von Hand gesetzte Pfade bleiben.

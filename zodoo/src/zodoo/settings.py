@@ -27,6 +27,34 @@ def _docker_is_rootless():
     return res.returncode == 0 and "name=rootless" in (res.stdout or "")
 
 
+ROOTFUL_DOCKER_SOCKET = "/var/run/docker.sock"
+ROOTFUL_DOCKER_DATA_ROOT = "/var/lib/docker"
+
+
+def _own_docker_socket():
+    """Socket of the daemon this CLI talks to (rootless: the user's own)."""
+    docker_host = os.getenv("DOCKER_HOST") or ""
+    if docker_host.startswith("unix://"):
+        return docker_host[len("unix://") :]
+    runtime_dir = os.getenv("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+    return f"{runtime_dir}/docker.sock"
+
+
+def _own_docker_data_root():
+    try:
+        res = subprocess.run(
+            ["docker", "info", "--format", "{{.DockerRootDir}}"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        res = None
+    if res is not None and res.returncode == 0 and (res.stdout or "").strip():
+        return res.stdout.strip()
+    return str(Path.home() / ".local" / "share" / "docker")
+
+
 def _apply_docker_rootless(settings):
     """Under rootless docker Odoo runs as root inside the container.
 
@@ -44,6 +72,14 @@ def _apply_docker_rootless(settings):
         return
     settings["OWNER_UID"] = "0"
     settings["ODOO_SUDO_CMD"] = "0"
+    # cronjobs drives pgbackrest, offsite and the restart watchdog through the
+    # docker socket. The rootful default is the ROOT daemon, which the pool
+    # user cannot (and must not) reach - hand it the user's own daemon.
+    # Paths set by hand are left alone.
+    if settings.get("DOCKER_SOCKET") == ROOTFUL_DOCKER_SOCKET:
+        settings["DOCKER_SOCKET"] = _own_docker_socket()
+    if settings.get("DOCKER_DATA_ROOT") == ROOTFUL_DOCKER_DATA_ROOT:
+        settings["DOCKER_DATA_ROOT"] = _own_docker_data_root()
 
 
 def host_owner_uid(settings):

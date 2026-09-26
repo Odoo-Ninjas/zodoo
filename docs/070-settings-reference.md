@@ -105,6 +105,13 @@ runs Odoo as root in the container: `OWNER_UID=0` and `ODOO_SUDO_CMD=0` are
 forced, the entrypoint renames nothing. On the host, files keep belonging to
 the user who runs the CLI.
 
+The cronjobs container drives pgBackRest, offsite and the restart watchdog
+through the docker socket. It gets `DOCKER_SOCKET` and `DOCKER_DATA_ROOT`
+(defaults `/var/run/docker.sock`, `/var/lib/docker`); under rootless docker
+`odoo reload` replaces the defaults with the user's own daemon (`DOCKER_HOST`
+or `$XDG_RUNTIME_DIR/docker.sock`, and `docker info` → `DockerRootDir`).
+Values set by hand are kept.
+
 Use case: several instances on one machine, each under its own unix user with
 its own rootless daemon - one instance's container cannot see another's files.
 Odoo logs a warning about running as root; that is expected here.

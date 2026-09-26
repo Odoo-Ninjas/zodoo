@@ -8,7 +8,10 @@ description: >-
   PermissionError ab. Neu erkennt `odoo reload` einen rootless Daemon selbst
   (oder per DOCKER_ROOTLESS=1), laesst Odoo im Container als root laufen
   (das ist dort der Benutzer selbst) und chownt auf dem Wirt auf den
-  aufrufenden Benutzer. Auf normalen Maschinen aendert sich nichts.
+  aufrufenden Benutzer. Der cronjobs-Container bekommt dort den Socket des
+  eigenen Daemons statt des root-Daemons - sonst liefen pgBackRest- und
+  offsite-Sicherung aus cron heraus nicht. Auf normalen Maschinen aendert
+  sich nichts.
   Zum Pruefen als rootless Benutzer - odoo reload, build, up -d: /web/login
   antwortet, und `find ~/.odoo ! -user $USER` findet ausserhalb von
   ~/.local/share/docker nichts.
