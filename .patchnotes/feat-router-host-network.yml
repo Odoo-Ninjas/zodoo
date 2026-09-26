@@ -1,0 +1,13 @@
+type: feature
+description: >-
+  `odoo router setup --host-network` startet den Router im Netz des Wirts
+  statt in einem Docker-Netz. Gedacht fuer Maschinen, auf denen Router und
+  Projekt-Proxys unter verschiedenen Docker-Daemons laufen (je Instanz ein
+  Benutzer mit rootless Docker): dort gibt es kein gemeinsames Netz, der
+  Proxy veroeffentlicht nur auf 127.0.0.1 (PROXY_IP) und der Router holt es
+  dort ab. Zum Pruefen: `odoo router setup --global --host-network`, danach
+  zeigt `docker inspect -f '{{.HostConfig.NetworkMode}}'` auf den Router
+  "host", und ein vhost mit upstream_server 127.0.0.1 und dem PROXY_PORT
+  der Instanz liefert die Odoo-Anmeldeseite. Ohne den Schalter bleibt alles
+  wie bisher.
+breaking: false

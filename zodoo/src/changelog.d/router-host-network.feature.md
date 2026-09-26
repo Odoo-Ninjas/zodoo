@@ -1,0 +1,1 @@
+`odoo router setup --host-network`: der Router laeuft mit `network_mode: host` und erreicht Projekt-Proxys ueber `127.0.0.1:<PROXY_PORT>`. Fuer Maschinen mit je einem rootless Docker pro Instanz, wo Router (root-Daemon) und Proxy kein gemeinsames Docker-Netz haben; aus einem Bridge-Netz heraus wuerde der Port zum Wirt an ufw scheitern. Schliesst `--network` aus.
