@@ -30,6 +30,7 @@ from ..settings import host_owner_uid
 REPO_ROOT = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(REPO_ROOT / "odoo" / "bin"))
 
+from reuid import needs_chown_to_owner  # noqa: E402
 from reuid import plan_uid_change  # noqa: E402
 
 
@@ -154,6 +155,44 @@ class TestPlanUidChange:
     def test_system_uids_are_shifted_out_of_the_way(self):
         # unchanged behaviour for uids below 1000
         assert plan_uid_change(501, odoo_uid=1000) == (501, 29499)
+
+
+class TestRunDirChownUnderRootless:
+    """odoo/bin/tools.py prepare_run_shared: root-owned dirs to OWNER_UID.
+
+    Under rootless the run dir is root's (= the host user), and OWNER_UID is
+    0. A `chown -R 0:0 /opt/run` on every odoo start took pgbackrest.logs and
+    pgbackrest/cert away from uid 999 again: pgBackRest wrote no log file
+    ("unable to open log file ... Permission denied").
+    """
+
+    def test_rootless_leaves_root_owned_dirs_alone(self):
+        assert needs_chown_to_owner(path_uid=0, owner_uid=0) is False
+
+    def test_root_owned_dir_goes_to_the_host_user(self):
+        assert needs_chown_to_owner(path_uid=0, owner_uid=1000) is True
+
+    def test_dir_already_owned_is_not_touched(self):
+        assert needs_chown_to_owner(path_uid=1000, owner_uid=1000) is False
+
+    def test_prepare_run_shared_asks_the_helper(self):
+        # tools.py only imports inside a container (it reads the project at
+        # import time), so check the wiring in the source instead.
+        import ast
+
+        tree = ast.parse((REPO_ROOT / "odoo" / "bin" / "tools.py").read_text())
+        fn = next(
+            n
+            for n in ast.walk(tree)
+            if isinstance(n, ast.FunctionDef)
+            and n.name == "prepare_run_shared"
+        )
+        calls = {
+            n.func.id
+            for n in ast.walk(fn)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+        }
+        assert "needs_chown_to_owner" in calls
 
 
 class TestOwnDaemonForCronjobs:
