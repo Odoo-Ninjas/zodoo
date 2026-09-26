@@ -1,6 +1,7 @@
 # Per-instance monitoring dashboard (Grafana + Prometheus + Loki + Alloy + exporters).
 # Reachable through the proxy under /system .
-RUN_DASHBOARD=1
+# Opt in per instance with RUN_DASHBOARD=1. Disabled by default.
+RUN_DASHBOARD=0
 DASHBOARD_GRAFANA_ADMIN_PASSWORD=admin
 # Prometheus metric retention.
 DASHBOARD_PROMETHEUS_RETENTION=15d

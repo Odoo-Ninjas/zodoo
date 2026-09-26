@@ -1,5 +1,5 @@
 #manage-order: 8500
-# Monitoring dashboard stack. Enabled via RUN_DASHBOARD=1 (default).
+# Monitoring dashboard stack. Opt in via RUN_DASHBOARD=1; disabled by default.
 # Grafana is published through the proxy under /system (see proxy/dashboard.conf),
 # all other components stay internal (expose only, no host ports).
 #

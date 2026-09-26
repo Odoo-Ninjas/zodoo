@@ -1,0 +1,4 @@
+type: breaking
+description: "Per-instance monitoring is now disabled by default (RUN_DASHBOARD=0), avoiding an automatic monitoring stack for every test instance. Set RUN_DASHBOARD=1 explicitly for instances that need monitoring."
+breaking: true
+breaking_description: "Instances relying on the previous default must set RUN_DASHBOARD=1 before regenerating their configuration to retain monitoring. Already running containers are not stopped by this default change."
