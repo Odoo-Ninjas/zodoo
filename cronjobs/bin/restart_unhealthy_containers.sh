@@ -64,13 +64,26 @@ while IFS= read -r container; do
   [ -z "$container" ] && continue
   seen_containers["$container"]=1
 
-  read -r status health restart_count started_at exit_code oom_killed finished_at <<<"$(
+  read -r status health restart_count started_at exit_code oom_killed finished_at oneoff <<<"$(
     timeout 60 docker inspect "$container" --format \
-      '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} {{.RestartCount}} {{.State.StartedAt}} {{.State.ExitCode}} {{.State.OOMKilled}} {{.State.FinishedAt}}' \
+      '{{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}} {{.RestartCount}} {{.State.StartedAt}} {{.State.ExitCode}} {{.State.OOMKilled}} {{.State.FinishedAt}} {{if eq (index .Config.Labels "com.docker.compose.oneoff") "True"}}oneoff{{else}}service{{end}}' \
       2>/dev/null
   )"
   if [ -z "$status" ]; then
     echo "⚠️  Could not inspect container '$container' — skipping."
+    continue
+  fi
+
+  # Containers from `docker compose run` carry the project label like any
+  # service, but nobody owns them: compose starts them for one job and is
+  # done. If that job is abandoned (interrupted build, killed shell), the
+  # container never turns healthy and reviving it just starts the job over
+  # - every minute, forever. On 3dm-cicd five of them held the machine at a
+  # load above 5 for nine days in September 2026 while no build was running.
+  # Checked for an explicit "True" so a runtime that does not set the label
+  # keeps the old behaviour instead of silently watching nothing.
+  if [ "$oneoff" = "oneoff" ]; then
+    rm -f "$STATE_DIR/$container"
     continue
   fi
 
