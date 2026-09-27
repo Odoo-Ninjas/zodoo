@@ -1,3 +1,0 @@
-type: fix
-description: "Der Watchdog (CRONJOB_RESTART_UNHEALTHY_CONTAINERS) laesst Container aus `docker compose run` jetzt in Ruhe. Bisher hat er jeden Container des Projekts angefasst; bricht ein solcher One-Shot-Job ab, bleibt sein Container ungesund liegen und wurde jede Minute neu gestartet, womit der Job endlos von vorn begann. Auf cicd-3dm hielten fuenf davon die Maschine neun Tage bei Last ueber 5, ohne laufenden Build. Erkannt werden sie am Label com.docker.compose.oneoff; geprueft wird nur auf den ausdruecklichen Wert True, damit Umgebungen ohne dieses Label sich verhalten wie bisher."
-breaking: false

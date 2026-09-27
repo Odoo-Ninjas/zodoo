@@ -1,5 +1,10 @@
 # Changelog
 
+## 11.9.2
+
+- **Fix**: Der Watchdog (CRONJOB_RESTART_UNHEALTHY_CONTAINERS) laesst Container aus `docker compose run` jetzt in Ruhe. Bisher hat er jeden Container des Projekts angefasst; bricht ein solcher One-Shot-Job ab, bleibt sein Container ungesund liegen und wurde jede Minute neu gestartet, womit der Job endlos von vorn begann. Auf cicd-3dm hielten fuenf davon die Maschine neun Tage bei Last ueber 5, ohne laufenden Build. Erkannt werden sie am Label com.docker.compose.oneoff; geprueft wird nur auf den ausdruecklichen Wert True, damit Umgebungen ohne dieses Label sich verhalten wie bisher.
+
+
 ## 11.9.1
 
 - **Fix**: Unter rootless Docker schrieb pgBackRest keine Logdatei mehr ("unable to open log file ... Permission denied"). Ursache: der Odoo-Container gab beim Start jedes root-eigene Verzeichnis per `chown -R` an OWNER_UID - unter rootless ist OWNER_UID aber 0 und das Run-Verzeichnis gehoert immer root, also lief bei jedem Start `chown -R 0:0` ueber das ganze Run-Verzeichnis und nahm pgbackrest.logs und pgbackrest/cert dem pgBackRest-Benutzer (uid 999) wieder weg. Mit OWNER_UID=0 wird jetzt nichts mehr umgeschrieben; auf normalen Maschinen aendert sich nichts. Zum Pruefen als rootless Benutzer - odoo build odoo, odoo up -d, dann `stat -c %u ~/.odoo/run/<projekt>/pgbackrest.logs` (subuid, nicht der eigene Benutzer) und nach `odoo pgbackrest info` liegen Dateien darin.
