@@ -7,6 +7,10 @@ records ``docker restart`` calls to a log file.
 
 Table line format:
   name status health restart_count started_at exit_code oom_killed finished_at
+  [oneoff]
+
+The trailing field mirrors the compose one-off label and may be omitted;
+an empty value stands for an ordinary service container.
 """
 
 from __future__ import annotations
@@ -42,7 +46,7 @@ case "$1" in
     awk '{print $1}' "$TEST_CONTAINERS"
     ;;
   inspect)
-    awk -v n="$2" '$1==n {print $2, $3, $4, $5, $6, $7, $8}' "$TEST_CONTAINERS"
+    awk -v n="$2" '$1==n {print $2, $3, $4, $5, $6, $7, $8, $9}' "$TEST_CONTAINERS"
     ;;
   restart)
     if [ -n "$TEST_FAIL_RESTART" ] && [ "$2" = "$TEST_FAIL_RESTART" ]; then
@@ -72,9 +76,7 @@ class Harness:
         self.ps_args_log = tmp_path / "ps_args.log"
 
     def run(self, table, fail_restart=None, env=None):
-        self.containers.write_text(
-            "\n".join(table) + "\n" if table else ""
-        )
+        self.containers.write_text("\n".join(table) + "\n" if table else "")
         # fresh per run — assertions must reflect the last tick only
         self.restart_log.unlink(missing_ok=True)
         self.ps_args_log.unlink(missing_ok=True)
@@ -171,9 +173,7 @@ def test_exited_clean_stop_is_left_alone(harness, exit_code):
 
 def test_exited_sigkill_only_revived_when_oom(harness):
     # manual `docker kill` (137 without OOMKilled) → hands off
-    harness.run(
-        [f"myproj_odoo exited none 0 {_ts(400)} 137 false {_ts(400)}"]
-    )
+    harness.run([f"myproj_odoo exited none 0 {_ts(400)} 137 false {_ts(400)}"])
     assert harness.restarts() == []
     # kernel OOM kill → revive
     res = harness.run(
@@ -236,7 +236,9 @@ def test_corrupt_state_file_restarts_episode(harness):
         [f"myproj_odoo restarting none 5 {_ts(400)} 1 false {_ts(30)}"]
     )
     assert harness.restarts() == []
-    epoch, count, streak = harness.state_file("myproj_odoo").read_text().split()
+    epoch, count, streak = (
+        harness.state_file("myproj_odoo").read_text().split()
+    )
     assert epoch.isdigit() and count == "5" and streak == "0"
 
 
@@ -269,9 +271,7 @@ def test_failed_restart_is_reported(harness):
 def test_stale_state_cleaned_but_lock_survives(harness):
     harness.state.mkdir()
     harness.state_file("myproj_gone").write_text("123 4\n")
-    harness.run(
-        [f"myproj_pg running healthy 0 {_ts(400)} 0 false {_ts(400)}"]
-    )
+    harness.run([f"myproj_pg running healthy 0 {_ts(400)} 0 false {_ts(400)}"])
     assert not harness.state_file("myproj_gone").exists()
     assert (harness.state / ".lock").exists()
 
@@ -283,9 +283,7 @@ def test_stopped_container_drops_stale_episode(harness):
     harness.state.mkdir()
     first_epoch = int(time.time()) - 7200
     harness.state_file("myproj_odoo").write_text(f"{first_epoch} 3 0\n")
-    harness.run(
-        [f"myproj_odoo exited none 3 {_ts(7200)} 0 false {_ts(7200)}"]
-    )
+    harness.run([f"myproj_odoo exited none 3 {_ts(7200)} 0 false {_ts(7200)}"])
     assert harness.restarts() == []
     assert not harness.state_file("myproj_odoo").exists()
 
@@ -300,6 +298,47 @@ def test_ps_scopes_by_compose_project_label(harness):
     )
     ps_args = harness.ps_args_log.read_text()
     assert "label=com.docker.compose.project=myproj" in ps_args
+
+
+def test_oneoff_container_is_left_alone(harness):
+    """Containers from `docker compose run` carry the same project label as
+    the services, but nothing owns them: they are never healthy and they are
+    not supposed to come back. Restarting them means reviving an abandoned
+    one-shot job every minute forever - on 3dm-cicd five of them kept the
+    machine at a load of 5+ for nine days (Sept 2026)."""
+    res = harness.run(
+        [
+            f"myproj-odoo-run-a1b2c3 running unhealthy 0 {_ts(400)} 0 false"
+            f" {_ts(400)} oneoff"
+        ]
+    )
+    assert harness.restarts() == []
+    assert "look fine" in res.stdout
+
+
+def test_oneoff_exited_is_left_alone(harness):
+    """Same for a one-off that crashed: without an owner there is nothing to
+    revive."""
+    harness.run(
+        [
+            f"myproj-odoo-run-a1b2c3 exited none 0 {_ts(400)} 1 false"
+            f" {_ts(400)} oneoff"
+        ]
+    )
+    assert harness.restarts() == []
+
+
+def test_service_next_to_oneoff_is_still_restarted(harness):
+    """The exception must stay narrow - an unhealthy service in the same
+    project is still restarted."""
+    harness.run(
+        [
+            f"myproj-odoo-run-a1b2c3 running unhealthy 0 {_ts(400)} 0 false"
+            f" {_ts(400)} oneoff",
+            f"myproj_proxy running unhealthy 0 {_ts(400)} 0 false {_ts(400)}",
+        ]
+    )
+    assert harness.restarts() == ["myproj_proxy"]
 
 
 def test_multiple_containers_restarted_in_one_tick(harness):
@@ -335,7 +374,9 @@ def test_unwritable_state_dir_falls_back_and_still_works(harness, tmp_path):
     ro_dir.chmod(0o555)
     try:
         res = harness.run(
-            [f"myproj_proxy running unhealthy 0 {_ts(400)} 0 false {_ts(400)}"],
+            [
+                f"myproj_proxy running unhealthy 0 {_ts(400)} 0 false {_ts(400)}"
+            ],
             env={"RESTART_UNHEALTHY_STATE_DIR": str(ro_dir)},
         )
         assert "not writable" in res.stdout
