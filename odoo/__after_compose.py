@@ -99,6 +99,7 @@ def after_compose(config, settings, yml, globals):
     _eval_setting_common_filestore(config, settings, globals)
 
     _apply_cpu_limit(config, yml, settings, globals)
+    _apply_mem_limit(config, yml, settings, globals)
 
 
 def _warn_db_manager_without_dbfilter(settings):
@@ -326,6 +327,53 @@ def _apply_cpu_limit(config, yml, settings, globals):
             .setdefault("limits", {})
         )
         limits["cpus"] = str(cpus)
+
+
+# Services that merge from odoo_base but must never inherit the default
+# memory limit: updates and migrations are expected to be memory hungry
+# (see LIMIT_MEMORY_HARD_UPDATE / _MIGRATION, which are set an order of
+# magnitude higher), and odoo_debug is a manual-profile debugging shell.
+_MEM_LIMIT_EXEMPT_SERVICES = ("odoo_update", "odoo_debug")
+
+
+def _apply_mem_limit(config, yml, settings, globals):
+    """Limit container memory of the odoo container(s).
+
+    MEM_LIMIT_ODOO applies to every service merged from odoo_base; the
+    per-role settings MEM_LIMIT_ODOO_WEB / _CRON / _QUEUEJOBS override it
+    for that role (legacy v11/v13 run one container per role, v14+ has a
+    single consolidated container where only MEM_LIMIT_ODOO applies).
+    Unset / empty = unlimited, which stays the default.
+
+    Why this exists next to LIMIT_MEMORY_HARD_*: Odoo enforces those only
+    in prefork mode, where the master watches its workers and recycles
+    them. The cron and queuejob roles run with `workers = 0`, so nothing
+    enforces anything there -- a leaking cron thread grows until the
+    *host* is out of memory and the kernel OOM killer picks a victim,
+    which may well be postgres. A container-level limit keeps the blast
+    radius at the container; `restart: on-failure` brings it back up.
+    """
+    default = str(settings.get("MEM_LIMIT_ODOO") or "").strip()
+    per_role = {
+        "odoo": str(settings.get("MEM_LIMIT_ODOO_WEB") or "").strip(),
+        "odoo_cronjobs": str(
+            settings.get("MEM_LIMIT_ODOO_CRON") or ""
+        ).strip(),
+        "odoo_queuejobs": str(
+            settings.get("MEM_LIMIT_ODOO_QUEUEJOBS") or ""
+        ).strip(),
+    }
+    if not default and not any(per_role.values()):
+        return
+    for name in globals["tools"].get_services(config, "odoo_base", yml=yml):
+        service = yml["services"].get(name)
+        if service is None:
+            continue
+        if name in _MEM_LIMIT_EXEMPT_SERVICES:
+            continue
+        limit = per_role.get(name) or default
+        if limit:
+            service["mem_limit"] = limit
 
 
 def store_sha_of_external_deps(deps, PYTHON_VERSION, file):
