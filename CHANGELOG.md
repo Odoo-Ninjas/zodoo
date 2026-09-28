@@ -1,5 +1,12 @@
 # Changelog
 
+## 12.0.0
+
+- **BREAKING**: Per-instance monitoring is now disabled by default (RUN_DASHBOARD=0), avoiding an automatic monitoring stack for every test instance. Set RUN_DASHBOARD=1 explicitly for instances that need monitoring.
+
+  Instances relying on the previous default must set RUN_DASHBOARD=1 before regenerating their configuration to retain monitoring. Already running containers are not stopped by this default change.
+
+
 ## 11.9.2
 
 - **Fix**: Der Watchdog (CRONJOB_RESTART_UNHEALTHY_CONTAINERS) laesst Container aus `docker compose run` jetzt in Ruhe. Bisher hat er jeden Container des Projekts angefasst; bricht ein solcher One-Shot-Job ab, bleibt sein Container ungesund liegen und wurde jede Minute neu gestartet, womit der Job endlos von vorn begann. Auf cicd-3dm hielten fuenf davon die Maschine neun Tage bei Last ueber 5, ohne laufenden Build. Erkannt werden sie am Label com.docker.compose.oneoff; geprueft wird nur auf den ausdruecklichen Wert True, damit Umgebungen ohne dieses Label sich verhalten wie bisher.
