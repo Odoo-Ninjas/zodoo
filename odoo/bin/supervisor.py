@@ -125,6 +125,13 @@ GATE_ON = "on"
 GATE_OFF = "off"
 GATE_UNKNOWN = "unknown"
 
+# An unknown gate is asked again from the supervise loop until it gives a
+# definitive answer. Without this a queuejobs role whose probe hit a postgres
+# that was not up yet at container start stayed disabled for good — observed
+# on cicd-3dm: no queue job processed for ~23h after a container restart.
+GATE_RECHECK_INITIAL = 5.0
+GATE_RECHECK_MAX = 60.0
+
 
 def _role_gate_state(spec):
     probe_name = spec.get("enabled_probe")
@@ -133,7 +140,7 @@ def _role_gate_state(spec):
             probe = _PROBES.setdefault(probe_name, _resolve_probe(probe_name))
             return GATE_ON if probe() else GATE_OFF
         except Exception as ex:
-            _log(f"role probe {probe_name!r} failed: {ex} — disabling role")
+            _log(f"role probe {probe_name!r} failed: {ex} — gate unknown")
             return GATE_UNKNOWN
     return GATE_ON if _env_truthy(spec["enabled_key"]) else GATE_OFF
 
@@ -150,7 +157,13 @@ class Role:
         self.name = name
         self.spec = spec
         self.proc = None
-        self.want_running = _is_role_enabled(spec)
+        gate = _role_gate_state(spec)
+        self.want_running = gate == GATE_ON
+        # Timestamp of the next gate re-evaluation; None = no recheck pending.
+        self.gate_recheck_at = None
+        self.gate_recheck_delay = GATE_RECHECK_INITIAL
+        if gate == GATE_UNKNOWN:
+            self.arm_gate_recheck()
         self.backoff = BACKOFF_INITIAL
         self.last_spawn = 0.0
         self.respawn_requested = False
@@ -230,6 +243,43 @@ class Role:
     def is_alive(self):
         return self.proc is not None and self.proc.poll() is None
 
+    def arm_gate_recheck(self):
+        self.gate_recheck_delay = GATE_RECHECK_INITIAL
+        self.gate_recheck_at = time.time() + self.gate_recheck_delay
+        _log(
+            f"[{self.name}] role gate unknown — rechecking in "
+            f"{self.gate_recheck_delay:.0f}s"
+        )
+
+    def recheck_gate(self, now):
+        """Re-evaluate an unknown gate once it is due.
+
+        Returns True when the role should be spawned now. An unknown answer
+        backs off (up to GATE_RECHECK_MAX) and keeps asking, because only a
+        definitive on/off may end the wait.
+        """
+        if self.gate_recheck_at is None or now < self.gate_recheck_at:
+            return False
+        gate = _role_gate_state(self.spec)
+        if gate == GATE_UNKNOWN:
+            self.gate_recheck_delay = min(
+                self.gate_recheck_delay * 2, GATE_RECHECK_MAX
+            )
+            self.gate_recheck_at = now + self.gate_recheck_delay
+            _log(
+                f"[{self.name}] role gate still unknown — next check in "
+                f"{self.gate_recheck_delay:.0f}s"
+            )
+            return False
+        self.gate_recheck_at = None
+        if gate == GATE_OFF:
+            _log(f"[{self.name}] role gate resolved: off — stays disabled")
+            return False
+        _log(f"[{self.name}] role gate resolved: on — starting role")
+        self.want_running = True
+        self.backoff = BACKOFF_INITIAL
+        return True
+
     def gate_allows_running(self):
         """Re-evaluate the role gate — probe *and* env-var gated roles.
 
@@ -267,12 +317,14 @@ class Role:
             return {
                 "name": self.name,
                 "want_running": self.want_running,
+                "gate_pending": self.gate_recheck_at is not None,
                 "alive": False,
                 "pid": None,
             }
         return {
             "name": self.name,
             "want_running": self.want_running,
+            "gate_pending": self.gate_recheck_at is not None,
             "alive": self.proc.poll() is None,
             "pid": self.proc.pid,
             "returncode": self.proc.poll(),
@@ -367,6 +419,10 @@ class Supervisor:
                         role.backoff = BACKOFF_INITIAL
                     if not self._shutdown.is_set():
                         role.spawn()
+            now = time.time()
+            for role in self.roles.values():
+                if role.recheck_gate(now) and not self._shutdown.is_set():
+                    role.spawn()
             self._shutdown.wait(1.0)
 
     def shutdown_all(self):
@@ -432,16 +488,21 @@ class Supervisor:
                     }
                 if gate == GATE_UNKNOWN:
                     # Could not evaluate the gate (probe DB unreachable).
-                    # Stays an error so the caller warns instead of silently
-                    # leaving the role dead.
+                    # Stays an error so the caller warns, but the supervise
+                    # loop keeps asking and starts the role once it can.
+                    if not role.want_running:
+                        role.arm_gate_recheck()
                     return {
                         "ok": False,
                         "error": (
                             f"{arg}: role gate could not be evaluated — "
-                            f"not started"
+                            f"not started yet, retrying automatically"
                         ),
                     }
+                role.gate_recheck_at = None
             if verb == "stop":
+                # The user's stop wins over a pending recheck.
+                role.gate_recheck_at = None
                 role.want_running = False
                 role.stop()
                 return {"ok": True, "msg": f"{arg} stopped"}
@@ -667,8 +728,13 @@ def _client(argv):
     if argv[0] == "status":
         for r in data.get("roles", []):
             state = "running" if r["alive"] else "stopped"
-            want = "wanted" if r["want_running"] else "disabled"
-            print(f"{r['name']:<12} {state:<8} {want:<8} pid={r.get('pid')}")
+            if r["want_running"]:
+                want = "wanted"
+            elif r.get("gate_pending"):
+                want = "gate-pending"
+            else:
+                want = "disabled"
+            print(f"{r['name']:<12} {state:<8} {want:<12} pid={r.get('pid')}")
     else:
         print(data.get("msg", "ok"))
     return 0
