@@ -1,5 +1,10 @@
 # Changelog
 
+## 12.1.1
+
+- **Fix**: Supervisor: a role gate that could not be evaluated at container start (postgres not reachable yet) is now rechecked with backoff (5s up to 60s) and the role is started as soon as the gate says on. Previously the queuejobs role stayed disabled until someone started it by hand. `supervisor.py status` shows such roles as gate-pending.
+
+
 ## 12.1.0
 
 - **Feature**: New settings MEM_LIMIT_ODOO / _WEB / _CRON / _QUEUEJOBS put a Docker memory limit on the odoo container(s). Odoo's own LIMIT_MEMORY_HARD_* only bite in prefork mode - the cron and queuejob roles run with workers=0, so a leaking cron thread grows until the host is out of memory and the kernel OOM killer hits whatever is biggest, possibly postgres. Unset means unlimited, so nothing changes unless you set it.
