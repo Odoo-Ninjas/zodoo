@@ -35,6 +35,8 @@ def _role(name):
     role.spec = sup.ROLES[name]
     role.proc = None
     role.want_running = True
+    role.gate_recheck_at = None
+    role.gate_recheck_delay = sup.GATE_RECHECK_INITIAL
     role.backoff = sup.BACKOFF_INITIAL
     role.last_spawn = 0.0
     role.last_rc = None
@@ -84,6 +86,116 @@ class TestGateState:
 
         monkeypatch.setitem(sup._PROBES, "queue_job_installed", _boom)
         assert _role("queuejobs").gate_allows_running() is False
+
+
+def _db_down():
+    raise RuntimeError("db down")
+
+
+class TestUnknownGateRecheck:
+    """cicd-3dm: the container restarted while postgres was not reachable
+    yet, the queue_job probe raised, and the queuejobs role stayed disabled
+    for ~23h because nobody asked the gate again."""
+
+    def test_unknown_gate_at_startup_arms_a_recheck(self, monkeypatch):
+        monkeypatch.setitem(sup._PROBES, "queue_job_installed", _db_down)
+        role = sup.Role("queuejobs", sup.ROLES["queuejobs"])
+        assert role.want_running is False
+        assert role.gate_recheck_at is not None
+        assert role.status()["gate_pending"] is True
+
+    def test_definitive_off_at_startup_arms_nothing(self, monkeypatch):
+        monkeypatch.setitem(sup._PROBES, "queue_job_installed", lambda: False)
+        role = sup.Role("queuejobs", sup.ROLES["queuejobs"])
+        assert role.want_running is False
+        assert role.gate_recheck_at is None
+
+    def test_recheck_is_not_done_before_it_is_due(self, monkeypatch):
+        monkeypatch.setitem(
+            sup._PROBES, "queue_job_installed", lambda: True
+        )
+        role = _role("queuejobs")
+        role.want_running = False
+        role.gate_recheck_at = 100.0
+        assert role.recheck_gate(99.0) is False
+        assert role.want_running is False
+
+    def test_still_unknown_backs_off_and_keeps_asking(self, monkeypatch):
+        monkeypatch.setitem(sup._PROBES, "queue_job_installed", _db_down)
+        role = _role("queuejobs")
+        role.want_running = False
+        role.gate_recheck_at = 0.0
+        assert role.recheck_gate(10.0) is False
+        assert role.gate_recheck_delay == sup.GATE_RECHECK_INITIAL * 2
+        assert role.gate_recheck_at == 10.0 + role.gate_recheck_delay
+        for _ in range(20):
+            role.recheck_gate(role.gate_recheck_at)
+        assert role.gate_recheck_delay == sup.GATE_RECHECK_MAX
+        assert role.gate_recheck_at is not None
+
+    def test_gate_turning_on_starts_the_role(self, monkeypatch):
+        monkeypatch.setitem(
+            sup._PROBES, "queue_job_installed", lambda: True
+        )
+        role = _role("queuejobs")
+        role.want_running = False
+        role.gate_recheck_at = 0.0
+        assert role.recheck_gate(1.0) is True
+        assert role.want_running is True
+        assert role.gate_recheck_at is None
+
+    def test_gate_turning_off_ends_the_recheck(self, monkeypatch):
+        monkeypatch.setitem(
+            sup._PROBES, "queue_job_installed", lambda: False
+        )
+        role = _role("queuejobs")
+        role.want_running = False
+        role.gate_recheck_at = 0.0
+        assert role.recheck_gate(1.0) is False
+        assert role.want_running is False
+        assert role.gate_recheck_at is None
+
+    def test_supervise_loop_spawns_once_gate_resolves(self, monkeypatch):
+        monkeypatch.setitem(
+            sup._PROBES, "queue_job_installed", lambda: True
+        )
+        supervisor = sup.Supervisor.__new__(sup.Supervisor)
+        supervisor._shutdown = sup.threading.Event()
+        role = _role("queuejobs")
+        role.want_running = False
+        role.gate_recheck_at = 0.0
+        spawned = []
+
+        def _spawn():
+            spawned.append(True)
+            supervisor._shutdown.set()
+
+        role.spawn = _spawn
+        supervisor.roles = {"queuejobs": role}
+        supervisor.supervise_loop()
+        assert spawned == [True]
+        assert role.want_running is True
+
+    def test_stop_cancels_a_pending_recheck(self, monkeypatch):
+        supervisor = sup.Supervisor.__new__(sup.Supervisor)
+        role = _role("queuejobs")
+        role.want_running = False
+        role.gate_recheck_at = 123.0
+        role.stop = lambda: None
+        supervisor.roles = {"queuejobs": role}
+        resp = supervisor._handle_cmd("stop queuejobs")
+        assert resp["ok"] is True
+        assert role.gate_recheck_at is None
+
+    def test_start_with_unknown_gate_arms_a_recheck(self, monkeypatch):
+        monkeypatch.setitem(sup._PROBES, "queue_job_installed", _db_down)
+        supervisor = sup.Supervisor.__new__(sup.Supervisor)
+        role = _role("queuejobs")
+        role.want_running = False
+        supervisor.roles = {"queuejobs": role}
+        resp = supervisor._handle_cmd("start queuejobs")
+        assert resp["ok"] is False
+        assert role.gate_recheck_at is not None
 
 
 class TestControlSocketStart:

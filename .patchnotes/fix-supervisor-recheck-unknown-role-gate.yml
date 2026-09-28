@@ -1,0 +1,3 @@
+type: fix
+description: "Supervisor: a role gate that could not be evaluated at container start (postgres not reachable yet) is now rechecked with backoff (5s up to 60s) and the role is started as soon as the gate says on. Previously the queuejobs role stayed disabled until someone started it by hand. `supervisor.py status` shows such roles as gate-pending."
+breaking: false
