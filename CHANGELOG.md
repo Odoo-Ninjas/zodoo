@@ -1,5 +1,10 @@
 # Changelog
 
+## 12.1.0
+
+- **Feature**: New settings MEM_LIMIT_ODOO / _WEB / _CRON / _QUEUEJOBS put a Docker memory limit on the odoo container(s). Odoo's own LIMIT_MEMORY_HARD_* only bite in prefork mode - the cron and queuejob roles run with workers=0, so a leaking cron thread grows until the host is out of memory and the kernel OOM killer hits whatever is biggest, possibly postgres. Unset means unlimited, so nothing changes unless you set it.
+
+
 ## 12.0.0
 
 - **BREAKING**: Per-instance monitoring is now disabled by default (RUN_DASHBOARD=0), avoiding an automatic monitoring stack for every test instance. Set RUN_DASHBOARD=1 explicitly for instances that need monitoring.
