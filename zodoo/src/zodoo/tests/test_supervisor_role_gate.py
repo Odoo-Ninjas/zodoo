@@ -93,9 +93,9 @@ def _db_down():
 
 
 class TestUnknownGateRecheck:
-    """cicd-3dm: the container restarted while postgres was not reachable
-    yet, the queue_job probe raised, and the queuejobs role stayed disabled
-    for ~23h because nobody asked the gate again."""
+    """Seen on a CICD instance: the container restarted while postgres was
+    not reachable yet, the queue_job probe raised, and the queuejobs role
+    stayed disabled for ~23h because nobody asked the gate again."""
 
     def test_unknown_gate_at_startup_arms_a_recheck(self, monkeypatch):
         monkeypatch.setitem(sup._PROBES, "queue_job_installed", _db_down)

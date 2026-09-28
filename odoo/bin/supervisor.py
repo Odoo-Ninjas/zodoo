@@ -128,7 +128,7 @@ GATE_UNKNOWN = "unknown"
 # An unknown gate is asked again from the supervise loop until it gives a
 # definitive answer. Without this a queuejobs role whose probe hit a postgres
 # that was not up yet at container start stayed disabled for good — observed
-# on cicd-3dm: no queue job processed for ~23h after a container restart.
+# on a CICD instance: no queue job processed for ~23h after a container restart.
 GATE_RECHECK_INITIAL = 5.0
 GATE_RECHECK_MAX = 60.0
 
