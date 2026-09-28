@@ -28,10 +28,22 @@ services:
       TRIGGER_URL: http://coding_trigger:8090
       CODING_TRIGGER_URL: http://coding_trigger:8090
     volumes:
+      # The customer's source code -- what is worked on in the editor, and
+      # the only thing it may write to.
       - ${HOST_CUSTOMS_DIR}:/opt/src
-      - ${ODOO_IMAGES}:/opt/images
-      - ${HOST_RUN_DIR}:/opt/run
-      # zodoo CLI source — bind-mounted so CLI updates don't require rebuilds.
-      - ${ODOO_IMAGES}/zodoo/src:/opt/zodoo:rw
+      # Everything else read-only. The editor comes with a terminal, and
+      # these three directories do not belong to the single instance:
+      #
+      #  - /opt/run holds the docker-compose.yml that the trigger brings up
+      #    with `-f`. Writable, it would be the way around every check in the
+      #    trigger: containers with arbitrary mounts, so the whole host.
+      #  - /opt/images and /opt/zodoo are shared by all instances on a
+      #    machine that hosts more than one. Writing there plants code that
+      #    root later runs for another instance.
+      #
+      # Working on zodoo itself happens outside the editor.
+      - ${ODOO_IMAGES}:/opt/images:ro
+      - ${HOST_RUN_DIR}:/opt/run:ro
+      - ${ODOO_IMAGES}/zodoo/src:/opt/zodoo:ro
     depends_on:
       - coding_trigger

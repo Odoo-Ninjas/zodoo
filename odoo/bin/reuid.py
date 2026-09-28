@@ -24,6 +24,34 @@ def owns_pid1(uid):
         return False
 
 
+def plan_uid_change(owner_uid, odoo_uid):
+    """(old_uid, new_uid) for the rename in entrypoint.py, or None.
+
+    0 means rootless docker: Odoo runs as root, which there is the host
+    user - nothing to rename (and root owns PID 1 anyway, see owns_pid1).
+    """
+    if owner_uid == 0:
+        return None
+    if owner_uid < 1000:
+        old_uid, new_uid = owner_uid, 30000 - owner_uid
+    else:
+        old_uid, new_uid = odoo_uid, owner_uid
+    if old_uid == new_uid:
+        return None
+    return old_uid, new_uid
+
+
+def needs_chown_to_owner(path_uid, owner_uid):
+    """Whether prepare_run_shared hands a root-owned directory to OWNER_UID.
+
+    Only when there is someone to hand it to. With OWNER_UID=0 (rootless
+    docker) root IS the owner, and `chown -R 0:0` would only take away what
+    other containers set up inside it - the run dir holds pgbackrest.logs and
+    pgbackrest/cert, which belong to uid 999.
+    """
+    return path_uid == 0 and owner_uid != 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Find user by OLD_UID and change it to NEW_UID."

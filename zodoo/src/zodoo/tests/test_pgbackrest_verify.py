@@ -29,17 +29,26 @@ COMPOSE = {
         "pgbackrest": {
             "image": "kunde-pgbackrest",
             "volumes": [
-                {"source": "kunde_odoo_postgres_volume", "target":
-                 "/var/lib/postgresql/data", "type": "volume"},
-                {"source": "kunde_pgbackrest_data", "target":
-                 "/var/lib/pgbackrest", "type": "volume"},
+                {
+                    "source": "kunde_odoo_postgres_volume",
+                    "target": "/var/lib/postgresql/data",
+                    "type": "volume",
+                },
+                {
+                    "source": "kunde_pgbackrest_data",
+                    "target": "/var/lib/pgbackrest",
+                    "type": "volume",
+                },
             ],
         },
         "postgres": {
             "image": "kunde-postgres",
             "volumes": [
-                {"source": "kunde_odoo_postgres_volume", "target":
-                 "/var/lib/postgresql/data", "type": "volume"},
+                {
+                    "source": "kunde_odoo_postgres_volume",
+                    "target": "/var/lib/postgresql/data",
+                    "type": "volume",
+                },
             ],
         },
     }
@@ -102,7 +111,9 @@ def test_the_projects_own_config_is_mounted(compose):
     auseinander.
     """
     mounts = lp._verify_mounts(FakeConfig())
-    assert any(m.endswith("/pgbackrest:/etc/pgbackrest:ro") for m in mounts), mounts
+    assert any(
+        m.endswith("/pgbackrest:/etc/pgbackrest:ro") for m in mounts
+    ), mounts
 
 
 def test_the_scratch_volume_lands_where_postgres_expects_its_data(compose):
@@ -121,7 +132,8 @@ def test_the_scratch_volume_lands_where_postgres_expects_its_data(compose):
 
 def _info(monkeypatch, payload):
     monkeypatch.setattr(
-        lp, "_docker",
+        lp,
+        "_docker",
         lambda *a, **kw: mock.Mock(stdout=json.dumps(payload), returncode=0),
     )
 
@@ -133,8 +145,10 @@ def test_an_unreadable_repository_is_not_reported_as_empty(monkeypatch):
     Sicherungen. Wer das "noch nie gesichert" nennt, schickt den Suchenden zur
     Instanz, obwohl der Fehler beim Schluessel liegt.
     """
-    _info(monkeypatch, [{"status": {"code": 99, "message": "other"},
-                         "backup": []}])
+    _info(
+        monkeypatch,
+        [{"status": {"code": 99, "message": "other"}, "backup": []}],
+    )
     with pytest.raises(lp.VerifyFailed) as ex:
         lp._verify_latest_backup(FakeConfig(), "kunde", "img", [])
     assert "nicht lesbar" in str(ex.value)
@@ -142,8 +156,10 @@ def test_an_unreadable_repository_is_not_reported_as_empty(monkeypatch):
 
 
 def test_a_genuinely_empty_stanza_says_so(monkeypatch):
-    _info(monkeypatch, [{"status": {"code": 2, "message": "no valid backups"},
-                         "backup": []}])
+    _info(
+        monkeypatch,
+        [{"status": {"code": 2, "message": "no valid backups"}, "backup": []}],
+    )
     with pytest.raises(lp.VerifyFailed) as ex:
         lp._verify_latest_backup(FakeConfig(), "kunde", "img", [])
     assert "nie gesichert" in str(ex.value)
@@ -158,13 +174,102 @@ def test_an_unknown_stanza_says_so(monkeypatch):
 
 def test_the_newest_backup_is_the_one_that_gets_tested(monkeypatch):
     """Die juengste, nicht irgendeine - sonst prueft man alte Bestaende."""
-    _info(monkeypatch, [{
-        "status": {"code": 0},
-        "backup": [{"label": "alt"}, {"label": "mittel"}, {"label": "neu"}],
-    }])
-    assert lp._verify_latest_backup(
-        FakeConfig(), "kunde", "img", []
-    ) == "neu"
+    _info(
+        monkeypatch,
+        [
+            {
+                "status": {"code": 0},
+                "backup": [
+                    {"label": "alt"},
+                    {"label": "mittel"},
+                    {"label": "neu"},
+                ],
+            }
+        ],
+    )
+    assert (
+        lp._verify_latest_backup(FakeConfig(), "kunde", "img", [])[0] == "neu"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Postgres-Hauptversion: aus dem Repository lesen, Abbild danach waehlen       #
+# --------------------------------------------------------------------------- #
+
+
+def test_the_major_version_comes_from_the_repository(monkeypatch):
+    """Sie steht in der Sicherung - sie muss nicht mitgefuehrt werden."""
+    _info(
+        monkeypatch,
+        [
+            {
+                "status": {"code": 0},
+                "db": [{"id": 1, "version": "16"}],
+                "backup": [{"label": "neu", "database": {"id": 1}}],
+            }
+        ],
+    )
+    assert lp._verify_latest_backup(FakeConfig(), "kunde", "img", []) == (
+        "neu",
+        "16",
+    )
+
+
+def test_after_a_major_upgrade_the_backups_own_version_wins(monkeypatch):
+    """Nicht die neueste db, sondern die der geprueften Sicherung.
+
+    Nach einem Major-Upgrade stehen mehrere Eintraege in db. Wer den letzten
+    nimmt, faehrt eine alte Sicherung unter der neuen Version hoch - und die
+    faellt durch, obwohl sie in Ordnung ist.
+    """
+    _info(
+        monkeypatch,
+        [
+            {
+                "status": {"code": 0},
+                "db": [{"id": 1, "version": "16"}, {"id": 2, "version": "17"}],
+                "backup": [{"label": "vor_upgrade", "database": {"id": 1}}],
+            }
+        ],
+    )
+    assert lp._verify_latest_backup(FakeConfig(), "kunde", "img", []) == (
+        "vor_upgrade",
+        "16",
+    )
+
+
+def test_without_a_version_map_the_single_image_is_used():
+    """Eine Instanz prueft sich selbst - dort laeuft die passende Version."""
+    umgebung = {"postgres_image": "projekt-postgres"}
+    assert lp._verify_pg_image(umgebung, "16", "kunde") == "projekt-postgres"
+
+
+def test_the_image_matching_the_backups_version_is_chosen():
+    umgebung = {
+        "postgres_image": "pgbr-bench:pg17",
+        "postgres_images": {"16": "pgbr-bench:pg16", "17": "pgbr-bench:pg17"},
+    }
+    assert lp._verify_pg_image(umgebung, "16", "kunde") == "pgbr-bench:pg16"
+    assert lp._verify_pg_image(umgebung, "17", "kunde") == "pgbr-bench:pg17"
+
+
+def test_a_missing_image_fails_loudly_instead_of_using_the_wrong_one():
+    """Lieber ungeprueft als scheinbar geprueft.
+
+    Ein Rueckfall auf ein Abbild der falschen Hauptversion erzeugt eine
+    Meldung ueber inkompatible Datenbankdateien - die sieht wie ein Schaden
+    an der Sicherung aus und schickt den Suchenden zur falschen Stelle.
+    """
+    umgebung = {
+        "postgres_image": "pgbr-bench:pg17",
+        "postgres_images": {"17": "pgbr-bench:pg17"},
+    }
+    with pytest.raises(lp.VerifyFailed) as ex:
+        lp._verify_pg_image(umgebung, "16", "kunde")
+    assert "PostgreSQL 16" in str(ex.value)
+    assert "kein Pruefabbild" in str(ex.value)
+    # Der Weg heraus gehoert in die Meldung, nicht in den Kopf des Lesers.
+    assert "postgres_images" in str(ex.value)
 
 
 # --------------------------------------------------------------------------- #
@@ -192,7 +297,9 @@ def test_the_source_settings_are_read_not_guessed(monkeypatch):
     "recovery aborted because of insufficient parameter settings".
     """
     monkeypatch.setattr(
-        lp, "_docker", lambda *a, **kw: mock.Mock(stdout=PG_CONTROL, returncode=0)
+        lp,
+        "_docker",
+        lambda *a, **kw: mock.Mock(stdout=PG_CONTROL, returncode=0),
     )
     werte = lp._verify_minimums("img", "vol", [])
     assert werte["max_connections"] == "2000"
@@ -222,7 +329,8 @@ def test_a_cluster_without_user_tables_does_not_pass(monkeypatch):
     """
     antworten = ["meinedb", ""]
     monkeypatch.setattr(
-        lp, "_verify_query",
+        lp,
+        "_verify_query",
         lambda *a, **kw: mock.Mock(stdout=antworten.pop(0), returncode=0),
     )
     with pytest.raises(lp.VerifyFailed) as ex:
@@ -270,7 +378,8 @@ def test_a_failure_is_reported_not_raised(monkeypatch, compose):
     gescheitert", und das sind sehr verschiedene Nachrichten.
     """
     monkeypatch.setattr(
-        lp, "_verify_images",
+        lp,
+        "_verify_images",
         mock.Mock(side_effect=lp.VerifyFailed("kein pgbackrest im Projekt")),
     )
     monkeypatch.setattr(lp, "_verify_cleanup", lambda *a: None)
@@ -291,7 +400,9 @@ def test_cleanup_runs_even_when_the_probe_blows_up(monkeypatch, compose):
     """
     aufgeraeumt = []
     monkeypatch.setattr(
-        lp, "_verify_latest_backup", mock.Mock(side_effect=RuntimeError("boom"))
+        lp,
+        "_verify_latest_backup",
+        mock.Mock(side_effect=RuntimeError("boom")),
     )
     monkeypatch.setattr(
         lp, "_verify_cleanup", lambda c, v: aufgeraeumt.append((c, v))
@@ -309,7 +420,8 @@ def test_nothing_is_cleaned_up_when_nothing_was_created(monkeypatch, compose):
     """Scheitert schon die Umgebung, wird kein Aufraeumen vorgetaeuscht."""
     aufgeraeumt = []
     monkeypatch.setattr(
-        lp, "_verify_images",
+        lp,
+        "_verify_images",
         mock.Mock(side_effect=lp.VerifyFailed("kein pgbackrest im Projekt")),
     )
     monkeypatch.setattr(
@@ -351,9 +463,14 @@ def test_built_services_fall_back_to_composes_own_naming(monkeypatch):
     zeigt sich erst tief in subprocess - weit weg von der Ursache.
     """
     monkeypatch.setattr(
-        lp, "_compose_config",
-        lambda config: {"services": {"pgbackrest": {"build": {}},
-                                     "postgres": {"build": {}}}},
+        lp,
+        "_compose_config",
+        lambda config: {
+            "services": {
+                "pgbackrest": {"build": {}},
+                "postgres": {"build": {}},
+            }
+        },
     )
     assert lp._verify_images(FakeConfig()) == (
         "kunde-pgbackrest",
@@ -386,15 +503,17 @@ def test_the_short_volume_notation_is_understood_too(monkeypatch):
     monkeypatch.setattr(lp, "_verify_repo_is_local", lambda config: True)
     monkeypatch.setattr(lp, "_repo_volume_from_container", lambda config: None)
     mounts = lp._verify_mounts(FakeConfig())
-    assert any(m == "kunde_pgbackrest_data:/var/lib/pgbackrest:ro"
-               for m in mounts), mounts
+    assert any(
+        m == "kunde_pgbackrest_data:/var/lib/pgbackrest:ro" for m in mounts
+    ), mounts
     assert not any("odoo_postgres_volume" in m for m in mounts), mounts
 
 
 def test_a_local_repository_without_its_volume_fails_clearly(monkeypatch):
     """Fehlende Einhaengung wird benannt, statt sie pgbackrest melden zu lassen."""
     monkeypatch.setattr(
-        lp, "_compose_config",
+        lp,
+        "_compose_config",
         lambda config: {"services": {"pgbackrest": {"volumes": []}}},
     )
     monkeypatch.setattr(lp, "_verify_repo_is_local", lambda config: True)
@@ -407,7 +526,8 @@ def test_a_local_repository_without_its_volume_fails_clearly(monkeypatch):
 def test_a_remote_repository_needs_no_volume(monkeypatch):
     """Liegt der Bestand auf dem Backup-Server, gibt es hier nichts einzuhaengen."""
     monkeypatch.setattr(
-        lp, "_compose_config",
+        lp,
+        "_compose_config",
         lambda config: {"services": {"pgbackrest": {"volumes": []}}},
     )
     monkeypatch.setattr(lp, "_verify_repo_is_local", lambda config: False)
@@ -419,8 +539,15 @@ def test_a_remote_repository_needs_no_volume(monkeypatch):
 
 def test_a_missing_stanza_is_not_called_unreadable(monkeypatch):
     """Status 1 heisst: Bestand da, dieser Bereich nicht. Andere Suche."""
-    _info(monkeypatch, [{"status": {"code": 1, "message": "missing stanza path"},
-                         "backup": []}])
+    _info(
+        monkeypatch,
+        [
+            {
+                "status": {"code": 1, "message": "missing stanza path"},
+                "backup": [],
+            }
+        ],
+    )
     with pytest.raises(lp.VerifyFailed) as ex:
         lp._verify_latest_backup(FakeConfig(), "kunde", "img", [])
     assert "keinen Bereich" in str(ex.value)
@@ -429,6 +556,7 @@ def test_a_missing_stanza_is_not_called_unreadable(monkeypatch):
 
 def test_the_local_repo_detection_reads_the_projects_config(tmp_path):
     """repo1-path = hier, repo1-host = anderswo."""
+
     class C:
         project_name = "kunde"
         pgbr_stanza = None
@@ -458,16 +586,20 @@ def test_a_named_volume_gets_the_project_prefix(monkeypatch):
     Bestand kaputt. Genau diese falsche Faehrte verhindert dieser Test.
     """
     monkeypatch.setattr(lp, "_repo_volume_from_container", lambda config: None)
-    sidecar = {"volumes": [{"source": "pgbackrest_data",
-                            "target": "/var/lib/pgbackrest"}]}
+    sidecar = {
+        "volumes": [
+            {"source": "pgbackrest_data", "target": "/var/lib/pgbackrest"}
+        ]
+    }
     assert lp._repo_volume(FakeConfig(), sidecar) == "kunde_pgbackrest_data"
 
 
 def test_a_path_mount_is_used_unchanged(monkeypatch):
     """Ein Pfad aus dem Dateisystem bekommt kein Projekt davor."""
     monkeypatch.setattr(lp, "_repo_volume_from_container", lambda config: None)
-    sidecar = {"volumes": [{"source": "/srv/repo",
-                            "target": "/var/lib/pgbackrest"}]}
+    sidecar = {
+        "volumes": [{"source": "/srv/repo", "target": "/var/lib/pgbackrest"}]
+    }
     assert lp._repo_volume(FakeConfig(), sidecar) == "/srv/repo"
 
 
@@ -476,8 +608,11 @@ def test_the_running_container_wins_over_the_derived_name(monkeypatch):
     monkeypatch.setattr(
         lp, "_repo_volume_from_container", lambda config: "ganz_anders"
     )
-    sidecar = {"volumes": [{"source": "pgbackrest_data",
-                            "target": "/var/lib/pgbackrest"}]}
+    sidecar = {
+        "volumes": [
+            {"source": "pgbackrest_data", "target": "/var/lib/pgbackrest"}
+        ]
+    }
     assert lp._repo_volume(FakeConfig(), sidecar) == "ganz_anders"
 
 
@@ -488,8 +623,14 @@ def test_an_already_prefixed_name_is_not_prefixed_twice(monkeypatch):
     nur als "leerer Bestand" auf, also als falsche Faehrte.
     """
     monkeypatch.setattr(lp, "_repo_volume_from_container", lambda config: None)
-    sidecar = {"volumes": [{"source": "kunde_pgbackrest_data",
-                            "target": "/var/lib/pgbackrest"}]}
+    sidecar = {
+        "volumes": [
+            {
+                "source": "kunde_pgbackrest_data",
+                "target": "/var/lib/pgbackrest",
+            }
+        ]
+    }
     assert lp._repo_volume(FakeConfig(), sidecar) == "kunde_pgbackrest_data"
 
 
@@ -542,7 +683,8 @@ def test_a_stanza_can_carry_its_own_passphrase(monkeypatch, tmp_path):
         lp, "_probe", lambda umgebung, stanza: {"result": "passed"}
     )
     monkeypatch.setattr(
-        lp, "_bench_environment",
+        lp,
+        "_bench_environment",
         lambda bench, stanza, ordner: gesehen.setdefault(stanza, bench) and {},
     )
     for b in ("kunde-a", "kunde-b"):
@@ -567,8 +709,9 @@ def test_a_missing_certificate_is_named(tmp_path, monkeypatch):
     assert "Zertifikat" in str(ex.value)
 
 
-def test_the_bench_environment_carries_the_user_and_one_image(tmp_path,
-                                                              monkeypatch):
+def test_the_bench_environment_carries_the_user_and_one_image(
+    tmp_path, monkeypatch
+):
     """Ein Abbild fuer beide Rollen, und ein Benutzer statt gosu.
 
     Im Pruefstand-Abbild (auf postgres:17 aufgesetzt) gibt es kein gosu - die
@@ -585,11 +728,16 @@ def test_the_bench_environment_carries_the_user_and_one_image(tmp_path,
 
     u = lp._bench_environment(bench, "kunde-a", str(arbeit))
     assert u["run_user"] == "999:999"
-    assert u["pgbackrest_image"] == u["postgres_image"] == "pgbr-pruefstand:2.59.1"
+    assert (
+        u["pgbackrest_image"]
+        == u["postgres_image"]
+        == "pgbr-pruefstand:2.59.1"
+    )
     assert u["mounts"] == [f"{arbeit}:/etc/pgbackrest:ro"]
     assert u["bench"] == "pgbr-pruefstand"
     # Die Passphrase steht in der Datei - sie darf nicht fuer alle lesbar sein.
     import stat
+
     modus = stat.S_IMODE((arbeit / "pgbackrest.conf").stat().st_mode)
     assert modus == 0o600, oct(modus)
 
@@ -603,8 +751,9 @@ def test_the_bench_never_mounts_a_data_volume(tmp_path, monkeypatch):
         (cert / f).write_text("x")
     arbeit = tmp_path / "arbeit2"
     arbeit.mkdir()
-    u = lp._bench_environment(dict(BENCH, cert_dir=str(cert)), "kunde-a",
-                           str(arbeit))
+    u = lp._bench_environment(
+        dict(BENCH, cert_dir=str(cert)), "kunde-a", str(arbeit)
+    )
     assert not any("postgresql/data" in m for m in u["mounts"]), u["mounts"]
 
 
@@ -621,9 +770,10 @@ def test_both_paths_run_the_very_same_probe(monkeypatch, compose, tmp_path):
     """
     gerufen = []
     monkeypatch.setattr(
-        lp, "_probe",
-        lambda umgebung, stanza: gerufen.append((umgebung, stanza)) or
-        {"result": "passed"},
+        lp,
+        "_probe",
+        lambda umgebung, stanza: gerufen.append((umgebung, stanza))
+        or {"result": "passed"},
     )
     monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
     cert = tmp_path / "cert"
@@ -638,7 +788,11 @@ def test_both_paths_run_the_very_same_probe(monkeypatch, compose, tmp_path):
     # Beide liefern dieselbe Art Umgebung - nur eben aus anderer Quelle.
     for umgebung, _ in gerufen:
         assert set(umgebung) >= {
-            "pgbackrest_image", "postgres_image", "mounts", "run_user", "bench"
+            "pgbackrest_image",
+            "postgres_image",
+            "mounts",
+            "run_user",
+            "bench",
         }
 
 
@@ -702,7 +856,9 @@ def test_areas_are_derived_from_the_envelopes(tmp_path):
     den niemand prueft, faellt nicht auf.
     """
     d = _umschlag_ordner(
-        tmp_path, "kunde-a-20260101T000000Z.age", "kunde-b-20260101T000000Z.age"
+        tmp_path,
+        "kunde-a-20260101T000000Z.age",
+        "kunde-b-20260101T000000Z.age",
     )
     assert lp.envelope_areas(d) == ["kunde-a", "kunde-b"]
 
@@ -712,8 +868,9 @@ def test_no_envelope_directory_is_not_an_error(tmp_path):
     assert lp.newest_envelope(str(tmp_path / "weg"), "kunde-a") is None
 
 
-def test_the_envelope_supplies_passphrase_and_certificate(monkeypatch,
-                                                          tmp_path):
+def test_the_envelope_supplies_passphrase_and_certificate(
+    monkeypatch, tmp_path
+):
     """Der eigentliche Gewinn: das Zertifikat des KUNDEN kommt mit.
 
     Damit braucht der Pruefstand kein eigenes, das auf alle Bereiche
@@ -764,9 +921,11 @@ def test_an_unopenable_envelope_says_so(monkeypatch, tmp_path):
     identity = tmp_path / "age.key"
     identity.write_text("x")
     monkeypatch.setattr(
-        lp.subprocess, "run",
-        lambda *a, **kw: mock.Mock(returncode=1, stderr="no identity matched",
-                                   stdout=""),
+        lp.subprocess,
+        "run",
+        lambda *a, **kw: mock.Mock(
+            returncode=1, stderr="no identity matched", stdout=""
+        ),
     )
     with pytest.raises(lp.VerifyFailed) as ex:
         lp.open_envelope(str(identity), str(tmp_path / "u.age"))
@@ -774,8 +933,9 @@ def test_an_unopenable_envelope_says_so(monkeypatch, tmp_path):
     assert "no identity matched" in str(ex.value)
 
 
-def test_the_certificate_from_the_envelope_is_written_not_copied(monkeypatch,
-                                                                 tmp_path):
+def test_the_certificate_from_the_envelope_is_written_not_copied(
+    monkeypatch, tmp_path
+):
     """Aus dem Umschlag kommt Text, kein Pfad - er wird abgelegt, nicht kopiert."""
     monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
     arbeit = tmp_path / "arbeit"
@@ -809,13 +969,18 @@ def test_the_private_age_key_is_never_mounted(monkeypatch, tmp_path):
     (tmp_path / "cert").mkdir(exist_ok=True)
     (tmp_path / "cert" / "ca.crt").write_text("CA")
     bench = {
-        "repo_host": "h", "pgbackrest_image": "b",
+        "repo_host": "h",
+        "pgbackrest_image": "b",
         "age_identity": "/etc/pgbr-pruefstand/age.key",
-        "client_cert": "c", "client_key": "k", "cipher_pass": "x",
+        "client_cert": "c",
+        "client_key": "k",
+        "cipher_pass": "x",
         "cert_dir": str(tmp_path / "cert"),
     }
     u = lp._bench_environment(bench, "kunde-a", str(arbeit))
-    assert not any(bench["age_identity"] in m for m in u["mounts"]), u["mounts"]
+    assert not any(bench["age_identity"] in m for m in u["mounts"]), u[
+        "mounts"
+    ]
     # Und auch sonst nichts aus /etc/pgbr-pruefstand - dort liegt der
     # Schluessel, und eingehaengt wird nur der Wegwerf-Ordner.
     assert all(m.startswith(str(arbeit)) for m in u["mounts"]), u["mounts"]
@@ -909,8 +1074,9 @@ def test_s3_needs_no_client_certificate(tmp_path, monkeypatch):
     assert not (arbeit / "cert" / "client.crt").exists()
 
 
-def test_the_storage_ca_is_copied_into_the_throwaway_folder(tmp_path,
-                                                            monkeypatch):
+def test_the_storage_ca_is_copied_into_the_throwaway_folder(
+    tmp_path, monkeypatch
+):
     monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
     ca = tmp_path / "minio-ca.crt"
     ca.write_text("CA-INHALT")
@@ -929,7 +1095,8 @@ def test_a_missing_storage_ca_is_named(tmp_path, monkeypatch):
     with pytest.raises(lp.VerifyFailed) as ex:
         lp._bench_environment(
             dict(BENCH_S3, storage_ca_file=str(tmp_path / "weg.crt")),
-            "kunde-a", str(arbeit),
+            "kunde-a",
+            str(arbeit),
         )
     assert "Speicher-CA" in str(ex.value)
 
@@ -944,7 +1111,8 @@ def test_both_repository_kinds_produce_the_same_shape_of_environment(
     for f in ("ca.crt", "client.crt", "client.key"):
         (cert / f).write_text("x")
     a, b = tmp_path / "ea", tmp_path / "eb"
-    a.mkdir(); b.mkdir()
+    a.mkdir()
+    b.mkdir()
 
     tls = lp._bench_environment(dict(BENCH, cert_dir=str(cert)), "k", str(a))
     s3 = lp._bench_environment(BENCH_S3, "k", str(b))
@@ -993,16 +1161,19 @@ def test_the_working_folder_belongs_to_the_container_user_in_both_shapes(
 
 def test_the_name_of_the_store_comes_from_the_configuration():
     """Ein eigener Name schlaegt die Art - 's3' unterscheidet zwei S3 nicht."""
-    assert lp._store_name({"repo_type": "s3", "store": "zweitbestand"}) == \
-        "zweitbestand"
+    assert (
+        lp._store_name({"repo_type": "s3", "store": "zweitbestand"})
+        == "zweitbestand"
+    )
     assert lp._store_name({"repo_type": "s3"}) == "s3"
     assert lp._store_name({"repo_host": "db.backup"}) == "tls"
     # Leerraum ist keine Benennung.
     assert lp._store_name({"store": "  ", "repo_type": "s3"}) == "s3"
 
 
-def test_every_result_says_which_store_it_came_from(monkeypatch, compose,
-                                                    tmp_path):
+def test_every_result_says_which_store_it_came_from(
+    monkeypatch, compose, tmp_path
+):
     """Auch der Fehlerfall - gerade der.
 
     Ein Nachweis ohne Bestand ist im Ablageordner nicht zuzuordnen, und
@@ -1019,9 +1190,10 @@ def test_every_result_says_which_store_it_came_from(monkeypatch, compose,
 
     gerufen = []
     monkeypatch.setattr(
-        lp, "_probe",
-        lambda umgebung, stanza: gerufen.append(umgebung) or
-        {"result": "passed"},
+        lp,
+        "_probe",
+        lambda umgebung, stanza: gerufen.append(umgebung)
+        or {"result": "passed"},
     )
     lp.run_verify(FakeConfig())
     assert gerufen[0]["store"] == "projekt"
@@ -1036,13 +1208,28 @@ def test_the_two_stores_do_not_share_a_file_name(tmp_path, monkeypatch):
     from click.testing import CliRunner
 
     ergebnisse = [
-        {"area": "kunde-a", "store": "erstbestand", "result": "passed",
-         "backup": "b", "rows": 1, "table": "t", "seconds": 1},
-        {"area": "kunde-a", "store": "zweitbestand", "result": "passed",
-         "backup": "b", "rows": 1, "table": "t", "seconds": 1},
+        {
+            "area": "kunde-a",
+            "store": "erstbestand",
+            "result": "passed",
+            "backup": "b",
+            "rows": 1,
+            "table": "t",
+            "seconds": 1,
+        },
+        {
+            "area": "kunde-a",
+            "store": "zweitbestand",
+            "result": "passed",
+            "backup": "b",
+            "rows": 1,
+            "table": "t",
+            "seconds": 1,
+        },
     ]
-    monkeypatch.setattr(lp, "run_verify_bench",
-                        lambda bench, stanza: ergebnisse.pop(0))
+    monkeypatch.setattr(
+        lp, "run_verify_bench", lambda bench, stanza: ergebnisse.pop(0)
+    )
     conf = tmp_path / "bench.json"
     conf.write_text(json.dumps({"stanzas": {"kunde-a": {}}}))
     ziel = tmp_path / "ergebnisse"
@@ -1053,7 +1240,8 @@ def test_the_two_stores_do_not_share_a_file_name(tmp_path, monkeypatch):
         runner.invoke(
             lp.pgbackrest_verify,
             ["--bench-config", str(conf), "--report-to", str(ziel)],
-            obj=FakeConfig(), standalone_mode=False,
+            obj=FakeConfig(),
+            standalone_mode=False,
         )
 
     namen = sorted(p.name for p in ziel.glob("*.json"))
@@ -1109,7 +1297,8 @@ def test_a_clean_run_has_no_verdict_line():
     schaltet den Waechter nach der dritten Fehlmeldung ab.
     """
     urteil, meldungen, bereiche = lp._read_verify_output(
-        AUSGABE_SAUBER, "kunde-a")
+        AUSGABE_SAUBER, "kunde-a"
+    )
     assert urteil == "ok"
     assert meldungen == []
     assert len(bereiche) == 1
@@ -1124,14 +1313,22 @@ def test_gaps_are_counted_but_are_not_a_failure():
     auf einen Zeitpunkt zurueck.
     """
     urteil, meldungen, bereiche = lp._read_verify_output(
-        OUTPUT_WITH_GAPS, "kunde-a")
+        OUTPUT_WITH_GAPS, "kunde-a"
+    )
     assert urteil == "ok"
     assert len(bereiche) == 3
     assert lp._wal_gaps(bereiche) == 2
     assert lp._wal_gaps([]) == 0
     # Zwei archiveIds mit je einem Abschnitt sind KEINE Luecke.
-    assert lp._wal_gaps([{"archive": "17-1", "von": "a", "bis": "b"},
-                        {"archive": "16-1", "von": "c", "bis": "d"}]) == 0
+    assert (
+        lp._wal_gaps(
+            [
+                {"archive": "17-1", "von": "a", "bis": "b"},
+                {"archive": "16-1", "von": "c", "bis": "d"},
+            ]
+        )
+        == 0
+    )
 
 
 def test_a_damaged_repository_is_a_failure_even_though_pgbackrest_exits_zero_2():
@@ -1149,14 +1346,18 @@ def test_a_run_that_never_finished_is_not_ok():
 def _fake_bench_environment(monkeypatch, ausgabe):
     monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
     monkeypatch.setattr(
-        lp, "_bench_environment",
+        lp,
+        "_bench_environment",
         lambda bench, stanza, ordner: {
-            "pgbackrest_image": "bild", "postgres_image": "bild",
-            "mounts": [], "run_user": None,
+            "pgbackrest_image": "bild",
+            "postgres_image": "bild",
+            "mounts": [],
+            "run_user": None,
         },
     )
     monkeypatch.setattr(
-        lp, "_docker",
+        lp,
+        "_docker",
         lambda *a, **kw: mock.Mock(stdout=ausgabe, stderr="", returncode=0),
     )
 
@@ -1164,8 +1365,9 @@ def _fake_bench_environment(monkeypatch, ausgabe):
 def test_the_result_carries_the_gaps(monkeypatch):
     """Das Ergebnis muss die Luecken tragen, sonst sieht sie niemand."""
     _fake_bench_environment(monkeypatch, OUTPUT_WITH_GAPS)
-    e = lp.run_repo_verify_bench(dict(BENCH_S3, store="zweitbestand"),
-                                 "kunde-a")
+    e = lp.run_repo_verify_bench(
+        dict(BENCH_S3, store="zweitbestand"), "kunde-a"
+    )
     assert e["result"] == "passed"
     assert e["wal_gaps"] == 2
     assert len(e["wal_bereiche"]) == 3
@@ -1192,10 +1394,13 @@ def test_verify_runs_with_detail_logging(monkeypatch):
     gerufen = []
     monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
     monkeypatch.setattr(
-        lp, "_bench_environment",
+        lp,
+        "_bench_environment",
         lambda bench, stanza, ordner: {
-            "pgbackrest_image": "bild", "postgres_image": "bild",
-            "mounts": [], "run_user": None,
+            "pgbackrest_image": "bild",
+            "postgres_image": "bild",
+            "mounts": [],
+            "run_user": None,
         },
     )
 

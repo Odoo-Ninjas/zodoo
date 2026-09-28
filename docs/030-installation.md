@@ -104,7 +104,7 @@ Odoo needs old Python:
 | ---------- | ----------------- |
 | 11         | `debian:buster`   |
 | 12, 13, 14 | `debian:bullseye` |
-| 15 – 19    | `ubuntu:22.04`    |
+| 15 – 20    | `ubuntu:22.04`    |
 
 Moving 12–14 to bookworm is not a hardening step, it is a break: bookworm
 ships Python 3.11, and Odoo 12 (2018) does not run on it. **"Get off the old

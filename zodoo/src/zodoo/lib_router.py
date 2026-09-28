@@ -175,6 +175,24 @@ def _patch_compose_networks(install_dir, networks):
     dcfile.write_text(yaml.safe_dump(config, sort_keys=False))
 
 
+def _patch_compose_host_network(install_dir):
+    """Run the router in the host's network (idempotent).
+
+    For proxies behind another docker daemon (rootless, one user per
+    instance): no shared network exists, the router reaches each proxy on
+    127.0.0.1:<PROXY_PORT>. compose rejects ports/networks next to
+    network_mode: host, so both go.
+    """
+    dcfile = install_dir / "docker-compose.yml"
+    config = yaml.safe_load(dcfile.read_text())
+    router = config["services"]["router"]
+    router["network_mode"] = "host"
+    router.pop("ports", None)
+    router.pop("networks", None)
+    config.pop("networks", None)
+    dcfile.write_text(yaml.safe_dump(config, sort_keys=False))
+
+
 def _generate_self_signed_certs(install_dir, vhosts):
     """Ensure a self-signed cert exists for every ssl_self_signed vhost.
 
@@ -516,6 +534,13 @@ def router(config):
     help="External docker network(s) the router should join. Repeatable.",
 )
 @click.option(
+    "--host-network",
+    is_flag=True,
+    help="Run the router in the host network (upstreams on 127.0.0.1:<port>). "
+    "For proxies behind another docker daemon, e.g. rootless per-user "
+    "instances. Excludes --network.",
+)
+@click.option(
     "--vhosts-file",
     type=click.Path(exists=True, dir_okay=False),
     default=None,
@@ -534,9 +559,12 @@ def setup_(
     binding_80,
     binding_443,
     networks,
+    host_network,
     vhosts_file,
     no_start,
 ):
+    if host_network and networks:
+        abort("--host-network and --network exclude each other.")
     install_dir = _resolve_install_dir(config, is_global, install_dir)
     src_root = _router_files_dir(config)
     docker_files_src = src_root / "files"
@@ -547,6 +575,8 @@ def setup_(
     _sync_files(docker_files_src, install_dir)
     _write_env(install_dir, binding_80, binding_443)
     _patch_compose_networks(install_dir, list(networks))
+    if host_network:
+        _patch_compose_host_network(install_dir)
     if config.WORKING_DIR:
         update_setting(config, "RUN_PROXY_PUBLISHED", "0")
         click.secho(

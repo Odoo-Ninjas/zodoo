@@ -20,8 +20,10 @@ services:
       - "${ODOO_IMAGES}:$ODOO_IMAGES"
       - ${HOST_CUSTOMS_DIR}:/opt/src
       - ${HOST_CUSTOMS_DIR}:${HOST_CUSTOMS_DIR}
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /var/lib/docker:/var/lib/docker
+      # The daemon zodoo itself talks to - under rootless docker the user's
+      # own, not the root daemon (see settings._apply_docker_rootless).
+      - ${DOCKER_SOCKET}:/var/run/docker.sock
+      - ${DOCKER_DATA_ROOT}:/var/lib/docker
       - "${ODOO_IMAGES}/cronjobs/bin/postgres.py:/usr/local/bin/postgres.py"
       - "${ODOO_IMAGES}/cronjobs/bin/run.py:/usr/local/bin/run.py"
       - ${ODOO_FILES}:/opt/files

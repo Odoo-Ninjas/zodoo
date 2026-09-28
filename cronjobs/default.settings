@@ -1,4 +1,9 @@
 RUN_CRONJOBS=1
+# Docker daemon handed to the cronjobs container (pgbackrest, offsite and the
+# restart watchdog go through it). Under rootless docker `odoo reload`
+# replaces these with the user's own daemon.
+DOCKER_SOCKET=/var/run/docker.sock
+DOCKER_DATA_ROOT=/var/lib/docker
 JOB_BACKUP_ODOO_DB=odoo backup odoo-db $DB_ODOO_FILEFORMAT --dumptype $DB_ODOO_DUMPTYPE
 
 # pgBackRest base backups. WAL is archived continuously by postgres itself

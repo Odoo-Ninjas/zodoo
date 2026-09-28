@@ -65,11 +65,11 @@ debugging or a separate profiling setup.
 
 ### Grabbing the cURL command from DevTools
 
-![Copying the slow request's cURL command from Chrome DevTools](./img/benchmark-devtools-curl.png)
+![Copying the slow request's cURL command from Chrome DevTools](img/benchmark-devtools-curl.png)
 
 ### Example benchmark run output
 
-![Sample odoo benchmark output showing per-field read times](./img/benchmark-run-output.png)
+![Sample odoo benchmark output showing per-field read times](img/benchmark-run-output.png)
 
 `odoo benchmark fields` is the fastest way to diagnose field-level
 performance issues in an Odoo project — it isolates the slow field without

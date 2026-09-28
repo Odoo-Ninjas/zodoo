@@ -1,5 +1,55 @@
 # Changelog
 
+## 11.9.2
+
+- **Fix**: Der Watchdog (CRONJOB_RESTART_UNHEALTHY_CONTAINERS) laesst Container aus `docker compose run` jetzt in Ruhe. Bisher hat er jeden Container des Projekts angefasst; bricht ein solcher One-Shot-Job ab, bleibt sein Container ungesund liegen und wurde jede Minute neu gestartet, womit der Job endlos von vorn begann. Auf cicd-3dm hielten fuenf davon die Maschine neun Tage bei Last ueber 5, ohne laufenden Build. Erkannt werden sie am Label com.docker.compose.oneoff; geprueft wird nur auf den ausdruecklichen Wert True, damit Umgebungen ohne dieses Label sich verhalten wie bisher.
+
+
+## 11.9.1
+
+- **Fix**: Unter rootless Docker schrieb pgBackRest keine Logdatei mehr ("unable to open log file ... Permission denied"). Ursache: der Odoo-Container gab beim Start jedes root-eigene Verzeichnis per `chown -R` an OWNER_UID - unter rootless ist OWNER_UID aber 0 und das Run-Verzeichnis gehoert immer root, also lief bei jedem Start `chown -R 0:0` ueber das ganze Run-Verzeichnis und nahm pgbackrest.logs und pgbackrest/cert dem pgBackRest-Benutzer (uid 999) wieder weg. Mit OWNER_UID=0 wird jetzt nichts mehr umgeschrieben; auf normalen Maschinen aendert sich nichts. Zum Pruefen als rootless Benutzer - odoo build odoo, odoo up -d, dann `stat -c %u ~/.odoo/run/<projekt>/pgbackrest.logs` (subuid, nicht der eigene Benutzer) und nach `odoo pgbackrest info` liegen Dateien darin.
+
+
+## 11.9.0
+
+- **Feature**: zodoo laeuft jetzt auch unter rootless Docker (ein Unix-Benutzer je Instanz, jeder mit eigenem Docker-Daemon). Bisher scheiterte das eigene Image dort am uid-Mapping: der Entrypoint benannte odoo auf die Host-uid um, die im Container aber eine fremde subuid ist - danach gehoerte das Run-Verzeichnis auf dem Wirt niemandem mehr, den der Benutzer kennt, und die CLI brach mit PermissionError ab. Neu erkennt `odoo reload` einen rootless Daemon selbst (oder per DOCKER_ROOTLESS=1), laesst Odoo im Container als root laufen (das ist dort der Benutzer selbst) und chownt auf dem Wirt auf den aufrufenden Benutzer. Der cronjobs-Container bekommt dort den Socket des eigenen Daemons statt des root-Daemons - sonst liefen pgBackRest- und offsite-Sicherung aus cron heraus nicht. Auf normalen Maschinen aendert sich nichts. Zum Pruefen als rootless Benutzer - odoo reload, build, up -d: /web/login antwortet, und `find ~/.odoo ! -user $USER` findet ausserhalb von ~/.local/share/docker nichts.
+- **Feature**: `odoo router setup --host-network` startet den Router im Netz des Wirts statt in einem Docker-Netz. Gedacht fuer Maschinen, auf denen Router und Projekt-Proxys unter verschiedenen Docker-Daemons laufen (je Instanz ein Benutzer mit rootless Docker): dort gibt es kein gemeinsames Netz, der Proxy veroeffentlicht nur auf 127.0.0.1 (PROXY_IP) und der Router holt es dort ab. Zum Pruefen: `odoo router setup --global --host-network`, danach zeigt `docker inspect -f '{{.HostConfig.NetworkMode}}'` auf den Router "host", und ein vhost mit upstream_server 127.0.0.1 und dem PROXY_PORT der Instanz liefert die Odoo-Anmeldeseite. Ohne den Schalter bleibt alles wie bisher.
+
+
+## 11.8.2
+
+- **Docs**: Order the documentation sidebar logically via numeric filename prefixes, and rework the quickstart into a comprehensive Getting Started page
+
+
+## 11.8.1
+
+- **Fix**: Die Rueckspielprobe waehlt das Pruefabbild jetzt nach der Postgres-Hauptversion der Sicherung statt immer derselben. Ein mit 16 angelegter Bestand faehrt unter 17 nicht hoch; auf einem Pruefstand, der fremde Bereiche prueft, fiel damit jeder Bereich durch, der nicht seine eigene Version hatte - mit einer Meldung ueber inkompatible Datenbankdateien, die wie ein Schaden an der Sicherung aussieht. Die Version steht im Repository selbst und wird von dort gelesen. Wer je Hauptversion ein Abbild hinterlegen will, traegt sie in der bench-config unter postgres_images ein; ohne diesen Eintrag bleibt alles wie bisher. Fehlt ein Abbild zur Version, gilt der Bereich als ungeprueft und die Meldung sagt, was zu tun ist - statt still auf ein falsches Abbild zurueckzufallen.
+
+
+## 11.8.0
+
+- **Feature**: Odoo 20.0 support: `odoo src init <dir> 20.0` creates a project (Ubuntu 22.04 base, Python 3.12.11, same image layout as 19.0). OCA/queue is disabled in the 20.0 template until OCA publishes a 20.0 branch. ODOO_DEMO=1 now works independent of the Odoo version. Weekly image prebuild covers 19.0 and 20.0.
+
+
+## 11.7.1
+
+- **Fix**: The editor (coding) can no longer reach the machine it runs on. Until now the coding_trigger accepted any docker-compose subcommand coming from the editor -- `odoo run --rm -v /:/host odoo bash` was enough to mount the host's root directory. On a machine hosting several instances that laid open the database, filestore and backup passphrase of the neighbours.
+
+  What you see in the editor terminal: `odoo restart`, `odoo up -d`, `odoo update <module>`, `odoo stop`, `odoo logs`, `odoo ps` and `odoo setting` keep working as before. Anything else is now rejected with a message naming what is possible -- as is any flag that does not belong to the command (such as -v, --entrypoint, --privileged, -p, -f).
+
+  On top of that /opt/run, /opt/images and /opt/zodoo are read-only in the editor now; /opt/src, the source code, stays writable. Anyone who used to work on zodoo itself from inside the editor does that outside it from now on. To check: run `touch /opt/zodoo/x` in the editor terminal -- it has to report "Read-only file system".
+
+
+## 11.7.0
+
+- **Feature**: alloy schreibt nur noch die Container-Logs des eigenen Projekts mit statt aller Container der Maschine (Schalter DASHBOARD_LOGS_ALL_CONTAINERS=1 fuer das alte Verhalten)
+
+
+## 11.6.0
+
+- **Feature**: cadvisor laeuft einmal je Maschine (Behaelter zodoo_cadvisor im Netz zodoo_monitoring) statt einmal je Instanz; Prometheus jeder Instanz haengt sich dazu und behaelt nur die eigenen Container
+
+
 ## 11.5.2
 
 - **Docs**: Filestore: comments and docs now state who drives `odoo filestore sync` - the CICD calls it after every restore and weekly per instance, so its behaviour must stay stable for that caller. Also noted in cronjobs/default.settings that CRONJOB_FILESTORE_HEAL never fires on CICD machines (instances there run with RUN_CRONJOBS=0 and have no cronjobs container); that entry is meant for hosts carrying several instances without a CICD on top. Comments that were still German are translated - code comments are English.

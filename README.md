@@ -16,6 +16,28 @@ Provides functionalities:
 
 - fast restore / create snapshots of complete databases using btrfs, which helps testing things on customer databases
 
+## Documentation
+
+User-facing documentation lives in [`docs/`](./docs/README.md) and is published
+at https://docusaurus.zebroo.de/docs/zodoo. Everything in that folder is
+published, so it should read as documentation — keep contributor and
+build instructions here instead.
+
+When editing it:
+
+- Images and other media go in `docs/img/`, referenced relatively:
+  `![alt](img/foo.png)`.
+- Page order comes from the **numeric filename prefix** — three digits in steps
+  of ten (`010-`, `020-`, `030-`), never `sidebar_position` frontmatter, and
+  never both. To insert a page between two others, pick a number between them:
+  `025-new-page.md`. Nothing else has to move.
+- Prefixes are stripped from the published URL, so `020-getting-started.md`
+  serves `/docs/zodoo/getting-started` and renumbering never changes an address.
+  It *does* change relative links between pages, which is why the gaps exist.
+- Broken links fail the site build. A link to `/docs/<section>/<page>` must
+  point at a page that is already live — not one that only exists on an
+  unmerged branch.
+
 ## How to install
 
 ### Install minimum

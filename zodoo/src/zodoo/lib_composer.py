@@ -500,7 +500,7 @@ def _find_suitable_python_version(ODOO_VERSION, settings):
             return "3.11.10"
         elif ODOO_VERSION == 17:
             return "3.12.11"
-        elif ODOO_VERSION in [18, 19]:
+        elif ODOO_VERSION in [18, 19, 20]:
             return "3.12.11"
         elif ODOO_VERSION == 15:
             return "3.9.17"
@@ -653,7 +653,9 @@ def _abort_if_rewriting_from_foreign_container(config, yamlcompose):
     marker = "/.odoo/"
     current_home = str(Path.home())
     foreign = set()
-    for match in re.finditer(r"source: (\S+)" + re.escape(marker), dest_file.read_text()):
+    for match in re.finditer(
+        r"source: (\S+)" + re.escape(marker), dest_file.read_text()
+    ):
         prefix = match.group(1)
         if prefix and prefix != current_home:
             foreign.add(prefix)
@@ -902,13 +904,14 @@ def _download_images(config, images_url):
 
 def _prepare_filesystem(config):
     from .myconfigparser import MyConfigParser
+    from .settings import host_owner_uid
 
     fileconfig = MyConfigParser(config.files["settings"])
     for subdir in ["config", "sqlscripts", "debug", "proxy"]:
         path = config.dirs["run"] / subdir
         _makedirs(path)
         __try_to_set_owner(
-            int(fileconfig["OWNER_UID"]),
+            host_owner_uid(fileconfig),
             path,
         )
     # postgres.logs is bind-mounted on every platform (postgres/docker-compose.yml);

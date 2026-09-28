@@ -1,0 +1,1 @@
+Unter rootless Docker schreibt pgBackRest wieder in seine Logdatei. Der Odoo-Container hat beim Start mit OWNER_UID=0 per `chown -R 0:0` das ganze Run-Verzeichnis zurueckgeschrieben und damit `pgbackrest.logs` und `pgbackrest/cert` dem pgBackRest-Benutzer (uid 999) weggenommen - ein einmaliges chown half nicht, es kam beim naechsten Start wieder.

@@ -139,4 +139,7 @@ The `.patchnotes/` (repo root) and `changelog.d/` (zodoo CLI) systems are **sepa
 
 ## Documentation
 
-Full docs: [`docs/`](./docs/README.md). Online at https://docs.zebroo.de/docs/zodoo (not reachable from sandboxed environments — use the local `docs/` folder).
+Full docs: [`docs/`](./docs/README.md). Online at https://docusaurus.zebroo.de/docs/zodoo
+(not reachable from sandboxed environments — use the local `docs/` folder).
+Everything under `docs/` is published; contributor and build notes belong in
+the root [README](./README.md) instead. See it for the page-numbering convention.
