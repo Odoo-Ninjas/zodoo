@@ -31,7 +31,7 @@ cd ~/projects/my-odoo
 ## 3. Configure for local development
 
 ```bash
-odoo setting DEVMODE=1       # disables mail/cronjobs on restore, resets passwords
+odoo setting DEVMODE=1       # neutralizes restored databases, resets passwords
 odoo setting ODOO_DEMO=1     # load demo data (optional)
 odoo reload
 odoo build

@@ -36,7 +36,10 @@ def set_password_all_users(config, ctx, password, default):
     conn = config.get_odoo_conn().clone()
     check_sql = "select 1 from information_schema.tables where table_name = 'res_users' limit 1"
     if not _execute_sql(conn, check_sql, fetchall=True):
-        click.secho("Skipping set_password_all_users: res_users table does not exist yet (database not initialized).", fg="yellow")
+        click.secho(
+            "Skipping set_password_all_users: res_users table does not exist yet (database not initialized).",
+            fg="yellow",
+        )
         return
     sql = "select login, password from res_users order by login"
     users = _execute_sql(conn, sql, fetchall=True)
@@ -111,6 +114,50 @@ def __collect_other_turndb2dev_sql():
     return sqls
 
 
+def _get_installed_modules(conn):
+    # Same states as odoo.modules.neutralize.get_installed_modules
+    rows = _execute_sql(
+        conn,
+        "SELECT name FROM ir_module_module "
+        "WHERE state IN ('installed', 'to upgrade', 'to remove') "
+        "ORDER BY name",
+        fetchall=True,
+    )
+    return [row[0] for row in rows]
+
+
+def _collect_odoo_neutralize_sql(module_names, addons_paths):
+    """
+    Collects <module>/data/neutralize.sql of the given modules - the files
+    Odoo itself runs on `odoo-bin neutralize` (payment providers, IAP tokens,
+    webhooks, ...). Like Odoo, the first addons path containing the module
+    wins.
+    """
+    sqls = []
+    for name in module_names:
+        for addons_path in addons_paths:
+            module_dir = addons_path / name
+            if not module_dir.is_dir():
+                continue
+            file = module_dir / "data" / "neutralize.sql"
+            if file.exists():
+                sqls.append({"file": file, "mode": "plain"})
+            break
+    return sqls
+
+
+def _odoo_neutralize_sqls(conn):
+    from .odoo_config import current_version
+    from .module_tools import _get_addons_paths
+
+    # Odoo ships neutralize.sql files since 16.0
+    if current_version() < 16.0 or not table_exists(conn, "ir_module_module"):
+        return []
+    return _collect_odoo_neutralize_sql(
+        _get_installed_modules(conn), _get_addons_paths()
+    )
+
+
 def __turn_into_devdb(ctx, config, conn):
     from .odoo_config import current_version
     from .myconfigparser import MyConfigParser
@@ -124,7 +171,11 @@ def __turn_into_devdb(ctx, config, conn):
         / str(int(current_version()))
         / "turndb2dev.sql"
     )
-    sqls = [{"file": sql_file, "mode": "linebyline"}]
+    # Odoo's own neutralization runs first: it deactivates all mail servers
+    # and adds an "invalid" dummy server, which turndb2dev.sql afterwards
+    # points to the local test mail host.
+    sqls = _odoo_neutralize_sqls(conn)
+    sqls += [{"file": sql_file, "mode": "linebyline"}]
 
     sqls += __collect_other_turndb2dev_sql()
 

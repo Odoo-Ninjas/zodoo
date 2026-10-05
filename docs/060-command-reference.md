@@ -195,6 +195,24 @@ odoo restore odoo-db                     # interactive picker
 odoo -f restore odoo-db /backups/mydb.zip
 ```
 
+With `DEVMODE=1` the restored database is neutralized, so a copy of a
+production database cannot reach the outside world:
+
+1. Odoo's own neutralization (Odoo 16 and newer): the `data/neutralize.sql`
+   file of every installed module runs, exactly what `odoo-bin neutralize`
+   does. Among others this disables payment providers (e.g. Stripe), IAP
+   tokens and webhooks, removes push notification keys and sets
+   `database.is_neutralized`. Custom modules that talk to external systems
+   should ship such a file as well.
+2. zodoo's `turndb2dev.sql`: all cronjobs off, outgoing and incoming mail
+   redirected to the local mail catcher, two-factor login (TOTP) removed and a
+   new `database.uuid` generated, so the copy is not mistaken for the
+   production database by Odoo's services.
+3. SQL files listed under `neutralize` in the [MANIFEST](./080-manifest.md)
+   and `devscripts/turn-into-dev.sql` of the project.
+
+Run it again on an existing database with `odoo dev-env turn-into-dev`.
+
 ### `odoo restore files`
 
 Restore the Odoo filestore.

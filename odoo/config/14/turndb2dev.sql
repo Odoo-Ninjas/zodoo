@@ -8,7 +8,7 @@ delete from ir_config_parameter where key='webkit_path';
 /*if-table-exists fetchmail_server*/ update fetchmail_server set server='${TEST_MAIL_HOST}', port='${TEST_MAIL_IMAP_PORT}', "user"='postmaster', password='postmaster', server_type='imap';
 delete from ir_config_parameter where key = 'database.enterprise_code';
 
-/*if-column-exists res_users.password_wite_date*/ update res_users set password_write_date = current_date;
+/*if-column-exists res_users.password_write_date*/ update res_users set password_write_date = current_date;
 
 --set not-critical
 
