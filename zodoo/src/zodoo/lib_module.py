@@ -28,6 +28,7 @@ from .tools import __try_to_set_owner
 from .tools import atomic_write_text
 from .tools import _make_sure_module_is_installed
 from .tools import __assure_gitignore
+from .lib_command_log import logged_command
 from .tools import get_hash
 from .tools import get_directory_hash
 from .tools import is_docker_available
@@ -1091,6 +1092,7 @@ def make_sure_module_is_installed(ctx, config, module):
 )
 @pass_config
 @click.pass_context
+@logged_command("update")
 def update(
     ctx,
     config,

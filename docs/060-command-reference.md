@@ -38,7 +38,8 @@ Stop containers without removing them.
 
 ### `odoo restart [machines...]`
 
-Restart containers.
+Restart containers. Every run is recorded in the
+[command log](#command-log-odoo-commandslog).
 
 ### `odoo build [machines...]`
 
@@ -335,6 +336,40 @@ Update installed modules. Without arguments, updates all modules listed in MANIF
 ```bash
 odoo update               # update all
 odoo update sale account  # update specific modules
+```
+
+The output of the last run is in `./update.log`. Every run is also recorded in
+the [command log](#command-log-odoo-commandslog).
+
+### Command log (`.odoo-commands.log`)
+
+`odoo update` and `odoo restart` append one JSON line per run to
+`.odoo-commands.log` in the project directory - on the host as well as inside
+the container (`UPDATE_ON_STARTUP`), since both see the same directory. Unlike
+`update.log` the file is never emptied, so it answers "when was this instance
+last updated or restarted, with which arguments, and did it work?".
+
+```text
+{"ts": "2026-10-05T15:32:32+02:00", "command": "update", "argv": ["update", "sale"], "project": "myproj", "in_container": false, "nested": false, "result": "ok", "exit_code": 0, "error_type": null, "duration_s": 84.3}
+```
+
+- `result` is `ok`, `error` or `aborted` (Ctrl+C). On errors only the exception
+  type is stored, not its message.
+- `nested` is `true` when another command triggered the run internally; `argv`
+  then shows the command you typed.
+- Not recorded: environment, settings, user or host names. Option values whose
+  name looks like a secret (`--...password=`, `--token ...`) and credentials in
+  URLs are written as `***`.
+- A call rejected by argument parsing (e.g. an unknown option) never started
+  and is not recorded. If the file cannot be written, the command prints a
+  warning and carries on.
+
+The file is runtime data of your checkout. zodoo adds `/.odoo-commands.log` to
+the project `.gitignore` before it writes the first line; new projects get the
+rule (and `/update.log`) from the template. Show the last runs with:
+
+```bash
+tail -n 5 .odoo-commands.log
 ```
 
 ### `odoo module uninstall <module...>`

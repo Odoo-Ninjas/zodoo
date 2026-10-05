@@ -12,6 +12,7 @@ from .tools import execute_script
 from .tools import force_input_hostname
 import subprocess
 from .tools import abort
+from .lib_command_log import logged_command
 from .tools import ensure_project_name
 from .tools import print_prod_env
 from .tools import _shell_complete_machines
@@ -428,6 +429,7 @@ def rebuild(ctx, config, machines):
 )
 @pass_config
 @click.pass_context
+@logged_command("restart")
 def restart(
     ctx, config, machines, profile, force_recreate, no_recreate, restart_all
 ):
