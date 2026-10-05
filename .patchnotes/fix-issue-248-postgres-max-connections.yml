@@ -1,3 +1,0 @@
-type: fix
-description: "Beim PostgreSQL-Konfigurationsvorschlag von `odoo reload` stimmt `max_connections` jetzt mit dem Wert überein, nach dem `work_mem` berechnet wurde."
-breaking: false

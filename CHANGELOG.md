@@ -1,5 +1,10 @@
 # Changelog
 
+## 12.1.2
+
+- **Fix**: Beim PostgreSQL-Konfigurationsvorschlag von `odoo reload` stimmt `max_connections` jetzt mit dem Wert überein, nach dem `work_mem` berechnet wurde.
+
+
 ## 12.1.1
 
 - **Fix**: Supervisor: a role gate that could not be evaluated at container start (postgres not reachable yet) is now rechecked with backoff (5s up to 60s) and the role is started as soon as the gate says on. Previously the queuejobs role stayed disabled until someone started it by hand. `supervisor.py status` shows such roles as gate-pending.
