@@ -5,3 +5,5 @@
 run
 __pycache__
 .watchmanconfig
+/update.log
+/.odoo-commands.log
