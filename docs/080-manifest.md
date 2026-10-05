@@ -33,6 +33,11 @@ The `MANIFEST` file lives at the **project root** and controls which Odoo module
         "password_security",
     ],
 
+    # SQL files run after a DEVMODE restore (relative to the project root)
+    "neutralize": [
+        "my_custom_module/data/neutralize.sql",
+    ],
+
     # Modules to run tests for
     "tests": ["my_custom_module"],
 
@@ -55,19 +60,20 @@ The `MANIFEST` file lives at the **project root** and controls which Odoo module
 
 ## Fields
 
-| Field                 | Description                                                 |
-| --------------------- | ----------------------------------------------------------- |
-| `version`             | Odoo version as float: `17.0`, `16.0`, etc.                 |
-| `server-wide-modules` | Loaded without a database. Always include `"web"`.          |
-| `python_version`      | Python version for the Odoo Docker image.                   |
-| `install`             | Modules to install/keep installed.                          |
-| `uninstall`           | Modules to force-uninstall.                                 |
-| `devmode_uninstall`   | Modules to uninstall when `DEVMODE=1`.                      |
-| `tests`               | Modules to run tests for (used by `odoo module run-tests`). |
-| `before-odoo-update`  | Module update steps to run before main update.              |
-| `addons_paths`        | Directories where Odoo searches for modules. Order matters. |
-| `odoo_dir`            | Where the Odoo source is cloned (default: `odoo`).          |
-| `upgrade_path`        | Path to upgrade-utils for OpenUpgrade migrations.           |
+| Field                 | Description                                                                                                                                                                                                                 |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `version`             | Odoo version as float: `17.0`, `16.0`, etc.                                                                                                                                                                                 |
+| `server-wide-modules` | Loaded without a database. Always include `"web"`.                                                                                                                                                                          |
+| `python_version`      | Python version for the Odoo Docker image.                                                                                                                                                                                   |
+| `install`             | Modules to install/keep installed.                                                                                                                                                                                          |
+| `uninstall`           | Modules to force-uninstall.                                                                                                                                                                                                 |
+| `devmode_uninstall`   | Modules to uninstall when `DEVMODE=1`.                                                                                                                                                                                      |
+| `tests`               | Modules to run tests for (used by `odoo module run-tests`).                                                                                                                                                                 |
+| `neutralize`          | SQL files (relative to the project root) that `DEVMODE=1` runs after a restore, after zodoo's own neutralization. Point it at a module's `data/neutralize.sql` so Odoo's `odoo-bin neutralize` and zodoo use the same file. |
+| `before-odoo-update`  | Module update steps to run before main update.                                                                                                                                                                              |
+| `addons_paths`        | Directories where Odoo searches for modules. Order matters.                                                                                                                                                                 |
+| `odoo_dir`            | Where the Odoo source is cloned (default: `odoo`).                                                                                                                                                                          |
+| `upgrade_path`        | Path to upgrade-utils for OpenUpgrade migrations.                                                                                                                                                                           |
 
 ### Running Odoo from a non-standard directory
 
@@ -78,7 +84,7 @@ the source somewhere else:
 
 ```json
 {
-    "odoo_dir": "odoo2"
+  "odoo_dir": "odoo2"
 }
 ```
 
