@@ -1,3 +1,5 @@
+# Part of Zebroo GmbH. See LICENSE file for full copyright and licensing details (www.zebroo.de/license).
+
 import click
 import inspect
 import os
@@ -184,7 +186,7 @@ def suggest_postgres_conf(
         "effective_cache_size": human_bytes(effective_cache_size),
         "work_mem": human_bytes(work_mem),
         "maintenance_work_mem": human_bytes(maintenance_work_mem),
-        "max_connections": str(2000),
+        "max_connections": str(max_connections),
         "checkpoint_completion_target": "0.9",
         "max_wal_size": human_bytes(max_wal_size),
         "min_wal_size": human_bytes(min_wal_size),
