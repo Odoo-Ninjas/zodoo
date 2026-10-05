@@ -31,12 +31,12 @@ Or edit the files directly. Run `odoo reload` after manual edits.
 
 ## Developer Settings
 
-| Setting                  | Default | Description                                                                             |
-| ------------------------ | ------- | --------------------------------------------------------------------------------------- |
-| `DEVMODE`                | `0`     | `1` = on restore: disable cronjobs/mail, reset all passwords to `DEFAULT_DEV_PASSWORD`. |
-| `DEFAULT_DEV_PASSWORD`   | `admin` | Password set for all users when `DEVMODE=1` and a DB is restored.                       |
-| `ODOO_DEMO`              | `0`     | `1` = load demo data on `db reset`.                                                     |
-| `ODOO_ENABLE_DB_MANAGER` | `0`     | `1` = enable Odoo's built-in database manager at `/web/database/manager`.               |
+| Setting                  | Default | Description                                                                                                                                                                                        |
+| ------------------------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DEVMODE`                | `0`     | `1` = on restore: disable cronjobs/mail, cut the Outlook calendar sync (Odoo 19), reset all passwords to `DEFAULT_DEV_PASSWORD`. Project-specific scripts come from the MANIFEST key `neutralize`. |
+| `DEFAULT_DEV_PASSWORD`   | `admin` | Password set for all users when `DEVMODE=1` and a DB is restored.                                                                                                                                  |
+| `ODOO_DEMO`              | `0`     | `1` = load demo data on `db reset`.                                                                                                                                                                |
+| `ODOO_ENABLE_DB_MANAGER` | `0`     | `1` = enable Odoo's built-in database manager at `/web/database/manager`.                                                                                                                          |
 
 ## Odoo Server
 
@@ -141,12 +141,12 @@ Docker limits on the container itself and work regardless — when the
 limit is hit, that container is killed and restarted instead of the
 kernel OOM killer picking a victim on the whole host.
 
-| Setting                   | Default | Description                                                      |
-| ------------------------- | ------- | ---------------------------------------------------------------- |
-| `MEM_LIMIT_ODOO`          | —       | Container memory limit for the odoo container(s), e.g. `16g`.    |
-| `MEM_LIMIT_ODOO_WEB`      | —       | Overrides `MEM_LIMIT_ODOO` for the web role.                     |
-| `MEM_LIMIT_ODOO_CRON`     | —       | Overrides `MEM_LIMIT_ODOO` for the cron role (v11/v13).          |
-| `MEM_LIMIT_ODOO_QUEUEJOBS`| —       | Overrides `MEM_LIMIT_ODOO` for the queuejob role (v11/v13).      |
+| Setting                    | Default | Description                                                   |
+| -------------------------- | ------- | ------------------------------------------------------------- |
+| `MEM_LIMIT_ODOO`           | —       | Container memory limit for the odoo container(s), e.g. `16g`. |
+| `MEM_LIMIT_ODOO_WEB`       | —       | Overrides `MEM_LIMIT_ODOO` for the web role.                  |
+| `MEM_LIMIT_ODOO_CRON`      | —       | Overrides `MEM_LIMIT_ODOO` for the cron role (v11/v13).       |
+| `MEM_LIMIT_ODOO_QUEUEJOBS` | —       | Overrides `MEM_LIMIT_ODOO` for the queuejob role (v11/v13).   |
 
 Unset = unlimited (the default). `odoo_update` and `odoo_debug` are never
 limited — updates and migrations are expected to be memory hungry.

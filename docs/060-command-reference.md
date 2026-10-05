@@ -190,6 +190,17 @@ Backup database + filestore in one archive.
 
 Restore the database. Shows an interactive file picker if no path is given.
 
+With `DEVMODE=1` the restored database is neutralized afterwards (skip with
+`--no-dev-scripts`): cronjobs off, mail servers pointed at the test mail
+container, all passwords reset to `DEFAULT_DEV_PASSWORD`. On Odoo 19 the
+Outlook calendar sync is cut as well - the users' Microsoft tokens are
+removed, the sync is marked as stopped for every user and the Microsoft
+client secrets (`microsoft_calendar_client_secret`,
+`microsoft_outlook_client_secret`) are deleted, so a dev copy cannot write
+into real calendars or send invitations. Project-specific scripts listed
+under `neutralize` in the [MANIFEST](080-manifest.md) run in the same step.
+The same is available on its own as `odoo dev-env turn-into-dev`.
+
 ```bash
 odoo restore odoo-db                     # interactive picker
 odoo -f restore odoo-db /backups/mydb.zip
