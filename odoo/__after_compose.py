@@ -27,10 +27,15 @@ def after_compose(config, settings, yml, globals):
     # store also in clear text the requirements
     from zodoo.odoo_config import MANIFEST
 
-    shutil.copyfile(
-        current_dir.parent / "common_snippets" / "set_docker_group.sh",
-        current_dir / "set_docker_group.sh",
-    )
+    try:
+        shutil.copyfile(
+            current_dir.parent / "common_snippets" / "set_docker_group.sh",
+            current_dir / "set_docker_group.sh",
+        )
+    except PermissionError as ex:
+        # Read-only image dirs (CI runners) keep the checked-in copy; a failed
+        # helper sync must not abort the hook, which is fatal since #257.
+        click.secho(f"Could not sync set_docker_group.sh: {ex}", fg="yellow")
 
     yml["services"].pop("odoo_base")
     manifest = MANIFEST()

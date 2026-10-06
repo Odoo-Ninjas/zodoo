@@ -181,6 +181,16 @@ def get_modules_from_install_file(include_uninstall=False):
     return res
 
 
+def _uninstall_only_module_names(include_uninstall):
+    """Names on the MANIFEST uninstall list that are not also to be installed."""
+    if not include_uninstall:
+        return set()
+    manifest = MANIFEST()
+    return set(manifest.get("uninstall", [])) - set(
+        manifest.get("install", [])
+    )
+
+
 class DBModules:
     def __init__(self):
         pass
@@ -983,11 +993,23 @@ class Modules:
             )
         )
         modules += auto_install_modules
+        uninstall_only = _uninstall_only_module_names(include_uninstall)
 
         for module in modules:
             result.add(module.name)
             dependencies = self.get_module_flat_dependency_tree(module)
             for dep in dependencies:
+                if not dep.exists and module.name in uninstall_only:
+                    # A module on its way out may depend on something that is
+                    # already gone; it is never installed again, so there is
+                    # nothing to resolve. For install modules a missing
+                    # dependency stays an error further down.
+                    click.secho(
+                        f"Ignoring missing dependency {dep.name} of {module.name} "
+                        "(MANIFEST uninstall list).",
+                        fg="yellow",
+                    )
+                    continue
                 result.add(dep)
 
         return list(result)

@@ -74,6 +74,12 @@ Also writes `.vscode/launch.json` and `.vscode/tasks.json` for the project and
 installs/updates the Zebroo VS Code extension (if the `code` CLI is
 available) — no separate setup command is needed for VS Code integration.
 
+If the odoo image hook (`images/odoo/__after_compose.py`) fails, `odoo reload`
+prints the traceback and exits with a non-zero code. That hook computes the
+project requirements and the odoo configuration; an image built from a compose
+file without them would miss the project's pip packages. Hooks of the other
+services (proxy, cronjobs, …) only print a warning with the traceback.
+
 ### `odoo setting <KEY>=<VALUE>`
 
 Set a project setting. Writes to `./.odoo/settings` and triggers reload.
