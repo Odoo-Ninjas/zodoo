@@ -44,19 +44,31 @@ Or edit the files directly. Run `odoo reload` after manual edits.
 | ------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ODOO_LOG_LEVEL`         | `debug` | Odoo log level: `debug`, `info`, `warning`, `error`, `critical`.                                                                                                       |
 | `ODOO_DEBUG_LOGLEVEL`    | `info`  | Log level inside the debug container.                                                                                                                                  |
+| `ODOO_MAX_CRON_THREADS`  | `2`     | Cron threads of the cronjobs role. Web server, queue jobs, update and debug keep the value from their own config file.                                                 |
 | `ODOO_WORKERS_WEB`       | `6`     | Number of Odoo web worker processes.                                                                                                                                   |
 | `ODOO_PYTHON_VERSION`    | —       | Python version for the Odoo container (e.g. `3.12`).                                                                                                                   |
 | `ODOO_INSTALL_LIBPOSTAL` | `0`     | **No effect.** Nothing reads it any more (checked 2026-09-06); libpostal was removed from the Odoo images. It is still written from `settings.txt` into every project. |
 
+**Odoo 19 and later:** Odoo reads every config-file option also from an
+environment variable `ODOO_<OPTION>`, and the environment beats the config
+file. Some zodoo settings carry such names (`ODOO_MAX_CRON_THREADS`,
+`ODOO_LOG_LEVEL`, `ODOO_DATA_DIR`, `ODOO_DBFILTER`). zodoo therefore does not
+pass a variable to odoo-bin when the option is set in the role's config file;
+the config file wins, as before Odoo 19. The Odoo log names the variables it
+held back (`Not passing to odoo-bin (set in config_webserver): ...;
+effective max_cron_threads=0`). Options that are not in the config file still
+come through the environment - e.g. `ODOO_LOG_LEVEL` keeps setting the log
+level via the command line of the running roles.
+
 ## Containers
 
-| Setting               | Default | Description                                                    |
-| --------------------- | ------- | -------------------------------------------------------------- |
-| `RUN_ODOO`            | `1`     | Run the Odoo container (web + supervised sibling roles).       |
-| `RUN_ODOO_CRONJOBS`   | `1`     | Spawn the cronjobs sibling role inside the odoo container.     |
-| `RUN_PROXY`           | `1`     | Run the Node.js reverse proxy.                                 |
-| `RUN_PROXY_PUBLISHED` | `0`     | `1` = expose proxy port to host (required for browser access). |
-| `RESTART_CONTAINERS`  | `0`     | `1` = set `restart: unless-stopped` on all containers.         |
+| Setting               | Default | Description                                                                                                                                                  |
+| --------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `RUN_ODOO`            | `1`     | Run the Odoo container (web + supervised sibling roles).                                                                                                     |
+| `RUN_ODOO_CRONJOBS`   | `1`     | Spawn the cronjobs sibling role inside the odoo container. `0` = no cronjobs at all; the other roles run with `max_cron_threads = 0` from their config file. |
+| `RUN_PROXY`           | `1`     | Run the Node.js reverse proxy.                                                                                                                               |
+| `RUN_PROXY_PUBLISHED` | `0`     | `1` = expose proxy port to host (required for browser access).                                                                                               |
+| `RESTART_CONTAINERS`  | `0`     | `1` = set `restart: unless-stopped` on all containers.                                                                                                       |
 
 ## PostgreSQL
 
