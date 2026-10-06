@@ -74,7 +74,7 @@ Also writes `.vscode/launch.json` and `.vscode/tasks.json` for the project and
 installs/updates the Zebroo VS Code extension (if the `code` CLI is
 available) — no separate setup command is needed for VS Code integration.
 
-### `odoo setting <KEY> <VALUE>`
+### `odoo setting <KEY>=<VALUE>`
 
 Set a project setting. Writes to `./.odoo/settings` and triggers reload.
 
