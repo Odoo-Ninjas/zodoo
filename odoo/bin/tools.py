@@ -8,6 +8,7 @@ import shutil
 import requests
 import click
 from sudo_odoo import sudo_odoo_cmd  # noqa: F401  (re-export)
+from odoo_env import odoo_process_env
 from reuid import needs_chown_to_owner
 import subprocess
 
@@ -718,6 +719,19 @@ def exec_odoo(
         DBNAME = os.environ["DBNAME"]
     cmd += ["-c", CONFIG, "-d", DBNAME]
 
+    # Odoo >= 19 lets ODOO_<OPTION> beat the config file; the config file
+    # zodoo rendered for this role must win (see odoo_env.py).
+    odoo_env, shadowing = odoo_process_env(os.environ, CONFIG, version)
+    if shadowing:
+        cron_threads = configparser.ConfigParser(interpolation=None)
+        cron_threads.read(CONFIG)
+        click.secho(
+            f"Not passing to odoo-bin (set in {Path(CONFIG).name}): "
+            f"{', '.join(shadowing)}; effective max_cron_threads="
+            f"{cron_threads.get('options', 'max_cron_threads', fallback='odoo default')}",
+            fg="yellow",
+        )
+
     # if os.getenv("DEVMODE") == "1":
     #     print(Path(CONFIG).read_text())
     if os.getenv("PROXY_PORT", ""):
@@ -768,6 +782,7 @@ def exec_odoo(
             cmd,
             shell=True,
             stdin=subprocess.PIPE,
+            env=odoo_env,
             **params_capture,
         )
         proc.stdin.write(
@@ -780,6 +795,7 @@ def exec_odoo(
         proc = subprocess.Popen(
             cmd,
             shell=True,
+            env=odoo_env,
             **params_capture,
         )
         if capture_output:
