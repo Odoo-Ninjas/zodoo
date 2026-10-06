@@ -1,5 +1,10 @@
 # Changelog
 
+## 12.3.0
+
+- **Feature**: DEVMODE-Restore neutralisiert die Datenbank jetzt zusätzlich mit Odoos eigenen neutralize.sql-Dateien (Stripe/Payment-Provider, IAP-Token, Webhooks usw.), entfernt TOTP-2FA und vergibt eine neue database.uuid. Prüfen: Prod-Dump mit DEVMODE=1 restoren, danach sind Zahlungsanbieter deaktiviert, IAP-Token enden auf +disabled, Login ohne 2FA möglich, Mails landen im Mailcatcher.
+
+
 ## 12.2.0
 
 - **Feature**: odoo update / odoo restart protokollieren jeden Lauf in .odoo-commands.log (gitignored); Projektvorlagen ignorieren .odoo-commands.log und update.log

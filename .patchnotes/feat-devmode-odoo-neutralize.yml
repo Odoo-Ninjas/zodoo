@@ -1,3 +1,0 @@
-type: feature
-description: "DEVMODE-Restore neutralisiert die Datenbank jetzt zusätzlich mit Odoos eigenen neutralize.sql-Dateien (Stripe/Payment-Provider, IAP-Token, Webhooks usw.), entfernt TOTP-2FA und vergibt eine neue database.uuid. Prüfen: Prod-Dump mit DEVMODE=1 restoren, danach sind Zahlungsanbieter deaktiviert, IAP-Token enden auf +disabled, Login ohne 2FA möglich, Mails landen im Mailcatcher."
-breaking: false
