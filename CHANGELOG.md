@@ -1,5 +1,10 @@
 # Changelog
 
+## 12.2.0
+
+- **Feature**: odoo update / odoo restart protokollieren jeden Lauf in .odoo-commands.log (gitignored); Projektvorlagen ignorieren .odoo-commands.log und update.log
+
+
 ## 12.1.6
 
 - **Fix**: `odoo robot run-all` beachtet jetzt den MANIFEST-Schlüssel `robotests`. Steht dort z. B. `"robotests": ["addons/*/tests/robot/*.robot"]`, laufen nur die passenden Suites (Muster relativ zum Projektverzeichnis). Bisher startete run-all jede `.robot`-Datei im Projekt, auch die Selbsttests vendorter Robot-Bibliotheken und Suites fremder Repos; das dauerte lange und schlug an Stellen fehl, die das Projekt nicht betreffen. Ohne den Schlüssel bleibt alles wie bisher. Prüfen: `robotests` ins MANIFEST eintragen und `odoo robot run-all --list` aufrufen; es erscheinen nur noch die passenden Dateien. `odoo robot run <datei>` startet weiterhin jede einzelne Datei.
