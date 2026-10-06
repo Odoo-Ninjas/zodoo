@@ -1,5 +1,10 @@
 # Changelog
 
+## 12.1.5
+
+- **Fix**: `odoo build-odoo-base`: Der Cross-Build für die jeweils andere Architektur (QEMU/buildx) hat `TARGETARCH` bisher auf die Architektur des eigenen Rechners gesetzt. Auf einem arm64-Mac zog das amd64-Base-Image dadurch `zodoo/python:<ver>-arm64` als Eltern-Image (BuildKit warnt `InvalidBaseImagePlatform`) und wäre als kaputtes Image unter dem `-amd64`-Tag in der Registry gelandet. Jetzt bekommt der Cross-Build seine Zielarchitektur. Prüfen: auf einem arm64-Rechner `odoo build-odoo-base --force` ausführen und in `~/.odoo/log/cross_build_base_<v>_<hash>_amd64.log` nachsehen – die `FROM`-Zeile muss auf `zodoo/python:<ver>-amd64` zeigen, die Warnung `InvalidBaseImagePlatform` darf nicht mehr auftauchen.
+
+
 ## 12.1.4
 
 - **Fix**: Odoo 20: Das Image bringt jetzt die Zeitzonendaten des Betriebssystems mit (apt-Paket `tzdata`). Ab 20.0 liest Odoo die Zeitzonen über `zoneinfo` aus `/usr/share/zoneinfo` statt aus `pytz`; im bisherigen Image war die Liste leer. Folge: `odoo -f db reset` mit `ODOO_DEMO=1` legte die Datenbank ohne Demodaten an (im Log `Module base demo data failed to install`), und im Benutzerformular ließ sich keine Zeitzone wählen. Prüfen: nach `odoo reload` und `odoo build odoo` eine Odoo-20-Datenbank mit `ODOO_DEMO=1` per `odoo -f db reset` neu anlegen. Dann gibt es Demo-Partner wie „Marc Demo“, und unter Einstellungen → Benutzer bietet das Feld Zeitzone die gewohnte Liste an. Bestehende Datenbanken bekommen die Demodaten nicht nachträglich, sie müssen neu angelegt werden. Odoo bis 19 ist nicht betroffen.
