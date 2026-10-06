@@ -76,7 +76,7 @@ pipx ensurepath
 # Close and reopen the terminal afterwards.
 ```
 
-*(Optional but recommended)* install **pyenv** to manage Python versions,
+_(Optional but recommended)_ install **pyenv** to manage Python versions,
 since newer Odoo releases require Python >= 3.10:
 
 ```bash
@@ -122,10 +122,10 @@ pipx reinstall wodoo --python ~/.pyenv/versions/3.12.13/bin/python3
 ## 6. Configure and start the project
 
 ```bash
-odoo setting DEVMODE 1 -s
+odoo setting DEVMODE=1 -s
 # Enables development mode system-wide (-s) across every zodoo project on this machine.
 
-odoo setting ODOO_DEMO 1
+odoo setting ODOO_DEMO=1
 # Loads Odoo's demo data when the database is initialised.
 
 odoo reload   # regenerate docker-compose + settings from the manifest
