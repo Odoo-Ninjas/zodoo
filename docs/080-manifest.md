@@ -41,6 +41,9 @@ The `MANIFEST` file lives at the **project root** and controls which Odoo module
     # Modules to run tests for
     "tests": ["my_custom_module"],
 
+    # Robot suites for `odoo robot run-all` (glob patterns, project root)
+    "robotests": ["addons/*/tests/robot/*.robot"],
+
     # Run these update steps before the main update
     "before-odoo-update": [
         ["update", "base"],
@@ -69,6 +72,7 @@ The `MANIFEST` file lives at the **project root** and controls which Odoo module
 | `uninstall`           | Modules to force-uninstall.                                                                                                                                                                                                 |
 | `devmode_uninstall`   | Modules to uninstall when `DEVMODE=1`.                                                                                                                                                                                      |
 | `tests`               | Modules to run tests for (used by `odoo module run-tests`).                                                                                                                                                                 |
+| `robotests`           | Glob patterns (relative to the project root) selecting the robot suites `odoo robot run-all` runs. Without it, every `*.robot` file of the project runs.                                                                    |
 | `neutralize`          | SQL files (relative to the project root) that `DEVMODE=1` runs after a restore, after zodoo's own neutralization. Point it at a module's `data/neutralize.sql` so Odoo's `odoo-bin neutralize` and zodoo use the same file. |
 | `before-odoo-update`  | Module update steps to run before main update.                                                                                                                                                                              |
 | `addons_paths`        | Directories where Odoo searches for modules. Order matters.                                                                                                                                                                 |
