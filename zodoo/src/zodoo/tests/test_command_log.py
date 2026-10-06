@@ -66,6 +66,21 @@ def test_successful_run_writes_one_entry(_command_log_to_tmp, argv):
     assert "T" in entry["ts"] and entry["ts"][-6] in "+-"
 
 
+@pytest.mark.parametrize("inside", [True, False])
+def test_in_container_uses_shared_detection(
+    _command_log_to_tmp, argv, monkeypatch, inside
+):
+    """Same detection as the rest of zodoo (dockerenv + cgroup), so podman /
+    containerd / k8s runs are flagged too."""
+    from zodoo import tools
+
+    argv("update")
+    monkeypatch.setattr(tools, "_is_in_container", lambda: inside)
+    CliRunner().invoke(_command(lambda: None))
+    [entry] = _entries(_command_log_to_tmp)
+    assert entry["in_container"] is inside
+
+
 def test_program_path_is_not_logged(_command_log_to_tmp, argv):
     argv("restart")
     CliRunner().invoke(_command(lambda: None))

@@ -87,7 +87,9 @@ def _classify(exc):
 
 
 def _in_container():
-    return Path("/.dockerenv").exists()
+    from .tools import _is_in_container
+
+    return _is_in_container()
 
 
 def _current_config():
