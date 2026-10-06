@@ -1,5 +1,10 @@
 # Changelog
 
+## 12.1.4
+
+- **Fix**: Odoo 20: Das Image bringt jetzt die Zeitzonendaten des Betriebssystems mit (apt-Paket `tzdata`). Ab 20.0 liest Odoo die Zeitzonen über `zoneinfo` aus `/usr/share/zoneinfo` statt aus `pytz`; im bisherigen Image war die Liste leer. Folge: `odoo -f db reset` mit `ODOO_DEMO=1` legte die Datenbank ohne Demodaten an (im Log `Module base demo data failed to install`), und im Benutzerformular ließ sich keine Zeitzone wählen. Prüfen: nach `odoo reload` und `odoo build odoo` eine Odoo-20-Datenbank mit `ODOO_DEMO=1` per `odoo -f db reset` neu anlegen. Dann gibt es Demo-Partner wie „Marc Demo“, und unter Einstellungen → Benutzer bietet das Feld Zeitzone die gewohnte Liste an. Bestehende Datenbanken bekommen die Demodaten nicht nachträglich, sie müssen neu angelegt werden. Odoo bis 19 ist nicht betroffen.
+
+
 ## 12.1.3
 
 - **Docs**: Doku: In der WSL-Anleitung (Abschnitt 6) stand `odoo setting ODOO_DEMO 1` und `odoo setting DEVMODE 1 -s` ohne `=`. So aufgerufen liest `odoo setting` die Werte nur aus und setzt nichts: Die Datenbank wurde ohne Demodaten angelegt, DEVMODE blieb aus. Jetzt `odoo setting ODOO_DEMO=1` bzw. `odoo setting DEVMODE=1 -s`. Die Überschrift in der Befehlsreferenz zeigt die Syntax ebenfalls mit `=`.
