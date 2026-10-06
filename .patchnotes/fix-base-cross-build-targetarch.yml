@@ -1,0 +1,3 @@
+type: fix
+description: "`odoo build-odoo-base`: Der Cross-Build für die jeweils andere Architektur (QEMU/buildx) hat `TARGETARCH` bisher auf die Architektur des eigenen Rechners gesetzt. Auf einem arm64-Mac zog das amd64-Base-Image dadurch `zodoo/python:<ver>-arm64` als Eltern-Image (BuildKit warnt `InvalidBaseImagePlatform`) und wäre als kaputtes Image unter dem `-amd64`-Tag in der Registry gelandet. Jetzt bekommt der Cross-Build seine Zielarchitektur. Prüfen: auf einem arm64-Rechner `odoo build-odoo-base --force` ausführen und in `~/.odoo/log/cross_build_base_<v>_<hash>_amd64.log` nachsehen – die `FROM`-Zeile muss auf `zodoo/python:<ver>-amd64` zeigen, die Warnung `InvalidBaseImagePlatform` darf nicht mehr auftauchen."
+breaking: false

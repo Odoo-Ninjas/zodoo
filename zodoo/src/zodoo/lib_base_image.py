@@ -320,8 +320,13 @@ def _filter_framework_requirements(reqs_text):
     )
 
 
-def _docker_build_args(config, inputs):
-    """Compose the ``--build-arg`` list for the base image build."""
+def _docker_build_args(config, inputs, arch=None):
+    """Compose the ``--build-arg`` list for the base image build.
+
+    ``arch`` is the target architecture (amd64 / arm64) and defaults to the
+    host's. A cross-build must pass its target here, otherwise ``FROM``
+    lines that reference ``TARGETARCH`` pull the host-arch parent image.
+    """
     reqs_b64 = base64.b64encode(
         inputs["framework_requirements"].encode("utf-8")
     ).decode("ascii")
@@ -333,7 +338,7 @@ def _docker_build_args(config, inputs):
         # buildx with --platform. Hosts without buildx (e.g. fresh Debian
         # without docker-buildx-plugin) fall back to the classic builder,
         # which leaves TARGETARCH empty and breaks FROM lines that reference it.
-        "TARGETARCH": _arch(),
+        "TARGETARCH": arch or _arch(),
     }
 
     base_image = getattr(config, "BASE_IMAGE", None) or "ubuntu:22.04"
@@ -526,7 +531,7 @@ def cross_build_base_image(config, inputs):
         f"{v}-{inputs['base_hash']}-{other_arch_name}"
     )
 
-    build_args = _docker_build_args(config, inputs)
+    build_args = _docker_build_args(config, inputs, arch=other_arch_name)
 
     cmd = (
         [
