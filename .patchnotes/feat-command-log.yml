@@ -1,0 +1,3 @@
+type: feature
+description: "odoo update / odoo restart protokollieren jeden Lauf in .odoo-commands.log (gitignored); Projektvorlagen ignorieren .odoo-commands.log und update.log"
+breaking: false
