@@ -760,7 +760,7 @@ def _prepare_fresh_robotest(ctx):
 
 
 @robot.command(
-    help="Runs all robots defined in section 'robotests' (filepatterns)"
+    help="Runs all robot files of the project; if the MANIFEST has 'robotests' (glob patterns relative to the project), only the matching ones."
 )
 @click.option(
     "--timeout",
@@ -799,8 +799,7 @@ def run_all(
     list_only,
 ):
     from .odoo_config import customs_dir
-    from .robo_helpers import _get_all_robottest_files
-    from .odoo_config import customs_dir
+    from .robo_helpers import _get_run_all_robottest_files
 
     _remove_service(config, service_prefix=SELDRIVER_PREFIX)
 
@@ -811,7 +810,7 @@ def run_all(
     # if debug:
     #     _setup_visual_code_robot(ctx, config)
 
-    files = _get_all_robottest_files()
+    files = _get_run_all_robottest_files()
     files = [customsdir / file for file in files]
 
     if filter_str:

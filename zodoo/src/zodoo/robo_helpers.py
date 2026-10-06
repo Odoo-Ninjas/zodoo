@@ -81,6 +81,37 @@ def _get_all_robottest_files(path=None):
     return testfiles
 
 
+def _filter_by_robotests_patterns(testfiles, root, patterns):
+    """Keep only the files matching the MANIFEST ``robotests`` glob patterns.
+
+    ``testfiles`` are relative to ``root`` (as returned by
+    ``_get_all_robottest_files``); the patterns are relative to ``root``
+    as well. Without patterns everything is kept, so projects without the
+    key behave as before.
+    """
+    if not patterns:
+        return list(testfiles)
+    if isinstance(patterns, str):
+        patterns = [patterns]
+    selected = set()
+    for pattern in patterns:
+        for match in root.glob(pattern):
+            selected.add(match.relative_to(root))
+    return [file for file in testfiles if file in selected]
+
+
+def _get_run_all_robottest_files():
+    """Robot files ``odoo robot run-all`` executes: all robot files of the
+    project, narrowed down by the MANIFEST key ``robotests`` if present."""
+    from .odoo_config import customs_dir
+    from .odoo_config import MANIFEST
+
+    root = customs_dir()
+    return _filter_by_robotests_patterns(
+        _get_all_robottest_files(root), root, MANIFEST().get("robotests", [])
+    )
+
+
 def collect_all(root_dir, parent, robo_file_content):
     """collects files in all directories by glob pattern being in a directory with subdir name and copies
     the files to dest_folder

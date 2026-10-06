@@ -465,7 +465,18 @@ List the available robot tests.
 
 ### `odoo robot run-all`
 
-Run every robot matching the `robotests` file patterns.
+Run the project's robot suites one after the other (requires `DEVMODE=1`).
+If the [MANIFEST](080-manifest.md) has `robotests`, only the files matching
+those glob patterns (relative to the project root) run; without the key every
+`*.robot` file of the project runs, except `keywords/`, `library/` and
+`test_template.robot`.
+
+- `--list`: print the selected files without running them
+- `--filter <text>`: additionally keep only files whose name contains the text
+- `--retry`, `--timeout`: retries per file and wait timeout
+
+`odoo robot run <file>` still runs any single file, whether it matches
+`robotests` or not.
 
 ### `odoo robot make-variable-file`
 
