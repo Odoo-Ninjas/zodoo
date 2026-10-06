@@ -71,6 +71,14 @@ Common causes:
 
 Make sure you're in the project directory (where `.odoo/settings` or `MANIFEST` lives).
 
+`after_compose failed: …/images/odoo/__after_compose.py` with a traceback means
+the dependency resolution or the odoo configuration could not be computed. Fix
+the cause shown in the traceback — `odoo build` would otherwise produce an image
+without the project requirements. A typical cause is `Module has no path: <name>`:
+a module in `install` depends on a module that is not in any addons path. Missing
+dependencies of modules that are only on the `uninstall` list are ignored with a
+warning, because those modules are never installed again.
+
 ---
 
 ## Database Issues

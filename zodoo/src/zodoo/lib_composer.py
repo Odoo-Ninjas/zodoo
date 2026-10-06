@@ -975,6 +975,19 @@ def _iterate_services(config, yml):
     yield from sorted(yml["services"].items(), key=sort)
 
 
+def _after_compose_is_fatal(config, hook_file):
+    """Only the odoo image hook is mandatory.
+
+    It computes the project requirements (build arg
+    ODOO_PROJECT_REQUIREMENTS), the odoo configuration, logging, proxy and
+    resource limits - an image built after it failed silently misses all of
+    that. The other hooks are auxiliary (syncing helper scripts) and may fail
+    on CI runners with read-only image dirs without breaking the image.
+    """
+    odoo_hook_dir = Path(config.dirs["images"]) / "odoo"
+    return Path(hook_file).resolve().parent == odoo_hook_dir.resolve()
+
+
 def _execute_after_compose(config, yml):
     """
     execute local __oncompose.py scripts
@@ -1024,11 +1037,19 @@ def _execute_after_compose(config, yml):
 
                 except Exception as ex:
                     msg = traceback.format_exc()
+                    if _after_compose_is_fatal(config, module.__file__):
+                        click.secho(msg)
+                        abort(
+                            f"after_compose failed: {module.__file__}\n"
+                            "The compose file would lack the project "
+                            "requirements and the odoo configuration, so "
+                            "no image may be built from it."
+                        )
                     click.secho(
                         f"Warning: after_compose failed: {module.__file__}",
                         fg="yellow",
                     )
-                    click.secho(str(ex))
+                    click.secho(msg)
 
                 duration = (arrow.get() - started).total_seconds()
                 if duration > 2 and config.verbose:
