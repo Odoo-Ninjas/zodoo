@@ -71,6 +71,14 @@ Common causes:
 
 Make sure you're in the project directory (where `.odoo/settings` or `MANIFEST` lives).
 
+`after_compose failed: …/images/odoo/__after_compose.py` with a traceback means
+the dependency resolution or the odoo configuration could not be computed. Fix
+the cause shown in the traceback — `odoo build` would otherwise produce an image
+without the project requirements. A typical cause is `Module has no path: <name>`:
+a module in `install` depends on a module that is not in any addons path. Missing
+dependencies of modules that are only on the `uninstall` list are ignored with a
+warning, because those modules are never installed again.
+
 ---
 
 ## Database Issues
@@ -101,6 +109,26 @@ odoo -f db reset
 odoo db pgactivity    # check for blocking connections
 odoo restart postgres
 odoo -f restore odoo-db
+```
+
+### Odoo 20: no demo data despite `ODOO_DEMO=1`, empty time zone list
+
+From 20.0 on Odoo reads its time zones from the operating system
+(`/usr/share/zoneinfo`, package `tzdata`) instead of `pytz`. Images built
+before zodoo shipped `tzdata` for Odoo 20 have no time zones at all. The base
+demo data then fails on its first time zone, the update log shows
+`Module base demo data failed to install, installed without demo data`, and no
+other module gets demo data either. In the user form the time zone selection
+is empty.
+
+If you see either of these, the image is too old. Upgrade zodoo, rebuild and
+recreate the database - demo data is only loaded when a database is created:
+
+```bash
+odoo setup upgrade
+odoo reload
+odoo build odoo
+odoo -f db reset
 ```
 
 ---

@@ -4,3 +4,5 @@
 *.swp
 run
 __pycache__
+/update.log
+/.odoo-commands.log

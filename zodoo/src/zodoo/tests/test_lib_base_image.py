@@ -51,3 +51,24 @@ def test_multiple_occurrences_all_rewritten():
     out = lbi._apply_yanked_pin_overrides(src)
     assert out == "cbor2==5.4.6 ; a\ncbor2==5.4.6 ; b\n"
     assert "5.4.2" not in out
+
+
+_BUILD_INPUTS = {"python_version": "3.12.11", "framework_requirements": "x\n"}
+
+
+def _build_arg(args, name):
+    values = [a.split("=", 1)[1] for a in args if a.startswith(f"{name}=")]
+    assert len(values) == 1
+    return values[0]
+
+
+def test_build_args_default_to_host_arch():
+    args = lbi._docker_build_args(object(), _BUILD_INPUTS)
+    assert _build_arg(args, "TARGETARCH") == lbi._arch()
+
+
+def test_build_args_use_cross_build_target_arch():
+    # A cross-build must not pull the host-arch zodoo/python parent image.
+    other = "amd64" if lbi._arch() == "arm64" else "arm64"
+    args = lbi._docker_build_args(object(), _BUILD_INPUTS, arch=other)
+    assert _build_arg(args, "TARGETARCH") == other

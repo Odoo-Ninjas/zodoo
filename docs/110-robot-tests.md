@@ -39,6 +39,7 @@ Before running it, make sure your modules install cleanly on an empty database:
 odoo -f db reset
 odoo update
 ```
+
 :::
 
 ## Creating a test
@@ -59,11 +60,11 @@ prepared and you just want the file.
 
 A generated test has three sections:
 
-| Section | Purpose |
-| --- | --- |
-| **Settings** | Imports and configuration. Usually fine as generated |
+| Section        | Purpose                                                |
+| -------------- | ------------------------------------------------------ |
+| **Settings**   | Imports and configuration. Usually fine as generated   |
 | **Test Cases** | The tests themselves — rewrite these for your use case |
-| **Keywords** | Reusable Robot functions |
+| **Keywords**   | Reusable Robot functions                               |
 
 Declare which modules a test needs with comments at the top of the file:
 
@@ -86,24 +87,24 @@ Development mode is required — running robot tests aborts otherwise.
 
 ### Options
 
-| Option | Default | Effect |
-| --- | --- | --- |
-| `-u`, `--user` | `admin` | Odoo user to log in as |
-| `-a`, `--all` | | Run every test |
-| `-n`, `--test_name` | | Run a single named test case within the file |
-| `--param key=value` | | Pass variables to the test; repeatable |
-| `--parallel` | `1` | Number of parallel robot runs |
-| `--tags` | | Restrict to tagged tests |
-| `--timeout` | `20` | Seconds to wait for an element to become visible |
-| `--repeat` | `1` | Run the test repeatedly — useful for flaky tests |
-| `--repeat-no-init` | | Repeat without re-initialising between runs |
-| `--min-success-required` | `100` | Minimum success percentage when using `--repeat` |
-| `--test-tv` | | Run the browser non-headless so you can watch at `/test.tv/` |
-| `--debug` | | Attach VS Code to `debugpy` using the created profile |
-| `--output-json` | | Emit results as JSON |
-| `--results-file` | | Path for `results.json` |
-| `--keep-token-dir` | | Keep the intermediate run directory |
-| `--no-install-further-modules` | | Do not install additional modules for the run |
+| Option                         | Default | Effect                                                       |
+| ------------------------------ | ------- | ------------------------------------------------------------ |
+| `-u`, `--user`                 | `admin` | Odoo user to log in as                                       |
+| `-a`, `--all`                  |         | Run every test                                               |
+| `-n`, `--test_name`            |         | Run a single named test case within the file                 |
+| `--param key=value`            |         | Pass variables to the test; repeatable                       |
+| `--parallel`                   | `1`     | Number of parallel robot runs                                |
+| `--tags`                       |         | Restrict to tagged tests                                     |
+| `--timeout`                    | `20`    | Seconds to wait for an element to become visible             |
+| `--repeat`                     | `1`     | Run the test repeatedly — useful for flaky tests             |
+| `--repeat-no-init`             |         | Repeat without re-initialising between runs                  |
+| `--min-success-required`       | `100`   | Minimum success percentage when using `--repeat`             |
+| `--test-tv`                    |         | Run the browser non-headless so you can watch at `/test.tv/` |
+| `--debug`                      |         | Attach VS Code to `debugpy` using the created profile        |
+| `--output-json`                |         | Emit results as JSON                                         |
+| `--results-file`               |         | Path for `results.json`                                      |
+| `--keep-token-dir`             |         | Keep the intermediate run directory                          |
+| `--no-install-further-modules` |         | Do not install additional modules for the run                |
 
 ### Watching a run
 
@@ -115,13 +116,28 @@ zCICD exposes the same view through its **Test TV** action on a branch.
 
 ## Other commands
 
-| Command | Purpose |
-| --- | --- |
-| `odoo robot list` | List the available robot tests |
-| `odoo robot run-all` | Run every robot matching the `robotests` file patterns |
-| `odoo robot cleanup` | Clean up after runs |
-| `odoo robot make-variable-file` | Generate the `.robot-vars` variables file |
-| `odoo robot start-cobot` | Start cobot, reachable at `http://<host>/cobot` |
+| Command                         | Purpose                                                                          |
+| ------------------------------- | -------------------------------------------------------------------------------- |
+| `odoo robot list`               | List the available robot tests                                                   |
+| `odoo robot run-all`            | Run the project's suites; restricted to the MANIFEST `robotests` patterns if set |
+| `odoo robot cleanup`            | Clean up after runs                                                              |
+| `odoo robot make-variable-file` | Generate the `.robot-vars` variables file                                        |
+| `odoo robot start-cobot`        | Start cobot, reachable at `http://<host>/cobot`                                  |
+
+### Choosing the suites for `run-all`
+
+Without further configuration `odoo robot run-all` runs every `*.robot` file
+below the project - including the self tests of vendored robot libraries and
+the suites of embedded foreign repos. List the project's own suites in the
+MANIFEST to narrow it down:
+
+```python
+"robotests": ["addons/*/tests/robot/*.robot"],
+```
+
+Patterns are globs relative to the project root (`**` works). Files below
+`keywords/` and `library/` are never treated as suites. Check the selection
+with `odoo robot run-all --list`.
 
 ## Working in VS Code
 

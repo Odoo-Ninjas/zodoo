@@ -37,6 +37,18 @@ def _has_odoo_cli() -> bool:
     return shutil.which("odoo") is not None
 
 
+@pytest.fixture(autouse=True)
+def _command_log_to_tmp(tmp_path_factory, monkeypatch):
+    """Keep in-process `update`/`restart` runs from writing
+    .odoo-commands.log into whatever MANIFEST is found above cwd.
+    Uses its own directory so tests that inspect tmp_path stay unaffected."""
+    from zodoo import lib_command_log
+
+    logdir = tmp_path_factory.mktemp("command-log")
+    monkeypatch.setattr(lib_command_log, "_log_directory", lambda: logdir)
+    return logdir
+
+
 requires_full_stack = pytest.mark.skipif(
     not _has_docker() or not _has_odoo_cli(),
     reason="needs docker daemon and 'odoo' CLI on PATH",

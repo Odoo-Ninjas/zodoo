@@ -38,7 +38,8 @@ Stop containers without removing them.
 
 ### `odoo restart [machines...]`
 
-Restart containers.
+Restart containers. Every run is recorded in the
+[command log](#command-log-odoo-commandslog).
 
 ### `odoo build [machines...]`
 
@@ -74,7 +75,13 @@ Also writes `.vscode/launch.json` and `.vscode/tasks.json` for the project and
 installs/updates the Zebroo VS Code extension (if the `code` CLI is
 available) — no separate setup command is needed for VS Code integration.
 
-### `odoo setting <KEY> <VALUE>`
+If the odoo image hook (`images/odoo/__after_compose.py`) fails, `odoo reload`
+prints the traceback and exits with a non-zero code. That hook computes the
+project requirements and the odoo configuration; an image built from a compose
+file without them would miss the project's pip packages. Hooks of the other
+services (proxy, cronjobs, …) only print a warning with the traceback.
+
+### `odoo setting <KEY>=<VALUE>`
 
 Set a project setting. Writes to `./.odoo/settings` and triggers reload.
 
@@ -189,6 +196,17 @@ Backup database + filestore in one archive.
 ### `odoo restore odoo-db [path]`
 
 Restore the database. Shows an interactive file picker if no path is given.
+
+With `DEVMODE=1` the restored database is neutralized afterwards (skip with
+`--no-dev-scripts`): cronjobs off, mail servers pointed at the test mail
+container, all passwords reset to `DEFAULT_DEV_PASSWORD`. On Odoo 19 the
+Outlook calendar sync is cut as well - the users' Microsoft tokens are
+removed, the sync is marked as stopped for every user and the Microsoft
+client secrets (`microsoft_calendar_client_secret`,
+`microsoft_outlook_client_secret`) are deleted, so a dev copy cannot write
+into real calendars or send invitations. Project-specific scripts listed
+under `neutralize` in the [MANIFEST](080-manifest.md) run in the same step.
+The same is available on its own as `odoo dev-env turn-into-dev`.
 
 ```bash
 odoo restore odoo-db                     # interactive picker
@@ -355,6 +373,40 @@ odoo update               # update all
 odoo update sale account  # update specific modules
 ```
 
+The output of the last run is in `./update.log`. Every run is also recorded in
+the [command log](#command-log-odoo-commandslog).
+
+### Command log (`.odoo-commands.log`)
+
+`odoo update` and `odoo restart` append one JSON line per run to
+`.odoo-commands.log` in the project directory - on the host as well as inside
+the container (`UPDATE_ON_STARTUP`), since both see the same directory. Unlike
+`update.log` the file is never emptied, so it answers "when was this instance
+last updated or restarted, with which arguments, and did it work?".
+
+```text
+{"ts": "2026-10-05T15:32:32+02:00", "command": "update", "argv": ["update", "sale"], "project": "myproj", "in_container": false, "nested": false, "result": "ok", "exit_code": 0, "error_type": null, "duration_s": 84.3}
+```
+
+- `result` is `ok`, `error` or `aborted` (Ctrl+C). On errors only the exception
+  type is stored, not its message.
+- `nested` is `true` when another command triggered the run internally; `argv`
+  then shows the command you typed.
+- Not recorded: environment, settings, user or host names. Option values whose
+  name looks like a secret (`--...password=`, `--token ...`) and credentials in
+  URLs are written as `***`.
+- A call rejected by argument parsing (e.g. an unknown option) never started
+  and is not recorded. If the file cannot be written, the command prints a
+  warning and carries on.
+
+The file is runtime data of your checkout. zodoo adds `/.odoo-commands.log` to
+the project `.gitignore` before it writes the first line; new projects get the
+rule (and `/update.log`) from the template. Show the last runs with:
+
+```bash
+tail -n 5 .odoo-commands.log
+```
+
 ### `odoo module uninstall <module...>`
 
 Uninstall modules.
@@ -466,7 +518,18 @@ List the available robot tests.
 
 ### `odoo robot run-all`
 
-Run every robot matching the `robotests` file patterns.
+Run the project's robot suites one after the other (requires `DEVMODE=1`).
+If the [MANIFEST](080-manifest.md) has `robotests`, only the files matching
+those glob patterns (relative to the project root) run; without the key every
+`*.robot` file of the project runs, except `keywords/`, `library/` and
+`test_template.robot`.
+
+- `--list`: print the selected files without running them
+- `--filter <text>`: additionally keep only files whose name contains the text
+- `--retry`, `--timeout`: retries per file and wait timeout
+
+`odoo robot run <file>` still runs any single file, whether it matches
+`robotests` or not.
 
 ### `odoo robot make-variable-file`
 

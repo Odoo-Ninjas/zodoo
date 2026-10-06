@@ -17,3 +17,7 @@ delete from ir_config_parameter where key = 'database.enterprise_code';
 /*if-column-exists res_users.enable_2fa*/ update res_users set enable_2fa = false;
 /*if-column-exists res_users.totp_secret*/ update res_users set totp_secret = null;
 update ir_config_parameter set value = uuid_in(md5(random()::text || clock_timestamp()::text)::cstring)::text where key = 'database.uuid';
+
+/*if-column-exists res_users.microsoft_calendar_rtoken*/ update res_users set microsoft_calendar_token = null, microsoft_calendar_rtoken = null, microsoft_calendar_token_validity = null;
+/*if-column-exists res_users_settings.microsoft_synchronization_stopped*/ update res_users_settings set microsoft_calendar_sync_token = null, microsoft_synchronization_stopped = true, microsoft_last_sync_date = null;
+delete from ir_config_parameter where key in ('microsoft_calendar_client_secret', 'microsoft_outlook_client_secret');
