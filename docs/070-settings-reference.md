@@ -31,12 +31,12 @@ Or edit the files directly. Run `odoo reload` after manual edits.
 
 ## Developer Settings
 
-| Setting                  | Default | Description                                                                                                                                                                                        |
-| ------------------------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DEVMODE`                | `0`     | `1` = on restore: disable cronjobs/mail, cut the Outlook calendar sync (Odoo 19), reset all passwords to `DEFAULT_DEV_PASSWORD`. Project-specific scripts come from the MANIFEST key `neutralize`. |
-| `DEFAULT_DEV_PASSWORD`   | `admin` | Password set for all users when `DEVMODE=1` and a DB is restored.                                                                                                                                  |
-| `ODOO_DEMO`              | `0`     | `1` = load demo data on `db reset`.                                                                                                                                                                |
-| `ODOO_ENABLE_DB_MANAGER` | `0`     | `1` = enable Odoo's built-in database manager at `/web/database/manager`.                                                                                                                          |
+| Setting                  | Default | Description                                                                                                                                                                                                                                                                               |
+| ------------------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DEVMODE`                | `0`     | `1` = on restore: neutralize the database (see [`odoo restore odoo-db`](./060-command-reference.md#odoo-restore-odoo-db-path)), cut the Outlook calendar sync (Odoo 19), reset all passwords to `DEFAULT_DEV_PASSWORD`. Project-specific scripts come from the MANIFEST key `neutralize`. |
+| `DEFAULT_DEV_PASSWORD`   | `admin` | Password set for all users when `DEVMODE=1` and a DB is restored.                                                                                                                                                                                                                         |
+| `ODOO_DEMO`              | `0`     | `1` = load demo data on `db reset`.                                                                                                                                                                                                                                                       |
+| `ODOO_ENABLE_DB_MANAGER` | `0`     | `1` = enable Odoo's built-in database manager at `/web/database/manager`.                                                                                                                                                                                                                 |
 
 ## Odoo Server
 
