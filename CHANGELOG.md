@@ -1,5 +1,11 @@
 # Changelog
 
+## 12.1.3
+
+- **Docs**: Doku: In der WSL-Anleitung (Abschnitt 6) stand `odoo setting ODOO_DEMO 1` und `odoo setting DEVMODE 1 -s` ohne `=`. So aufgerufen liest `odoo setting` die Werte nur aus und setzt nichts: Die Datenbank wurde ohne Demodaten angelegt, DEVMODE blieb aus. Jetzt `odoo setting ODOO_DEMO=1` bzw. `odoo setting DEVMODE=1 -s`. Die Überschrift in der Befehlsreferenz zeigt die Syntax ebenfalls mit `=`.
+- **Fix**: DEVMODE kappt bei Odoo 19 jetzt auch den Outlook-Kalender-Sync. Nach `odoo restore odoo-db` mit DEVMODE=1 (oder `odoo dev-env turn-into-dev`) sind die Microsoft-Tokens aller Benutzer geleert, der Sync ist bei allen auf gestoppt gesetzt und die beiden Client-Secrets (microsoft_calendar_client_secret, microsoft_outlook_client_secret) sind gelöscht. Bisher blieben die echten Refresh-Tokens in der Dev-Kopie stehen; ein Sync von dort schrieb in die realen Outlook-Kalender, und Outlook verschickte die Einladungen. Prüfen: Dev-Kopie mit DEVMODE=1 einspielen, dann in Einstellungen → Allgemein → Integrationen ist das Outlook-Client-Secret leer, und im Kalender eines vorher verbundenen Benutzers steht der Outlook-Sync auf gestoppt. Datenbanken ohne die Microsoft-Module laufen wie bisher durch. Dokumentiert ist außerdem der MANIFEST-Key `neutralize` für projekteigene Neutralisierungsskripte.
+
+
 ## 12.1.2
 
 - **Fix**: Beim PostgreSQL-Konfigurationsvorschlag von `odoo reload` stimmt `max_connections` jetzt mit dem Wert überein, nach dem `work_mem` berechnet wurde.

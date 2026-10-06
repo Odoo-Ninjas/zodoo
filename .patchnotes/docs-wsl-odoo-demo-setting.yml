@@ -1,3 +1,0 @@
-type: docs
-description: "Doku: In der WSL-Anleitung (Abschnitt 6) stand `odoo setting ODOO_DEMO 1` und `odoo setting DEVMODE 1 -s` ohne `=`. So aufgerufen liest `odoo setting` die Werte nur aus und setzt nichts: Die Datenbank wurde ohne Demodaten angelegt, DEVMODE blieb aus. Jetzt `odoo setting ODOO_DEMO=1` bzw. `odoo setting DEVMODE=1 -s`. Die Überschrift in der Befehlsreferenz zeigt die Syntax ebenfalls mit `=`."
-breaking: false
