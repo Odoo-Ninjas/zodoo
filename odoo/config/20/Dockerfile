@@ -124,6 +124,7 @@ RUN #___SNIPPET_APT_INSTALL___ \
             imagemagick \
             cups \
             locales \
+            tzdata \
             zip \
             gpg-agent \
             pdftk \

@@ -103,6 +103,26 @@ odoo restart postgres
 odoo -f restore odoo-db
 ```
 
+### Odoo 20: no demo data despite `ODOO_DEMO=1`, empty time zone list
+
+From 20.0 on Odoo reads its time zones from the operating system
+(`/usr/share/zoneinfo`, package `tzdata`) instead of `pytz`. Images built
+before zodoo shipped `tzdata` for Odoo 20 have no time zones at all. The base
+demo data then fails on its first time zone, the update log shows
+`Module base demo data failed to install, installed without demo data`, and no
+other module gets demo data either. In the user form the time zone selection
+is empty.
+
+If you see either of these, the image is too old. Upgrade zodoo, rebuild and
+recreate the database - demo data is only loaded when a database is created:
+
+```bash
+odoo setup upgrade
+odoo reload
+odoo build odoo
+odoo -f db reset
+```
+
 ---
 
 ## macOS-specific
