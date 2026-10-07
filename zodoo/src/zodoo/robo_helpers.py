@@ -101,8 +101,10 @@ def _filter_by_robotests_patterns(testfiles, root, patterns):
 
 
 def _get_run_all_robottest_files():
-    """Robot files ``odoo robot run-all`` executes: all robot files of the
-    project, narrowed down by the MANIFEST key ``robotests`` if present."""
+    """Robot files ``odoo robot run-all`` executes and ``odoo robot list`` /
+    ``odoo module list-robot-test-files`` report (the latter feeds zCICD):
+    all robot files of the project, narrowed down by the MANIFEST key
+    ``robotests`` if present."""
     from .odoo_config import customs_dir
     from .odoo_config import MANIFEST
 

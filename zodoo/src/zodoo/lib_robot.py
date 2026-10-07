@@ -947,9 +947,9 @@ def make_variable_file(ctx, config, userpassword=None):
 @pass_config
 @click.pass_context
 def do_list(ctx, config):
-    from .robo_helpers import _get_all_robottest_files
+    from .robo_helpers import _get_run_all_robottest_files
 
-    files = _get_all_robottest_files()
+    files = _get_run_all_robottest_files()
     click.secho("!!!")
     for file in files:
         click.secho(file)
