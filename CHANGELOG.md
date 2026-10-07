@@ -1,5 +1,10 @@
 # Changelog
 
+## 12.5.0
+
+- **Feature**: Registry: Pushes gehen über eine eigene Adresse. Neue Einstellung ZODOO_REGISTRY_PUSH_URL; ohne Wert pusht zodoo bei registry.zebroo.de automatisch nach registry-push.zebroo.de (derselbe Speicher, verlangt aber immer den Login). Damit schlägt der Push mit dem klassischen Docker-Image-Store nicht mehr am Ende mit 401 fehl. Pulls bleiben auf ZODOO_REGISTRY_URL. Prüfen: auf einem Rechner ohne containerd-Image-Store mit Push-Account `odoo build` ausführen. In der Ausgabe muss `Pushing registry-push.zebroo.de/zodoo-...` stehen und der Push ohne 401 durchlaufen.
+
+
 ## 12.4.0
 
 - **Feature**: Restore neutralisiert jetzt über Odoos offiziellen Weg `odoo-bin neutralize` statt über selbst eingesammelte neutralize.sql-Dateien – damit greifen auch Module mit eigenem Neutralize (z.B. zSYNC). Neu: `odoo restore odoo-db --neutralize` (auch ohne DEVMODE, z.B. für Staging) und `odoo dev-env neutralize`. Prüfen: Dump mit DEVMODE=1 restoren → in den Einstellungen erscheint das Neutralize-Banner, `database.is_neutralized` ist gesetzt, Crons aus (außer Autovacuum), Zahlungsanbieter deaktiviert, Login ohne 2FA, Mails im Mailcatcher. Bestehende Projekte brauchen einmal `odoo reload && odoo build odoo`.
