@@ -2016,3 +2016,60 @@ def test_an_explicit_python_version_is_never_overwritten():
     settings = {"ODOO_PYTHON_VERSION": "3.7.9"}
     _find_suitable_python_version(12, settings)
     assert settings["ODOO_PYTHON_VERSION"] == "3.7.9"
+
+
+def test_ensure_prebuilt_pushes_to_the_push_address(tmp_path, monkeypatch):
+    """The image is asked for and built under the pull name (that is what
+    the Dockerfiles FROM), but build.sh gets the push address. A host with
+    credentials for registry.zebroo.de hands them to docker for the push
+    host as well — same account, otherwise the push runs into a 401."""
+    import zodoo.lib_control_with_docker as lcd
+    import zodoo.lib_zodoo_registry as lzr
+
+    images = _make_prebuilt_layout(tmp_path)
+    monkeypatch.setattr(lzr, "_read_user_setting", lambda config, key: "")
+    _fake_docker(monkeypatch, lcd, manifest="manifest unknown")
+    calls = []
+    monkeypatch.setattr(
+        lcd.subprocess,
+        "check_call",
+        lambda cmd, *a, env=None, **k: calls.append((cmd, env)) or 0,
+    )
+    monkeypatch.setattr(
+        lcd,
+        "_has_registry_credentials",
+        lambda url: url == "registry.zebroo.de",
+    )
+    logins = _patch_login(monkeypatch)
+
+    lcd._ensure_prebuilt_python_image(
+        _PrebuiltCfg(images, registry="registry.zebroo.de"), "arm64"
+    )
+
+    (cmd, env), = calls
+    assert cmd[-1] == "--push"
+    assert env["ZODOO_REGISTRY_URL"] == "registry.zebroo.de"
+    assert env["ZODOO_REGISTRY_PUSH_URL"] == "registry-push.zebroo.de"
+    assert logins == ["registry-push.zebroo.de"]
+
+
+def test_ensure_prebuilt_no_push_without_any_credentials_for_push_host(
+    tmp_path, monkeypatch
+):
+    import zodoo.lib_control_with_docker as lcd
+    import zodoo.lib_zodoo_registry as lzr
+
+    images = _make_prebuilt_layout(tmp_path)
+    monkeypatch.setattr(lzr, "_read_user_setting", lambda config, key: "")
+    invoked = _fake_docker(monkeypatch, lcd, manifest="manifest unknown")
+    monkeypatch.setattr(lcd, "_has_registry_credentials", lambda url: False)
+    logins = _patch_login(monkeypatch)
+
+    lcd._ensure_prebuilt_python_image(
+        _PrebuiltCfg(images, registry="registry.zebroo.de"), "arm64"
+    )
+
+    assert invoked == [
+        [str(images / "python_prebuilt" / "build.sh"), "3.13.13"]
+    ]
+    assert logins == []

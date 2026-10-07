@@ -3,6 +3,7 @@ Zodoo Registry: Cache build images in a central Docker registry.
 
 Settings:
     ZODOO_REGISTRY_URL=registry.zebroo.de
+    ZODOO_REGISTRY_PUSH_URL=<host>   # optional, where pushes go (see below)
     ZODOO_REGISTRY_USERNAME=<your user>
     ZODOO_REGISTRY_PASSWORD=<your password>
     ZODOO_REGISTRY_SUGGESTED=0   # opt out of the registry entirely
@@ -16,6 +17,13 @@ customer names.
 There are no default credentials for pushing — every user has their own
 account. `odoo build` offers to request one at the point where a push is
 actually about to happen, and writes it to ~/.odoo/settings.
+
+Pushes do not go to ZODOO_REGISTRY_URL itself but to the push address (see
+:func:`resolve_push_url`). registry.zebroo.de answers /v2/ anonymously with
+200, so the classic docker client sends a whole push session without
+credentials and fails at the manifest PUT with 401. registry-push.zebroo.de
+is the same storage but challenges every request, so pushes work with any
+client.
 """
 
 import functools
@@ -42,8 +50,8 @@ from pathlib import Path
 IMAGES_DIR = Path.home() / ".odoo" / "images"
 
 
-def _validate_registry_url(url):
-    """Reject a ZODOO_REGISTRY_URL that carries a URL scheme.
+def _validate_registry_url(url, setting="ZODOO_REGISTRY_URL"):
+    """Reject a registry setting that carries a URL scheme.
 
     The value is used verbatim to build Docker image references
     (``<url>/zodoo/python:...``). A leading ``http://`` / ``https://``
@@ -54,7 +62,7 @@ def _validate_registry_url(url):
     url = (url or "").strip()
     if url.startswith(("https://", "http://")):
         raise click.ClickException(
-            "ZODOO_REGISTRY_URL must not contain a URL scheme "
+            f"{setting} must not contain a URL scheme "
             f"(http:// or https://): got {url!r}. "
             "Use a bare host[:port][/path], "
             "e.g. ZODOO_REGISTRY_URL=registry.zebroo.de"
@@ -127,6 +135,42 @@ def _read_user_setting_safe(config, key):
         return _read_user_setting(config, key)
     except (AttributeError, KeyError, TypeError, OSError):
         return ""
+
+
+ZEBROO_REGISTRY_URL = "registry.zebroo.de"
+ZEBROO_REGISTRY_PUSH_URL = "registry-push.zebroo.de"
+
+
+def resolve_push_url(pull_url, push_url=None):
+    """The registry address pushes go to.
+
+    An explicit ZODOO_REGISTRY_PUSH_URL wins. Without one, pushes for the
+    default pull address registry.zebroo.de go to registry-push.zebroo.de
+    (same storage, but it challenges /v2/ — see the module docstring); any
+    other registry is pushed to under its pull address, as before.
+    """
+    push_url = _validate_registry_url(push_url, "ZODOO_REGISTRY_PUSH_URL")
+    if push_url:
+        return push_url.rstrip("/")
+    pull_url = (pull_url or "").strip().rstrip("/")
+    if pull_url == ZEBROO_REGISTRY_URL:
+        return ZEBROO_REGISTRY_PUSH_URL
+    return pull_url
+
+
+def get_push_registry_url(config, pull_url=None):
+    """Push counterpart to :func:`get_registry_url` — never prompts."""
+    if pull_url is None:
+        pull_url = _validate_registry_url(
+            _read_user_setting_safe(config, "ZODOO_REGISTRY_URL")
+            or getattr(config, "ZODOO_REGISTRY_URL", None)
+            or ""
+        )
+    return resolve_push_url(
+        pull_url,
+        _read_user_setting_safe(config, "ZODOO_REGISTRY_PUSH_URL")
+        or getattr(config, "ZODOO_REGISTRY_PUSH_URL", None),
+    )
 
 
 # Account names that say nothing about *which* machine is asking. They are
@@ -293,6 +337,10 @@ def _get_push_credentials(config):
     Only the push paths call this, and those run after a build has already
     produced an image. Reading goes through :func:`registry_url` and never
     lands here: a machine that only consumes images is never asked anything.
+
+    The returned "url" is the push address (:func:`get_push_registry_url`);
+    the account itself is requested and checked against the pull address,
+    which is where the admin API lives.
     """
     suggested = _read_user_setting(config, "ZODOO_REGISTRY_SUGGESTED")
 
@@ -434,7 +482,7 @@ def _get_push_credentials(config):
         _write_user_setting(config, "ZODOO_REGISTRY_SUGGESTED", "1")
 
         return {
-            "url": url.rstrip("/"),
+            "url": get_push_registry_url(config, url.rstrip("/")),
             "username": username,
             "password": password,
         }
@@ -478,7 +526,7 @@ def _get_push_credentials(config):
         _write_user_setting(config, "ZODOO_REGISTRY_PASSWORD", password)
 
     return {
-        "url": url.rstrip("/"),
+        "url": get_push_registry_url(config, url.rstrip("/")),
         "username": username,
         "password": password,
     }
@@ -769,6 +817,20 @@ def zodoo_registry_login(config):
     never pushes stays unregistered and unbothered.
     """
     login_with_settings_credentials(config)
+
+
+def zodoo_registry_push_login(config, best_effort=False):
+    """Like :func:`zodoo_registry_login`, but for the push address.
+
+    With ``best_effort`` a failing login only warns: used before detached
+    cross-arch pushes, which must not break the build they run beside.
+    """
+    try:
+        login_with_settings_credentials(config, get_push_registry_url(config))
+    except (subprocess.CalledProcessError, OSError) as ex:
+        if not best_effort:
+            raise
+        click.secho(f"Could not log in to push registry: {ex}", fg="yellow")
 
 
 def _docker_login_write_auth(reg):
@@ -1176,6 +1238,7 @@ def _build_and_push_other_arch(config, service_name, tag):
     reg = _get_push_credentials(config)
     if not reg:
         return
+    zodoo_registry_push_login(config, best_effort=True)
     registry_image = _registry_image_name(reg["url"], service_name, tag)
 
     compose = yaml.safe_load(config.files["docker_compose"].read_text())
@@ -1511,7 +1574,7 @@ def enqueue_registry_uploads(config, machines, suppress_other_platform=False):
 
 def process_registry_upload_job(config, payload):
     """Worker handler for ``registry_upload`` jobs."""
-    zodoo_registry_login(config)
+    zodoo_registry_push_login(config)
     images = payload.get("images") or []
     for image in images:
         click.secho(f"Pushing {image}...", fg="cyan")
@@ -1632,7 +1695,7 @@ def enqueue_base_image_upload(config, base_inputs):
 
 def process_base_image_upload_job(config, payload):
     """Worker handler for ``base_image_upload`` jobs."""
-    zodoo_registry_login(config)
+    zodoo_registry_push_login(config)
     image = payload.get("registry_image")
     if not image:
         return
@@ -1667,7 +1730,7 @@ def push_to_zodoo_registry(config, machines, suppress_other_platform=False):
     if not reg:
         return
 
-    zodoo_registry_login(config)
+    zodoo_registry_push_login(config)
 
     for service_name in machines:
         tag = get_zodoo_image_tag_for_service(config, service_name)

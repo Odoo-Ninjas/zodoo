@@ -801,6 +801,10 @@ def build_pythons(ctx, config, versions, force):
         )
         sys.exit(1)
 
+    from .lib_zodoo_registry import get_push_registry_url
+
+    push_url = get_push_registry_url(config, registry_url)
+
     results = []  # (version, arch, status)
     for raw_version in versions:
         version = _resolve_python_version(raw_version)
@@ -814,7 +818,12 @@ def build_pythons(ctx, config, versions, force):
         for arch in ("amd64", "arm64"):
             try:
                 status = _build_python_image_for_arch(
-                    images_dir, version, arch, registry_url, force=force
+                    images_dir,
+                    version,
+                    arch,
+                    registry_url,
+                    force=force,
+                    push_url=push_url,
                 )
                 results.append((version, arch, status))
             except subprocess.CalledProcessError as e:
@@ -871,15 +880,18 @@ def _resolve_python_version(version):
 
 
 def _build_python_image_for_arch(
-    images_dir, python_version, arch, registry_url, force=False
+    images_dir, python_version, arch, registry_url, force=False, push_url=None
 ):
     """buildx --platform linux/<arch> --push zodoo/python:<v>-<arch>.
 
     Skips when the image is already in the registry (unless `force`).
     Always pushes — building a local-only multi-arch image is awkward
     on macOS, and the purpose of this command is registry warmup anyway.
+    The check asks `registry_url`, the push goes to `push_url` (defaults to
+    `registry_url`).
     """
     image = f"{registry_url}/zodoo/python:{python_version}-{arch}"
+    push_image = f"{push_url or registry_url}/zodoo/python:{python_version}-{arch}"
 
     if not force:
         try:
@@ -908,13 +920,13 @@ def _build_python_image_for_arch(
         f"linux/{arch}",
         "--push",
         "-t",
-        image,
+        push_image,
         "--build-arg",
         f"ODOO_PYTHON_VERSION={python_version}",
         str(images_dir / "python_prebuilt"),
     ]
     subprocess.check_call(cmd)
-    click.secho(f"  pushed {image}", fg="green")
+    click.secho(f"  pushed {push_image}", fg="green")
     return "ok"
 
 

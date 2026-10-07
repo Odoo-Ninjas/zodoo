@@ -3,6 +3,7 @@ DBNAME						Uses projectname or a configured one
 HUB_URL						user:password@host:port/paths.. to configure
 REGISTRY=1					Rewrites all build and images urls to HUB_URL. Should be used on production systems to force pull only from registry and block any local buildings. Not to be confused with the ZODOO_REGISTRY_* settings below, which only cache build results and never block a local build.
 ZODOO_REGISTRY_URL			Registry used to cache build images, default registry.zebroo.de. Pulling the prebuilt CPython image needs no account; without it a fresh machine compiles CPython itself (~12 min).
+ZODOO_REGISTRY_PUSH_URL		Where built images are pushed to. Empty = registry-push.zebroo.de for the default registry.zebroo.de (same storage, but it always asks for the login, which the classic docker client needs), otherwise ZODOO_REGISTRY_URL. Pulls always use ZODOO_REGISTRY_URL.
 ZODOO_REGISTRY_USERNAME		Only needed to push built images back. `odoo build` offers to request an account once a push is due.
 ZODOO_REGISTRY_PASSWORD		See ZODOO_REGISTRY_USERNAME
 ZODOO_REGISTRY_SUGGESTED=0	Opt out of the zodoo registry completely - no pulls, no push account, no questions

@@ -54,6 +54,18 @@ over the anonymous name, push over the other one — it is the same stock, which
 is what the CI does (`ZODOO_REGISTRY_PUSH_URL`, see
 `.github/workflows/prebuild-images.yml`).
 
+zodoo does this on its own: as long as `ZODOO_REGISTRY_URL` is the default
+`registry.zebroo.de`, `odoo build` pulls from there and pushes to
+`registry-push.zebroo.de` — with the same account, nothing to set up. To push
+somewhere else, set the push address explicitly; pulls are not affected:
+
+```bash
+odoo setting ZODOO_REGISTRY_PUSH_URL=registry-push.example.com
+```
+
+For any other `ZODOO_REGISTRY_URL` without a push address, zodoo pushes to the
+pull address as before.
+
 ### 3. Build images
 
 ```bash
@@ -127,6 +139,7 @@ listing names customers, so it is not public.
 | Setting                    | Description                                                  |
 | -------------------------- | ------------------------------------------------------------ |
 | `ZODOO_REGISTRY_URL`       | Default `registry.zebroo.de`                                 |
+| `ZODOO_REGISTRY_PUSH_URL`  | Push target; empty = `registry-push.zebroo.de` for the default registry, else `ZODOO_REGISTRY_URL` |
 | `ZODOO_REGISTRY_USERNAME`  | Only needed for pushing                                      |
 | `ZODOO_REGISTRY_PASSWORD`  | Only needed for pushing                                      |
 | `ZODOO_REGISTRY_SUGGESTED` | `0` opts out completely — no pulls, no account, no questions |

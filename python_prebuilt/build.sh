@@ -47,6 +47,29 @@ case "$REGISTRY_URL" in
 esac
 REGISTRY_URL="${REGISTRY_URL%/}"
 
+# Push address. registry.zebroo.de answers /v2/ anonymously, so the classic
+# docker client pushes there without credentials and fails with 401; its
+# push name registry-push.zebroo.de is the same storage but challenges.
+# Same rule as resolve_push_url() in zodoo/src/zodoo/lib_zodoo_registry.py.
+PUSH_URL="${ZODOO_REGISTRY_PUSH_URL:-}"
+if [ -z "$PUSH_URL" ] && [ -f "${HOME}/.odoo/settings" ]; then
+  PUSH_URL=$(grep -E "^ZODOO_REGISTRY_PUSH_URL=" "${HOME}/.odoo/settings" 2>/dev/null | head -1 | cut -d= -f2 || true)
+fi
+case "$PUSH_URL" in
+  http://*|https://*)
+    echo "ZODOO_REGISTRY_PUSH_URL must not contain a URL scheme (http:// or https://): '$PUSH_URL'" >&2
+    exit 1
+    ;;
+esac
+PUSH_URL="${PUSH_URL%/}"
+if [ -z "$PUSH_URL" ]; then
+  if [ "$REGISTRY_URL" = "registry.zebroo.de" ]; then
+    PUSH_URL="registry-push.zebroo.de"
+  else
+    PUSH_URL="$REGISTRY_URL"
+  fi
+fi
+
 ARCH=$(uname -m | sed "s/x86_64/amd64/;s/aarch64/arm64/")
 TAG="${REGISTRY_URL}/zodoo/python:${PYTHON_VERSION}-${ARCH}"
 
@@ -58,8 +81,13 @@ docker build \
   "$SCRIPT_DIR"
 
 if [ "$PUSH" = "1" ]; then
-  echo "Pushing $TAG..."
-  docker push "$TAG"
+  # The build keeps the pull name, that is what the Odoo Dockerfiles FROM.
+  PUSH_TAG="${PUSH_URL}/zodoo/python:${PYTHON_VERSION}-${ARCH}"
+  if [ "$PUSH_TAG" != "$TAG" ]; then
+    docker tag "$TAG" "$PUSH_TAG"
+  fi
+  echo "Pushing $PUSH_TAG..."
+  docker push "$PUSH_TAG"
 fi
 
 echo "Done: $TAG"
