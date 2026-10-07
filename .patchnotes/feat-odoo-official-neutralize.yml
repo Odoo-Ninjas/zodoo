@@ -1,3 +1,0 @@
-type: feature
-description: "Restore neutralisiert jetzt über Odoos offiziellen Weg `odoo-bin neutralize` statt über selbst eingesammelte neutralize.sql-Dateien – damit greifen auch Module mit eigenem Neutralize (z.B. zSYNC). Neu: `odoo restore odoo-db --neutralize` (auch ohne DEVMODE, z.B. für Staging) und `odoo dev-env neutralize`. Prüfen: Dump mit DEVMODE=1 restoren → in den Einstellungen erscheint das Neutralize-Banner, `database.is_neutralized` ist gesetzt, Crons aus (außer Autovacuum), Zahlungsanbieter deaktiviert, Login ohne 2FA, Mails im Mailcatcher. Bestehende Projekte brauchen einmal `odoo reload && odoo build odoo`."
-breaking: false
