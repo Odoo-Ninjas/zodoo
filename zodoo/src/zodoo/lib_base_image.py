@@ -494,7 +494,11 @@ def cross_build_base_image(config, inputs):
     Returns the detached log file path on success, ``None`` if skipped
     (no registry, no run.build.odoo).
     """
-    from .lib_zodoo_registry import _get_push_credentials, _is_arm
+    from .lib_zodoo_registry import (
+        _get_push_credentials,
+        _is_arm,
+        zodoo_registry_push_login,
+    )
 
     reg = _get_push_credentials(config)
     if not reg:
@@ -503,6 +507,7 @@ def cross_build_base_image(config, inputs):
             fg="yellow",
         )
         return None
+    zodoo_registry_push_login(config, best_effort=True)
 
     other_arch_name = "amd64" if _is_arm() else "arm64"
     other_platform = f"linux/{other_arch_name}"

@@ -1248,6 +1248,7 @@ def _ensure_prebuilt_python_image(config, arch, pull=False):
     image = f"{registry_url}/zodoo/python:{python_version}-{arch}"
 
     from .lib_zodoo_registry import (
+        get_push_registry_url,
         inspect_registry_manifest,
         local_image_exists,
     )
@@ -1259,6 +1260,14 @@ def _ensure_prebuilt_python_image(config, arch, pull=False):
     # rights here — and `build.sh --push` would abort a build that used to
     # complete local-only.
     had_credentials = _has_registry_credentials(registry_url)
+    # Pushes go to the push address, for registry.zebroo.de a different host
+    # than the one we ask below. Same rule as above: decided before login.
+    push_url = get_push_registry_url(config, registry_url)
+    had_push_credentials = (
+        had_credentials
+        if push_url == registry_url
+        else _has_registry_credentials(push_url)
+    )
 
     status, output = inspect_registry_manifest(image)
     if status == "unreachable" and _ensure_registry_login(
@@ -1301,7 +1310,12 @@ def _ensure_prebuilt_python_image(config, arch, pull=False):
     # runners (no creds) would fail here with a 401 even though the
     # build succeeded locally. A registry we could not even talk to is not
     # worth trying to push to either.
-    pushable = status == "missing" and had_credentials
+    # Credentials for the pull host are the same account as for the push
+    # host; hand them to docker for the push host too, else the push gets 401.
+    pushable = status == "missing" and (
+        had_push_credentials
+        or (had_credentials and _ensure_registry_login(config, push_url))
+    )
     extra_args = ["--push"] if pushable else []
     reason = (
         f"not found in registry: {image}"
@@ -1328,7 +1342,11 @@ def _ensure_prebuilt_python_image(config, arch, pull=False):
     # Pass the registry URL via env so build.sh doesn't need to read
     # ~/.odoo/settings (CI runners may not have a user-level settings
     # file, but the project config we just resolved does have it).
-    env = {**os.environ, "ZODOO_REGISTRY_URL": registry_url}
+    env = {
+        **os.environ,
+        "ZODOO_REGISTRY_URL": registry_url,
+        "ZODOO_REGISTRY_PUSH_URL": push_url,
+    }
     subprocess.check_call([str(script), python_version, *extra_args], env=env)
     click.secho(
         f"Prebuilt Python image built{' and pushed' if pushable else ''}: "
