@@ -62,12 +62,17 @@ def sanitize_argv(argv):
     return result
 
 
+def _shell_code(code):
+    """The status the shell sees ($?): only the low 8 bits, so -1 is 255."""
+    return code & 0xFF
+
+
 def _exit_code(exc):
     code = getattr(exc, "code", None)
     if code is None:
         return 0
     if isinstance(code, int):
-        return code
+        return _shell_code(code)
     return 1
 
 
@@ -76,7 +81,7 @@ def _classify(exc):
     if exc is None:
         return "ok", 0, None
     if isinstance(exc, click.exceptions.Exit):
-        code = exc.exit_code
+        code = _shell_code(exc.exit_code)
         return ("ok" if code == 0 else "error"), code, None
     if isinstance(exc, SystemExit):
         code = _exit_code(exc)

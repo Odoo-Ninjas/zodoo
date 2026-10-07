@@ -388,7 +388,8 @@ last updated or restarted, with which arguments, and did it work?".
 {"ts": "2026-10-05T15:32:32+02:00", "command": "update", "argv": ["update", "sale"], "project": "myproj", "in_container": false, "nested": false, "result": "ok", "exit_code": 0, "error_type": null, "duration_s": 84.3}
 ```
 
-- `result` is `ok`, `error` or `aborted` (Ctrl+C). On errors only the exception
+- `result` is `ok`, `error` or `aborted` (Ctrl+C); `exit_code` is the value
+  the shell sees (`$?`), e.g. `255` for `sys.exit(-1)`. On errors only the exception
   type is stored, not its message.
 - `nested` is `true` when another command triggered the run internally; `argv`
   then shows the command you typed.

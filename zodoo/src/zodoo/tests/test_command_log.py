@@ -120,6 +120,10 @@ def test_exception_is_logged_as_error_without_message(
         (SystemExit(None), "ok", 0),
         (SystemExit("message"), "error", 1),
         (click.exceptions.Exit(2), "error", 2),
+        # logged as the shell sees it ($?): the low 8 bits
+        (SystemExit(-1), "error", 255),
+        (click.exceptions.Exit(-1), "error", 255),
+        (SystemExit(256), "ok", 0),
         (KeyboardInterrupt(), "aborted", 130),
         (click.Abort(), "aborted", 130),
     ],
