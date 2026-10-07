@@ -1,5 +1,10 @@
 # Changelog
 
+## 12.3.1
+
+- **Fix**: Supervisor roles no longer shoot each other down after a container restart. `kill_odoo()` only signals a pid from `/tmp/odoo.<role>.pid` if it is still the odoo-bin started with exactly that `--pidfile`; a pidfile left over from the previous run (/tmp survives `odoo restart`) used to hit a sibling role's process, which orphaned e.g. the queuejobs server and left the role respawning with "Address already in use". The wrapper also keeps the pidfile while its odoo-bin is still alive, so a later respawn can stop it. Roles spawned by the supervisor no longer re-render the shared config files (that is done once by the supervisor), which removes the sporadic `KeyError: 'options'` crash at startup.
+
+
 ## 12.3.0
 
 - **Feature**: DEVMODE-Restore neutralisiert die Datenbank jetzt zusätzlich mit Odoos eigenen neutralize.sql-Dateien (Stripe/Payment-Provider, IAP-Token, Webhooks usw.), entfernt TOTP-2FA und vergibt eine neue database.uuid. Prüfen: Prod-Dump mit DEVMODE=1 restoren, danach sind Zahlungsanbieter deaktiviert, IAP-Token enden auf +disabled, Login ohne 2FA möglich, Mails landen im Mailcatcher.
