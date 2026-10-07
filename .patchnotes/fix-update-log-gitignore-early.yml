@@ -1,0 +1,3 @@
+type: fix
+description: "update.log und neu angelegte .gitignore: Ignore-Regel vor dem ersten Schreiben, bei Root-Lauf gehört eine neue .gitignore dem Projektbenutzer"
+breaking: false
