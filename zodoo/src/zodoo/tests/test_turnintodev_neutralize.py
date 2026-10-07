@@ -1,52 +1,187 @@
-"""Tests for picking up Odoo's own neutralize.sql files in DEVMODE.
+"""Tests for running Odoo's official `odoo-bin neutralize` on restore.
 
-A restored production database still had enabled payment providers, live IAP
-tokens and webhooks because only turndb2dev.sql ran. The module files Odoo
-uses for `odoo-bin neutralize` must be collected the way Odoo does it.
+zodoo used to collect the modules' data/neutralize.sql itself; now Odoo's own
+command runs in a one-off odoo container, so every installed module (core,
+enterprise, zSYNC, ...) is neutralized exactly the way Odoo does it and
+database.is_neutralized is set. During a restore the database still lives as
+<db>_restoring on a helper postgres container - the command must be pointed
+there, not at the project's regular database.
 """
 
 from __future__ import annotations
 
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from zodoo import lib_backup
+from zodoo import lib_standard_image
 from zodoo import lib_turnintodev as mod
+from zodoo import odoo_config
+from zodoo import tools
+
+CONFIG_DIR = Path(mod.__file__).parents[3] / "odoo" / "config"
 
 
-def _module(addons_path, name, neutralize=None):
-    module_dir = addons_path / name
-    (module_dir / "data").mkdir(parents=True)
-    if neutralize is not None:
-        (module_dir / "data" / "neutralize.sql").write_text(neutralize)
-    return module_dir
+@pytest.fixture
+def dcrun(monkeypatch):
+    calls = []
+    result = {"returncode": 0}
+
+    def fake_dcrun(config, cmd, env={}, **kwargs):
+        calls.append({"cmd": cmd, "env": dict(env)})
+        return result["returncode"], ""
+
+    monkeypatch.setattr(tools, "__dcrun", fake_dcrun)
+    monkeypatch.setattr(mod, "table_exists", lambda conn, table: True)
+    monkeypatch.setattr(odoo_config, "current_version", lambda: 19.0)
+    monkeypatch.setattr(
+        lib_standard_image, "is_standard_image", lambda config: False
+    )
+    return SimpleNamespace(calls=calls, result=result)
 
 
-def test_collects_neutralize_sql_of_installed_modules(tmp_path):
-    core = tmp_path / "odoo" / "addons"
-    _module(core, "payment", "UPDATE payment_provider SET state = 'disabled';")
-    _module(core, "sale")  # no neutralize.sql
-    _module(core, "iap", "UPDATE iap_account SET account_token = 'x';")
+def _conn(dbname="odoo_restoring"):
+    return SimpleNamespace(dbname=dbname)
 
-    sqls = mod._collect_odoo_neutralize_sql(["iap", "payment", "sale"], [core])
 
-    assert [x["file"] for x in sqls] == [
-        core / "iap" / "data" / "neutralize.sql",
-        core / "payment" / "data" / "neutralize.sql",
+def test_runs_odoo_neutralize_script_in_our_image(dcrun):
+    mod._run_odoo_neutralize(SimpleNamespace(), _conn())
+
+    (call,) = dcrun.calls
+    assert call["cmd"] == [
+        "odoo",
+        "/odoolib/entrypoint.sh",
+        "/odoolib/neutralize.py",
     ]
-    assert {x["mode"] for x in sqls} == {"plain"}
+    assert call["env"] == {"DBNAME": "odoo_restoring"}
 
 
-def test_first_addons_path_wins(tmp_path):
-    first = tmp_path / "first"
-    second = tmp_path / "second"
-    _module(first, "discord_bot")  # overriding copy without neutralize.sql
-    _module(second, "discord_bot", "DELETE FROM discord_instance;")
-
-    assert (
-        mod._collect_odoo_neutralize_sql(["discord_bot"], [first, second])
-        == []
+def test_restore_points_container_to_helper_postgres(dcrun):
+    mod._run_odoo_neutralize(
+        SimpleNamespace(), _conn(), db_host="postgres_1234"
     )
 
+    (call,) = dcrun.calls
+    assert call["env"] == {
+        "DBNAME": "odoo_restoring",
+        "DB_HOST": "postgres_1234",
+    }
 
-def test_skips_modules_missing_in_addons_paths(tmp_path):
-    core = tmp_path / "odoo" / "addons"
-    core.mkdir(parents=True)
 
-    assert mod._collect_odoo_neutralize_sql(["gone_module"], [core]) == []
+def test_standard_image_calls_odoo_cli_directly(dcrun, monkeypatch):
+    monkeypatch.setattr(
+        lib_standard_image, "is_standard_image", lambda config: True
+    )
+
+    mod._run_odoo_neutralize(
+        SimpleNamespace(), _conn(), db_host="postgres_1234"
+    )
+
+    (call,) = dcrun.calls
+    assert call["cmd"][:3] == ["odoo", "odoo", "neutralize"]
+    assert call["cmd"][call["cmd"].index("-d") + 1] == "odoo_restoring"
+    assert call["cmd"][-2:] == ["--db_host", "postgres_1234"]
+
+
+def test_failure_aborts_loudly(dcrun):
+    dcrun.result["returncode"] = 1
+
+    with pytest.raises(SystemExit):
+        mod._run_odoo_neutralize(SimpleNamespace(), _conn())
+
+
+@pytest.mark.parametrize("version", [11.0, 15.0])
+def test_skipped_before_odoo_16(dcrun, monkeypatch, version):
+    monkeypatch.setattr(odoo_config, "current_version", lambda: version)
+
+    mod._run_odoo_neutralize(SimpleNamespace(), _conn())
+
+    assert dcrun.calls == []
+
+
+def test_skipped_on_uninitialized_database(dcrun, monkeypatch):
+    monkeypatch.setattr(mod, "table_exists", lambda conn, table: False)
+
+    mod._run_odoo_neutralize(SimpleNamespace(), _conn())
+
+    assert dcrun.calls == []
+
+
+@pytest.fixture
+def after_restore(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        mod,
+        "__turn_into_devdb",
+        lambda ctx, config, conn, db_host=None: calls.append(
+            ("turn_into_dev", db_host)
+        ),
+    )
+    monkeypatch.setattr(
+        mod,
+        "_run_odoo_neutralize",
+        lambda config, conn, db_host=None: calls.append(
+            ("neutralize", db_host)
+        ),
+    )
+    monkeypatch.setattr(lib_backup, "remove_webassets", lambda conn: None)
+    return calls
+
+
+def test_devmode_restore_runs_full_dev_scripts(after_restore):
+    config = SimpleNamespace(devmode=True)
+
+    lib_backup._after_restore(
+        None, _conn(), config, False, False, db_host="postgres_1234"
+    )
+
+    assert after_restore == [("turn_into_dev", "postgres_1234")]
+
+
+def test_neutralize_option_without_devmode(after_restore):
+    config = SimpleNamespace(devmode=False)
+
+    lib_backup._after_restore(
+        None, _conn(), config, False, False, neutralize=True, db_host="pg"
+    )
+
+    assert after_restore == [("neutralize", "pg")]
+
+
+def test_plain_restore_without_devmode_stays_untouched(after_restore):
+    config = SimpleNamespace(devmode=False)
+
+    lib_backup._after_restore(None, _conn(), config, False, False)
+
+    assert after_restore == []
+
+
+@pytest.mark.parametrize("version", ["16", "17", "18", "19", "20"])
+def test_turndb2dev_keeps_only_what_core_does_not_cover(version):
+    sql = (CONFIG_DIR / version / "turndb2dev.sql").read_text()
+
+    # covered by base/data/neutralize.sql, which keeps autovacuum running
+    assert "update ir_cron" not in sql
+    # not covered by Odoo core
+    assert "set totp_secret = null" in sql
+    assert "key = 'database.uuid'" in sql
+    assert "database.enterprise_code" in sql
+
+
+@pytest.mark.parametrize(
+    "version, file, skipped",
+    [
+        (19.0, "addons/my_module/data/neutralize.sql", True),
+        (16.0, "my_module/data/neutralize.sql", True),
+        (19.0, "devscripts/extra_neutralize.sql", False),
+        (15.0, "my_module/data/neutralize.sql", False),
+    ],
+)
+def test_manifest_module_neutralize_sql_not_run_twice(
+    monkeypatch, version, file, skipped
+):
+    monkeypatch.setattr(odoo_config, "current_version", lambda: version)
+
+    assert mod._run_by_odoo_neutralize(file) is skipped
