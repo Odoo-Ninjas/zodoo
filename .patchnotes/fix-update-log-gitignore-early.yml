@@ -1,3 +1,0 @@
-type: fix
-description: "update.log vor dem ersten Schreiben ignorieren; neu angelegte .gitignore bei Root-Lauf gehört dem Projektbenutzer; .odoo-commands.log protokolliert den Shell-Exitcode (255 statt -1)"
-breaking: false

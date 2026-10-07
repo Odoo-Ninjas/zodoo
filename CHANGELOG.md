@@ -1,5 +1,10 @@
 # Changelog
 
+## 12.5.1
+
+- **Fix**: update.log vor dem ersten Schreiben ignorieren; neu angelegte .gitignore bei Root-Lauf gehört dem Projektbenutzer; .odoo-commands.log protokolliert den Shell-Exitcode (255 statt -1)
+
+
 ## 12.5.0
 
 - **Feature**: Registry: Pushes gehen über eine eigene Adresse. Neue Einstellung ZODOO_REGISTRY_PUSH_URL; ohne Wert pusht zodoo bei registry.zebroo.de automatisch nach registry-push.zebroo.de (derselbe Speicher, verlangt aber immer den Login). Damit schlägt der Push mit dem klassischen Docker-Image-Store nicht mehr am Ende mit 401 fehl. Pulls bleiben auf ZODOO_REGISTRY_URL. Prüfen: auf einem Rechner ohne containerd-Image-Store mit Push-Account `odoo build` ausführen. In der Ausgabe muss `Pushing registry-push.zebroo.de/zodoo-...` stehen und der Push ohne 401 durchlaufen.
