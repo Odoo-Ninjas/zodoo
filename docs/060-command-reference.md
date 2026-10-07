@@ -223,7 +223,8 @@ production database cannot reach the outside world:
    `database.is_neutralized`. Custom modules that talk to external systems
    should ship such a file as well.
 2. zodoo's `turndb2dev.sql`: all cronjobs off, outgoing and incoming mail
-   redirected to the local mail catcher, two-factor login (TOTP) removed and a
+   redirected to the local mail catcher (the mail servers are renamed to
+   "Test-Mailserver (<old name>)"), two-factor login (TOTP) removed and a
    new `database.uuid` generated, so the copy is not mistaken for the
    production database by Odoo's services.
 3. SQL files listed under `neutralize` in the [MANIFEST](./080-manifest.md)
