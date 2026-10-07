@@ -5,6 +5,7 @@ from tools import (
     is_odoo_cronjob,
     is_odoo_queuejob,
     prepare_run,
+    prepare_run_role,
 )
 from tools import set_proxy_update_modules
 from tools import set_warmup_in_progress, signal_warmup_done
@@ -44,8 +45,14 @@ print(f"Starting up odoo (zodoo {_zodoo_version})")
 # so we must do the full prepare (config rendering + role-specific
 # fixups). With the v14+ supervisor those two halves are split across
 # prepare_run_shared (once, by the supervisor) and prepare_run_role
-# (per spawned role).
-prepare_run()
+# (per spawned role). The supervisor marks its children with ZODOO_ROLE;
+# running the shared half again in every role made the three roles
+# rewrite the same config files concurrently, so one of them sporadically
+# crashed at startup (KeyError: 'options') and respawned a second later.
+if os.getenv("ZODOO_ROLE"):
+    prepare_run_role()
+else:
+    prepare_run()
 
 TOUCH_URL = not is_odoo_cronjob and not is_odoo_queuejob
 if _DEVMODE:
