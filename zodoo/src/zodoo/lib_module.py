@@ -27,7 +27,6 @@ except ImportError:
 from .tools import __try_to_set_owner
 from .tools import atomic_write_text
 from .tools import _make_sure_module_is_installed
-from .tools import __assure_gitignore
 from .lib_command_log import logged_command
 from .tools import get_hash
 from .tools import get_directory_hash
@@ -1212,7 +1211,7 @@ def update(
             no_restart = True
 
         update_log_file = customs_dir() / "update.log"
-        _assure_update_log_ignored(customs_dir())
+        _assure_update_log_ignored(customs_dir(), config.owner_uid)
         update_log_file.write_text("")
         if config.owner_uid:
             __try_to_set_owner(
@@ -1351,7 +1350,7 @@ def update(
         atomic_write_text(updateinprogress, "0")
 
 
-def _assure_update_log_ignored(project_dir):
+def _assure_update_log_ignored(project_dir, owner_uid=None):
     """Keep update.log out of git before it is written for the first time.
 
     Older zodoo versions appended ``update.log`` only after a successful
@@ -1362,7 +1361,9 @@ def _assure_update_log_ignored(project_dir):
         rules = [line.strip() for line in gitignore.read_text().splitlines()]
         if "update.log" in rules or "/update.log" in rules:
             return
-    __assure_gitignore(gitignore, "/update.log")
+    from .lib_command_log import assure_gitignore_rule
+
+    assure_gitignore_rule(gitignore, "/update.log", owner_uid)
 
 
 def _execute_after_update_scripts(config):

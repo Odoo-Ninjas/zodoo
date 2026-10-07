@@ -286,3 +286,38 @@ def test_project_templates_ignore_runtime_logs(gitignore):
 
 def test_templates_found():
     assert len(list(TEMPLATES.glob("*/.gitignore"))) >= 10
+
+
+# ---------------------------------------------------------------------------
+# ownership of a .gitignore created by a root run
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def chowned(monkeypatch):
+    from zodoo import tools
+
+    calls = []
+    monkeypatch.setattr(
+        tools,
+        "__try_to_set_owner",
+        lambda uid, path, **kw: calls.append((uid, Path(path).name)),
+    )
+    return calls
+
+
+def test_new_gitignore_is_handed_to_project_owner(tmp_path, chowned):
+    mod.write_entry({}, directory=tmp_path, config=FakeConfig(owner_uid=1000))
+    assert (1000, ".gitignore") in chowned
+    assert (1000, mod.LOG_FILENAME) in chowned
+
+
+def test_existing_gitignore_keeps_its_owner(tmp_path, chowned):
+    (tmp_path / ".gitignore").write_text("*.pyc\n")
+    mod.write_entry({}, directory=tmp_path, config=FakeConfig(owner_uid=1000))
+    assert (1000, ".gitignore") not in chowned
+
+
+def test_no_owner_uid_no_chown(tmp_path, chowned):
+    mod.write_entry({}, directory=tmp_path, config=FakeConfig(owner_uid=None))
+    assert chowned == []

@@ -105,9 +105,21 @@ def _log_directory():
     return customs_dir()
 
 
+def assure_gitignore_rule(gitignore, rule, owner_uid=None):
+    """Add ``rule`` to ``gitignore``; a file created here (e.g. by a root
+    run) is handed to ``owner_uid`` so the project user can still edit it."""
+    from .tools import __assure_gitignore, __try_to_set_owner
+
+    gitignore = Path(gitignore)
+    created = not gitignore.exists()
+    __assure_gitignore(gitignore, rule)
+    if created and owner_uid:
+        __try_to_set_owner(int(owner_uid), gitignore, abort_if_failed=False)
+
+
 def write_entry(entry, directory=None, config=None):
     """Append ``entry`` to the log in ``directory`` (default: project dir)."""
-    from .tools import __assure_gitignore, __try_to_set_owner
+    from .tools import __try_to_set_owner
 
     if directory is None:
         directory = _log_directory()
@@ -115,11 +127,11 @@ def write_entry(entry, directory=None, config=None):
         return None
     directory = Path(directory)
     logfile = directory / LOG_FILENAME
-    __assure_gitignore(directory / ".gitignore", GITIGNORE_RULE)
+    owner_uid = getattr(config, "owner_uid", None) if config else None
+    assure_gitignore_rule(directory / ".gitignore", GITIGNORE_RULE, owner_uid)
     is_new = not logfile.exists()
     with logfile.open("a", encoding="utf8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-    owner_uid = getattr(config, "owner_uid", None) if config else None
     if is_new and owner_uid:
         __try_to_set_owner(int(owner_uid), logfile, abort_if_failed=False)
     return logfile

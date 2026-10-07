@@ -54,3 +54,30 @@ def test_update_ignores_log_before_truncating_it():
     ensure = source.index("_assure_update_log_ignored(")
     truncate = source.index('update_log_file.write_text("")')
     assert ensure < truncate
+
+
+@pytest.mark.parametrize(
+    "existing, owner_uid, expected",
+    [
+        (None, 1000, [(1000, ".gitignore")]),  # created by a root run
+        ("*.pyc\n", 1000, []),  # existing file keeps its owner
+        (None, None, []),  # no OWNER_UID configured
+    ],
+)
+def test_new_gitignore_is_handed_to_project_owner(
+    tmp_path, monkeypatch, existing, owner_uid, expected
+):
+    from pathlib import Path
+
+    from zodoo import tools
+
+    calls = []
+    monkeypatch.setattr(
+        tools,
+        "__try_to_set_owner",
+        lambda uid, path, **kw: calls.append((uid, Path(path).name)),
+    )
+    if existing is not None:
+        (tmp_path / ".gitignore").write_text(existing)
+    lib_module._assure_update_log_ignored(tmp_path, owner_uid)
+    assert calls == expected
