@@ -891,7 +891,9 @@ def _build_python_image_for_arch(
     `registry_url`).
     """
     image = f"{registry_url}/zodoo/python:{python_version}-{arch}"
-    push_image = f"{push_url or registry_url}/zodoo/python:{python_version}-{arch}"
+    push_image = (
+        f"{push_url or registry_url}/zodoo/python:{python_version}-{arch}"
+    )
 
     if not force:
         try:

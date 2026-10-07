@@ -136,13 +136,13 @@ Everything else stays behind the login: the per-service cache images
 (`zodoo-*`), every project namespace, and `/v2/_catalog` — the repository
 listing names customers, so it is not public.
 
-| Setting                    | Description                                                  |
-| -------------------------- | ------------------------------------------------------------ |
-| `ZODOO_REGISTRY_URL`       | Default `registry.zebroo.de`                                 |
+| Setting                    | Description                                                                                        |
+| -------------------------- | -------------------------------------------------------------------------------------------------- |
+| `ZODOO_REGISTRY_URL`       | Default `registry.zebroo.de`                                                                       |
 | `ZODOO_REGISTRY_PUSH_URL`  | Push target; empty = `registry-push.zebroo.de` for the default registry, else `ZODOO_REGISTRY_URL` |
-| `ZODOO_REGISTRY_USERNAME`  | Only needed for pushing                                      |
-| `ZODOO_REGISTRY_PASSWORD`  | Only needed for pushing                                      |
-| `ZODOO_REGISTRY_SUGGESTED` | `0` opts out completely — no pulls, no account, no questions |
+| `ZODOO_REGISTRY_USERNAME`  | Only needed for pushing                                                                            |
+| `ZODOO_REGISTRY_PASSWORD`  | Only needed for pushing                                                                            |
+| `ZODOO_REGISTRY_SUGGESTED` | `0` opts out completely — no pulls, no account, no questions                                       |
 
 Do not confuse this with the `REGISTRY=1` setting above: that one rewrites all
 image references to `HUB_URL` and blocks local builds, which is meant for

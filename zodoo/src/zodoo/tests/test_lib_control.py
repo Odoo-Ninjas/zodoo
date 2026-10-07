@@ -2046,7 +2046,7 @@ def test_ensure_prebuilt_pushes_to_the_push_address(tmp_path, monkeypatch):
         _PrebuiltCfg(images, registry="registry.zebroo.de"), "arm64"
     )
 
-    (cmd, env), = calls
+    ((cmd, env),) = calls
     assert cmd[-1] == "--push"
     assert env["ZODOO_REGISTRY_URL"] == "registry.zebroo.de"
     assert env["ZODOO_REGISTRY_PUSH_URL"] == "registry-push.zebroo.de"
