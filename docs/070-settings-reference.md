@@ -31,12 +31,12 @@ Or edit the files directly. Run `odoo reload` after manual edits.
 
 ## Developer Settings
 
-| Setting                  | Default | Description                                                                                                                                                                                                                                                                               |
-| ------------------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DEVMODE`                | `0`     | `1` = on restore: neutralize the database (see [`odoo restore odoo-db`](./060-command-reference.md#odoo-restore-odoo-db-path)), cut the Outlook calendar sync (Odoo 19), reset all passwords to `DEFAULT_DEV_PASSWORD`. Project-specific scripts come from the MANIFEST key `neutralize`. |
-| `DEFAULT_DEV_PASSWORD`   | `admin` | Password set for all users when `DEVMODE=1` and a DB is restored.                                                                                                                                                                                                                         |
-| `ODOO_DEMO`              | `0`     | `1` = load demo data on `db reset`.                                                                                                                                                                                                                                                       |
-| `ODOO_ENABLE_DB_MANAGER` | `0`     | `1` = enable Odoo's built-in database manager at `/web/database/manager`.                                                                                                                                                                                                                 |
+| Setting                  | Default | Description                                                                                                                                                                                                                                                                                               |
+| ------------------------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DEVMODE`                | `0`     | `1` = on restore: neutralize the database with Odoo's `odoo-bin neutralize` plus zodoo's additions (see [`odoo restore odoo-db`](./060-command-reference.md#odoo-restore-odoo-db-path)), reset all passwords to `DEFAULT_DEV_PASSWORD`. Project-specific scripts come from the MANIFEST key `neutralize`. |
+| `DEFAULT_DEV_PASSWORD`   | `admin` | Password set for all users when `DEVMODE=1` and a DB is restored.                                                                                                                                                                                                                                         |
+| `ODOO_DEMO`              | `0`     | `1` = load demo data on `db reset`.                                                                                                                                                                                                                                                                       |
+| `ODOO_ENABLE_DB_MANAGER` | `0`     | `1` = enable Odoo's built-in database manager at `/web/database/manager`.                                                                                                                                                                                                                                 |
 
 ## Odoo Server
 
@@ -55,8 +55,7 @@ file. Some zodoo settings carry such names (`ODOO_MAX_CRON_THREADS`,
 `ODOO_LOG_LEVEL`, `ODOO_DATA_DIR`, `ODOO_DBFILTER`). zodoo therefore does not
 pass a variable to odoo-bin when the option is set in the role's config file;
 the config file wins, as before Odoo 19. The Odoo log names the variables it
-held back (`Not passing to odoo-bin (set in config_webserver): ...;
-effective max_cron_threads=0`). Options that are not in the config file still
+held back (`Not passing to odoo-bin (set in config_webserver): ...; effective max_cron_threads=0`). Options that are not in the config file still
 come through the environment - e.g. `ODOO_LOG_LEVEL` keeps setting the log
 level via the command line of the running roles.
 

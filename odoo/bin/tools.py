@@ -674,8 +674,11 @@ def exec_odoo(
     wait_for_remote=False,
     enable_queuejobs=False,
     capture_output=None,
+    command=None,
     **kwargs,
 ):  # NOQA
+    # command: odoo-bin subcommand placed before the options, e.g.
+    # "neutralize" -> odoo-bin neutralize -c <config> -d <db> ...
     _t0_exec = time.monotonic()
 
     def _ts(label):
@@ -714,6 +717,8 @@ def exec_odoo(
     )
     if odoo_shell:
         cmd += ["shell"]
+    elif command:
+        cmd += [command]
     try:
         DBNAME = config["DBNAME"]
     except KeyError:
