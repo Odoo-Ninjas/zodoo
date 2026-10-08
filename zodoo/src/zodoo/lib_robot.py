@@ -846,6 +846,8 @@ def run_all(
                     fg="yellow",
                 )
                 time.sleep(random.randint(2, 8))
+        if not res:
+            sys.exit(-1)
 
 
 @robot.command()
