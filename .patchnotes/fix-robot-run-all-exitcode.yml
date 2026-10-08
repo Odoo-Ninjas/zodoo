@@ -1,3 +1,0 @@
-type: fix
-description: "`odoo robot run-all` exits non-zero when a suite fails on every retry and lists the failed suites at the end (#270)"
-breaking: false

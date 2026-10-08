@@ -1,5 +1,10 @@
 # Changelog
 
+## 12.5.2
+
+- **Fix**: `odoo robot run-all` exits non-zero when a suite fails on every retry and lists the failed suites at the end (#270)
+
+
 ## 12.5.1
 
 - **Fix**: update.log vor dem ersten Schreiben ignorieren; neu angelegte .gitignore bei Root-Lauf gehört dem Projektbenutzer; .odoo-commands.log protokolliert den Shell-Exitcode (255 statt -1)
