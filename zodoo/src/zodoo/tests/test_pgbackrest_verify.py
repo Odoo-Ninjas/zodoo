@@ -212,6 +212,7 @@ def test_the_major_version_comes_from_the_repository(monkeypatch):
     assert lp._verify_latest_backup(FakeConfig(), "kunde", "img", []) == (
         "neu",
         "16",
+        None,
     )
 
 
@@ -235,6 +236,7 @@ def test_after_a_major_upgrade_the_backups_own_version_wins(monkeypatch):
     assert lp._verify_latest_backup(FakeConfig(), "kunde", "img", []) == (
         "vor_upgrade",
         "16",
+        None,
     )
 
 
@@ -1411,3 +1413,117 @@ def test_verify_runs_with_detail_logging(monkeypatch):
     monkeypatch.setattr(lp, "_docker", fake_docker)
     lp.run_repo_verify_bench(dict(BENCH_S3), "kunde-a")
     assert any("--log-level-console=detail" in a for a in gerufen[0]), gerufen
+
+
+# --------------------------------------------------------------------------- #
+# Aktualitaet: zurueckspielbar allein reicht nicht                             #
+# --------------------------------------------------------------------------- #
+
+JETZT = 1_791_400_000
+STUNDE = 3600
+
+
+def test_the_stop_time_of_the_tested_backup_is_reported(monkeypatch):
+    """Ohne die Stoppzeit laesst sich nicht sagen, WIE ALT der Stand ist."""
+    _info(
+        monkeypatch,
+        [
+            {
+                "status": {"code": 0},
+                "backup": [
+                    {"label": "alt", "timestamp": {"stop": 100}},
+                    {"label": "neu", "timestamp": {"stop": 200}},
+                ],
+            }
+        ],
+    )
+    label, _, stop = lp._verify_latest_backup(FakeConfig(), "kunde", "img", [])
+    assert (label, stop) == ("neu", 200)
+
+
+def _probe_ohne_docker(monkeypatch, stop):
+    """_probe mit allem Aeusseren ersetzt - nur die Entscheidung bleibt echt."""
+    zurueckgespielt = []
+    monkeypatch.setattr(lp.time, "time", lambda: JETZT)
+    monkeypatch.setattr(
+        lp,
+        "_verify_latest_backup",
+        lambda *a, **kw: ("20261007-020002D", "17", stop),
+    )
+    monkeypatch.setattr(lp, "_verify_pg_image", lambda *a: "pg")
+    monkeypatch.setattr(
+        lp, "_docker", lambda *a, **kw: zurueckgespielt.append(a)
+    )
+    monkeypatch.setattr(
+        lp,
+        "_verify_start_and_read",
+        lambda *a: {"database": "db", "table": "t", "rows": 1},
+    )
+    monkeypatch.setattr(lp, "_verify_cleanup", lambda *a: None)
+    return zurueckgespielt
+
+
+UMGEBUNG = {
+    "pgbackrest_image": "pgbr",
+    "postgres_image": "pg",
+    "mounts": [],
+    "store": "erstbestand",
+}
+
+
+def test_a_stale_backup_fails_the_probe(monkeypatch):
+    """Am 08.10.2026 bestand ein Bereich mit einem Stand vom Vortag.
+
+    Die Probe sagte "passed", weil sich die Sicherung zurueckspielen liess -
+    dass sie einen Tag zu alt war, fragte niemand. Genau das ist der Fehler,
+    der erst im Ernstfall auffaellt.
+    """
+    zurueckgespielt = _probe_ohne_docker(monkeypatch, JETZT - 50 * STUNDE)
+    erg = lp._probe(dict(UMGEBUNG), "kunde")
+    assert erg["result"] == "failed"
+    assert "zu alt" in erg["error"]
+    assert erg["backup_age"] == 50 * STUNDE
+    # Eine zu alte Sicherung braucht man nicht erst zurueckzuspielen.
+    assert zurueckgespielt == []
+
+
+def test_a_fresh_backup_passes_and_its_age_is_recorded(monkeypatch):
+    _probe_ohne_docker(monkeypatch, JETZT - 3 * STUNDE)
+    erg = lp._probe(dict(UMGEBUNG), "kunde")
+    assert erg["result"] == "passed", erg.get("error")
+    assert erg["backup_stop"] == JETZT - 3 * STUNDE
+    assert erg["backup_age"] == 3 * STUNDE
+
+
+def test_a_backup_without_stop_time_does_not_pass(monkeypatch):
+    """Unbekanntes Alter ist kein junges Alter."""
+    _probe_ohne_docker(monkeypatch, None)
+    erg = lp._probe(dict(UMGEBUNG), "kunde")
+    assert erg["result"] == "failed"
+    assert "Alter" in erg["error"]
+
+
+def test_the_age_limit_can_be_set_per_area(monkeypatch, tmp_path):
+    """Ein Bereich, der nur woechentlich sichert, braucht eine eigene Schwelle."""
+    gerufen = []
+    monkeypatch.setattr(
+        lp,
+        "_probe",
+        lambda umgebung, stanza: gerufen.append(umgebung) or {},
+    )
+    monkeypatch.setattr(lp.os, "chown", lambda *a, **kw: None)
+    cert = tmp_path / "cert"
+    cert.mkdir()
+    for f in ("ca.crt", "client.crt", "client.key"):
+        (cert / f).write_text("x")
+    bench = dict(
+        BENCH,
+        cert_dir=str(cert),
+        stanzas={"woechentlich": {"max_backup_age": 8 * 86400}},
+    )
+
+    lp.run_verify_bench(bench, "kunde-a")
+    lp.run_verify_bench(bench, "woechentlich")
+
+    assert gerufen[0]["max_backup_age"] == lp.VERIFY_MAX_BACKUP_AGE
+    assert gerufen[1]["max_backup_age"] == 8 * 86400

@@ -941,6 +941,14 @@ VERIFY_PGDATA = "/var/lib/postgresql/data/pgdata"
 # Wieviel Zeit die zurueckgespielte Instanz zum Hochfahren bekommt.
 VERIFY_STARTUP_TIMEOUT = 300
 
+# Wie alt die gepruefte Sicherung hoechstens sein darf (Sekunden ab ihrem
+# Ende). "Laesst sich zurueckspielen" allein beweist nichts ueber den Stand:
+# am 08.10.2026 bestand ein Bereich mit der Sicherung vom Vortag. Gesichert
+# wird taeglich; 36 h lassen Luft fuer einen Spiegel, der beim Probelauf noch
+# nicht durch ist, und fallen trotzdem auf, sobald eine Nacht ausbleibt.
+# Je Bereich ueberschreibbar (Pruefstand: "max_backup_age" in stanzas).
+VERIFY_MAX_BACKUP_AGE = 36 * 3600
+
 # Was Postgres beim Wiederherstellen mindestens so gross braucht wie auf der
 # Quelle, sonst: "recovery aborted because of insufficient parameter settings".
 # Links der Name in pg_controldata, rechts der Serverparameter.
@@ -1216,7 +1224,8 @@ def _verify_latest_backup(config, stanza, image, mounts, run_user=None):
         if eintrag.get("id") == db_id:
             version = str(eintrag.get("version") or "").strip() or None
             break
-    return letzte["label"], version
+    stop = (letzte.get("timestamp") or {}).get("stop")
+    return letzte["label"], version, stop
 
 
 def _verify_pg_image(umgebung, version, stanza):
@@ -1458,13 +1467,30 @@ def _probe(umgebung, stanza):
         "store": umgebung.get("store") or "-",
     }
     try:
-        ergebnis["backup"], db_version = _verify_latest_backup(
+        ergebnis["backup"], db_version, stop = _verify_latest_backup(
             None, stanza, pgbr_image, mounts, run_user
         )
         if db_version:
             # Im Nachweis festhalten: sonst ist hinterher nicht erkennbar,
             # unter welcher Hauptversion geprueft wurde.
             ergebnis["pg_version"] = db_version
+        # Vor dem Zurueckspielen: eine zu alte Sicherung faellt so oder so
+        # durch, dafuer muss kein Cluster hochgefahren werden.
+        if not stop:
+            raise VerifyFailed(
+                f"das Alter der Sicherung {ergebnis['backup']} ist nicht "
+                "feststellbar (keine Stoppzeit im Repository)"
+            )
+        ergebnis["backup_stop"] = int(stop)
+        ergebnis["backup_age"] = int(begonnen) - int(stop)
+        hoechstens = umgebung.get("max_backup_age") or VERIFY_MAX_BACKUP_AGE
+        if ergebnis["backup_age"] > hoechstens:
+            raise VerifyFailed(
+                f"die juengste Sicherung {ergebnis['backup']} ist zu alt: "
+                f"{ergebnis['backup_age'] // 3600} h (erlaubt "
+                f"{hoechstens // 3600} h) - entweder wurde nicht gesichert "
+                "oder dieser Bestand wird nicht nachgefuehrt"
+            )
         pg_image = _verify_pg_image(umgebung, db_version, stanza)
 
         _docker("volume", "create", volume, timeout=120)
@@ -1852,6 +1878,9 @@ def run_verify_bench(bench, stanza):
         eigen = _from_envelope(eigen, stanza)
         umgebung = _bench_environment(eigen, stanza, arbeitsordner)
         umgebung["store"] = _store_name(eigen)
+        umgebung["max_backup_age"] = eigen.get(
+            "max_backup_age", VERIFY_MAX_BACKUP_AGE
+        )
     except VerifyFailed as ex:
         shutil.rmtree(arbeitsordner, ignore_errors=True)
         return {

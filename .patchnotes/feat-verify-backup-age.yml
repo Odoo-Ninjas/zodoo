@@ -1,0 +1,3 @@
+type: feature
+description: "pgbackrest verify: Rückspielprobe fällt durch, wenn die jüngste Sicherung älter als 36 h ist (je Bereich einstellbar über max_backup_age)"
+breaking: false
