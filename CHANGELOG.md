@@ -1,5 +1,10 @@
 # Changelog
 
+## 12.6.1
+
+- **Fix**: Robot-Tests: `odoo robot list` und `odoo module list-robot-test-files` beachten jetzt den MANIFEST-Schlüssel `robotests`, genau wie `odoo robot run-all`. zCICD baut seine Robot-Testzeilen aus dieser Liste, dadurch tauchen dort vendorte Robot-Suites (z.B. die Selbsttests von robot_utils) nicht mehr auf, sobald ein Projekt `robotests` setzt. Ohne den Schlüssel ändert sich nichts. Prüfen: in einem Projekt mit `"robotests": ["addons/*/tests/robot/*.robot"]` `odoo robot list` aufrufen; zwischen den `!!!`-Zeilen stehen nur noch die passenden Dateien, in zCICD legt ein neuer Testlauf nur noch dafür Robot-Zeilen an.
+
+
 ## 12.6.0
 
 - **Feature**: pgbackrest verify: Rückspielprobe fällt durch, wenn die jüngste Sicherung älter als 36 h ist (je Bereich einstellbar über max_backup_age)
