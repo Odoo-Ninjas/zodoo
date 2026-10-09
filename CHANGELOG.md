@@ -1,5 +1,10 @@
 # Changelog
 
+## 12.7.0
+
+- **Feature**: DEVMODE: Die auf den lokalen Mailcatcher umgebogenen Mailserver (ausgehend und eingehend) heißen jetzt „Test-Mailserver (<alter Name>)“, damit auf einer Testkopie niemand mehr annimmt, der echte Mailserver sei aktiv. Übersetzbare Namen (jsonb) werden in jeder Sprache angepasst, ein erneutes turn-into-dev hängt das Präfix nicht doppelt an. Außerdem wird der SMTP-Server ab Odoo 13 jetzt auch dann umgebogen, wenn fetchmail nicht installiert ist. Prüfen: Prod-Dump mit DEVMODE=1 restoren oder `odoo dev-env turn-into-dev` ausführen, dann unter Einstellungen → Technisch → Ausgehende Mailserver bzw. Eingehende Mailserver nachsehen.
+
+
 ## 12.6.1
 
 - **Fix**: Robot-Tests: `odoo robot list` und `odoo module list-robot-test-files` beachten jetzt den MANIFEST-Schlüssel `robotests`, genau wie `odoo robot run-all`. zCICD baut seine Robot-Testzeilen aus dieser Liste, dadurch tauchen dort vendorte Robot-Suites (z.B. die Selbsttests von robot_utils) nicht mehr auf, sobald ein Projekt `robotests` setzt. Ohne den Schlüssel ändert sich nichts. Prüfen: in einem Projekt mit `"robotests": ["addons/*/tests/robot/*.robot"]` `odoo robot list` aufrufen; zwischen den `!!!`-Zeilen stehen nur noch die passenden Dateien, in zCICD legt ein neuer Testlauf nur noch dafür Robot-Zeilen an.
