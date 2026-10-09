@@ -537,7 +537,9 @@ Run Robot Framework tests. Requires devmode. Notable options: `--all`,
 
 ### `odoo robot list`
 
-List the available robot tests.
+List the project's robot suites - the same selection `odoo robot run-all`
+uses, so with `robotests` in the MANIFEST only the matching files. zCICD
+reads the same list through `odoo module list-robot-test-files`.
 
 ### `odoo robot run-all`
 
@@ -552,7 +554,8 @@ those glob patterns (relative to the project root) run; without the key every
 - `--retry`, `--timeout`: retries per file and wait timeout
 
 `odoo robot run <file>` still runs any single file, whether it matches
-`robotests` or not.
+`robotests` or not. `odoo robot list` and `odoo module list-robot-test-files`
+report the same selection as `run-all`.
 
 ### `odoo robot make-variable-file`
 

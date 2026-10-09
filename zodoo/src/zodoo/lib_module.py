@@ -1900,9 +1900,9 @@ def list_unit_test_files(config, manifest):
 @odoo_module.command()
 @pass_config
 def list_robot_test_files(config):
-    from .robo_helpers import _get_all_robottest_files
+    from .robo_helpers import _get_run_all_robottest_files
 
-    files = _get_all_robottest_files()
+    files = _get_run_all_robottest_files()
     click.secho("!!!")
     for file in files:
         click.secho(file)
