@@ -20,6 +20,7 @@ from zodoo import odoo_config
 from zodoo.odoo_config import customs_dir
 from zodoo.odoo_config import get_conn_autoclose
 from zodoo.odoo_config import current_version
+import role_pidfile
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -547,18 +548,18 @@ def kill_odoo():
         sane_tty()
         return
 
-    click.secho("Killing Odoo")
-    raw_pid = pidfile.read_text().strip()
-    try:
-        pid = int(raw_pid)
-    except ValueError:
-        # Stale / empty / half-written pidfile: nothing reliable to signal.
+    pid = role_pidfile.owned_pid(pidfile)
+    if pid is None:
+        # Stale / empty / half-written pidfile, or the pid now belongs to
+        # another process (see role_pidfile): nothing of ours to signal.
         try:
             pidfile.unlink()
         except FileNotFoundError:
             pass
         sane_tty()
         return
+
+    click.secho("Killing Odoo")
 
     base_cmd = (
         ["/usr/bin/sudo"]
@@ -673,8 +674,11 @@ def exec_odoo(
     wait_for_remote=False,
     enable_queuejobs=False,
     capture_output=None,
+    command=None,
     **kwargs,
 ):  # NOQA
+    # command: odoo-bin subcommand placed before the options, e.g.
+    # "neutralize" -> odoo-bin neutralize -c <config> -d <db> ...
     _t0_exec = time.monotonic()
 
     def _ts(label):
@@ -713,6 +717,8 @@ def exec_odoo(
     )
     if odoo_shell:
         cmd += ["shell"]
+    elif command:
+        cmd += [command]
     try:
         DBNAME = config["DBNAME"]
     except KeyError:
@@ -803,7 +809,7 @@ def exec_odoo(
     if not capture_output:
         proc.wait()
     if pidfile.exists():
-        pidfile.unlink()
+        role_pidfile.remove_unless_alive(pidfile)
     if on_done:
         on_done()
 

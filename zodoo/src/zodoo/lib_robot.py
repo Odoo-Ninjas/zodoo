@@ -823,21 +823,23 @@ def run_all(
     if list_only:
         return
 
+    failed_files = []
     for file in files:
         click.secho(f"Running robotest {file}")
 
+        succeeded = False
         for i in range(retry):
             click.secho(
                 f"Try #{i + 1} of {retry} for {file.parent}/{file.name}"
             )
             try:
-                res = ctx.invoke(
+                succeeded = ctx.invoke(
                     run,
                     file=str(file.relative_to(customsdir)),
                     timeout=timeout,
                     no_sysexit=True,
                 )
-                if res:
+                if succeeded:
                     break
             except Exception as ex:
                 retry += 1
@@ -846,6 +848,17 @@ def run_all(
                     fg="yellow",
                 )
                 time.sleep(random.randint(2, 8))
+        if not succeeded:
+            failed_files.append(file)
+
+    click.secho(
+        f"Failed: {len(failed_files)} of {len(files)}",
+        fg="red" if failed_files else "green",
+    )
+    for file in failed_files:
+        click.secho(f"  {file}", fg="red")
+    if failed_files:
+        sys.exit(-1)
 
 
 @robot.command()
@@ -947,9 +960,9 @@ def make_variable_file(ctx, config, userpassword=None):
 @pass_config
 @click.pass_context
 def do_list(ctx, config):
-    from .robo_helpers import _get_all_robottest_files
+    from .robo_helpers import _get_run_all_robottest_files
 
-    files = _get_all_robottest_files()
+    files = _get_run_all_robottest_files()
     click.secho("!!!")
     for file in files:
         click.secho(file)

@@ -2,6 +2,7 @@ import traceback
 import arrow
 import re
 import click
+from pathlib import Path
 from .tools import _execute_sql
 from .tools import table_exists
 from .cli import cli, pass_config, Commands
@@ -94,6 +95,23 @@ def turn_into_dev_(ctx, config):
     __turn_into_devdb(ctx, config, config.get_odoo_conn())
 
 
+@turn_into_dev.command(
+    name="neutralize",
+    help="Run Odoo's official `odoo-bin neutralize` on the project database "
+    "(Odoo >= 16): crons, mail servers, payment providers, IAP, webhooks, ... "
+    "of all installed modules. Passwords and mail settings stay untouched - "
+    "use turn-into-dev for a full dev copy.",
+)
+@pass_config
+def neutralize(config):
+    if not config.devmode and not config.force:
+        abort(
+            "Neutralizing makes the database unusable for production.\n"
+            "Set DEVMODE=1 or run with -f: odoo -f dev-env neutralize"
+        )
+    _run_odoo_neutralize(config, config.get_odoo_conn())
+
+
 def __collect_other_turndb2dev_sql():
     from .odoo_config import MANIFEST
     from .odoo_config import customs_dir
@@ -106,6 +124,13 @@ def __collect_other_turndb2dev_sql():
     for file in manifest.get("neutralize", []):
         if not file.endswith(".sql"):
             raise NotImplementedError(file.name)
+        if _run_by_odoo_neutralize(file):
+            click.secho(
+                f"Skipping {file} from MANIFEST 'neutralize': "
+                "odoo-bin neutralize already ran it.",
+                fg="yellow",
+            )
+            continue
         sqls.append({"file": cdir / file, "mode": "plain"})
 
     if dir.exists():
@@ -114,51 +139,88 @@ def __collect_other_turndb2dev_sql():
     return sqls
 
 
-def _get_installed_modules(conn):
-    # Same states as odoo.modules.neutralize.get_installed_modules
-    rows = _execute_sql(
-        conn,
-        "SELECT name FROM ir_module_module "
-        "WHERE state IN ('installed', 'to upgrade', 'to remove') "
-        "ORDER BY name",
-        fetchall=True,
-    )
-    return [row[0] for row in rows]
+ODOO_NEUTRALIZE_SCRIPT = "/odoolib/neutralize.py"
 
 
-def _collect_odoo_neutralize_sql(module_names, addons_paths):
-    """
-    Collects <module>/data/neutralize.sql of the given modules - the files
-    Odoo itself runs on `odoo-bin neutralize` (payment providers, IAP tokens,
-    webhooks, ...). Like Odoo, the first addons path containing the module
-    wins.
-    """
-    sqls = []
-    for name in module_names:
-        for addons_path in addons_paths:
-            module_dir = addons_path / name
-            if not module_dir.is_dir():
-                continue
-            file = module_dir / "data" / "neutralize.sql"
-            if file.exists():
-                sqls.append({"file": file, "mode": "plain"})
-            break
-    return sqls
-
-
-def _odoo_neutralize_sqls(conn):
+def _run_by_odoo_neutralize(file):
+    """A module's data/neutralize.sql is executed by `odoo-bin neutralize`
+    (Odoo >= 16) - listing it in the MANIFEST would run it twice."""
     from .odoo_config import current_version
-    from .module_tools import _get_addons_paths
 
-    # Odoo ships neutralize.sql files since 16.0
-    if current_version() < 16.0 or not table_exists(conn, "ir_module_module"):
-        return []
-    return _collect_odoo_neutralize_sql(
-        _get_installed_modules(conn), _get_addons_paths()
+    return current_version() >= 16.0 and Path(file).parts[-2:] == (
+        "data",
+        "neutralize.sql",
     )
 
 
-def __turn_into_devdb(ctx, config, conn):
+def _odoo_neutralize_cmd(config, dbname, db_host=None):
+    from .lib_standard_image import is_standard_image
+
+    if is_standard_image(config):
+        cmd = [
+            "odoo",
+            "odoo",
+            "neutralize",
+            "-c",
+            "/etc/odoo/odoo.conf",
+            "-d",
+            dbname,
+        ]
+        if db_host:
+            cmd += ["--db_host", db_host]
+        return cmd
+    # our image renders db_host/db_name from the DB_HOST/DBNAME env
+    return ["odoo", "/odoolib/entrypoint.sh", ODOO_NEUTRALIZE_SCRIPT]
+
+
+def _run_odoo_neutralize(config, conn, db_host=None):
+    """
+    Odoo's official neutralization (`odoo-bin neutralize -d <db>`, since
+    16.0): runs the data/neutralize.sql of every installed module - base
+    (crons, mail servers, webhooks), payment, iap, mail, calendars, zSYNC, ...
+    - and sets database.is_neutralized.
+
+    Runs in a one-off odoo container. During a restore the database is still
+    named <db>_restoring and lives on a helper postgres container, so dbname
+    and host are passed explicitly.
+    """
+    from .odoo_config import current_version
+    from .tools import __dcrun
+
+    if current_version() < 16.0:
+        click.secho(
+            "Odoo < 16.0 has no `odoo-bin neutralize` - skipped.", fg="yellow"
+        )
+        return
+    if not table_exists(conn, "ir_module_module"):
+        return
+
+    dbname = conn.dbname
+    click.secho(
+        f"Running Odoo's neutralization: odoo-bin neutralize -d {dbname}",
+        fg="green",
+    )
+    env = {"DBNAME": dbname}
+    if db_host:
+        env["DB_HOST"] = db_host
+    returncode, _ = __dcrun(
+        config,
+        _odoo_neutralize_cmd(config, dbname, db_host),
+        env=env,
+        returnproc=True,
+        write_to_console=True,
+    )
+    if returncode:
+        abort(
+            f"odoo-bin neutralize failed (exit code {returncode}) - "
+            f"the database {dbname} is NOT neutralized.\n"
+            f"If {ODOO_NEUTRALIZE_SCRIPT} is missing, the odoo image predates "
+            "this zodoo version: run `odoo reload && odoo build odoo` and "
+            "restore again."
+        )
+
+
+def __turn_into_devdb(ctx, config, conn, db_host=None):
     from .odoo_config import current_version
     from .myconfigparser import MyConfigParser
 
@@ -174,8 +236,8 @@ def __turn_into_devdb(ctx, config, conn):
     # Odoo's own neutralization runs first: it deactivates all mail servers
     # and adds an "invalid" dummy server, which turndb2dev.sql afterwards
     # points to the local test mail host.
-    sqls = _odoo_neutralize_sqls(conn)
-    sqls += [{"file": sql_file, "mode": "linebyline"}]
+    _run_odoo_neutralize(config, conn, db_host=db_host)
+    sqls = [{"file": sql_file, "mode": "linebyline"}]
 
     sqls += __collect_other_turndb2dev_sql()
 

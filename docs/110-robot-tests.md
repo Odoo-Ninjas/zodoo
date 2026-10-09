@@ -118,7 +118,7 @@ zCICD exposes the same view through its **Test TV** action on a branch.
 
 | Command                         | Purpose                                                                          |
 | ------------------------------- | -------------------------------------------------------------------------------- |
-| `odoo robot list`               | List the available robot tests                                                   |
+| `odoo robot list`               | List the project's suites (same selection as `run-all`)                          |
 | `odoo robot run-all`            | Run the project's suites; restricted to the MANIFEST `robotests` patterns if set |
 | `odoo robot cleanup`            | Clean up after runs                                                              |
 | `odoo robot make-variable-file` | Generate the `.robot-vars` variables file                                        |
@@ -137,7 +137,9 @@ MANIFEST to narrow it down:
 
 Patterns are globs relative to the project root (`**` works). Files below
 `keywords/` and `library/` are never treated as suites. Check the selection
-with `odoo robot run-all --list`.
+with `odoo robot run-all --list` or `odoo robot list`. zCICD collects its
+robot test lines through `odoo module list-robot-test-files`, which follows
+the same selection; its own regex filter applies on top.
 
 ## Working in VS Code
 

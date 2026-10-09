@@ -1,0 +1,1 @@
+`odoo robot run-all` endet jetzt mit Exit-Code 255, wenn eine Suite auch im letzten Versuch fehlschlägt – bisher war der Exit-Code immer 0. Am Ende steht eine Zusammenfassung `Failed: x of y` mit den betroffenen Dateien (#270).

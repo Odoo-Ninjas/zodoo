@@ -501,23 +501,45 @@ def _odoo_sh(ctx, config, filename, params):
             os.chdir(was_dir)
 
 
-def _after_restore(ctx, conn, config, no_dev_scripts, no_remove_webassets):
+def _after_restore(
+    ctx,
+    conn,
+    config,
+    no_dev_scripts,
+    no_remove_webassets,
+    neutralize=False,
+    db_host=None,
+):
     from .lib_turnintodev import __turn_into_devdb
+    from .lib_turnintodev import _run_odoo_neutralize
 
     if config.devmode and not no_dev_scripts:
-        __turn_into_devdb(ctx, config, conn)
+        # includes Odoo's own neutralization
+        __turn_into_devdb(ctx, config, conn, db_host=db_host)
         if not no_remove_webassets:
             remove_webassets(conn)
+    elif neutralize:
+        # staging copy: only Odoo's official neutralization, passwords and
+        # mail settings stay as they are
+        _run_odoo_neutralize(config, conn, db_host=db_host)
 
 
 @restore.command(
     name="odoo-db",
-    help="Restore the Odoo database. Shows interactive file picker if no filename given. In DEVMODE resets passwords and disables mail/cronjobs.",
+    help="Restore the Odoo database. Shows interactive file picker if no filename given. In DEVMODE neutralizes it (odoo-bin neutralize), resets passwords and disables mail/cronjobs.",
 )
 @click.argument(
     "filename", required=False, default="", shell_complete=_shell_complete_file
 )
 @click.option("--no-dev-scripts", default=False, is_flag=True)
+@click.option(
+    "--neutralize",
+    default=False,
+    is_flag=True,
+    help="Run Odoo's official `odoo-bin neutralize` on the restored "
+    "database also without DEVMODE (e.g. staging copies). With DEVMODE it "
+    "always runs as part of the dev scripts.",
+)
 @click.option("--no-remove-webassets", default=False, is_flag=True)
 @click.option("-j", "--workers", default=5)
 @click.option(
@@ -547,6 +569,7 @@ def restore_db(
     config,
     filename,
     no_dev_scripts,
+    neutralize,
     no_remove_webassets,
     verify,
     workers,
@@ -583,6 +606,7 @@ def restore_db(
 
     params = {
         "no_dev_scripts": no_dev_scripts,
+        "neutralize": neutralize,
         "no_remove_webassets": no_remove_webassets,
         "verify": verify,
         "workers": workers,
@@ -623,7 +647,14 @@ def restore_db(
 
         _restore_zodoo_bin(ctx, config, filename_absolute, verify)
         conn = config.get_odoo_conn()
-        _after_restore(ctx, conn, config, no_dev_scripts, no_remove_webassets)
+        _after_restore(
+            ctx,
+            conn,
+            config,
+            no_dev_scripts,
+            no_remove_webassets,
+            neutralize=neutralize,
+        )
 
     else:
         _restore_dump(
@@ -721,6 +752,7 @@ def _restore_dump(
     verify,
     ignore_errors,
     dbname,
+    neutralize=False,
 ):
     DBNAME_RESTORING = (dbname or config.dbname) + "_restoring"
     click.secho(
@@ -876,7 +908,21 @@ def _restore_dump(
             )
 
         _trace_dbs(conn, "after-pg_restore")
-        _after_restore(ctx, conn, config, no_dev_scripts, no_remove_webassets)
+        # The database still lives as <db>_restoring on the helper postgres
+        # container; a one-off odoo container has to be pointed there.
+        _after_restore(
+            ctx,
+            conn,
+            config,
+            no_dev_scripts,
+            no_remove_webassets,
+            neutralize=neutralize,
+            db_host=(
+                effective_host_name
+                if effective_host_name != config.DB_HOST
+                else None
+            ),
+        )
         _trace_dbs(conn, "after-dev-scripts before-rename")
         click.secho(
             f"TRACE RESTORE renaming {DBNAME_RESTORING} → "

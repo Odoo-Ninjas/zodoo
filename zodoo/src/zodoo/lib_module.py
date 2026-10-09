@@ -27,7 +27,6 @@ except ImportError:
 from .tools import __try_to_set_owner
 from .tools import atomic_write_text
 from .tools import _make_sure_module_is_installed
-from .tools import __assure_gitignore
 from .lib_command_log import logged_command
 from .tools import get_hash
 from .tools import get_directory_hash
@@ -1212,6 +1211,7 @@ def update(
             no_restart = True
 
         update_log_file = customs_dir() / "update.log"
+        _assure_update_log_ignored(customs_dir(), config.owner_uid)
         update_log_file.write_text("")
         if config.owner_uid:
             __try_to_set_owner(
@@ -1338,10 +1338,6 @@ def update(
         )
         if not no_progress:
             click.secho("Update-log here: ./update.log")
-            __assure_gitignore(
-                customs_dir() / ".gitignore",
-                update_log_file.relative_to(customs_dir()),
-            )
     except Exception:
         if safepoint_marker:
             from . import lib_pgbackrest
@@ -1352,6 +1348,22 @@ def update(
         raise
     finally:
         atomic_write_text(updateinprogress, "0")
+
+
+def _assure_update_log_ignored(project_dir, owner_uid=None):
+    """Keep update.log out of git before it is written for the first time.
+
+    Older zodoo versions appended ``update.log`` only after a successful
+    update, the project templates ship ``/update.log``; either one counts.
+    """
+    gitignore = Path(project_dir) / ".gitignore"
+    if gitignore.exists():
+        rules = [line.strip() for line in gitignore.read_text().splitlines()]
+        if "update.log" in rules or "/update.log" in rules:
+            return
+    from .lib_command_log import assure_gitignore_rule
+
+    assure_gitignore_rule(gitignore, "/update.log", owner_uid)
 
 
 def _execute_after_update_scripts(config):
@@ -1888,9 +1900,9 @@ def list_unit_test_files(config, manifest):
 @odoo_module.command()
 @pass_config
 def list_robot_test_files(config):
-    from .robo_helpers import _get_all_robottest_files
+    from .robo_helpers import _get_run_all_robottest_files
 
-    files = _get_all_robottest_files()
+    files = _get_run_all_robottest_files()
     click.secho("!!!")
     for file in files:
         click.secho(file)

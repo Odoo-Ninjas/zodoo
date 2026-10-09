@@ -1,5 +1,35 @@
 # Changelog
 
+## 12.6.0
+
+- **Feature**: pgbackrest verify: Rückspielprobe fällt durch, wenn die jüngste Sicherung älter als 36 h ist (je Bereich einstellbar über max_backup_age)
+
+
+## 12.5.2
+
+- **Fix**: `odoo robot run-all` exits non-zero when a suite fails on every retry and lists the failed suites at the end (#270)
+
+
+## 12.5.1
+
+- **Fix**: update.log vor dem ersten Schreiben ignorieren; neu angelegte .gitignore bei Root-Lauf gehört dem Projektbenutzer; .odoo-commands.log protokolliert den Shell-Exitcode (255 statt -1)
+
+
+## 12.5.0
+
+- **Feature**: Registry: Pushes gehen über eine eigene Adresse. Neue Einstellung ZODOO_REGISTRY_PUSH_URL; ohne Wert pusht zodoo bei registry.zebroo.de automatisch nach registry-push.zebroo.de (derselbe Speicher, verlangt aber immer den Login). Damit schlägt der Push mit dem klassischen Docker-Image-Store nicht mehr am Ende mit 401 fehl. Pulls bleiben auf ZODOO_REGISTRY_URL. Prüfen: auf einem Rechner ohne containerd-Image-Store mit Push-Account `odoo build` ausführen. In der Ausgabe muss `Pushing registry-push.zebroo.de/zodoo-...` stehen und der Push ohne 401 durchlaufen.
+
+
+## 12.4.0
+
+- **Feature**: Restore neutralisiert jetzt über Odoos offiziellen Weg `odoo-bin neutralize` statt über selbst eingesammelte neutralize.sql-Dateien – damit greifen auch Module mit eigenem Neutralize (z.B. zSYNC). Neu: `odoo restore odoo-db --neutralize` (auch ohne DEVMODE, z.B. für Staging) und `odoo dev-env neutralize`. Prüfen: Dump mit DEVMODE=1 restoren → in den Einstellungen erscheint das Neutralize-Banner, `database.is_neutralized` ist gesetzt, Crons aus (außer Autovacuum), Zahlungsanbieter deaktiviert, Login ohne 2FA, Mails im Mailcatcher. Bestehende Projekte brauchen einmal `odoo reload && odoo build odoo`.
+
+
+## 12.3.1
+
+- **Fix**: Supervisor roles no longer shoot each other down after a container restart. `kill_odoo()` only signals a pid from `/tmp/odoo.<role>.pid` if it is still the odoo-bin started with exactly that `--pidfile`; a pidfile left over from the previous run (/tmp survives `odoo restart`) used to hit a sibling role's process, which orphaned e.g. the queuejobs server and left the role respawning with "Address already in use". The wrapper also keeps the pidfile while its odoo-bin is still alive, so a later respawn can stop it. Roles spawned by the supervisor no longer re-render the shared config files (that is done once by the supervisor), which removes the sporadic `KeyError: 'options'` crash at startup.
+
+
 ## 12.3.0
 
 - **Feature**: DEVMODE-Restore neutralisiert die Datenbank jetzt zusätzlich mit Odoos eigenen neutralize.sql-Dateien (Stripe/Payment-Provider, IAP-Token, Webhooks usw.), entfernt TOTP-2FA und vergibt eine neue database.uuid. Prüfen: Prod-Dump mit DEVMODE=1 restoren, danach sind Zahlungsanbieter deaktiviert, IAP-Token enden auf +disabled, Login ohne 2FA möglich, Mails landen im Mailcatcher.

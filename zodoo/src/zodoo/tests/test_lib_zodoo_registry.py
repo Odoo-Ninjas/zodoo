@@ -281,3 +281,112 @@ class TestDefaultRegistryUsername:
         monkeypatch.setattr(mod.socket, "getfqdn", _explode)
 
         assert mod._default_registry_username() == "root"
+
+
+def _settings(values):
+    """A _read_user_setting stand-in backed by a dict."""
+    return lambda config, key: values.get(key, "")
+
+
+class TestPushUrl:
+    """Pushes go to a separate address. registry.zebroo.de answers /v2/
+    anonymously with 200, so the classic docker client pushes there without
+    credentials and fails at the manifest PUT; registry-push.zebroo.de is
+    the same storage but challenges every request."""
+
+    def test_default_registry_pushes_to_its_push_host(self):
+        assert (
+            mod.resolve_push_url("registry.zebroo.de")
+            == "registry-push.zebroo.de"
+        )
+
+    def test_other_registry_keeps_pushing_to_its_pull_address(self):
+        assert (
+            mod.resolve_push_url("registry.example.com/")
+            == "registry.example.com"
+        )
+
+    def test_explicit_push_url_wins(self):
+        assert (
+            mod.resolve_push_url("registry.zebroo.de", "push.internal:5001/")
+            == "push.internal:5001"
+        )
+
+    def test_scheme_is_rejected_with_the_right_setting_name(self):
+        with pytest.raises(mod.click.ClickException) as ex:
+            mod.resolve_push_url("registry.zebroo.de", "https://push.example")
+        assert "ZODOO_REGISTRY_PUSH_URL" in str(ex.value)
+
+    def test_reads_the_user_setting(self, monkeypatch, never_asks):
+        monkeypatch.setattr(
+            mod,
+            "_read_user_setting",
+            _settings({"ZODOO_REGISTRY_PUSH_URL": "push.internal"}),
+        )
+        config = _FakeConfig(ZODOO_REGISTRY_URL="registry.zebroo.de")
+
+        assert mod.get_push_registry_url(config) == "push.internal"
+
+    def test_pull_address_is_untouched(self, monkeypatch, never_asks):
+        monkeypatch.setattr(mod, "_read_user_setting", _settings({}))
+        config = _FakeConfig(ZODOO_REGISTRY_URL="registry.zebroo.de")
+
+        assert mod.get_registry_url(config) == "registry.zebroo.de"
+
+    def test_push_credentials_carry_the_push_address(
+        self, monkeypatch, never_asks
+    ):
+        """Every push path builds its image names from reg["url"]."""
+        monkeypatch.setattr(
+            mod,
+            "_read_user_setting",
+            _settings(
+                {
+                    "ZODOO_REGISTRY_SUGGESTED": "1",
+                    "ZODOO_REGISTRY_URL": "registry.zebroo.de",
+                    "ZODOO_REGISTRY_USERNAME": "u",
+                    "ZODOO_REGISTRY_PASSWORD": "p",
+                }
+            ),
+        )
+
+        reg = mod._get_push_credentials(_FakeConfig())
+
+        assert reg == {
+            "url": "registry-push.zebroo.de",
+            "username": "u",
+            "password": "p",
+        }
+
+    def test_upload_worker_logs_in_to_the_push_address(self, monkeypatch):
+        monkeypatch.setattr(mod, "_read_user_setting", _settings({}))
+        logins = []
+        monkeypatch.setattr(
+            mod,
+            "login_with_settings_credentials",
+            lambda config, url=None: logins.append(url),
+        )
+        monkeypatch.setattr(mod, "_docker_push_streaming", lambda img: (0, ""))
+        config = _FakeConfig(ZODOO_REGISTRY_URL="registry.zebroo.de")
+
+        mod.process_registry_upload_job(
+            config, {"images": ["registry-push.zebroo.de/zodoo-odoo:x"]}
+        )
+        mod.process_base_image_upload_job(
+            config, {"registry_image": "registry-push.zebroo.de/b:x"}
+        )
+
+        assert logins == ["registry-push.zebroo.de"] * 2
+
+    def test_best_effort_push_login_only_warns(self, monkeypatch):
+        monkeypatch.setattr(mod, "_read_user_setting", _settings({}))
+
+        def _fail(config, url=None):
+            raise mod.subprocess.CalledProcessError(1, ["docker", "login"])
+
+        monkeypatch.setattr(mod, "login_with_settings_credentials", _fail)
+        config = _FakeConfig(ZODOO_REGISTRY_URL="registry.zebroo.de")
+
+        mod.zodoo_registry_push_login(config, best_effort=True)
+        with pytest.raises(mod.subprocess.CalledProcessError):
+            mod.zodoo_registry_push_login(config)

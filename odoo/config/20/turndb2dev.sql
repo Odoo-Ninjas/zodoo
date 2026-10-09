@@ -1,5 +1,4 @@
 --set critical
-update ir_cron set active=false;
 delete from ir_config_parameter where key='webkit_path';
 
 /*if-table-exists ir_mail_server*/ update ir_mail_server set smtp_host='${TEST_MAIL_HOST}', smtp_user=null, smtp_pass=null, smtp_encryption='none', smtp_port=${TEST_MAIL_SMTP_PORT};

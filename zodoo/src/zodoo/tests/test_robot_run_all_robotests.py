@@ -98,8 +98,8 @@ def test_pattern_without_match_selects_nothing(project, monkeypatch):
 
 
 def test_other_callers_still_see_all_files(project, monkeypatch):
-    """`robot run <file>`, `robot list` and the shell completion keep
-    offering every robot file - running a single file stays possible."""
+    """`robot run <file>` and the shell completion keep offering every
+    robot file - running a single file stays possible."""
     _with_manifest(
         monkeypatch, {"robotests": ["addons/*/tests/robot/*.robot"]}
     )

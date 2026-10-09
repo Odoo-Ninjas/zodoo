@@ -197,40 +197,62 @@ Backup database + filestore in one archive.
 
 Restore the database. Shows an interactive file picker if no path is given.
 
-With `DEVMODE=1` the restored database is neutralized afterwards (skip with
-`--no-dev-scripts`): cronjobs off, mail servers pointed at the test mail
-container, all passwords reset to `DEFAULT_DEV_PASSWORD`. On Odoo 19 the
-Outlook calendar sync is cut as well - the users' Microsoft tokens are
-removed, the sync is marked as stopped for every user and the Microsoft
-client secrets (`microsoft_calendar_client_secret`,
-`microsoft_outlook_client_secret`) are deleted, so a dev copy cannot write
-into real calendars or send invitations. Project-specific scripts listed
-under `neutralize` in the [MANIFEST](080-manifest.md) run in the same step.
-The same is available on its own as `odoo dev-env turn-into-dev`.
+With `DEVMODE=1` the restored database is turned into a dev copy afterwards
+(skip with `--no-dev-scripts`). Without DEVMODE, `--neutralize` runs only
+Odoo's own neutralization, e.g. for a staging copy that keeps its passwords.
 
 ```bash
-odoo restore odoo-db                     # interactive picker
+odoo restore odoo-db                          # interactive picker
 odoo -f restore odoo-db /backups/mydb.zip
+odoo -f restore odoo-db --neutralize mydb.zip # staging, DEVMODE=0
 ```
 
-With `DEVMODE=1` the restored database is neutralized, so a copy of a
-production database cannot reach the outside world:
+A DEVMODE restore runs these steps on the restored database, before it gets
+its final name - a copy of a production database is never reachable
+un-neutralized:
 
-1. Odoo's own neutralization (Odoo 16 and newer): the `data/neutralize.sql`
-   file of every installed module runs, exactly what `odoo-bin neutralize`
-   does. Among others this disables payment providers (e.g. Stripe), IAP
-   tokens and webhooks, removes push notification keys and sets
-   `database.is_neutralized`. Custom modules that talk to external systems
-   should ship such a file as well.
-2. zodoo's `turndb2dev.sql`: all cronjobs off, outgoing and incoming mail
-   redirected to the local mail catcher (the mail servers are renamed to
-   "Test-Mailserver (<old name>)"), two-factor login (TOTP) removed and a
-   new `database.uuid` generated, so the copy is not mistaken for the
-   production database by Odoo's services.
-3. SQL files listed under `neutralize` in the [MANIFEST](./080-manifest.md)
-   and `devscripts/turn-into-dev.sql` of the project.
+1. **Odoo's official neutralization** (Odoo 16 and newer): zodoo runs
+   `odoo-bin neutralize -d <db>` in a one-off odoo container. Odoo executes
+   the `data/neutralize.sql` of every installed module - the same mechanism
+   as the database manager's "neutralize" - and sets
+   `database.is_neutralized`, so the web client shows the neutralization
+   banner. If it fails, the restore aborts.
+2. **zodoo's `turndb2dev.sql`**: only what Odoo does not cover (see table).
+3. **Project scripts**: SQL files listed under `neutralize` in the
+   [MANIFEST](./080-manifest.md) and `devscripts/turn-into-dev.sql`.
+4. Passwords of all users are reset to `DEFAULT_DEV_PASSWORD`, `web.base.url`
+   points to the local proxy.
 
-Run it again on an existing database with `odoo dev-env turn-into-dev`.
+| What                                              | Done by                                                                                                      |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Cronjobs off (except autovacuum)                  | Odoo (`base`)                                                                                                |
+| Mail servers off, dummy server added              | Odoo (`base`); zodoo points it to the local mail catcher                                                     |
+| Incoming mail (fetchmail) off                     | Odoo (`mail`); zodoo points it to the local mail catcher                                                     |
+| Mail and fetchmail servers renamed                | zodoo: `Test-Mailserver (<old name>)`, so a dev copy is recognizable at a glance                             |
+| Webhooks of server actions cut                    | Odoo (`base`)                                                                                                |
+| Payment providers disabled, Stripe keys removed   | Odoo (`payment`, `payment_stripe`, ...)                                                                      |
+| IAP tokens disabled (`+disabled`)                 | Odoo (`iap`)                                                                                                 |
+| Web push keys and devices removed                 | Odoo (`mail`)                                                                                                |
+| Google/Outlook calendar tokens, sync stopped      | Odoo (`google_calendar`, `microsoft_calendar`); zodoo additionally deletes the Microsoft client secrets (19) |
+| zSYNC: runs paused, channel host local, hooks off | zSYNC's own `neutralize.sql` (`zbsync`, `zbsync_trigger_methods`)                                            |
+| Two-factor login (TOTP) removed                   | zodoo                                                                                                        |
+| New `database.uuid`                               | zodoo - Odoo only does this when a database is duplicated or restored as a copy, not on neutralize           |
+| `database.enterprise_code` removed                | zodoo                                                                                                        |
+| Passwords reset, `web.base.url` local             | zodoo                                                                                                        |
+
+`--neutralize` without DEVMODE only runs step 1: TOTP, `database.uuid` and
+passwords stay as they are.
+
+Before Odoo 16 there is no `odoo-bin neutralize`; there `turndb2dev.sql`
+disables the cronjobs itself.
+
+Existing projects need `odoo reload && odoo build odoo` once, so the odoo
+image contains `/odoolib/neutralize.py`; otherwise the restore aborts with
+that hint.
+
+Run the steps again on an existing database with `odoo dev-env turn-into-dev`,
+or only Odoo's neutralization with `odoo dev-env neutralize` (requires
+`DEVMODE=1` or `-f`).
 
 ### `odoo restore files`
 
@@ -389,7 +411,8 @@ last updated or restarted, with which arguments, and did it work?".
 {"ts": "2026-10-05T15:32:32+02:00", "command": "update", "argv": ["update", "sale"], "project": "myproj", "in_container": false, "nested": false, "result": "ok", "exit_code": 0, "error_type": null, "duration_s": 84.3}
 ```
 
-- `result` is `ok`, `error` or `aborted` (Ctrl+C). On errors only the exception
+- `result` is `ok`, `error` or `aborted` (Ctrl+C); `exit_code` is the value
+  the shell sees (`$?`), e.g. `255` for `sys.exit(-1)`. On errors only the exception
   type is stored, not its message.
 - `nested` is `true` when another command triggered the run internally; `argv`
   then shows the command you typed.
@@ -515,7 +538,9 @@ Run Robot Framework tests. Requires devmode. Notable options: `--all`,
 
 ### `odoo robot list`
 
-List the available robot tests.
+List the project's robot suites - the same selection `odoo robot run-all`
+uses, so with `robotests` in the MANIFEST only the matching files. zCICD
+reads the same list through `odoo module list-robot-test-files`.
 
 ### `odoo robot run-all`
 
@@ -530,7 +555,8 @@ those glob patterns (relative to the project root) run; without the key every
 - `--retry`, `--timeout`: retries per file and wait timeout
 
 `odoo robot run <file>` still runs any single file, whether it matches
-`robotests` or not.
+`robotests` or not. `odoo robot list` and `odoo module list-robot-test-files`
+report the same selection as `run-all`.
 
 ### `odoo robot make-variable-file`
 
