@@ -506,6 +506,14 @@ answer different questions:
 | `verify` | brings a backup up as a real postgres and reads from it | a backup that cannot actually be restored |
 | `repo-verify` | reads the stored bytes without restoring | gaps in the WAL chain, damaged blocks in older backups |
 
+`verify` also fails when the newest backup is **too old** — by default more than
+36 hours after it finished. A backup that restores fine but is from the day
+before yesterday is exactly the failure nobody notices until it is needed. The
+check happens before the restore, so a stale backup costs no restore time. On
+the verify bench the limit can be set per area with `max_backup_age` (seconds)
+in `stanzas`, e.g. for an area that only backs up weekly. The proof file
+carries `backup_stop` and `backup_age`.
+
 Two traps in `repo-verify`, both learned the hard way:
 
 - **`pgbackrest verify` exits 0 even when it found problems.** The verdict is
