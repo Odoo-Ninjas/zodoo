@@ -1,0 +1,3 @@
+type: feature
+description: "DEVMODE: Die auf den lokalen Mailcatcher umgebogenen Mailserver (ausgehend und eingehend) heißen jetzt „Test-Mailserver (<alter Name>)“, damit auf einer Testkopie niemand mehr annimmt, der echte Mailserver sei aktiv. Übersetzbare Namen (jsonb) werden in jeder Sprache angepasst, ein erneutes turn-into-dev hängt das Präfix nicht doppelt an. Außerdem wird der SMTP-Server ab Odoo 13 jetzt auch dann umgebogen, wenn fetchmail nicht installiert ist. Prüfen: Prod-Dump mit DEVMODE=1 restoren oder `odoo dev-env turn-into-dev` ausführen, dann unter Einstellungen → Technisch → Ausgehende Mailserver bzw. Eingehende Mailserver nachsehen."
+breaking: false

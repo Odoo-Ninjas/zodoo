@@ -228,6 +228,7 @@ un-neutralized:
 | Cronjobs off (except autovacuum)                  | Odoo (`base`)                                                                                                |
 | Mail servers off, dummy server added              | Odoo (`base`); zodoo points it to the local mail catcher                                                     |
 | Incoming mail (fetchmail) off                     | Odoo (`mail`); zodoo points it to the local mail catcher                                                     |
+| Mail and fetchmail servers renamed                | zodoo: `Test-Mailserver (<old name>)`, so a dev copy is recognizable at a glance                             |
 | Webhooks of server actions cut                    | Odoo (`base`)                                                                                                |
 | Payment providers disabled, Stripe keys removed   | Odoo (`payment`, `payment_stripe`, ...)                                                                      |
 | IAP tokens disabled (`+disabled`)                 | Odoo (`iap`)                                                                                                 |

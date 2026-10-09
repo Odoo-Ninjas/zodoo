@@ -9,5 +9,8 @@ delete from ir_config_parameter where key = 'database.enterprise_code';
 
 --set not-critical
 
+/*if-table-exists ir_mail_server*/ update ir_mail_server set name = 'Test-Mailserver (' || name || ')' where name not like 'Test-Mailserver (%';
+/*if-table-exists fetchmail_server*/ update fetchmail_server set name = 'Test-Mailserver (' || name || ')' where name not like 'Test-Mailserver (%';
+
 /*if-table-exists caldav_cal*/ update caldav_cal set password = '1';
 /*if-table-exists delivery_carrier_file*/update delivery_carrier_file set export_path = '/opt/out_dir';
