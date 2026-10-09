@@ -1,5 +1,10 @@
 # Changelog
 
+## 12.6.0
+
+- **Feature**: pgbackrest verify: Rückspielprobe fällt durch, wenn die jüngste Sicherung älter als 36 h ist (je Bereich einstellbar über max_backup_age)
+
+
 ## 12.5.2
 
 - **Fix**: `odoo robot run-all` exits non-zero when a suite fails on every retry and lists the failed suites at the end (#270)
